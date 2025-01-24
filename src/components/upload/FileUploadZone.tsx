@@ -51,6 +51,9 @@ const FileUploadZone = ({
               <p className="mb-2 text-sm text-gray-500">
                 Arrastra y suelta archivos de video aquí o selecciona un archivo para subir.
               </p>
+              <p className="text-xs text-gray-500 mb-2">
+                Tamaño máximo permitido: 50MB
+              </p>
               <p className="text-xs text-gray-500 mb-4">
                 Archivos mayores a 25MB serán convertidos automáticamente a formato audio.
               </p>

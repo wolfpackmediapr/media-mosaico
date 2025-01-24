@@ -2,6 +2,8 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+
 const sanitizeFileName = (fileName: string) => {
   // Remove special characters and spaces, replace with underscores
   const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
@@ -19,6 +21,15 @@ export const useFileUpload = () => {
       toast({
         title: "Error",
         description: "Por favor, sube únicamente archivos de video.",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast({
+        title: "Archivo demasiado grande",
+        description: "El archivo excede el límite de 50MB. Por favor, reduce su tamaño antes de subirlo.",
         variant: "destructive",
       });
       return null;
@@ -83,7 +94,7 @@ export const useFileUpload = () => {
       setIsUploading(false);
       toast({
         title: "Error al subir el archivo",
-        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+        description: "El archivo es demasiado grande. El límite es 50MB.",
         variant: "destructive",
       });
       return null;
