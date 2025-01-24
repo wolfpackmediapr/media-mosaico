@@ -20,6 +20,7 @@ interface VideoPreviewProps {
   onTogglePlayback: () => void;
   onVolumeChange: (value: number[]) => void;
   onProcess: (file: UploadedFile) => void;
+  onTranscriptionComplete?: (text: string) => void;
 }
 
 const VideoPreview = ({
@@ -31,6 +32,7 @@ const VideoPreview = ({
   onTogglePlayback,
   onVolumeChange,
   onProcess,
+  onTranscriptionComplete,
 }: VideoPreviewProps) => {
   const videoRefs = useRef<{ [key: number]: HTMLVideoElement }>({});
 
@@ -68,18 +70,21 @@ const VideoPreview = ({
         formData.append('file', file);
         formData.append('userId', user.id);
 
-        const response = await supabase.functions.invoke('secure-transcribe', {
+        const { data, error } = await supabase.functions.invoke('secure-transcribe', {
           body: formData,
         });
 
-        if (response.error) {
-          throw new Error(response.error.message);
+        if (error) {
+          throw new Error(error.message);
         }
 
-        toast({
-          title: "Transcripción completada",
-          description: "El archivo ha sido procesado exitosamente",
-        });
+        if (data?.text) {
+          onTranscriptionComplete?.(data.text);
+          toast({
+            title: "Transcripción completada",
+            description: "El archivo ha sido procesado exitosamente",
+          });
+        }
       } else {
         // For larger files, use the existing process
         onProcess(file);

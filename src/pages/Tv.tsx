@@ -61,6 +61,10 @@ const Tv = () => {
     setIsPlaying(!isPlaying);
   };
 
+  const handleTranscriptionComplete = (text: string) => {
+    setTranscriptionText(text);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -90,6 +94,7 @@ const Tv = () => {
           onTogglePlayback={togglePlayback}
           onVolumeChange={setVolume}
           onProcess={processVideo}
+          onTranscriptionComplete={handleTranscriptionComplete}
         />
       </div>
 
