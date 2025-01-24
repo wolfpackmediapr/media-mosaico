@@ -29,7 +29,7 @@ serve(async (req) => {
 
     console.log('Attempting to download from media bucket:', videoPath)
 
-    // Download video from storage - note we're using 'media' bucket now
+    // Get file data from storage
     const { data: fileData, error: downloadError } = await supabase
       .storage
       .from('media')
@@ -44,7 +44,17 @@ serve(async (req) => {
       throw new Error('No file data received')
     }
 
-    console.log('File downloaded successfully, preparing for OpenAI')
+    console.log('File downloaded successfully, size:', fileData.size)
+
+    // Check if file is too large (25MB)
+    const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB in bytes
+    if (fileData.size > MAX_FILE_SIZE) {
+      // If file is too large, we should convert it to audio first
+      console.log('File is too large, needs conversion')
+      throw new Error('File is too large. Please wait for automatic conversion to complete.')
+    }
+
+    console.log('Preparing file for OpenAI transcription')
 
     // Convert to form data for OpenAI
     const formData = new FormData()
@@ -70,6 +80,20 @@ serve(async (req) => {
 
     const result = await response.json()
     console.log('Transcription completed successfully')
+
+    // Update transcription record with the result
+    const { error: updateError } = await supabase
+      .from('transcriptions')
+      .update({ 
+        transcription_text: result.text,
+        status: 'completed'
+      })
+      .eq('original_file_path', videoPath)
+
+    if (updateError) {
+      console.error('Error updating transcription record:', updateError)
+      throw new Error(`Error updating transcription: ${updateError.message}`)
+    }
 
     return new Response(
       JSON.stringify({ text: result.text }),
