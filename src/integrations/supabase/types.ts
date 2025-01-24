@@ -44,6 +44,7 @@ export type Database = {
           keywords: string[] | null
           original_file_path: string
           program: string | null
+          progress: number | null
           relevant_clients: string[] | null
           status: string
           summary: string | null
@@ -61,6 +62,7 @@ export type Database = {
           keywords?: string[] | null
           original_file_path: string
           program?: string | null
+          progress?: number | null
           relevant_clients?: string[] | null
           status?: string
           summary?: string | null
@@ -78,6 +80,7 @@ export type Database = {
           keywords?: string[] | null
           original_file_path?: string
           program?: string | null
+          progress?: number | null
           relevant_clients?: string[] | null
           status?: string
           summary?: string | null
