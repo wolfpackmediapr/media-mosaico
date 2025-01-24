@@ -20,12 +20,8 @@ export const useVideoProcessor = () => {
     setIsProcessing(true);
     setProgress(0);
 
-    toast({
-      title: "Procesando archivo",
-      description: "Transcribiendo archivo... Esto puede tardar unos momentos dependiendo del tamaño del archivo.",
-    });
-
     try {
+      // First, find the transcription record by file name
       const { data: transcriptionData, error: transcriptionError } = await supabase
         .from('transcriptions')
         .select('*')
@@ -35,29 +31,50 @@ export const useVideoProcessor = () => {
       if (transcriptionError) throw transcriptionError;
 
       if (!transcriptionData) {
-        throw new Error('No se encontró la transcripción para este archivo');
-      }
+        // If no transcription exists, start the transcription process
+        setProgress(10);
+        
+        const { data: transcriptionResult, error: processError } = await supabase.functions
+          .invoke('transcribe-video', {
+            body: { videoPath: file.name }
+          });
 
-      setTranscriptionMetadata({
-        channel: transcriptionData.channel,
-        program: transcriptionData.program,
-        category: transcriptionData.category,
-        broadcastTime: transcriptionData.broadcast_time,
-        keywords: transcriptionData.keywords,
-      });
+        if (processError) throw processError;
 
-      // Simulate processing progress (will be replaced with actual processing)
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setIsProcessing(false);
-            setTranscriptionText("Esta es una transcripción de ejemplo del video procesado...");
-            return 100;
-          }
-          return prev + 10;
+        setProgress(50);
+
+        if (transcriptionResult?.text) {
+          // Update the transcription record with the result
+          const { error: updateError } = await supabase
+            .from('transcriptions')
+            .update({ 
+              transcription_text: transcriptionResult.text,
+              status: 'completed'
+            })
+            .eq('original_file_path', file.name);
+
+          if (updateError) throw updateError;
+
+          setTranscriptionText(transcriptionResult.text);
+          setProgress(100);
+          
+          toast({
+            title: "Transcripción completada",
+            description: "El video ha sido transcrito exitosamente.",
+          });
+        }
+      } else {
+        // If transcription exists, load it
+        setTranscriptionText(transcriptionData.transcription_text || "");
+        setTranscriptionMetadata({
+          channel: transcriptionData.channel,
+          program: transcriptionData.program,
+          category: transcriptionData.category,
+          broadcastTime: transcriptionData.broadcast_time,
+          keywords: transcriptionData.keywords,
         });
-      }, 500);
+        setProgress(100);
+      }
     } catch (error) {
       console.error('Error processing file:', error);
       toast({
@@ -65,6 +82,7 @@ export const useVideoProcessor = () => {
         description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
         variant: "destructive",
       });
+    } finally {
       setIsProcessing(false);
     }
   };

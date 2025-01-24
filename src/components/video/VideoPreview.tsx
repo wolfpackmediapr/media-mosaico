@@ -1,4 +1,4 @@
-import { Play, Pause, Volume2, FileVideo, Mail } from "lucide-react";
+import { Play, Pause, Volume2, FileVideo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -33,7 +33,6 @@ const VideoPreview = ({
   const videoRefs = useRef<{ [key: number]: HTMLVideoElement }>({});
 
   useEffect(() => {
-    // Update video playback state when isPlaying changes
     Object.values(videoRefs.current).forEach(videoElement => {
       if (isPlaying) {
         videoElement.play();
@@ -44,7 +43,6 @@ const VideoPreview = ({
   }, [isPlaying]);
 
   useEffect(() => {
-    // Update video volume when volume changes
     Object.values(videoRefs.current).forEach(videoElement => {
       videoElement.volume = volume[0] / 100;
     });
@@ -100,20 +98,22 @@ const VideoPreview = ({
                     <Slider value={volume} onValueChange={onVolumeChange} max={100} step={1} />
                   </div>
 
-                  {isProcessing && <Progress value={progress} className="w-full" />}
+                  {isProcessing && (
+                    <div className="space-y-2">
+                      <Progress value={progress} className="w-full" />
+                      <p className="text-xs text-center text-gray-500">
+                        {progress === 100 ? 'Procesamiento completado' : `Procesando: ${progress}%`}
+                      </p>
+                    </div>
+                  )}
 
-                  <div className="flex justify-between gap-2">
-                    <Button
-                      className="flex-1"
-                      onClick={() => onProcess(file)}
-                      disabled={isProcessing}
-                    >
-                      Procesar Transcripción
-                    </Button>
-                    <Button size="icon" variant="outline">
-                      <Mail className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={() => onProcess(file)}
+                    disabled={isProcessing}
+                  >
+                    {isProcessing ? 'Procesando...' : 'Procesar Transcripción'}
+                  </Button>
                 </div>
               </div>
             ))
