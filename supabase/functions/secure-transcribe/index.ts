@@ -17,7 +17,7 @@ serve(async (req) => {
     const file = formData.get('file')
     const userId = formData.get('userId')
 
-    if (!file) {
+    if (!file || !(file instanceof File)) {
       throw new Error('No file provided')
     }
 
@@ -25,15 +25,11 @@ serve(async (req) => {
       throw new Error('No user ID provided')
     }
 
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    console.log('Processing file:', file.name, 'type:', file.type)
 
     // Prepare form data for OpenAI
     const whisperFormData = new FormData()
-    whisperFormData.append('file', file)
+    whisperFormData.append('file', file, file.name)
     whisperFormData.append('model', 'whisper-1')
     whisperFormData.append('response_format', 'verbose_json')
     whisperFormData.append('language', 'es')
@@ -56,6 +52,12 @@ serve(async (req) => {
     const result = await whisperResponse.json()
     console.log('Transcription completed successfully')
 
+    // Initialize Supabase client
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
     // Save transcription to database
     const { error: dbError } = await supabase
       .from('transcriptions')
@@ -63,7 +65,7 @@ serve(async (req) => {
         user_id: userId,
         transcription_text: result.text,
         status: 'completed',
-        original_file_path: file.name // Add the file name
+        original_file_path: file.name
       })
 
     if (dbError) {
