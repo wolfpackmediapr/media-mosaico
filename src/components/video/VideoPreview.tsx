@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
+import { useRef, useEffect } from "react";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -29,6 +30,26 @@ const VideoPreview = ({
   onVolumeChange,
   onProcess,
 }: VideoPreviewProps) => {
+  const videoRefs = useRef<{ [key: number]: HTMLVideoElement }>({});
+
+  useEffect(() => {
+    // Update video playback state when isPlaying changes
+    Object.values(videoRefs.current).forEach(videoElement => {
+      if (isPlaying) {
+        videoElement.play();
+      } else {
+        videoElement.pause();
+      }
+    });
+  }, [isPlaying]);
+
+  useEffect(() => {
+    // Update video volume when volume changes
+    Object.values(videoRefs.current).forEach(videoElement => {
+      videoElement.volume = volume[0] / 100;
+    });
+  }, [volume]);
+
   return (
     <Card>
       <CardHeader>
@@ -58,12 +79,19 @@ const VideoPreview = ({
                 </div>
 
                 {file.preview && (
-                  <video
-                    className="w-full rounded-lg"
-                    src={file.preview}
-                    controls={false}
-                    poster={file.preview}
-                  />
+                  <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                    <video
+                      ref={el => {
+                        if (el) videoRefs.current[index] = el;
+                      }}
+                      className="w-full h-full object-contain"
+                      src={file.preview}
+                      controls={false}
+                      loop
+                      playsInline
+                      onClick={onTogglePlayback}
+                    />
+                  </div>
                 )}
 
                 <div className="space-y-2">
