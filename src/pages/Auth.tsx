@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { Provider } from "@supabase/supabase-js";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -55,7 +56,7 @@ const Auth = () => {
     }
   };
 
-  const handleOAuthLogin = async (provider: "google" | "microsoft") => {
+  const handleOAuthLogin = async (provider: Provider) => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -135,14 +136,14 @@ const Auth = () => {
               <Button
                 variant="outline"
                 type="button"
-                onClick={() => handleOAuthLogin("google")}
+                onClick={() => handleOAuthLogin("google" as Provider)}
               >
                 Google
               </Button>
               <Button
                 variant="outline"
                 type="button"
-                onClick={() => handleOAuthLogin("microsoft")}
+                onClick={() => handleOAuthLogin("microsoft" as Provider)}
               >
                 Microsoft
               </Button>
