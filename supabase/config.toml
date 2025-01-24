@@ -1,1 +1,4 @@
 project_id = "qpozetnbnzdinqkrafze"
+
+[functions.convert-video]
+verify_jwt = true
