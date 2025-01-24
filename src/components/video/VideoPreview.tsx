@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 import { useRef, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -47,6 +49,50 @@ const VideoPreview = ({
       videoElement.volume = volume[0] / 100;
     });
   }, [volume]);
+
+  const handleProcess = async (file: UploadedFile) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "Debes iniciar sesión para procesar transcripciones",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (file.size <= 25 * 1024 * 1024) {
+        // For files under 25MB, use direct transcription
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('userId', user.id);
+
+        const response = await supabase.functions.invoke('secure-transcribe', {
+          body: formData,
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message);
+        }
+
+        toast({
+          title: "Transcripción completada",
+          description: "El archivo ha sido procesado exitosamente",
+        });
+      } else {
+        // For larger files, use the existing process
+        onProcess(file);
+      }
+    } catch (error) {
+      console.error('Error processing file:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <Card>
@@ -109,7 +155,7 @@ const VideoPreview = ({
 
                   <Button
                     className="w-full"
-                    onClick={() => onProcess(file)}
+                    onClick={() => handleProcess(file)}
                     disabled={isProcessing}
                   >
                     {isProcessing ? 'Procesando...' : 'Procesar Transcripción'}
