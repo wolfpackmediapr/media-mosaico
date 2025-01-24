@@ -55,7 +55,6 @@ const Tv = () => {
   };
 
   const validateAndUploadFile = async (file: File) => {
-    // Check if file is a video
     if (!file.type.startsWith("video/")) {
       toast({
         title: "Error",
@@ -65,7 +64,6 @@ const Tv = () => {
       return false;
     }
 
-    // Check if file size exceeds Supabase's limit
     if (file.size > SUPABASE_SIZE_LIMIT) {
       toast({
         title: "Error",
@@ -92,25 +90,31 @@ const Tv = () => {
       setIsUploading(true);
       setUploadProgress(0);
 
-      // Show upload progress toast with progress bar
-      const progressToast = toast({
+      // Create a progress toast that we'll update
+      const progressToastId = toast({
+        id: "upload-progress",
         title: "Subiendo archivo",
         description: (
           <div className="w-full">
-            <Progress value={uploadProgress} className="w-full h-2" />
-            <p className="mt-2">Subiendo... {uploadProgress.toFixed(0)}%</p>
+            <Progress value={0} className="w-full h-2" />
+            <p className="mt-2">Iniciando subida...</p>
           </div>
         ),
-      });
+      }).id;
 
       const { error: uploadError } = await supabase.storage
         .from('media')
         .upload(fileName, file, {
-          onUploadProgress: (progress) => {
+          cacheControl: '3600',
+          upsert: false,
+        }, {
+          progress: (progress) => {
             const percent = (progress.loaded / progress.total) * 100;
             setUploadProgress(percent);
             // Update toast with new progress
-            progressToast.update({
+            toast({
+              id: progressToastId,
+              title: "Subiendo archivo",
               description: (
                 <div className="w-full">
                   <Progress value={percent} className="w-full h-2" />
@@ -141,7 +145,6 @@ const Tv = () => {
       setIsUploading(false);
       setUploadProgress(100);
 
-      // Show success toast
       toast({
         title: "Archivo subido exitosamente",
         description: file.size > MAX_FILE_SIZE 
@@ -149,19 +152,9 @@ const Tv = () => {
           : "Listo para procesar la transcripción.",
       });
 
-      if (file.size > MAX_FILE_SIZE) {
-        const { data: conversionData, error: conversionError } = await supabase.functions
-          .invoke('convert-video', {
-            body: { videoPath: fileName }
-          });
-
-        if (conversionError) throw conversionError;
-
-        toast({
-          title: "Conversión exitosa",
-          description: "El archivo ha sido convertido a audio. Listo para transcripción.",
-        });
-      }
+      // Create preview URL for the video
+      const preview = URL.createObjectURL(file);
+      setUploadedFiles(prev => [...prev, Object.assign(file, { preview })]);
 
       return true;
     } catch (error) {
