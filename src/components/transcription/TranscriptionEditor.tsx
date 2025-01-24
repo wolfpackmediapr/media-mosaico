@@ -29,29 +29,20 @@ const TranscriptionEditor = ({
     
     setIsSaving(true);
     try {
-      const { data: transcriptions } = await supabase
+      const { error } = await supabase
         .from('transcriptions')
-        .select('id')
-        .eq('transcription_text', transcriptionText)
-        .single();
+        .update({ transcription_text: newText })
+        .eq('transcription_text', transcriptionText);
 
-      if (transcriptions) {
-        const { error } = await supabase
-          .from('transcriptions')
-          .update({ transcription_text: newText })
-          .eq('id', transcriptions.id);
+      if (error) throw error;
 
-        if (error) throw error;
-
-        setTimeout(() => setIsSaving(false), 1000);
-        
-        toast({
-          title: "Guardado automático",
-          description: "La transcripción se ha guardado correctamente",
-        });
-      }
+      setTimeout(() => setIsSaving(false), 1000);
+      
+      toast({
+        title: "Guardado automático",
+        description: "La transcripción se ha guardado correctamente",
+      });
     } catch (error) {
-      console.error('Error saving transcription:', error);
       toast({
         title: "Error al guardar",
         description: "No se pudo guardar la transcripción",

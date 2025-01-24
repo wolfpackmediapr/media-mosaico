@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -15,43 +15,6 @@ export const useVideoProcessor = () => {
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
-  const [currentTranscriptionId, setCurrentTranscriptionId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!currentTranscriptionId) return;
-
-    const channel = supabase
-      .channel('transcription-progress')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'transcriptions',
-          filter: `id=eq.${currentTranscriptionId}`,
-        },
-        (payload) => {
-          console.log('Received progress update:', payload);
-          if (payload.new.progress !== undefined) {
-            setProgress(payload.new.progress);
-          }
-          if (payload.new.status === 'completed') {
-            setIsProcessing(false);
-            setProgress(100);
-            setTranscriptionText(payload.new.transcription_text || "");
-            toast({
-              title: "Procesamiento completado",
-              description: "El archivo ha sido procesado exitosamente.",
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentTranscriptionId]);
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);
@@ -59,76 +22,74 @@ export const useVideoProcessor = () => {
     console.log("Starting video processing for file:", file.name);
 
     try {
+      // First check authentication
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) throw new Error('Authentication required');
       if (!user) throw new Error('Please log in to process videos');
 
-      // Create initial transcription record
-      const { data: transcription, error: insertError } = await supabase
-        .from('transcriptions')
-        .insert({
-          user_id: user.id,
-          original_file_path: file.name,
-          status: 'pending',
-          progress: 0
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-      
-      setCurrentTranscriptionId(transcription.id);
+      setProgress(10);
 
       // For files larger than 25MB, convert to audio first
       if (file.size > 25 * 1024 * 1024) {
         console.log("File is larger than 25MB, converting to audio first");
+        setProgress(20);
 
         const { data: conversionData, error: conversionError } = await supabase.functions
           .invoke('convert-to-audio', {
-            body: { videoPath: file.name, transcriptionId: transcription.id }
+            body: { videoPath: file.name }
           });
 
         if (conversionError) throw conversionError;
         console.log("Conversion response:", conversionData);
 
+        setProgress(50);
+
         // Process the converted audio file
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
-            body: { videoPath: conversionData.audioPath, transcriptionId: transcription.id }
+            body: { videoPath: conversionData.audioPath }
           });
 
         if (processError) throw processError;
+        setProgress(90);
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          setProgress(100);
+          
+          toast({
+            title: "Transcripción completada",
+            description: "El video ha sido transcrito exitosamente.",
+          });
         }
       } else {
         // For smaller files, process directly
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('userId', user.id);
-        formData.append('transcriptionId', transcription.id);
-
         const { data: transcriptionResult, error: processError } = await supabase.functions
-          .invoke('secure-transcribe', {
-            body: formData,
+          .invoke('transcribe-video', {
+            body: { videoPath: file.name }
           });
 
         if (processError) throw processError;
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          setProgress(100);
+          
+          toast({
+            title: "Transcripción completada",
+            description: "El video ha sido transcrito exitosamente.",
+          });
         }
       }
-
     } catch (error: any) {
       console.error('Error processing file:', error);
-      setIsProcessing(false);
       toast({
         title: "Error al procesar",
         description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
         variant: "destructive",
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 

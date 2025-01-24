@@ -66,7 +66,31 @@ const VideoPreview = ({
         return;
       }
 
-      onProcess(file);
+      if (file.size <= 25 * 1024 * 1024) {
+        // For files under 25MB, use direct transcription
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('userId', user.id);
+
+        const { data, error } = await supabase.functions.invoke('secure-transcribe', {
+          body: formData,
+        });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        if (data?.text) {
+          onTranscriptionComplete?.(data.text);
+          toast({
+            title: "Transcripción completada",
+            description: "El archivo ha sido procesado exitosamente",
+          });
+        }
+      } else {
+        // For larger files, use the existing process
+        onProcess(file);
+      }
     } catch (error) {
       console.error('Error processing file:', error);
       toast({
