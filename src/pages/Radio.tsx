@@ -5,6 +5,7 @@ import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect } from "react";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -25,6 +26,17 @@ const Radio = () => {
     processVideo,
     setTranscriptionText,
   } = useVideoProcessor();
+
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "//embed.typeform.com/next/embed.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -165,12 +177,21 @@ const Radio = () => {
           )}
         </div>
 
-        <TranscriptionSlot
-          isProcessing={isProcessing}
-          transcriptionText={transcriptionText}
-          metadata={transcriptionMetadata}
-          onTranscriptionChange={setTranscriptionText}
-        />
+        <div className="space-y-6">
+          <TranscriptionSlot
+            isProcessing={isProcessing}
+            transcriptionText={transcriptionText}
+            metadata={transcriptionMetadata}
+            onTranscriptionChange={setTranscriptionText}
+          />
+
+          <Card className="p-4">
+            <div 
+              data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG"
+              className="w-full min-h-[500px]"
+            />
+          </Card>
+        </div>
       </div>
     </div>
   );
