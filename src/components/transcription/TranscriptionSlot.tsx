@@ -15,6 +15,7 @@ interface TranscriptionSlotProps {
     keywords?: string[];
   };
   onTranscriptionChange: (text: string) => void;
+  formId?: string;
 }
 
 const TranscriptionSlot = ({
@@ -22,6 +23,7 @@ const TranscriptionSlot = ({
   transcriptionText,
   metadata,
   onTranscriptionChange,
+  formId,
 }: TranscriptionSlotProps) => {
   useEffect(() => {
     const script = document.createElement("script");
@@ -52,12 +54,14 @@ const TranscriptionSlot = ({
         </CardContent>
       </Card>
       
-      <Card className="p-4">
-        <div 
-          data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG"
-          className="w-full min-h-[500px]"
-        />
-      </Card>
+      {formId && (
+        <Card className="p-4">
+          <div 
+            data-tf-live={formId}
+            className="w-full min-h-[500px]"
+          />
+        </Card>
+      )}
     </div>
   );
 };
