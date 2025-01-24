@@ -108,7 +108,6 @@ const Tv = () => {
         transcriptionText={transcriptionText}
         metadata={transcriptionMetadata}
         onTranscriptionChange={setTranscriptionText}
-        formId="01JEWEP95CN5YH8JCET8GEXRSK"
       />
     </div>
   );

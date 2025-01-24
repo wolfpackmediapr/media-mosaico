@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB in bytes
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
 
 const sanitizeFileName = (fileName: string) => {
   // Remove special characters and spaces, replace with underscores
@@ -17,11 +17,10 @@ export const useFileUpload = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const uploadFile = async (file: File) => {
-    const validTypes = ['audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/mp3'];
-    if (!validTypes.includes(file.type)) {
+    if (!file.type.startsWith("video/")) {
       toast({
         title: "Error",
-        description: "Por favor, sube únicamente archivos de audio (MP3, WAV, M4A).",
+        description: "Por favor, sube únicamente archivos de video.",
         variant: "destructive",
       });
       return null;
@@ -30,7 +29,7 @@ export const useFileUpload = () => {
     if (file.size > MAX_FILE_SIZE) {
       toast({
         title: "Archivo demasiado grande",
-        description: "El archivo excede el límite de 25MB",
+        description: "El archivo excede el límite de 50MB. Por favor, reduce su tamaño antes de subirlo.",
         variant: "destructive",
       });
       return null;
@@ -69,8 +68,8 @@ export const useFileUpload = () => {
         .insert({
           user_id: user.id,
           original_file_path: fileName,
-          status: 'pending',
-          channel: 'Radio Example',
+          status: file.size > 25 * 1024 * 1024 ? 'needs_conversion' : 'pending',
+          channel: 'Canal Example',
           program: 'Programa Example',
           category: 'Noticias',
           broadcast_time: new Date().toISOString(),
@@ -84,7 +83,9 @@ export const useFileUpload = () => {
 
       toast({
         title: "Archivo subido exitosamente",
-        description: "Listo para procesar la transcripción.",
+        description: file.size > 25 * 1024 * 1024 
+          ? "El archivo será convertido a audio automáticamente."
+          : "Listo para procesar la transcripción.",
       });
 
       return { fileName, preview: URL.createObjectURL(file) };
@@ -93,7 +94,7 @@ export const useFileUpload = () => {
       setIsUploading(false);
       toast({
         title: "Error al subir el archivo",
-        description: "No se pudo subir el archivo. Por favor, intenta nuevamente.",
+        description: "El archivo es demasiado grande. El límite es 50MB.",
         variant: "destructive",
       });
       return null;
