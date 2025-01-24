@@ -59,7 +59,7 @@ const Tv = () => {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">BOT TV</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">TV</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-2">
           Monitoreo y análisis de contenido televisivo
         </p>
