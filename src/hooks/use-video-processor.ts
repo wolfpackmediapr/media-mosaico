@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -16,6 +16,39 @@ export const useVideoProcessor = () => {
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
 
+  useEffect(() => {
+    // Set up real-time subscription for progress updates
+    const channel = supabase
+      .channel('transcription-progress')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'transcriptions',
+        },
+        (payload) => {
+          console.log('Received progress update:', payload);
+          if (payload.new.progress !== undefined) {
+            setProgress(payload.new.progress);
+          }
+          if (payload.new.status === 'completed') {
+            setIsProcessing(false);
+            setProgress(100);
+            toast({
+              title: "Procesamiento completado",
+              description: "El archivo ha sido procesado exitosamente.",
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const processVideo = async (file: File) => {
     setIsProcessing(true);
     setProgress(0);
@@ -27,28 +60,17 @@ export const useVideoProcessor = () => {
       if (authError) throw new Error('Authentication required');
       if (!user) throw new Error('Please log in to process videos');
 
-      // Set up real-time subscription for progress updates
-      const subscription = supabase
-        .channel('transcription-progress')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'transcriptions',
-            filter: `original_file_path=eq.${file.name}`,
-          },
-          (payload) => {
-            if (payload.new.progress) {
-              setProgress(payload.new.progress);
-            }
-            if (payload.new.status === 'completed') {
-              setIsProcessing(false);
-              setProgress(100);
-            }
-          }
-        )
-        .subscribe();
+      // Create initial transcription record
+      const { error: insertError } = await supabase
+        .from('transcriptions')
+        .insert({
+          user_id: user.id,
+          original_file_path: file.name,
+          status: 'pending',
+          progress: 0
+        });
+
+      if (insertError) throw insertError;
 
       // For files larger than 25MB, convert to audio first
       if (file.size > 25 * 1024 * 1024) {
@@ -72,11 +94,6 @@ export const useVideoProcessor = () => {
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
-          
-          toast({
-            title: "Transcripción completada",
-            description: "El video ha sido transcrito exitosamente.",
-          });
         }
       } else {
         // For smaller files, process directly
@@ -93,16 +110,8 @@ export const useVideoProcessor = () => {
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
-          
-          toast({
-            title: "Transcripción completada",
-            description: "El video ha sido transcrito exitosamente.",
-          });
         }
       }
-
-      // Clean up subscription
-      subscription.unsubscribe();
 
     } catch (error: any) {
       console.error('Error processing file:', error);
