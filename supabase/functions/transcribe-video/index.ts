@@ -36,12 +36,13 @@ serve(async (req) => {
       .download(videoPath)
 
     if (downloadError) {
-      console.error('Download error:', downloadError)
-      throw new Error(`Error downloading video: ${downloadError.message}`)
+      console.error('Download error details:', downloadError)
+      throw new Error(`Error downloading video: ${JSON.stringify(downloadError)}`)
     }
 
     if (!fileData) {
-      throw new Error('No file data received')
+      console.error('No file data received')
+      throw new Error('No file data received from storage')
     }
 
     console.log('File downloaded successfully, size:', fileData.size)
@@ -49,7 +50,6 @@ serve(async (req) => {
     // Check if file is too large (25MB)
     const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB in bytes
     if (fileData.size > MAX_FILE_SIZE) {
-      // If file is too large, we should convert it to audio first
       console.log('File is too large, needs conversion')
       throw new Error('File is too large. Please wait for automatic conversion to complete.')
     }
