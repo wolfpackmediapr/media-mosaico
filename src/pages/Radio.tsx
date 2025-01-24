@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
@@ -22,6 +22,18 @@ const Radio = () => {
     processVideo,
     setTranscriptionText,
   } = useVideoProcessor();
+
+  useEffect(() => {
+    // Load Typeform embed script
+    const script = document.createElement('script');
+    script.src = "//embed.typeform.com/next/embed.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -106,6 +118,18 @@ const Radio = () => {
                   ))}
                 </ul>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Alerta Radio</CardTitle>
+              <CardDescription>
+                Formulario para alertas de radio
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG"></div>
             </CardContent>
           </Card>
         </div>
