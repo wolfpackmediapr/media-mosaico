@@ -7,30 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-async function downloadVideo(videoPath: string, supabase: any) {
-  console.log('Attempting to download video:', videoPath);
-  
-  const { data, error } = await supabase.storage
-    .from('media')
-    .createSignedUrl(videoPath, 60);
-    
-  if (error) {
-    console.error('Signed URL generation error:', error);
-    throw new Error(`Failed to generate signed URL: ${error.message}`);
-  }
-
-  console.log('Successfully generated signed URL');
-  
-  const videoResponse = await fetch(data.signedUrl);
-  if (!videoResponse.ok) {
-    console.error('Video fetch error:', videoResponse.status, videoResponse.statusText);
-    throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
-  }
-
-  console.log('Successfully downloaded video');
-  return videoResponse;
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -49,27 +25,121 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const videoResponse = await downloadVideo(videoPath, supabase);
-    const fileData = await videoResponse.blob()
-    console.log('File downloaded successfully, size:', fileData.size)
+    // Download the file from storage
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('media')
+      .download(videoPath)
 
-    if (fileData.size > 25 * 1024 * 1024) {
-      console.log('File is too large, needs conversion')
-      throw new Error('File is too large. Please wait for automatic conversion to complete.')
+    if (downloadError) {
+      console.error('Download error:', downloadError)
+      throw new Error(`Failed to download file: ${downloadError.message}`)
     }
 
-    console.log('Preparing file for OpenAI transcription')
+    const fileSize = fileData.size
+    console.log('File downloaded, size:', fileSize)
 
-    // Create FormData and append the file with the correct name and type
+    // If file is larger than 25MB, convert using CloudConvert
+    if (fileSize > 25 * 1024 * 1024) {
+      console.log('File is too large, needs conversion')
+      
+      // Create CloudConvert job
+      const createJobResponse = await fetch('https://api.cloudconvert.com/v2/jobs', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('CLOUDCONVERT_API_KEY')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          tasks: {
+            'import-1': {
+              operation: 'import/upload'
+            },
+            'convert-1': {
+              operation: 'convert',
+              input: 'import-1',
+              output_format: 'mp3',
+              engine: 'ffmpeg',
+              audio_codec: 'mp3',
+              audio_bitrate: '128k',
+              audio_frequency: '44100'
+            },
+            'export-1': {
+              operation: 'export/url',
+              input: 'convert-1'
+            }
+          }
+        })
+      })
+
+      const jobData = await createJobResponse.json()
+      console.log('Conversion job created:', jobData)
+
+      if (!jobData.data?.id) {
+        throw new Error('Failed to create conversion job')
+      }
+
+      // Upload the file to CloudConvert
+      const uploadTask = jobData.data.tasks.find((task: any) => task.operation === 'import/upload')
+      if (!uploadTask?.result?.form) {
+        throw new Error('No upload form found in job')
+      }
+
+      const formData = new FormData()
+      for (const [key, value] of Object.entries(uploadTask.result.form.parameters)) {
+        formData.append(key, value as string)
+      }
+      formData.append('file', fileData)
+
+      const uploadResponse = await fetch(uploadTask.result.form.url, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload file to CloudConvert')
+      }
+
+      // Wait for conversion to complete
+      let jobStatus
+      do {
+        const statusResponse = await fetch(`https://api.cloudconvert.com/v2/jobs/${jobData.data.id}`, {
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('CLOUDCONVERT_API_KEY')}`
+          }
+        })
+        jobStatus = await statusResponse.json()
+        
+        if (jobStatus.data.status === 'error') {
+          throw new Error('Conversion failed: ' + jobStatus.data.message)
+        }
+        
+        if (jobStatus.data.status !== 'finished') {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+      } while (jobStatus.data.status !== 'finished')
+
+      // Get the converted audio file
+      const exportTask = jobStatus.data.tasks.find((task: any) => task.operation === 'export/url')
+      if (!exportTask?.result?.files?.[0]?.url) {
+        throw new Error('No converted file URL found')
+      }
+
+      const audioResponse = await fetch(exportTask.result.files[0].url)
+      fileData = await audioResponse.blob()
+      console.log('File converted successfully')
+    }
+
+    // Prepare form data for OpenAI Whisper API
     const formData = new FormData()
     formData.append('file', fileData, 'audio.mp3')
     formData.append('model', 'whisper-1')
+    formData.append('response_format', 'verbose_json')
     formData.append('language', 'es')
-    formData.append('response_format', 'json')
-    formData.append('prompt', 'This is a Spanish language transcription.')
+    formData.append('timestamp_granularities[]', 'word')
 
     console.log('Sending to OpenAI Whisper API')
 
+    // Call OpenAI Whisper API
     const openaiResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -87,6 +157,7 @@ serve(async (req) => {
     const result = await openaiResponse.json()
     console.log('Transcription completed successfully')
 
+    // Update transcription record
     const { error: updateError } = await supabase
       .from('transcriptions')
       .update({ 
