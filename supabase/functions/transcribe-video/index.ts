@@ -27,6 +27,7 @@ serve(async (req) => {
     )
 
     // Download the file from storage
+    console.log('Downloading file from storage:', videoPath);
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('media')
       .download(videoPath)
@@ -36,92 +37,20 @@ serve(async (req) => {
       throw new Error(`Failed to download file: ${downloadError.message}`);
     }
 
+    if (!fileData) {
+      throw new Error('No file data received');
+    }
+
     const fileSize = fileData.size;
     console.log('File size:', fileSize);
-
-    let audioData = fileData;
-
-    // If file is larger than 25MB, convert using CloudConvert
-    if (fileSize > 25 * 1024 * 1024) {
-      console.log('File too large, converting...');
-      
-      const { data: signedUrl } = await supabase.storage
-        .from('media')
-        .createSignedUrl(videoPath, 60);
-
-      if (!signedUrl) {
-        throw new Error('Failed to create signed URL for video');
-      }
-
-      const createJobResponse = await fetch('https://api.cloudconvert.com/v2/jobs', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('CLOUDCONVERT_API_KEY')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          tasks: {
-            'import-1': {
-              operation: 'import/url',
-              url: signedUrl
-            },
-            'convert-1': {
-              operation: 'convert',
-              input: 'import-1',
-              output_format: 'mp3',
-              audio_codec: 'mp3',
-              audio_bitrate: '128k',
-              audio_frequency: '44100'
-            },
-            'export-1': {
-              operation: 'export/url',
-              input: 'convert-1'
-            }
-          }
-        })
-      });
-
-      const jobData = await createJobResponse.json();
-      console.log('Conversion job created:', jobData);
-
-      // Wait for conversion to complete
-      let jobStatus;
-      do {
-        const statusResponse = await fetch(`https://api.cloudconvert.com/v2/jobs/${jobData.data.id}`, {
-          headers: {
-            'Authorization': `Bearer ${Deno.env.get('CLOUDCONVERT_API_KEY')}`
-          }
-        });
-        jobStatus = await statusResponse.json();
-        
-        if (jobStatus.data.status === 'error') {
-          throw new Error('Conversion failed: ' + jobStatus.data.message);
-        }
-        
-        if (jobStatus.data.status !== 'finished') {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      } while (jobStatus.data.status !== 'finished');
-
-      // Get the converted audio file
-      const exportTask = jobStatus.data.tasks.find((task: any) => task.operation === 'export/url');
-      if (!exportTask?.result?.files?.[0]?.url) {
-        throw new Error('No converted file URL found');
-      }
-
-      const audioResponse = await fetch(exportTask.result.files[0].url);
-      audioData = await audioResponse.blob();
-      console.log('File converted successfully');
-    }
 
     // Prepare form data for OpenAI Whisper API
     console.log('Preparing Whisper API request');
     const formData = new FormData();
-    formData.append('file', audioData, 'audio.mp3');
+    formData.append('file', fileData, 'audio.mp3');
     formData.append('model', 'whisper-1');
     formData.append('response_format', 'verbose_json');
     formData.append('language', 'es');
-    formData.append('timestamp_granularities[]', 'word');
 
     // Call OpenAI Whisper API
     console.log('Calling Whisper API');

@@ -22,53 +22,58 @@ export const useVideoProcessor = () => {
     console.log("Starting video processing for file:", file.name);
 
     try {
-      // First, find the transcription record by file name
-      const { data: transcriptionData, error: transcriptionError } = await supabase
+      // First check authentication
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw new Error('Authentication required');
+      if (!user) throw new Error('Please log in to process videos');
+
+      setProgress(10);
+
+      // Upload file to storage first
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      setProgress(30);
+
+      // Create transcription record
+      const { error: dbError } = await supabase
         .from('transcriptions')
-        .select('*')
-        .eq('original_file_path', file.name)
-        .maybeSingle();
-
-      if (transcriptionError) throw transcriptionError;
-
-      if (!transcriptionData) {
-        // If no transcription exists, start the transcription process
-        console.log("No existing transcription found, starting new process");
-        setProgress(10);
-        
-        const { data: transcriptionResult, error: processError } = await supabase.functions
-          .invoke('transcribe-video', {
-            body: { videoPath: file.name }
-          });
-
-        if (processError) throw processError;
-
-        setProgress(50);
-        console.log("Transcription result:", transcriptionResult);
-
-        if (transcriptionResult?.text) {
-          setTranscriptionText(transcriptionResult.text);
-          setProgress(100);
-          
-          toast({
-            title: "Transcripción completada",
-            description: "El video ha sido transcrito exitosamente.",
-          });
-        }
-      } else {
-        // If transcription exists, load it
-        console.log("Found existing transcription:", transcriptionData);
-        setTranscriptionText(transcriptionData.transcription_text || "");
-        setTranscriptionMetadata({
-          channel: transcriptionData.channel,
-          program: transcriptionData.program,
-          category: transcriptionData.category,
-          broadcastTime: transcriptionData.broadcast_time,
-          keywords: transcriptionData.keywords,
+        .insert({
+          user_id: user.id,
+          original_file_path: filePath,
+          status: 'processing'
         });
+
+      if (dbError) throw dbError;
+
+      setProgress(50);
+
+      // Process the video
+      const { data: transcriptionResult, error: processError } = await supabase.functions
+        .invoke('transcribe-video', {
+          body: { videoPath: filePath }
+        });
+
+      if (processError) throw processError;
+
+      setProgress(80);
+
+      if (transcriptionResult?.text) {
+        setTranscriptionText(transcriptionResult.text);
         setProgress(100);
+        
+        toast({
+          title: "Transcripción completada",
+          description: "El video ha sido transcrito exitosamente.",
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing file:', error);
       toast({
         title: "Error al procesar",
