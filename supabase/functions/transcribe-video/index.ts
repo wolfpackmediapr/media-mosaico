@@ -7,6 +7,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+async function downloadVideo(videoPath: string, supabase: any) {
+  console.log('Attempting to download video:', videoPath);
+  
+  const { data, error } = await supabase.storage
+    .from('media')
+    .createSignedUrl(videoPath, 60);
+    
+  if (error) {
+    console.error('Signed URL generation error:', error);
+    throw new Error(`Failed to generate signed URL: ${error.message}`);
+  }
+
+  console.log('Successfully generated signed URL');
+  
+  const videoResponse = await fetch(data.signedUrl);
+  if (!videoResponse.ok) {
+    console.error('Video fetch error:', videoResponse.status, videoResponse.statusText);
+    throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
+  }
+
+  console.log('Successfully downloaded video');
+  return videoResponse;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -20,60 +44,30 @@ serve(async (req) => {
       throw new Error('Video path is required')
     }
 
-    // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('Generating signed URL for:', videoPath)
-    
-    // Generate a signed URL for secure access
-    const { data: urlData, error: urlError } = await supabase.storage
-      .from('media')
-      .createSignedUrl(videoPath, 60) // 60 second expiry
-
-    if (urlError) {
-      console.error('Signed URL generation error:', urlError)
-      throw new Error(`Failed to generate signed URL: ${urlError.message}`)
-    }
-
-    if (!urlData?.signedUrl) {
-      throw new Error('No signed URL generated')
-    }
-
-    console.log('Successfully generated signed URL')
-
-    // Fetch the file using the signed URL
-    const videoResponse = await fetch(urlData.signedUrl)
-    if (!videoResponse.ok) {
-      console.error('Video fetch error:', videoResponse.status, videoResponse.statusText)
-      throw new Error(`Failed to fetch video: ${videoResponse.statusText}`)
-    }
-
-    // Convert the response to a blob
+    const videoResponse = await downloadVideo(videoPath, supabase);
     const fileData = await videoResponse.blob()
     console.log('File downloaded successfully, size:', fileData.size)
 
-    // Check if file is too large (25MB)
-    const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB in bytes
-    if (fileData.size > MAX_FILE_SIZE) {
+    if (fileData.size > 25 * 1024 * 1024) {
       console.log('File is too large, needs conversion')
       throw new Error('File is too large. Please wait for automatic conversion to complete.')
     }
 
     console.log('Preparing file for OpenAI transcription')
 
-    // Prepare form data for OpenAI
     const formData = new FormData()
-    formData.append('file', fileData, 'video.mp4')
+    formData.append('file', fileData, 'audio.mp4')
     formData.append('model', 'whisper-1')
     formData.append('language', 'es')
     formData.append('response_format', 'json')
 
     console.log('Sending to OpenAI Whisper API')
 
-    // Send to OpenAI Whisper API
     const openaiResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -91,7 +85,6 @@ serve(async (req) => {
     const result = await openaiResponse.json()
     console.log('Transcription completed successfully')
 
-    // Update transcription record with the result
     const { error: updateError } = await supabase
       .from('transcriptions')
       .update({ 

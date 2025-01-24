@@ -2,6 +2,14 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
+const sanitizeFileName = (fileName: string) => {
+  // Remove special characters and spaces, replace with underscores
+  const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+  const ext = fileName.substring(fileName.lastIndexOf('.'));
+  const sanitized = nameWithoutExt.replace(/[^\w\-]/g, '_');
+  return sanitized + ext;
+};
+
 export const useFileUpload = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -26,8 +34,8 @@ export const useFileUpload = () => {
       return null;
     }
 
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+    const sanitizedFileName = sanitizeFileName(file.name);
+    const fileName = `${user.id}/${Date.now()}_${sanitizedFileName}`;
 
     try {
       setIsUploading(true);
