@@ -5,9 +5,11 @@ export const useAudioProcessor = () => {
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState('');
   const [transcriptionMetadata, setTranscriptionMetadata] = useState({
-    duration: 0,
-    wordCount: 0,
-    confidence: 0,
+    channel: '',
+    program: '',
+    category: '',
+    broadcastTime: '',
+    keywords: [] as string[],
   });
 
   const processAudio = async () => {
@@ -22,9 +24,11 @@ export const useAudioProcessor = () => {
       // Mock transcription result
       setTranscriptionText('This is a sample transcription.');
       setTranscriptionMetadata({
-        duration: 120,
-        wordCount: 50,
-        confidence: 0.95,
+        channel: 'Sample Channel',
+        program: 'Sample Program',
+        category: 'News',
+        broadcastTime: new Date().toISOString(),
+        keywords: ['sample', 'test', 'demo'],
       });
     } catch (error) {
       console.error('Error processing audio:', error);
