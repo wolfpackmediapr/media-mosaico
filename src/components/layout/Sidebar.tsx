@@ -3,9 +3,9 @@ import { Link, useLocation } from "react-router-dom";
 
 const menuItems = [
   { icon: Home, label: "Inicio", path: "/" },
-  { icon: Tv, label: "BOT TV", path: "/tv" },
-  { icon: Radio, label: "BOT Radio", path: "/radio" },
-  { icon: Newspaper, label: "BOT Prensa", path: "/prensa" },
+  { icon: Tv, label: "TV", path: "/tv" },
+  { icon: Radio, label: "Radio", path: "/radio" },
+  { icon: Newspaper, label: "Prensa", path: "/prensa" },
   { icon: Bell, label: "Alertas", path: "/alertas" },
   { icon: BarChart2, label: "Reportes", path: "/reportes" },
   { icon: Settings, label: "Ajustes", path: "/ajustes" },
