@@ -90,9 +90,8 @@ const Tv = () => {
       setIsUploading(true);
       setUploadProgress(0);
 
-      // Create a progress toast that we'll update
-      const progressToastId = toast({
-        id: "upload-progress",
+      // Create a progress toast
+      const progressToast = toast({
         title: "Subiendo archivo",
         description: (
           <div className="w-full">
@@ -100,30 +99,16 @@ const Tv = () => {
             <p className="mt-2">Iniciando subida...</p>
           </div>
         ),
-      }).id;
+      });
+
+      const options = {
+        cacheControl: '3600',
+        upsert: false,
+      };
 
       const { error: uploadError } = await supabase.storage
         .from('media')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false,
-        }, {
-          progress: (progress) => {
-            const percent = (progress.loaded / progress.total) * 100;
-            setUploadProgress(percent);
-            // Update toast with new progress
-            toast({
-              id: progressToastId,
-              title: "Subiendo archivo",
-              description: (
-                <div className="w-full">
-                  <Progress value={percent} className="w-full h-2" />
-                  <p className="mt-2">Subiendo... {percent.toFixed(0)}%</p>
-                </div>
-              ),
-            });
-          }
-        });
+        .upload(fileName, file, options);
 
       if (uploadError) throw uploadError;
 
@@ -290,6 +275,7 @@ const Tv = () => {
       />
     </div>
   );
+
 };
 
 export default Tv;
