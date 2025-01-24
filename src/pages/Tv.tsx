@@ -4,6 +4,7 @@ import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { supabase } from "@/integrations/supabase/client";
+import { Progress } from "@/components/ui/progress";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -30,8 +31,9 @@ const Tv = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Cleanup previews when component unmounts
   useEffect(() => {
     return () => {
       uploadedFiles.forEach(file => {
@@ -87,15 +89,37 @@ const Tv = () => {
     const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
     try {
-      // Show upload progress toast
-      toast({
+      setIsUploading(true);
+      setUploadProgress(0);
+
+      // Show upload progress toast with progress bar
+      const progressToast = toast({
         title: "Subiendo archivo",
-        description: "Por favor espera mientras se sube el archivo...",
+        description: (
+          <div className="w-full">
+            <Progress value={uploadProgress} className="w-full h-2" />
+            <p className="mt-2">Subiendo... {uploadProgress.toFixed(0)}%</p>
+          </div>
+        ),
       });
 
       const { error: uploadError } = await supabase.storage
         .from('media')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          onUploadProgress: (progress) => {
+            const percent = (progress.loaded / progress.total) * 100;
+            setUploadProgress(percent);
+            // Update toast with new progress
+            progressToast.update({
+              description: (
+                <div className="w-full">
+                  <Progress value={percent} className="w-full h-2" />
+                  <p className="mt-2">Subiendo... {percent.toFixed(0)}%</p>
+                </div>
+              ),
+            });
+          }
+        });
 
       if (uploadError) throw uploadError;
 
@@ -114,6 +138,17 @@ const Tv = () => {
 
       if (dbError) throw dbError;
 
+      setIsUploading(false);
+      setUploadProgress(100);
+
+      // Show success toast
+      toast({
+        title: "Archivo subido exitosamente",
+        description: file.size > MAX_FILE_SIZE 
+          ? "El archivo será convertido a audio automáticamente."
+          : "Listo para procesar la transcripción.",
+      });
+
       if (file.size > MAX_FILE_SIZE) {
         const { data: conversionData, error: conversionError } = await supabase.functions
           .invoke('convert-video', {
@@ -126,16 +161,12 @@ const Tv = () => {
           title: "Conversión exitosa",
           description: "El archivo ha sido convertido a audio. Listo para transcripción.",
         });
-      } else {
-        toast({
-          title: "Archivo cargado correctamente",
-          description: "Listo para procesar la transcripción.",
-        });
       }
 
       return true;
     } catch (error) {
       console.error('Error uploading file:', error);
+      setIsUploading(false);
       toast({
         title: "Error al subir el archivo",
         description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
@@ -242,6 +273,8 @@ const Tv = () => {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onFileInput={handleFileInput}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
         />
 
         <VideoPreview

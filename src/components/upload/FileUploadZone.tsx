@@ -1,7 +1,7 @@
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
 
 interface FileUploadZoneProps {
   isDragging: boolean;
@@ -9,6 +9,8 @@ interface FileUploadZoneProps {
   onDragLeave: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
   onFileInput: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  isUploading?: boolean;
+  uploadProgress?: number;
 }
 
 const FileUploadZone = ({
@@ -17,6 +19,8 @@ const FileUploadZone = ({
   onDragLeave,
   onDrop,
   onFileInput,
+  isUploading = false,
+  uploadProgress = 0,
 }: FileUploadZoneProps) => {
   return (
     <Card>
@@ -36,18 +40,28 @@ const FileUploadZone = ({
           onDrop={onDrop}
         >
           <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <p className="mb-2 text-sm text-gray-500">
-            Arrastra y suelta archivos de video aquí o selecciona un archivo para subir.
-          </p>
-          <p className="text-xs text-gray-500 mb-4">
-            Archivos mayores a 25MB serán convertidos automáticamente a formato audio.
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => document.getElementById("fileInput")?.click()}
-          >
-            Seleccionar Archivos
-          </Button>
+          {isUploading ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-500">Subiendo archivo...</p>
+              <Progress value={uploadProgress} className="w-full h-2" />
+              <p className="text-xs text-gray-500">{uploadProgress.toFixed(0)}% completado</p>
+            </div>
+          ) : (
+            <>
+              <p className="mb-2 text-sm text-gray-500">
+                Arrastra y suelta archivos de video aquí o selecciona un archivo para subir.
+              </p>
+              <p className="text-xs text-gray-500 mb-4">
+                Archivos mayores a 25MB serán convertidos automáticamente a formato audio.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => document.getElementById("fileInput")?.click()}
+              >
+                Seleccionar Archivos
+              </Button>
+            </>
+          )}
           <input
             id="fileInput"
             type="file"
