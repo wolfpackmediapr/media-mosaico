@@ -8,7 +8,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -65,15 +64,17 @@ serve(async (req) => {
 
     console.log('Preparing file for OpenAI transcription')
 
-    // Convert to form data for OpenAI
+    // Prepare form data for OpenAI
     const formData = new FormData()
     formData.append('file', fileData, 'video.mp4')
     formData.append('model', 'whisper-1')
+    formData.append('language', 'es')
+    formData.append('response_format', 'json')
 
-    console.log('Sending to OpenAI for transcription')
+    console.log('Sending to OpenAI Whisper API')
 
-    // Send to OpenAI for transcription
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    // Send to OpenAI Whisper API
+    const openaiResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
@@ -81,13 +82,13 @@ serve(async (req) => {
       body: formData,
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
+    if (!openaiResponse.ok) {
+      const errorText = await openaiResponse.text()
       console.error('OpenAI API error:', errorText)
       throw new Error(`OpenAI API error: ${errorText}`)
     }
 
-    const result = await response.json()
+    const result = await openaiResponse.json()
     console.log('Transcription completed successfully')
 
     // Update transcription record with the result
