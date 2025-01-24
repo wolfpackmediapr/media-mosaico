@@ -17,6 +17,7 @@ import RecuperarPassword from "./pages/RecuperarPassword";
 import { useEffect, useState } from "react";
 import { supabase } from "./integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
+import { ThemeProvider } from "./components/theme/ThemeProvider";
 
 const queryClient = new QueryClient();
 
@@ -39,37 +40,39 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route
-              path="/auth"
-              element={session ? <Navigate to="/" /> : <Auth />}
-            />
-            <Route
-              path="/registro"
-              element={session ? <Navigate to="/" /> : <Registro />}
-            />
-            <Route
-              path="/recuperar-password"
-              element={session ? <Navigate to="/" /> : <RecuperarPassword />}
-            />
-            <Route
-              element={!session ? <Navigate to="/auth" /> : <Layout><Outlet /></Layout>}
-            >
-              <Route path="/" element={<Index />} />
-              <Route path="/tv" element={<Tv />} />
-              <Route path="/radio" element={<Radio />} />
-              <Route path="/prensa" element={<Prensa />} />
-              <Route path="/alertas" element={<Alertas />} />
-              <Route path="/reportes" element={<Reportes />} />
-              <Route path="/ayuda" element={<Ayuda />} />
-              <Route path="/ajustes" element={<Ajustes />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-        <Sonner />
-      </TooltipProvider>
+      <ThemeProvider defaultTheme="light" storageKey="app-theme">
+        <TooltipProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route
+                path="/auth"
+                element={session ? <Navigate to="/" /> : <Auth />}
+              />
+              <Route
+                path="/registro"
+                element={session ? <Navigate to="/" /> : <Registro />}
+              />
+              <Route
+                path="/recuperar-password"
+                element={session ? <Navigate to="/" /> : <RecuperarPassword />}
+              />
+              <Route
+                element={!session ? <Navigate to="/auth" /> : <Layout><Outlet /></Layout>}
+              >
+                <Route path="/" element={<Index />} />
+                <Route path="/tv" element={<Tv />} />
+                <Route path="/radio" element={<Radio />} />
+                <Route path="/prensa" element={<Prensa />} />
+                <Route path="/alertas" element={<Alertas />} />
+                <Route path="/reportes" element={<Reportes />} />
+                <Route path="/ayuda" element={<Ayuda />} />
+                <Route path="/ajustes" element={<Ajustes />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+          <Sonner />
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
