@@ -187,14 +187,18 @@ const Tv = () => {
     });
 
     try {
-      // Fetch the transcription metadata
+      // Fetch the transcription metadata using maybeSingle() instead of single()
       const { data: transcriptionData, error: transcriptionError } = await supabase
         .from('transcriptions')
         .select('*')
         .eq('original_file_path', file.name)
-        .single();
+        .maybeSingle();
 
       if (transcriptionError) throw transcriptionError;
+
+      if (!transcriptionData) {
+        throw new Error('No se encontró la transcripción para este archivo');
+      }
 
       setTranscriptionMetadata({
         channel: transcriptionData.channel,
@@ -220,7 +224,7 @@ const Tv = () => {
       console.error('Error processing file:', error);
       toast({
         title: "Error al procesar",
-        description: "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
         variant: "destructive",
       });
       setIsProcessing(false);
@@ -275,7 +279,6 @@ const Tv = () => {
       />
     </div>
   );
-
 };
 
 export default Tv;
