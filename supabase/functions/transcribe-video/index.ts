@@ -27,24 +27,33 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('Attempting to download from media bucket:', videoPath)
-
-    // Get file data from storage
-    const { data: fileData, error: downloadError } = await supabase
-      .storage
+    console.log('Generating signed URL for:', videoPath)
+    
+    // Generate a signed URL for secure access
+    const { data: urlData, error: urlError } = await supabase.storage
       .from('media')
-      .download(videoPath)
+      .createSignedUrl(videoPath, 60) // 60 second expiry
 
-    if (downloadError) {
-      console.error('Download error details:', downloadError)
-      throw new Error(`Error downloading video: ${JSON.stringify(downloadError)}`)
+    if (urlError) {
+      console.error('Signed URL generation error:', urlError)
+      throw new Error(`Failed to generate signed URL: ${urlError.message}`)
     }
 
-    if (!fileData) {
-      console.error('No file data received')
-      throw new Error('No file data received from storage')
+    if (!urlData?.signedUrl) {
+      throw new Error('No signed URL generated')
     }
 
+    console.log('Successfully generated signed URL')
+
+    // Fetch the file using the signed URL
+    const videoResponse = await fetch(urlData.signedUrl)
+    if (!videoResponse.ok) {
+      console.error('Video fetch error:', videoResponse.status, videoResponse.statusText)
+      throw new Error(`Failed to fetch video: ${videoResponse.statusText}`)
+    }
+
+    // Convert the response to a blob
+    const fileData = await videoResponse.blob()
     console.log('File downloaded successfully, size:', fileData.size)
 
     // Check if file is too large (25MB)
