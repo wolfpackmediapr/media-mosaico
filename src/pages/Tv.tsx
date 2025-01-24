@@ -1,48 +1,29 @@
-import { useState, useCallback, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
-import { supabase } from "@/integrations/supabase/client";
-import { Progress } from "@/components/ui/progress";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import { useVideoProcessor } from "@/hooks/use-video-processor";
 
 interface UploadedFile extends File {
   preview?: string;
 }
 
-interface TranscriptionMetadata {
-  channel?: string;
-  program?: string;
-  category?: string;
-  broadcastTime?: string;
-  keywords?: string[];
-}
-
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB in bytes
-const SUPABASE_SIZE_LIMIT = 50 * 1024 * 1024; // 50MB Supabase limit
-
 const Tv = () => {
-  const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState([50]);
-  const [progress, setProgress] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [transcriptionText, setTranscriptionText] = useState("");
-  const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
 
-  useEffect(() => {
-    return () => {
-      uploadedFiles.forEach(file => {
-        if (file.preview) {
-          URL.revokeObjectURL(file.preview);
-        }
-      });
-    };
-  }, [uploadedFiles]);
+  const { isUploading, uploadProgress, uploadFile } = useFileUpload();
+  const {
+    isProcessing,
+    progress,
+    transcriptionText,
+    transcriptionMetadata,
+    processVideo,
+    setTranscriptionText,
+  } = useVideoProcessor();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -54,116 +35,15 @@ const Tv = () => {
     setIsDragging(false);
   };
 
-  const validateAndUploadFile = async (file: File) => {
-    if (!file.type.startsWith("video/")) {
-      toast({
-        title: "Error",
-        description: "Por favor, sube únicamente archivos de video.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    if (file.size > SUPABASE_SIZE_LIMIT) {
-      toast({
-        title: "Error",
-        description: "El archivo excede el límite de 50MB permitido por el servidor.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "Debes iniciar sesión para subir archivos.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-    try {
-      setIsUploading(true);
-      setUploadProgress(0);
-
-      // Create a progress toast
-      const progressToast = toast({
-        title: "Subiendo archivo",
-        description: (
-          <div className="w-full">
-            <Progress value={0} className="w-full h-2" />
-            <p className="mt-2">Iniciando subida...</p>
-          </div>
-        ),
-      });
-
-      const options = {
-        cacheControl: '3600',
-        upsert: false,
-      };
-
-      const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, file, options);
-
-      if (uploadError) throw uploadError;
-
-      const { error: dbError } = await supabase
-        .from('transcriptions')
-        .insert({
-          user_id: user.id,
-          original_file_path: fileName,
-          status: file.size > MAX_FILE_SIZE ? 'needs_conversion' : 'pending',
-          channel: 'Canal Example',
-          program: 'Programa Example',
-          category: 'Noticias',
-          broadcast_time: new Date().toISOString(),
-          keywords: ['ejemplo', 'prueba']
-        });
-
-      if (dbError) throw dbError;
-
-      setIsUploading(false);
-      setUploadProgress(100);
-
-      toast({
-        title: "Archivo subido exitosamente",
-        description: file.size > MAX_FILE_SIZE 
-          ? "El archivo será convertido a audio automáticamente."
-          : "Listo para procesar la transcripción.",
-      });
-
-      // Create preview URL for the video
-      const preview = URL.createObjectURL(file);
-      setUploadedFiles(prev => [...prev, Object.assign(file, { preview })]);
-
-      return true;
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      setIsUploading(false);
-      toast({
-        title: "Error al subir el archivo",
-        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
-        variant: "destructive",
-      });
-      return false;
-    }
-  };
-
-  const handleFiles = useCallback(async (files: FileList) => {
+  const handleFiles = async (files: FileList) => {
     for (const file of Array.from(files)) {
-      const success = await validateAndUploadFile(file);
-      if (success) {
-        // Create preview URL for the video
-        const preview = URL.createObjectURL(file);
-        setUploadedFiles(prev => [...prev, Object.assign(file, { preview })]);
+      const result = await uploadFile(file);
+      if (result) {
+        const uploadedFile = Object.assign(file, { preview: result.preview });
+        setUploadedFiles(prev => [...prev, uploadedFile]);
       }
     }
-  }, []);
+  };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -175,64 +55,6 @@ const Tv = () => {
     if (e.target.files) {
       handleFiles(e.target.files);
     }
-  };
-
-  const handleProcess = async (file: UploadedFile) => {
-    setIsProcessing(true);
-    setProgress(0);
-
-    toast({
-      title: "Procesando archivo",
-      description: "Transcribiendo archivo... Esto puede tardar unos momentos dependiendo del tamaño del archivo.",
-    });
-
-    try {
-      // Fetch the transcription metadata using maybeSingle() instead of single()
-      const { data: transcriptionData, error: transcriptionError } = await supabase
-        .from('transcriptions')
-        .select('*')
-        .eq('original_file_path', file.name)
-        .maybeSingle();
-
-      if (transcriptionError) throw transcriptionError;
-
-      if (!transcriptionData) {
-        throw new Error('No se encontró la transcripción para este archivo');
-      }
-
-      setTranscriptionMetadata({
-        channel: transcriptionData.channel,
-        program: transcriptionData.program,
-        category: transcriptionData.category,
-        broadcastTime: transcriptionData.broadcast_time,
-        keywords: transcriptionData.keywords,
-      });
-
-      // Simulate processing progress (will be replaced with actual processing)
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setIsProcessing(false);
-            setTranscriptionText("Esta es una transcripción de ejemplo del video procesado...");
-            return 100;
-          }
-          return prev + 10;
-        });
-      }, 500);
-    } catch (error) {
-      console.error('Error processing file:', error);
-      toast({
-        title: "Error al procesar",
-        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-    }
-  };
-
-  const handleTranscriptionChange = (text: string) => {
-    setTranscriptionText(text);
   };
 
   const togglePlayback = () => {
@@ -267,7 +89,7 @@ const Tv = () => {
           progress={progress}
           onTogglePlayback={togglePlayback}
           onVolumeChange={setVolume}
-          onProcess={handleProcess}
+          onProcess={processVideo}
         />
       </div>
 
@@ -275,7 +97,7 @@ const Tv = () => {
         isProcessing={isProcessing}
         transcriptionText={transcriptionText}
         metadata={transcriptionMetadata}
-        onTranscriptionChange={handleTranscriptionChange}
+        onTranscriptionChange={setTranscriptionText}
       />
     </div>
   );
