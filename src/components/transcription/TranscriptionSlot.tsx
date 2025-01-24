@@ -2,19 +2,28 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Mail, FileDown } from "lucide-react";
+import { FileText, Mail, FileDown, Tag, Clock, Radio, Tv } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 interface TranscriptionSlotProps {
   isProcessing: boolean;
   transcriptionText: string;
+  metadata?: {
+    channel?: string;
+    program?: string;
+    category?: string;
+    broadcastTime?: string;
+    keywords?: string[];
+  };
   onTranscriptionChange: (text: string) => void;
 }
 
 const TranscriptionSlot = ({
   isProcessing,
   transcriptionText,
+  metadata,
   onTranscriptionChange,
 }: TranscriptionSlotProps) => {
   const { toast } = useToast();
@@ -24,12 +33,21 @@ const TranscriptionSlot = ({
     const newText = e.target.value;
     onTranscriptionChange(newText);
     
-    // Simulate autosave
     setIsSaving(true);
     try {
-      // Here you would typically save to Supabase
-      // await supabase.from('transcriptions').update...
+      const { error } = await supabase
+        .from('transcriptions')
+        .update({ transcription_text: newText })
+        .eq('transcription_text', transcriptionText);
+
+      if (error) throw error;
+
       setTimeout(() => setIsSaving(false), 1000);
+      
+      toast({
+        title: "Guardado automático",
+        description: "La transcripción se ha guardado correctamente",
+      });
     } catch (error) {
       toast({
         title: "Error al guardar",
@@ -60,12 +78,11 @@ const TranscriptionSlot = ({
   const exportAsPDF = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('generate-pdf', {
-        body: { text: transcriptionText }
+        body: { text: transcriptionText, metadata }
       });
 
       if (error) throw error;
 
-      // Convert base64 to blob and download
       const byteCharacters = atob(data.pdf);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
@@ -99,7 +116,11 @@ const TranscriptionSlot = ({
   const sendEmail = async () => {
     try {
       const { error } = await supabase.functions.invoke('send-email', {
-        body: { text: transcriptionText }
+        body: { 
+          text: transcriptionText,
+          metadata,
+          subject: `Transcripción: ${metadata?.program || 'Sin título'}`
+        }
       });
 
       if (error) throw error;
@@ -125,6 +146,43 @@ const TranscriptionSlot = ({
           La transcripción del video aparecerá aquí una vez que se complete el proceso.
           {isSaving && <span className="text-primary ml-2">Guardando...</span>}
         </CardDescription>
+        {metadata && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {metadata.channel && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Tv className="w-3 h-3" />
+                {metadata.channel}
+              </Badge>
+            )}
+            {metadata.program && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Radio className="w-3 h-3" />
+                {metadata.program}
+              </Badge>
+            )}
+            {metadata.broadcastTime && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {new Date(metadata.broadcastTime).toLocaleString('es-ES')}
+              </Badge>
+            )}
+            {metadata.category && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Tag className="w-3 h-3" />
+                {metadata.category}
+              </Badge>
+            )}
+          </div>
+        )}
+        {metadata?.keywords && metadata.keywords.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {metadata.keywords.map((keyword, index) => (
+              <Badge key={index} variant="secondary" className="text-xs">
+                {keyword}
+              </Badge>
+            ))}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         <Textarea

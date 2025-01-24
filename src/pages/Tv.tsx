@@ -9,6 +9,14 @@ interface UploadedFile extends File {
   preview?: string;
 }
 
+interface TranscriptionMetadata {
+  channel?: string;
+  program?: string;
+  category?: string;
+  broadcastTime?: string;
+  keywords?: string[];
+}
+
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB in bytes
 
 const Tv = () => {
@@ -20,6 +28,7 @@ const Tv = () => {
   const [progress, setProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcriptionText, setTranscriptionText] = useState("");
+  const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -41,7 +50,6 @@ const Tv = () => {
       return false;
     }
 
-    // Create a unique file path using the user's ID and timestamp
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast({
@@ -62,19 +70,23 @@ const Tv = () => {
 
       if (uploadError) throw uploadError;
 
-      // Create transcription record
+      // Create transcription record with metadata
       const { error: dbError } = await supabase
         .from('transcriptions')
         .insert({
           user_id: user.id,
           original_file_path: fileName,
           status: file.size > MAX_FILE_SIZE ? 'needs_conversion' : 'pending',
+          channel: 'Canal Example', // This would come from form input
+          program: 'Programa Example', // This would come from form input
+          category: 'Noticias', // This would come from form input
+          broadcast_time: new Date().toISOString(),
+          keywords: ['ejemplo', 'prueba'] // This would come from form input
         });
 
       if (dbError) throw dbError;
 
       if (file.size > MAX_FILE_SIZE) {
-        // Start conversion process
         const { data: conversionData, error: conversionError } = await supabase.functions
           .invoke('convert-video', {
             body: { videoPath: fileName }
@@ -136,18 +148,45 @@ const Tv = () => {
       description: "Transcribiendo archivo... Esto puede tardar unos momentos dependiendo del tamaño del archivo.",
     });
 
-    // Simulate processing progress (will be replaced with actual processing)
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsProcessing(false);
-          setTranscriptionText("Esta es una transcripción de ejemplo del video procesado...");
-          return 100;
-        }
-        return prev + 10;
+    try {
+      // Fetch the transcription metadata
+      const { data: transcriptionData, error: transcriptionError } = await supabase
+        .from('transcriptions')
+        .select('*')
+        .eq('original_file_path', file.name)
+        .single();
+
+      if (transcriptionError) throw transcriptionError;
+
+      setTranscriptionMetadata({
+        channel: transcriptionData.channel,
+        program: transcriptionData.program,
+        category: transcriptionData.category,
+        broadcastTime: transcriptionData.broadcast_time,
+        keywords: transcriptionData.keywords,
       });
-    }, 500);
+
+      // Simulate processing progress (will be replaced with actual processing)
+      const interval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            setIsProcessing(false);
+            setTranscriptionText("Esta es una transcripción de ejemplo del video procesado...");
+            return 100;
+          }
+          return prev + 10;
+        });
+      }, 500);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      toast({
+        title: "Error al procesar",
+        description: "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+    }
   };
 
   const handleTranscriptionChange = (text: string) => {
@@ -191,6 +230,7 @@ const Tv = () => {
       <TranscriptionSlot
         isProcessing={isProcessing}
         transcriptionText={transcriptionText}
+        metadata={transcriptionMetadata}
         onTranscriptionChange={handleTranscriptionChange}
       />
     </div>
