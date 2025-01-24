@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import TranscriptionMetadata from "./TranscriptionMetadata";
 import TranscriptionEditor from "./TranscriptionEditor";
 import TranscriptionActions from "./TranscriptionActions";
+import { useEffect } from "react";
 
 interface TranscriptionSlotProps {
   isProcessing: boolean;
@@ -22,22 +23,42 @@ const TranscriptionSlot = ({
   metadata,
   onTranscriptionChange,
 }: TranscriptionSlotProps) => {
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "//embed.typeform.com/next/embed.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
   return (
-    <Card className="mt-6">
-      <TranscriptionMetadata metadata={metadata} />
-      <CardContent className="space-y-4">
-        <TranscriptionEditor
-          transcriptionText={transcriptionText}
-          isProcessing={isProcessing}
-          onTranscriptionChange={onTranscriptionChange}
+    <div className="space-y-6">
+      <Card>
+        <TranscriptionMetadata metadata={metadata} />
+        <CardContent className="space-y-4">
+          <TranscriptionEditor
+            transcriptionText={transcriptionText}
+            isProcessing={isProcessing}
+            onTranscriptionChange={onTranscriptionChange}
+          />
+          <TranscriptionActions
+            transcriptionText={transcriptionText}
+            metadata={metadata}
+            isProcessing={isProcessing}
+          />
+        </CardContent>
+      </Card>
+      
+      <Card className="p-4">
+        <div 
+          data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK"
+          className="w-full min-h-[500px]"
         />
-        <TranscriptionActions
-          transcriptionText={transcriptionText}
-          metadata={metadata}
-          isProcessing={isProcessing}
-        />
-      </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
 };
 

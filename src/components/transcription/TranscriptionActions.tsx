@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { FileText, Mail, FileDown } from "lucide-react";
+import { FileText, FileDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -73,31 +73,6 @@ const TranscriptionActions = ({ transcriptionText, metadata, isProcessing }: Tra
     }
   };
 
-  const sendEmail = async () => {
-    try {
-      const { error } = await supabase.functions.invoke('send-email', {
-        body: { 
-          text: transcriptionText,
-          metadata,
-          subject: `Transcripción: ${metadata?.program || 'Sin título'}`
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Correo enviado",
-        description: "La transcripción ha sido enviada por correo electrónico",
-      });
-    } catch (error) {
-      toast({
-        title: "Error al enviar",
-        description: "No se pudo enviar el correo electrónico",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="flex flex-wrap gap-2">
       <Button
@@ -115,14 +90,6 @@ const TranscriptionActions = ({ transcriptionText, metadata, isProcessing }: Tra
       >
         <FileDown className="mr-2 h-4 w-4" />
         Exportar como TXT
-      </Button>
-      <Button
-        variant="outline"
-        onClick={sendEmail}
-        disabled={!transcriptionText || isProcessing}
-      >
-        <Mail className="mr-2 h-4 w-4" />
-        Enviar por Correo Electrónico
       </Button>
     </div>
   );
