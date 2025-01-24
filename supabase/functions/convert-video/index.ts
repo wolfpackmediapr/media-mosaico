@@ -2,15 +2,12 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
-const CLOUDCONVERT_API_KEY = Deno.env.get('CLOUDCONVERT_API_KEY')
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -31,7 +28,7 @@ serve(async (req) => {
     // Download video from storage
     const { data: fileData, error: downloadError } = await supabase
       .storage
-      .from('videos')
+      .from('media')
       .download(videoPath)
 
     if (downloadError) {
@@ -42,7 +39,7 @@ serve(async (req) => {
     const createJobResponse = await fetch('https://api.cloudconvert.com/v2/jobs', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${CLOUDCONVERT_API_KEY}`,
+        'Authorization': `Bearer ${Deno.env.get('CLOUDCONVERT_API_KEY')}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -102,7 +99,7 @@ serve(async (req) => {
     do {
       const statusResponse = await fetch(`https://api.cloudconvert.com/v2/jobs/${jobData.data.id}`, {
         headers: {
-          'Authorization': `Bearer ${CLOUDCONVERT_API_KEY}`
+          'Authorization': `Bearer ${Deno.env.get('CLOUDCONVERT_API_KEY')}`
         }
       })
       jobStatus = await statusResponse.json()
@@ -133,7 +130,7 @@ serve(async (req) => {
     const audioPath = videoPath.replace(/\.[^/.]+$/, '.mp3')
     const { error: uploadError } = await supabase
       .storage
-      .from('videos')
+      .from('media')
       .upload(audioPath, audioBlob, {
         contentType: 'audio/mpeg',
         upsert: true
@@ -141,6 +138,19 @@ serve(async (req) => {
 
     if (uploadError) {
       throw new Error('Failed to upload converted audio: ' + uploadError.message)
+    }
+
+    // Update the transcription record with the audio file path
+    const { error: updateError } = await supabase
+      .from('transcriptions')
+      .update({
+        audio_file_path: audioPath,
+        status: 'ready_for_transcription'
+      })
+      .eq('original_file_path', videoPath)
+
+    if (updateError) {
+      throw new Error('Failed to update transcription record: ' + updateError.message)
     }
 
     return new Response(

@@ -74,9 +74,17 @@ const Tv = () => {
       if (dbError) throw dbError;
 
       if (file.size > MAX_FILE_SIZE) {
+        // Start conversion process
+        const { data: conversionData, error: conversionError } = await supabase.functions
+          .invoke('convert-video', {
+            body: { videoPath: fileName }
+          });
+
+        if (conversionError) throw conversionError;
+
         toast({
-          title: "Archivo grande detectado",
-          description: "El archivo excede los 25MB. Se convertirá automáticamente a formato de audio para continuar con la transcripción.",
+          title: "Conversión exitosa",
+          description: "El archivo ha sido convertido a audio. Listo para transcripción.",
         });
       } else {
         toast({
