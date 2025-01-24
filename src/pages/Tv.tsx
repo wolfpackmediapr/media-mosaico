@@ -18,6 +18,7 @@ interface TranscriptionMetadata {
 }
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB in bytes
+const SUPABASE_SIZE_LIMIT = 50 * 1024 * 1024; // 50MB Supabase limit
 
 const Tv = () => {
   const { toast } = useToast();
@@ -52,10 +53,21 @@ const Tv = () => {
   };
 
   const validateAndUploadFile = async (file: File) => {
+    // Check if file is a video
     if (!file.type.startsWith("video/")) {
       toast({
         title: "Error",
         description: "Por favor, sube únicamente archivos de video.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Check if file size exceeds Supabase's limit
+    if (file.size > SUPABASE_SIZE_LIMIT) {
+      toast({
+        title: "Error",
+        description: "El archivo excede el límite de 50MB permitido por el servidor.",
         variant: "destructive",
       });
       return false;
@@ -75,6 +87,12 @@ const Tv = () => {
     const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
     try {
+      // Show upload progress toast
+      toast({
+        title: "Subiendo archivo",
+        description: "Por favor espera mientras se sube el archivo...",
+      });
+
       const { error: uploadError } = await supabase.storage
         .from('media')
         .upload(fileName, file);
@@ -120,7 +138,7 @@ const Tv = () => {
       console.error('Error uploading file:', error);
       toast({
         title: "Error al subir el archivo",
-        description: "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
         variant: "destructive",
       });
       return false;
