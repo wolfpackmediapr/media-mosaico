@@ -62,7 +62,8 @@ serve(async (req) => {
       .insert({
         user_id: userId,
         transcription_text: result.text,
-        status: 'completed'
+        status: 'completed',
+        original_file_path: file.name // Add the file name
       })
 
     if (dbError) {
