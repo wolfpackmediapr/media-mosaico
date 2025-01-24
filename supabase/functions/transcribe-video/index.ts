@@ -60,11 +60,13 @@ serve(async (req) => {
 
     console.log('Preparing file for OpenAI transcription')
 
+    // Create FormData and append the file with the correct name and type
     const formData = new FormData()
-    formData.append('file', fileData, 'audio.mp4')
+    formData.append('file', fileData, 'audio.mp3')
     formData.append('model', 'whisper-1')
     formData.append('language', 'es')
     formData.append('response_format', 'json')
+    formData.append('prompt', 'This is a Spanish language transcription.')
 
     console.log('Sending to OpenAI Whisper API')
 
@@ -107,7 +109,7 @@ serve(async (req) => {
     console.error('Function error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
+      { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
