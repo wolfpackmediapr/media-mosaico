@@ -4,19 +4,22 @@ import FileUploadZone from "@/components/upload/FileUploadZone";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
+import { useToast } from "@/hooks/use-toast";
 
 interface UploadedFile extends File {
   preview?: string;
+  url?: string;
 }
 
 const Radio = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [currentAudio, setCurrentAudio] = useState<string | null>(null);
+  const { toast } = useToast();
   
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
   const {
     isProcessing,
-    progress,
     transcriptionText,
     transcriptionMetadata,
     processVideo,
@@ -33,11 +36,39 @@ const Radio = () => {
     setIsDragging(false);
   };
 
+  const validateAudioFile = (file: File) => {
+    const validTypes = ['audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/mp3'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Formato no soportado",
+        description: "Por favor, sube únicamente archivos de audio (MP3, WAV, M4A)",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (file.size > 25 * 1024 * 1024) {
+      toast({
+        title: "Archivo demasiado grande",
+        description: "El archivo excede el límite de 25MB",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    return true;
+  };
+
   const handleFiles = async (files: FileList) => {
     for (const file of Array.from(files)) {
+      if (!validateAudioFile(file)) continue;
+
       const result = await uploadFile(file);
       if (result) {
-        const uploadedFile = Object.assign(file, { preview: result.preview });
+        const uploadedFile = Object.assign(file, { 
+          preview: result.preview,
+          url: URL.createObjectURL(file)
+        });
         setUploadedFiles(prev => [...prev, uploadedFile]);
         await processVideo(file);
       }
@@ -54,6 +85,10 @@ const Radio = () => {
     if (e.target.files) {
       handleFiles(e.target.files);
     }
+  };
+
+  const handleAudioSelect = (url: string) => {
+    setCurrentAudio(url);
   };
 
   return (
@@ -81,7 +116,7 @@ const Radio = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Archivos Subidos</CardTitle>
+              <CardTitle>Archivos de Audio</CardTitle>
               <CardDescription>
                 Lista de archivos de audio procesados
               </CardDescription>
@@ -96,9 +131,14 @@ const Radio = () => {
                   {uploadedFiles.map((file, index) => (
                     <li
                       key={index}
-                      className="flex items-center justify-between p-2 bg-gray-50 rounded-md"
+                      className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-md"
                     >
-                      <span className="text-sm truncate">{file.name}</span>
+                      <button
+                        onClick={() => file.url && handleAudioSelect(file.url)}
+                        className="flex-1 text-left hover:text-primary transition-colors"
+                      >
+                        <span className="text-sm truncate">{file.name}</span>
+                      </button>
                       <span className="text-xs text-gray-500">
                         {(file.size / 1024 / 1024).toFixed(2)} MB
                       </span>
@@ -108,6 +148,21 @@ const Radio = () => {
               )}
             </CardContent>
           </Card>
+
+          {currentAudio && (
+            <Card>
+              <CardContent className="p-4">
+                <audio
+                  controls
+                  className="w-full"
+                  src={currentAudio}
+                  onEnded={() => setCurrentAudio(null)}
+                >
+                  Tu navegador no soporta el elemento de audio.
+                </audio>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <TranscriptionSlot

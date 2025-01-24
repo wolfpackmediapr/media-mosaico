@@ -25,9 +25,9 @@ const FileUploadZone = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Subir Videos</CardTitle>
+        <CardTitle>Subir Audio</CardTitle>
         <CardDescription>
-          Arrastra y suelta archivos de video aquí o selecciónalos manualmente
+          Arrastra y suelta archivos de audio aquí o selecciónalos manualmente
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -49,13 +49,13 @@ const FileUploadZone = ({
           ) : (
             <>
               <p className="mb-2 text-sm text-gray-500">
-                Arrastra y suelta archivos de video aquí o selecciona un archivo para subir.
+                Arrastra y suelta archivos de audio aquí o selecciona un archivo para subir.
               </p>
               <p className="text-xs text-gray-500 mb-2">
-                Tamaño máximo permitido: 50MB
+                Formatos soportados: MP3, WAV, M4A
               </p>
               <p className="text-xs text-gray-500 mb-4">
-                Archivos mayores a 25MB serán convertidos automáticamente a formato audio.
+                Tamaño máximo: 25MB
               </p>
               <Button
                 variant="outline"
@@ -69,7 +69,7 @@ const FileUploadZone = ({
             id="fileInput"
             type="file"
             className="hidden"
-            accept="video/*"
+            accept="audio/*"
             multiple
             onChange={onFileInput}
           />
