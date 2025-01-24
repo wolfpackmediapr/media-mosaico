@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Mail, FileDown } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface TranscriptionSlotProps {
   isProcessing: boolean;
@@ -15,13 +17,27 @@ const TranscriptionSlot = ({
   transcriptionText,
   onTranscriptionChange,
 }: TranscriptionSlotProps) => {
+  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onTranscriptionChange(e.target.value);
+  const handleTextChange = async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    onTranscriptionChange(newText);
+    
     // Simulate autosave
     setIsSaving(true);
-    setTimeout(() => setIsSaving(false), 1000);
+    try {
+      // Here you would typically save to Supabase
+      // await supabase.from('transcriptions').update...
+      setTimeout(() => setIsSaving(false), 1000);
+    } catch (error) {
+      toast({
+        title: "Error al guardar",
+        description: "No se pudo guardar la transcripción",
+        variant: "destructive",
+      });
+      setIsSaving(false);
+    }
   };
 
   const exportAsTXT = () => {
@@ -34,16 +50,71 @@ const TranscriptionSlot = ({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Exportación exitosa",
+      description: "El archivo TXT ha sido descargado",
+    });
   };
 
-  const exportAsPDF = () => {
-    // TODO: Implement PDF export functionality
-    console.log("Export as PDF clicked");
+  const exportAsPDF = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-pdf', {
+        body: { text: transcriptionText }
+      });
+
+      if (error) throw error;
+
+      // Convert base64 to blob and download
+      const byteCharacters = atob(data.pdf);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'transcripcion.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Exportación exitosa",
+        description: "El archivo PDF ha sido descargado",
+      });
+    } catch (error) {
+      toast({
+        title: "Error en la exportación",
+        description: "No se pudo generar el archivo PDF",
+        variant: "destructive",
+      });
+    }
   };
 
-  const sendEmail = () => {
-    // TODO: Implement email sending functionality
-    console.log("Send email clicked");
+  const sendEmail = async () => {
+    try {
+      const { error } = await supabase.functions.invoke('send-email', {
+        body: { text: transcriptionText }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Correo enviado",
+        description: "La transcripción ha sido enviada por correo electrónico",
+      });
+    } catch (error) {
+      toast({
+        title: "Error al enviar",
+        description: "No se pudo enviar el correo electrónico",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
