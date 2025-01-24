@@ -8,12 +8,14 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
     const { videoPath } = await req.json()
+    console.log('Processing video path:', videoPath)
 
     if (!videoPath) {
       throw new Error('Video path is required')
@@ -25,20 +27,31 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Download video from storage
+    console.log('Attempting to download from media bucket:', videoPath)
+
+    // Download video from storage - note we're using 'media' bucket now
     const { data: fileData, error: downloadError } = await supabase
       .storage
-      .from('videos')
+      .from('media')
       .download(videoPath)
 
     if (downloadError) {
-      throw new Error('Error downloading video: ' + downloadError.message)
+      console.error('Download error:', downloadError)
+      throw new Error(`Error downloading video: ${downloadError.message}`)
     }
+
+    if (!fileData) {
+      throw new Error('No file data received')
+    }
+
+    console.log('File downloaded successfully, preparing for OpenAI')
 
     // Convert to form data for OpenAI
     const formData = new FormData()
     formData.append('file', fileData, 'video.mp4')
     formData.append('model', 'whisper-1')
+
+    console.log('Sending to OpenAI for transcription')
 
     // Send to OpenAI for transcription
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -50,18 +63,21 @@ serve(async (req) => {
     })
 
     if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`OpenAI API error: ${error}`)
+      const errorText = await response.text()
+      console.error('OpenAI API error:', errorText)
+      throw new Error(`OpenAI API error: ${errorText}`)
     }
 
     const result = await response.json()
+    console.log('Transcription completed successfully')
 
     return new Response(
       JSON.stringify({ text: result.text }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+
   } catch (error) {
-    console.error('Transcription error:', error)
+    console.error('Function error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
