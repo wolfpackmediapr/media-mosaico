@@ -27,6 +27,14 @@ serve(async (req) => {
 
     console.log('Processing file:', file.name, 'type:', file.type)
 
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Update initial progress
+    await updateProgress(supabase, file.name, 20, 'preparing')
+
     // Prepare form data for OpenAI
     const whisperFormData = new FormData()
     whisperFormData.append('file', file, file.name)
@@ -34,7 +42,10 @@ serve(async (req) => {
     whisperFormData.append('response_format', 'verbose_json')
     whisperFormData.append('language', 'es')
 
+    // Update progress before API call
+    await updateProgress(supabase, file.name, 50, 'transcribing')
     console.log('Calling Whisper API...')
+
     const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -49,14 +60,11 @@ serve(async (req) => {
       throw new Error(`Whisper API error: ${errorText}`)
     }
 
+    // Update progress after successful transcription
+    await updateProgress(supabase, file.name, 80, 'processing')
+
     const result = await whisperResponse.json()
     console.log('Transcription completed successfully')
-
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
 
     // Save transcription to database
     const { error: dbError } = await supabase
@@ -65,6 +73,7 @@ serve(async (req) => {
         user_id: userId,
         transcription_text: result.text,
         status: 'completed',
+        progress: 100,
         original_file_path: file.name
       })
 
@@ -103,3 +112,17 @@ serve(async (req) => {
     )
   }
 })
+
+async function updateProgress(supabase: any, filePath: string, progress: number, status: string) {
+  const { error } = await supabase
+    .from('transcriptions')
+    .update({ 
+      status: status,
+      progress: progress 
+    })
+    .eq('original_file_path', filePath)
+
+  if (error) {
+    console.error('Error updating progress:', error)
+  }
+}

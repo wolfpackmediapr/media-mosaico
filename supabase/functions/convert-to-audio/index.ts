@@ -26,6 +26,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Update progress - Download started
+    await updateProgress(supabase, videoPath, 10, 'downloading')
+
     // Download the video file
     console.log('Attempting to download video from storage')
     const { data: videoData, error: downloadError } = await supabase.storage
@@ -41,6 +44,8 @@ serve(async (req) => {
       throw new Error('No video data received')
     }
 
+    // Update progress - Download complete
+    await updateProgress(supabase, videoPath, 30, 'converting')
     console.log('Video downloaded successfully, size:', videoData.size)
 
     // Create temporary files for FFmpeg processing
@@ -51,16 +56,19 @@ serve(async (req) => {
     await Deno.writeFile(tempVideoPath, new Uint8Array(await videoData.arrayBuffer()))
     console.log('Video data written to temporary file')
 
+    // Update progress - Starting conversion
+    await updateProgress(supabase, videoPath, 50, 'converting')
+
     // Use FFmpeg to convert video to audio
     console.log('Starting FFmpeg conversion')
     const ffmpegCommand = new Deno.Command('ffmpeg', {
       args: [
         '-i', tempVideoPath,
-        '-vn',                // Disable video
-        '-ar', '16000',       // Set sample rate to 16kHz
-        '-ac', '1',           // Convert to mono
-        '-b:a', '64k',        // Set bitrate
-        '-f', 'mp3',          // Force mp3 format
+        '-vn',
+        '-ar', '16000',
+        '-ac', '1',
+        '-b:a', '64k',
+        '-f', 'mp3',
         tempAudioPath
       ],
     })
@@ -72,6 +80,8 @@ serve(async (req) => {
       throw new Error('FFmpeg conversion failed')
     }
 
+    // Update progress - Conversion complete
+    await updateProgress(supabase, videoPath, 70, 'uploading')
     console.log('Audio conversion completed')
 
     // Read the converted audio file
@@ -93,6 +103,9 @@ serve(async (req) => {
       console.error('Upload error:', uploadError)
       throw new Error(`Failed to upload audio: ${uploadError.message}`)
     }
+
+    // Update progress - Upload complete
+    await updateProgress(supabase, videoPath, 90, 'finalizing')
 
     // Clean up temporary files
     try {
@@ -117,6 +130,8 @@ serve(async (req) => {
       throw new Error(`Failed to update transcription record: ${updateError.message}`)
     }
 
+    // Final progress update
+    await updateProgress(supabase, videoPath, 100, 'completed')
     console.log('Conversion process completed successfully')
 
     return new Response(
@@ -143,3 +158,17 @@ serve(async (req) => {
     )
   }
 })
+
+async function updateProgress(supabase: any, videoPath: string, progress: number, status: string) {
+  const { error } = await supabase
+    .from('transcriptions')
+    .update({ 
+      status: status,
+      progress: progress 
+    })
+    .eq('original_file_path', videoPath)
+
+  if (error) {
+    console.error('Error updating progress:', error)
+  }
+}
