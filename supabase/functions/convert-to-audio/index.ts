@@ -12,12 +12,14 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting video conversion process');
-    const { videoPath } = await req.json();
+    console.log('Starting video conversion process')
+    const { videoPath } = await req.json()
     
     if (!videoPath) {
-      throw new Error('Video path is required');
+      throw new Error('Video path is required')
     }
+
+    console.log('Video path received:', videoPath)
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -25,28 +27,32 @@ serve(async (req) => {
     )
 
     // Download the video file
-    console.log('Downloading video:', videoPath);
+    console.log('Attempting to download video from storage')
     const { data: videoData, error: downloadError } = await supabase.storage
       .from('media')
       .download(videoPath)
 
     if (downloadError) {
-      console.error('Download error:', downloadError);
-      throw new Error(`Failed to download video: ${downloadError.message}`);
+      console.error('Download error:', downloadError)
+      throw new Error(`Failed to download video: ${JSON.stringify(downloadError)}`)
     }
 
     if (!videoData) {
-      throw new Error('No video data received');
+      throw new Error('No video data received')
     }
 
-    // Create a temporary file for FFmpeg processing
-    const tempVideoPath = await Deno.makeTempFile({ suffix: '.mp4' });
-    const tempAudioPath = await Deno.makeTempFile({ suffix: '.mp3' });
+    console.log('Video downloaded successfully, size:', videoData.size)
+
+    // Create temporary files for FFmpeg processing
+    const tempVideoPath = await Deno.makeTempFile({ suffix: '.mp4' })
+    const tempAudioPath = await Deno.makeTempFile({ suffix: '.mp3' })
 
     // Write video data to temp file
-    await Deno.writeFile(tempVideoPath, new Uint8Array(await videoData.arrayBuffer()));
+    await Deno.writeFile(tempVideoPath, new Uint8Array(await videoData.arrayBuffer()))
+    console.log('Video data written to temporary file')
 
-    // Use FFmpeg command line tool (must be installed on the server)
+    // Use FFmpeg to convert video to audio
+    console.log('Starting FFmpeg conversion')
     const ffmpegCommand = new Deno.Command('ffmpeg', {
       args: [
         '-i', tempVideoPath,
@@ -57,37 +63,45 @@ serve(async (req) => {
         '-f', 'mp3',          // Force mp3 format
         tempAudioPath
       ],
-    });
+    })
 
-    const { success, code, stderr } = await ffmpegCommand.output();
+    const { success: conversionSuccess, stderr } = await ffmpegCommand.output()
     
-    if (!success) {
-      console.error('FFmpeg error:', new TextDecoder().decode(stderr));
-      throw new Error(`FFmpeg conversion failed with code ${code}`);
+    if (!conversionSuccess) {
+      console.error('FFmpeg conversion error:', new TextDecoder().decode(stderr))
+      throw new Error('FFmpeg conversion failed')
     }
 
+    console.log('Audio conversion completed')
+
     // Read the converted audio file
-    const audioData = await Deno.readFile(tempAudioPath);
+    const audioData = await Deno.readFile(tempAudioPath)
+    console.log('Audio file read, size:', audioData.length)
 
     // Upload the converted audio file
-    const audioPath = `${videoPath.split('.')[0]}_audio.mp3`;
-    console.log('Uploading converted audio:', audioPath);
+    const audioPath = `${videoPath.split('.')[0]}_audio.mp3`
+    console.log('Uploading converted audio:', audioPath)
 
     const { error: uploadError } = await supabase.storage
       .from('media')
       .upload(audioPath, audioData, {
         contentType: 'audio/mp3',
         upsert: false
-      });
+      })
 
     if (uploadError) {
-      console.error('Upload error:', uploadError);
-      throw new Error(`Failed to upload audio: ${uploadError.message}`);
+      console.error('Upload error:', uploadError)
+      throw new Error(`Failed to upload audio: ${uploadError.message}`)
     }
 
     // Clean up temporary files
-    await Deno.remove(tempVideoPath);
-    await Deno.remove(tempAudioPath);
+    try {
+      await Deno.remove(tempVideoPath)
+      await Deno.remove(tempAudioPath)
+      console.log('Temporary files cleaned up')
+    } catch (cleanupError) {
+      console.error('Error cleaning up temporary files:', cleanupError)
+    }
 
     // Update transcription record
     const { error: updateError } = await supabase
@@ -96,12 +110,14 @@ serve(async (req) => {
         audio_file_path: audioPath,
         status: 'ready_for_transcription'
       })
-      .eq('original_file_path', videoPath);
+      .eq('original_file_path', videoPath)
 
     if (updateError) {
-      console.error('Update error:', updateError);
-      throw new Error(`Failed to update transcription record: ${updateError.message}`);
+      console.error('Update error:', updateError)
+      throw new Error(`Failed to update transcription record: ${updateError.message}`)
     }
+
+    console.log('Conversion process completed successfully')
 
     return new Response(
       JSON.stringify({ 
@@ -114,16 +130,16 @@ serve(async (req) => {
           'Content-Type': 'application/json' 
         } 
       }
-    );
+    )
 
   } catch (error) {
-    console.error('Function error:', error);
+    console.error('Function error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
-    );
+    )
   }
-});
+})
