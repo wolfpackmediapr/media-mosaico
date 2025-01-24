@@ -96,7 +96,7 @@ const Radio = () => {
                   {uploadedFiles.map((file, index) => (
                     <li
                       key={index}
-                      className="flex items-center justify-between p-2 bg-gray-50 rounded-md"
+                      className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-md"
                     >
                       <span className="text-sm truncate">{file.name}</span>
                       <span className="text-xs text-gray-500">
