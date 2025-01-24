@@ -33,6 +33,60 @@ export type Database = {
         }
         Relationships: []
       }
+      transcriptions: {
+        Row: {
+          audio_file_path: string | null
+          broadcast_time: string | null
+          category: string | null
+          channel: string | null
+          created_at: string
+          id: string
+          keywords: string[] | null
+          original_file_path: string
+          program: string | null
+          relevant_clients: string[] | null
+          status: string
+          summary: string | null
+          transcription_text: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          audio_file_path?: string | null
+          broadcast_time?: string | null
+          category?: string | null
+          channel?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          original_file_path: string
+          program?: string | null
+          relevant_clients?: string[] | null
+          status?: string
+          summary?: string | null
+          transcription_text?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          audio_file_path?: string | null
+          broadcast_time?: string | null
+          category?: string | null
+          channel?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          original_file_path?: string
+          program?: string | null
+          relevant_clients?: string[] | null
+          status?: string
+          summary?: string | null
+          transcription_text?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

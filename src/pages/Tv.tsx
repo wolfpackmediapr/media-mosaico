@@ -3,6 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -30,7 +31,7 @@ const Tv = () => {
     setIsDragging(false);
   };
 
-  const validateFile = (file: File) => {
+  const validateAndUploadFile = async (file: File) => {
     if (!file.type.startsWith("video/")) {
       toast({
         title: "Error",
@@ -40,30 +41,70 @@ const Tv = () => {
       return false;
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    // Create a unique file path using the user's ID and timestamp
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       toast({
-        title: "Archivo grande detectado",
-        description: "El archivo excede el tamaño permitido. Convertiendo a formato MP3 para continuar...",
+        title: "Error",
+        description: "Debes iniciar sesión para subir archivos.",
+        variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Archivo cargado correctamente",
-        description: "Listo para procesar con transcripción.",
-      });
+      return false;
     }
 
-    return true;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Create transcription record
+      const { error: dbError } = await supabase
+        .from('transcriptions')
+        .insert({
+          user_id: user.id,
+          original_file_path: fileName,
+          status: file.size > MAX_FILE_SIZE ? 'needs_conversion' : 'pending',
+        });
+
+      if (dbError) throw dbError;
+
+      if (file.size > MAX_FILE_SIZE) {
+        toast({
+          title: "Archivo grande detectado",
+          description: "El archivo excede los 25MB. Se convertirá automáticamente a formato de audio para continuar con la transcripción.",
+        });
+      } else {
+        toast({
+          title: "Archivo cargado correctamente",
+          description: "Listo para procesar la transcripción.",
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast({
+        title: "Error al subir el archivo",
+        description: "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+        variant: "destructive",
+      });
+      return false;
+    }
   };
 
-  const handleFiles = useCallback((files: FileList) => {
-    const validFiles = Array.from(files).filter(validateFile);
-
-    const filesWithPreviews = validFiles.map((file) => {
-      const preview = URL.createObjectURL(file);
-      return Object.assign(file, { preview });
-    });
-
-    setUploadedFiles((prev) => [...prev, ...filesWithPreviews]);
+  const handleFiles = useCallback(async (files: FileList) => {
+    for (const file of Array.from(files)) {
+      const success = await validateAndUploadFile(file);
+      if (success) {
+        const preview = URL.createObjectURL(file);
+        setUploadedFiles((prev) => [...prev, Object.assign(file, { preview })]);
+      }
+    }
   }, []);
 
   const handleDrop = (e: React.DragEvent) => {
@@ -82,7 +123,12 @@ const Tv = () => {
     setIsProcessing(true);
     setProgress(0);
 
-    // Simulate processing progress
+    toast({
+      title: "Procesando archivo",
+      description: "Transcribiendo archivo... Esto puede tardar unos momentos dependiendo del tamaño del archivo.",
+    });
+
+    // Simulate processing progress (will be replaced with actual processing)
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -94,11 +140,6 @@ const Tv = () => {
         return prev + 10;
       });
     }, 500);
-
-    toast({
-      title: "Procesando archivo",
-      description: "Transcribiendo archivo... Esto puede tardar unos momentos dependiendo del tamaño del archivo.",
-    });
   };
 
   const handleTranscriptionChange = (text: string) => {
