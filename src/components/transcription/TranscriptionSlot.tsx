@@ -54,7 +54,7 @@ const TranscriptionSlot = ({
       
       <Card className="p-4">
         <div 
-          data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK"
+          data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG"
           className="w-full min-h-[500px]"
         />
       </Card>
