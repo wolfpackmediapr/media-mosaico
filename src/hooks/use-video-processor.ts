@@ -19,6 +19,7 @@ export const useVideoProcessor = () => {
   const processVideo = async (file: File) => {
     setIsProcessing(true);
     setProgress(0);
+    console.log("Starting video processing for file:", file.name);
 
     try {
       // First, find the transcription record by file name
@@ -32,6 +33,7 @@ export const useVideoProcessor = () => {
 
       if (!transcriptionData) {
         // If no transcription exists, start the transcription process
+        console.log("No existing transcription found, starting new process");
         setProgress(10);
         
         const { data: transcriptionResult, error: processError } = await supabase.functions
@@ -42,19 +44,9 @@ export const useVideoProcessor = () => {
         if (processError) throw processError;
 
         setProgress(50);
+        console.log("Transcription result:", transcriptionResult);
 
         if (transcriptionResult?.text) {
-          // Update the transcription record with the result
-          const { error: updateError } = await supabase
-            .from('transcriptions')
-            .update({ 
-              transcription_text: transcriptionResult.text,
-              status: 'completed'
-            })
-            .eq('original_file_path', file.name);
-
-          if (updateError) throw updateError;
-
           setTranscriptionText(transcriptionResult.text);
           setProgress(100);
           
@@ -65,6 +57,7 @@ export const useVideoProcessor = () => {
         }
       } else {
         // If transcription exists, load it
+        console.log("Found existing transcription:", transcriptionData);
         setTranscriptionText(transcriptionData.transcription_text || "");
         setTranscriptionMetadata({
           channel: transcriptionData.channel,

@@ -1,7 +1,7 @@
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface TranscriptionEditorProps {
   transcriptionText: string;
@@ -16,9 +16,15 @@ const TranscriptionEditor = ({
 }: TranscriptionEditorProps) => {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [localText, setLocalText] = useState(transcriptionText);
+
+  useEffect(() => {
+    setLocalText(transcriptionText);
+  }, [transcriptionText]);
 
   const handleTextChange = async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
+    setLocalText(newText);
     onTranscriptionChange(newText);
     
     setIsSaving(true);
@@ -47,13 +53,22 @@ const TranscriptionEditor = ({
   };
 
   return (
-    <Textarea
-      placeholder="Aquí aparecerá el texto transcrito..."
-      className="min-h-[200px] resize-y"
-      value={transcriptionText}
-      onChange={handleTextChange}
-      disabled={isProcessing}
-    />
+    <div className="relative">
+      <Textarea
+        placeholder="Aquí aparecerá el texto transcrito..."
+        className="min-h-[200px] resize-y"
+        value={localText}
+        onChange={handleTextChange}
+        disabled={isProcessing}
+      />
+      {isSaving && (
+        <div className="absolute top-2 right-2">
+          <span className="text-sm text-primary animate-pulse">
+            Guardando...
+          </span>
+        </div>
+      )}
+    </div>
   );
 };
 
