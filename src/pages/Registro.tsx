@@ -9,25 +9,48 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { Provider } from "@supabase/supabase-js";
 
-const Auth = () => {
+const Registro = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleRegistro = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (password !== confirmPassword) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Las contraseñas no coinciden",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: window.location.origin,
+          data: {
+            username: username,
+          }
+        },
       });
 
       if (error) throw error;
-      navigate("/");
+
+      toast({
+        title: "Registro exitoso",
+        description: "Por favor verifica tu correo electrónico para continuar.",
+      });
+      navigate("/auth");
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -61,13 +84,24 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Iniciar sesión</CardTitle>
+          <CardTitle>Crear cuenta</CardTitle>
           <CardDescription>
-            Ingresa tus credenciales para acceder
+            Ingresa tus datos para registrarte
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleAuth}>
+        <form onSubmit={handleRegistro}>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Nombre de usuario</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="usuario123"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Correo electrónico</Label>
               <Input
@@ -89,19 +123,21 @@ const Auth = () => {
                 required
               />
             </div>
-            <Button
-              variant="link"
-              className="px-0 text-sm"
-              type="button"
-              onClick={() => navigate("/recuperar-password")}
-            >
-              ¿Olvidaste tu contraseña?
-            </Button>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Iniciar sesión
+              Registrarse
             </Button>
             <div className="relative w-full">
               <div className="absolute inset-0 flex items-center">
@@ -130,10 +166,10 @@ const Auth = () => {
             <Button
               variant="link"
               type="button"
-              onClick={() => navigate("/registro")}
+              onClick={() => navigate("/auth")}
               className="mt-4"
             >
-              ¿No tienes cuenta? Regístrate
+              ¿Ya tienes cuenta? Inicia sesión
             </Button>
           </CardFooter>
         </form>
@@ -142,4 +178,4 @@ const Auth = () => {
   );
 };
 
-export default Auth;
+export default Registro;
