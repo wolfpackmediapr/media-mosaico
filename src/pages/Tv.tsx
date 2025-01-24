@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
+import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -20,6 +21,7 @@ const Tv = () => {
   const [volume, setVolume] = useState([50]);
   const [progress, setProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [transcriptionText, setTranscriptionText] = useState("");
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -89,17 +91,22 @@ const Tv = () => {
         if (prev >= 100) {
           clearInterval(interval);
           setIsProcessing(false);
+          // Simulate transcription result
+          setTranscriptionText("Esta es una transcripción de ejemplo del video procesado...");
           return 100;
         }
         return prev + 10;
       });
     }, 500);
 
-    // Here we'll add the actual API calls later
     toast({
       title: "Procesando archivo",
       description: "Transcribiendo archivo... Esto puede tardar unos momentos dependiendo del tamaño del archivo.",
     });
+  };
+
+  const handleTranscriptionChange = (text: string) => {
+    setTranscriptionText(text);
   };
 
   const togglePlayback = () => {
@@ -107,7 +114,7 @@ const Tv = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">MONITOREO TV</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-2">
@@ -235,6 +242,12 @@ const Tv = () => {
           </CardContent>
         </Card>
       </div>
+
+      <TranscriptionSlot
+        isProcessing={isProcessing}
+        transcriptionText={transcriptionText}
+        onTranscriptionChange={handleTranscriptionChange}
+      />
     </div>
   );
 };
