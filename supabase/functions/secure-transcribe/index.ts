@@ -7,6 +7,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const CATEGORIES = [
+  "ACCIDENTES",
+  "AGENCIAS DE GOBIERNO",
+  "AMBIENTE",
+  "AMBIENTE & EL TIEMPO",
+  "CIENCIA & TECNOLOGIA",
+  "COMUNIDAD",
+  "CRIMEN",
+  "DEPORTES",
+  "ECONOMIA & NEGOCIOS",
+  "EDUCACION & CULTURA",
+  "EE.UU. & INTERNACIONALES",
+  "ENTRETENIMIENTO",
+  "GOBIERNO",
+  "OTRAS",
+  "POLITICA",
+  "RELIGION",
+  "SALUD",
+  "TRIBUNALES"
+];
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -63,11 +84,17 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: `You are a TV monitoring assistant for Publimedia. Analyze this transcription and categorize it appropriately. Categories: ACCIDENTES, AGENCIAS DE GOBIERNO, AMBIENTE, AMBIENTE & EL TIEMPO, CIENCIA & TECNOLOGIA, COMUNIDAD, CRIMEN, DEPORTES, ECONOMIA & NEGOCIOS, EDUCACION & CULTURA, EE.UU. & INTERNACIONALES, ENTRETENIMIENTO, GOBIERNO, OTRAS, POLITICA, RELIGION, SALUD, TRIBUNALES`
+            content: `You are a TV monitoring assistant for Publimedia. Analyze this transcription and provide a JSON response with the following structure:
+            {
+              "category": "one of ${CATEGORIES.join(', ')}",
+              "summary": "brief summary of the content",
+              "relevant_clients": ["array of relevant client names"],
+              "keywords": ["array of relevant keywords"]
+            }`
           },
           {
             role: 'user',
@@ -84,7 +111,20 @@ serve(async (req) => {
     }
 
     const analysisResult = await analysisResponse.json();
-    const analysis = JSON.parse(analysisResult.choices[0].message.content);
+    let analysis;
+    try {
+      // Ensure we're parsing a clean JSON string
+      const cleanContent = analysisResult.choices[0].message.content.trim();
+      analysis = JSON.parse(cleanContent);
+      
+      // Validate category
+      if (!CATEGORIES.includes(analysis.category)) {
+        throw new Error(`Invalid category: ${analysis.category}`);
+      }
+    } catch (error) {
+      console.error('Error parsing GPT response:', error);
+      throw new Error('Failed to parse analysis result');
+    }
 
     // Initialize Supabase client
     const supabase = createClient(
