@@ -1,4 +1,4 @@
-import { Play, Pause, Volume2, FileVideo } from "lucide-react";
+import { Play, Pause, Volume2, FileVideo, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -21,6 +21,7 @@ interface VideoPreviewProps {
   onVolumeChange: (value: number[]) => void;
   onProcess: (file: UploadedFile) => void;
   onTranscriptionComplete?: (text: string) => void;
+  onRemoveFile?: (index: number) => void;
 }
 
 const VideoPreview = ({
@@ -33,6 +34,7 @@ const VideoPreview = ({
   onVolumeChange,
   onProcess,
   onTranscriptionComplete,
+  onRemoveFile,
 }: VideoPreviewProps) => {
   const videoRefs = useRef<{ [key: number]: HTMLVideoElement }>({});
 
@@ -122,9 +124,19 @@ const VideoPreview = ({
                       </p>
                     </div>
                   </div>
-                  <Button size="icon" variant="ghost" onClick={onTogglePlayback}>
-                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="icon" variant="ghost" onClick={onTogglePlayback}>
+                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    </Button>
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      onClick={() => onRemoveFile?.(index)}
+                      className="text-destructive hover:text-destructive/90"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 {file.preview && (
