@@ -24,6 +24,12 @@ const VideoFileItem = ({
   onProcess,
   onRemove,
 }: VideoFileItemProps) => {
+  const getButtonText = () => {
+    if (!isProcessing) return "Procesar Transcripción";
+    if (progress === 100) return "Procesamiento completado";
+    return `Procesando: ${progress}%`;
+  };
+
   return (
     <div className="space-y-4 p-4 bg-muted rounded-lg">
       <div className="flex items-center justify-between">
@@ -50,22 +56,19 @@ const VideoFileItem = ({
         <VideoPlayer src={file.preview} />
       )}
 
-      {isProcessing && (
-        <div className="space-y-2">
-          <Progress value={progress} className="w-full" />
-          <p className="text-xs text-center text-gray-500">
-            {progress === 100 ? 'Procesamiento completado' : `Procesando: ${progress}%`}
-          </p>
-        </div>
-      )}
-
-      <Button
-        className="w-full"
-        onClick={() => onProcess(file)}
-        disabled={isProcessing}
-      >
-        {isProcessing ? 'Procesando...' : 'Procesar Transcripción'}
-      </Button>
+      <div className="space-y-2">
+        {isProcessing && (
+          <Progress value={progress} className="h-2" />
+        )}
+        <Button
+          className="w-full relative"
+          onClick={() => onProcess(file)}
+          disabled={isProcessing}
+          variant={progress === 100 ? "secondary" : "default"}
+        >
+          {getButtonText()}
+        </Button>
+      </div>
     </div>
   );
 };
