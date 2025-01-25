@@ -35,6 +35,14 @@ export type Database = {
       }
       transcriptions: {
         Row: {
+          analysis_alerts: Json | null
+          analysis_cuando: string | null
+          analysis_donde: string | null
+          analysis_keywords: string[] | null
+          analysis_porque: string | null
+          analysis_que: string | null
+          analysis_quien: string | null
+          analysis_summary: string | null
           audio_file_path: string | null
           broadcast_time: string | null
           category: string | null
@@ -53,6 +61,14 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          analysis_alerts?: Json | null
+          analysis_cuando?: string | null
+          analysis_donde?: string | null
+          analysis_keywords?: string[] | null
+          analysis_porque?: string | null
+          analysis_que?: string | null
+          analysis_quien?: string | null
+          analysis_summary?: string | null
           audio_file_path?: string | null
           broadcast_time?: string | null
           category?: string | null
@@ -71,6 +87,14 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          analysis_alerts?: Json | null
+          analysis_cuando?: string | null
+          analysis_donde?: string | null
+          analysis_keywords?: string[] | null
+          analysis_porque?: string | null
+          analysis_que?: string | null
+          analysis_quien?: string | null
+          analysis_summary?: string | null
           audio_file_path?: string | null
           broadcast_time?: string | null
           category?: string | null
