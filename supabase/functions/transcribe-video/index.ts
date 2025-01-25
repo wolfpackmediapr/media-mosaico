@@ -15,7 +15,7 @@ serve(async (req) => {
   try {
     console.log('Request received');
     const { videoPath } = await req.json();
-    console.log('Video path:', videoPath);
+    console.log('Video path received:', videoPath);
 
     if (!videoPath) {
       throw new Error('Video path is required');
@@ -26,8 +26,29 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // First, generate a signed URL for the file
-    console.log('Generating signed URL for:', videoPath);
+    // First check if the file exists in the bucket
+    const { data: fileExists, error: fileCheckError } = await supabase
+      .storage
+      .from('media')
+      .list(videoPath.split('/')[0], {
+        limit: 1,
+        offset: 0,
+        search: videoPath.split('/')[1]
+      });
+
+    if (fileCheckError) {
+      console.error('Error checking file existence:', fileCheckError);
+      throw new Error(`Failed to check file existence: ${fileCheckError.message}`);
+    }
+
+    if (!fileExists || fileExists.length === 0) {
+      console.error('File not found in storage:', videoPath);
+      throw new Error('File not found in storage');
+    }
+
+    console.log('File exists in storage, generating signed URL');
+
+    // Generate signed URL for the file
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('media')
       .createSignedUrl(videoPath, 60);
