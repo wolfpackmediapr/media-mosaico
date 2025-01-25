@@ -7,6 +7,10 @@ import TranscriptionMetadata from "./TranscriptionMetadata";
 import TranscriptionEditor from "./TranscriptionEditor";
 import TranscriptionActions from "./TranscriptionActions";
 import TranscriptionAnalysis from "./TranscriptionAnalysis";
+import ChaptersSection from "../analysis/ChaptersSection";
+import ContentSafetySection from "../analysis/ContentSafetySection";
+import TopicsSection from "../analysis/TopicsSection";
+import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
 
 interface TranscriptionSlotProps {
   isProcessing: boolean;
@@ -18,16 +22,7 @@ interface TranscriptionSlotProps {
     broadcastTime?: string;
     keywords?: string[];
   };
-  analysis?: {
-    quien?: string;
-    que?: string;
-    cuando?: string;
-    donde?: string;
-    porque?: string;
-    summary?: string;
-    alerts?: any[];
-    keywords?: string[];
-  };
+  analysis?: TranscriptionAnalysisType;
   onTranscriptionChange: (text: string) => void;
 }
 
@@ -42,7 +37,7 @@ const TranscriptionSlot = ({
     try {
       const endDate = new Date();
       const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 7); // Last 7 days
+      startDate.setDate(startDate.getDate() - 7);
 
       const { data, error } = await supabase.functions.invoke('generate-report', {
         body: {
@@ -56,12 +51,16 @@ const TranscriptionSlot = ({
       });
 
       if (error) throw error;
-
       toast.success('Report generated successfully');
     } catch (error) {
       console.error('Error generating report:', error);
       toast.error('Failed to generate report');
     }
+  };
+
+  const handleChapterClick = (timestamp: number) => {
+    // Implement audio seeking logic here
+    console.log('Seeking to timestamp:', timestamp);
   };
 
   return (
@@ -91,7 +90,18 @@ const TranscriptionSlot = ({
           </div>
         </CardContent>
       </Card>
-      <TranscriptionAnalysis analysis={analysis} />
+
+      {analysis && (
+        <>
+          <TranscriptionAnalysis analysis={analysis} />
+          <ChaptersSection 
+            chapters={analysis.chapters}
+            onChapterClick={handleChapterClick}
+          />
+          <ContentSafetySection contentSafety={analysis.content_safety_labels} />
+          <TopicsSection topics={analysis.iab_categories_result} />
+        </>
+      )}
     </div>
   );
 };
