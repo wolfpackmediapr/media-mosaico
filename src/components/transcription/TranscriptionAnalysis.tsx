@@ -31,20 +31,17 @@ const TranscriptionAnalysis = ({ analysis }: TranscriptionAnalysisProps) => {
 
   return (
     <Card className="mt-6">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-2xl font-bold">Análisis de Contenido</CardTitle>
-        <CollapsibleTrigger
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="rounded-full p-2 hover:bg-accent"
-        >
-          {isExpanded ? (
-            <ChevronUp className="h-4 w-4" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
-          )}
-        </CollapsibleTrigger>
-      </CardHeader>
-      <Collapsible open={isExpanded}>
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-2xl font-bold">Análisis de Contenido</CardTitle>
+          <CollapsibleTrigger className="rounded-full p-2 hover:bg-accent">
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </CollapsibleTrigger>
+        </CardHeader>
         <CollapsibleContent className="space-y-4">
           <CardContent>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
