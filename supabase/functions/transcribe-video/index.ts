@@ -26,25 +26,47 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Download the file from storage
-    console.log('Downloading file from storage:', videoPath);
-    const { data: fileData, error: downloadError } = await supabase.storage
+    // Get the audio file path from the transcription record
+    const { data: transcription, error: transcriptionError } = await supabase
+      .from('transcriptions')
+      .select('audio_file_path')
+      .eq('original_file_path', videoPath)
+      .single();
+
+    if (transcriptionError) {
+      console.error('Error fetching transcription:', transcriptionError);
+      throw new Error('Failed to fetch transcription record');
+    }
+
+    if (!transcription?.audio_file_path) {
+      throw new Error('Audio file not found. Video must be converted to audio first.');
+    }
+
+    // Download the audio file
+    console.log('Downloading audio file:', transcription.audio_file_path);
+    const { data: audioData, error: downloadError } = await supabase.storage
       .from('media')
-      .download(videoPath);
+      .download(transcription.audio_file_path);
 
     if (downloadError) {
       console.error('Download error:', downloadError);
-      throw new Error(`Failed to download file: ${downloadError.message}`);
+      throw new Error(`Failed to download audio file: ${downloadError.message}`);
     }
 
-    if (!fileData) {
-      throw new Error('No file data received');
+    if (!audioData) {
+      throw new Error('No audio data received');
     }
+
+    // Update progress
+    await supabase
+      .from('transcriptions')
+      .update({ progress: 75, status: 'transcribing' })
+      .eq('original_file_path', videoPath);
 
     // Prepare form data for OpenAI Whisper API
     console.log('Preparing Whisper API request');
     const formData = new FormData();
-    formData.append('file', fileData, 'audio.mp3');
+    formData.append('file', audioData, 'audio.mp3');
     formData.append('model', 'whisper-1');
     formData.append('response_format', 'verbose_json');
     formData.append('language', 'es');
@@ -71,12 +93,12 @@ serve(async (req) => {
     // Update transcription record
     const { error: updateError } = await supabase
       .from('transcriptions')
-      .insert({ 
-        user_id: videoPath.split('/')[0],
-        original_file_path: videoPath,
+      .update({ 
         transcription_text: result.text,
-        status: 'completed'
-      });
+        status: 'completed',
+        progress: 100
+      })
+      .eq('original_file_path', videoPath);
 
     if (updateError) {
       console.error('Error updating transcription record:', updateError);
@@ -90,6 +112,28 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Function error:', error);
+    
+    // Update transcription status to error
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    
+    try {
+      const { videoPath } = await req.json();
+      if (videoPath) {
+        await supabase
+          .from('transcriptions')
+          .update({ 
+            status: 'error',
+            progress: 0
+          })
+          .eq('original_file_path', videoPath);
+      }
+    } catch (updateError) {
+      console.error('Error updating transcription status:', updateError);
+    }
+
     return new Response(
       JSON.stringify({ error: error.message }),
       { 

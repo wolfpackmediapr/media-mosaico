@@ -94,6 +94,21 @@ serve(async (req) => {
       throw new Error(`Failed to upload audio: ${uploadError.message}`)
     }
 
+    // Update transcription record
+    const { error: updateError } = await supabase
+      .from('transcriptions')
+      .update({ 
+        audio_file_path: audioPath,
+        status: 'ready_for_transcription',
+        progress: 50
+      })
+      .eq('original_file_path', videoPath)
+
+    if (updateError) {
+      console.error('Update error:', updateError)
+      throw new Error(`Failed to update transcription record: ${updateError.message}`)
+    }
+
     // Clean up temporary files
     try {
       await Deno.remove(tempVideoPath)
@@ -101,20 +116,6 @@ serve(async (req) => {
       console.log('Temporary files cleaned up')
     } catch (cleanupError) {
       console.error('Error cleaning up temporary files:', cleanupError)
-    }
-
-    // Update transcription record
-    const { error: updateError } = await supabase
-      .from('transcriptions')
-      .update({ 
-        audio_file_path: audioPath,
-        status: 'ready_for_transcription'
-      })
-      .eq('original_file_path', videoPath)
-
-    if (updateError) {
-      console.error('Update error:', updateError)
-      throw new Error(`Failed to update transcription record: ${updateError.message}`)
     }
 
     console.log('Conversion process completed successfully')
