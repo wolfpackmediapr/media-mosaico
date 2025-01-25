@@ -29,7 +29,6 @@ const CATEGORIES = [
 ];
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -50,7 +49,7 @@ serve(async (req) => {
 
     console.log('Received file:', file.name, 'type:', file.type);
 
-    // Prepare form data for OpenAI
+    // Prepare form data for OpenAI Whisper
     const whisperFormData = new FormData();
     whisperFormData.append('file', file);
     whisperFormData.append('model', 'whisper-1');
@@ -75,7 +74,7 @@ serve(async (req) => {
     const whisperResult = await whisperResponse.json();
     console.log('Transcription completed successfully');
 
-    // Now analyze the transcription with GPT-4
+    // Analyze the transcription with GPT-4
     console.log('Analyzing transcription with GPT-4...');
     const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -84,16 +83,30 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
-            content: `You are a TV monitoring assistant for Publimedia. Analyze this transcription and provide a JSON response with the following structure:
+            content: `You are a media analysis assistant specialized in analyzing Spanish language news content. 
+            Analyze the provided transcription and extract key information following the 5W framework (Who, What, When, Where, Why).
+            Additionally, identify relevant keywords, potential alerts, and categorize the content.
+            
+            Provide your analysis in Spanish, structured as a JSON object with the following fields:
             {
-              "category": "one of ${CATEGORIES.join(', ')}",
+              "quien": "who is involved",
+              "que": "what happened",
+              "cuando": "when it happened",
+              "donde": "where it happened",
+              "porque": "why it happened",
               "summary": "brief summary of the content",
-              "relevant_clients": ["array of relevant client names"],
-              "keywords": ["array of relevant keywords"]
+              "category": "one of ${CATEGORIES.join(', ')}",
+              "alerts": ["array of important alerts or warnings"],
+              "keywords": ["array of relevant keywords"],
+              "client_relevance": {
+                "high_relevance": ["clients highly relevant to this content"],
+                "medium_relevance": ["clients somewhat relevant to this content"],
+                "mentions": ["clients directly mentioned"]
+              }
             }`
           },
           {
@@ -102,7 +115,7 @@ serve(async (req) => {
           }
         ],
         temperature: 0.7,
-        max_tokens: 1000
+        max_tokens: 2000
       })
     });
 
@@ -111,20 +124,7 @@ serve(async (req) => {
     }
 
     const analysisResult = await analysisResponse.json();
-    let analysis;
-    try {
-      // Ensure we're parsing a clean JSON string
-      const cleanContent = analysisResult.choices[0].message.content.trim();
-      analysis = JSON.parse(cleanContent);
-      
-      // Validate category
-      if (!CATEGORIES.includes(analysis.category)) {
-        throw new Error(`Invalid category: ${analysis.category}`);
-      }
-    } catch (error) {
-      console.error('Error parsing GPT response:', error);
-      throw new Error('Failed to parse analysis result');
-    }
+    const analysis = JSON.parse(analysisResult.choices[0].message.content);
 
     // Initialize Supabase client
     const supabase = createClient(
@@ -138,10 +138,16 @@ serve(async (req) => {
       .insert({
         user_id: userId,
         transcription_text: whisperResult.text,
-        category: analysis.category,
-        summary: analysis.summary,
-        relevant_clients: analysis.relevant_clients,
-        keywords: analysis.keywords,
+        analysis_quien: analysis.quien,
+        analysis_que: analysis.que,
+        analysis_cuando: analysis.cuando,
+        analysis_donde: analysis.donde,
+        analysis_porque: analysis.porque,
+        analysis_summary: analysis.summary,
+        analysis_category: analysis.category,
+        analysis_alerts: analysis.alerts,
+        analysis_keywords: analysis.keywords,
+        analysis_client_relevance: analysis.client_relevance,
         status: 'completed',
         original_file_path: file.name,
         progress: 100
@@ -150,6 +156,26 @@ serve(async (req) => {
     if (dbError) {
       console.error('Error saving transcription:', dbError);
       throw new Error('Failed to save transcription');
+    }
+
+    // Generate alerts for relevant clients
+    if (analysis.client_relevance.high_relevance.length > 0) {
+      const alerts = analysis.client_relevance.high_relevance.map((clientName: string) => ({
+        client_id: clientName, // You might want to query the clients table to get the actual ID
+        transcription_id: null, // This will be updated once we have the transcription ID
+        priority: 'high',
+        title: `Contenido relevante detectado para ${clientName}`,
+        description: analysis.summary
+      }));
+
+      // Save alerts to database
+      const { error: alertsError } = await supabase
+        .from('client_alerts')
+        .insert(alerts);
+
+      if (alertsError) {
+        console.error('Error saving alerts:', alertsError);
+      }
     }
 
     return new Response(
