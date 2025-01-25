@@ -20,18 +20,32 @@ export const processVideoFile = async (
       return;
     }
 
-    if (file.size <= 25 * 1024 * 1024) {
-      // For files under 25MB, use direct transcription
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', user.id);
+    // First, upload the file to storage
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${crypto.randomUUID()}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
 
-      const { data, error } = await supabase.functions.invoke('secure-transcribe', {
-        body: formData,
+    console.log("Uploading file to storage:", filePath);
+    
+    const { error: uploadError } = await supabase.storage
+      .from('media')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw new Error('Error uploading file to storage');
+    }
+
+    if (file.size <= 25 * 1024 * 1024) {
+      console.log("Processing file:", filePath);
+      
+      const { data, error } = await supabase.functions.invoke('transcribe-video', {
+        body: { videoPath: filePath }
       });
 
       if (error) {
-        throw new Error(error.message);
+        console.error('Transcription error:', error);
+        throw error;
       }
 
       if (data?.text) {

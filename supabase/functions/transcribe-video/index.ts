@@ -30,7 +30,7 @@ serve(async (req) => {
     console.log('Downloading file from storage:', videoPath);
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('media')
-      .download(videoPath)
+      .download(videoPath);
 
     if (downloadError) {
       console.error('Download error:', downloadError);
@@ -40,9 +40,6 @@ serve(async (req) => {
     if (!fileData) {
       throw new Error('No file data received');
     }
-
-    const fileSize = fileData.size;
-    console.log('File size:', fileSize);
 
     // Prepare form data for OpenAI Whisper API
     console.log('Preparing Whisper API request');
@@ -74,11 +71,12 @@ serve(async (req) => {
     // Update transcription record
     const { error: updateError } = await supabase
       .from('transcriptions')
-      .update({ 
+      .insert({ 
+        user_id: videoPath.split('/')[0],
+        original_file_path: videoPath,
         transcription_text: result.text,
         status: 'completed'
-      })
-      .eq('original_file_path', videoPath);
+      });
 
     if (updateError) {
       console.error('Error updating transcription record:', updateError);
