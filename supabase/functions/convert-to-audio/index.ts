@@ -26,21 +26,30 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Download the video file
-    console.log('Attempting to download video from storage')
-    const { data: videoData, error: downloadError } = await supabase.storage
+    // First get a signed URL for the video
+    console.log('Getting signed URL for video')
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('media')
-      .download(videoPath)
+      .createSignedUrl(videoPath, 60)
 
-    if (downloadError) {
-      console.error('Download error:', downloadError)
-      throw new Error(`Failed to download video: ${JSON.stringify(downloadError)}`)
+    if (signedUrlError) {
+      console.error('Signed URL error:', signedUrlError)
+      throw new Error(`Failed to get signed URL: ${signedUrlError.message}`)
     }
 
-    if (!videoData) {
-      throw new Error('No video data received')
+    if (!signedUrlData?.signedUrl) {
+      throw new Error('No signed URL received')
     }
 
+    console.log('Signed URL obtained, downloading video')
+    
+    // Download the video using the signed URL
+    const videoResponse = await fetch(signedUrlData.signedUrl)
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download video: ${videoResponse.statusText}`)
+    }
+
+    const videoData = await videoResponse.blob()
     console.log('Video downloaded successfully, size:', videoData.size)
 
     // Create temporary files for FFmpeg processing
