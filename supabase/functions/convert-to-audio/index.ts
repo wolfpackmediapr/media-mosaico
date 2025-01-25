@@ -7,12 +7,13 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    console.log('Starting video conversion process')
+    console.log('Starting audio conversion process')
     const { videoPath } = await req.json()
     
     if (!videoPath) {
@@ -21,14 +22,21 @@ serve(async (req) => {
 
     console.log('Video path received:', videoPath)
 
-    const supabase = createClient(
+    // Initialize Supabase client with service role key
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
     )
 
     // Download the video file
-    console.log('Attempting to download video from storage')
-    const { data: videoData, error: downloadError } = await supabase.storage
+    console.log('Attempting to download video from storage:', videoPath)
+    const { data: videoData, error: downloadError } = await supabaseAdmin.storage
       .from('media')
       .download(videoPath)
 
@@ -49,7 +57,7 @@ serve(async (req) => {
 
     // Write video data to temp file
     await Deno.writeFile(tempVideoPath, new Uint8Array(await videoData.arrayBuffer()))
-    console.log('Video data written to temporary file')
+    console.log('Video data written to temporary file:', tempVideoPath)
 
     // Use FFmpeg to convert video to audio
     console.log('Starting FFmpeg conversion')
@@ -65,9 +73,9 @@ serve(async (req) => {
       ],
     })
 
-    const { success: conversionSuccess, stderr } = await ffmpegCommand.output()
+    const { code: conversionCode, stderr } = await ffmpegCommand.output()
     
-    if (!conversionSuccess) {
+    if (conversionCode !== 0) {
       console.error('FFmpeg conversion error:', new TextDecoder().decode(stderr))
       throw new Error('FFmpeg conversion failed')
     }
@@ -82,11 +90,11 @@ serve(async (req) => {
     const audioPath = `${videoPath.split('.')[0]}_audio.mp3`
     console.log('Uploading converted audio:', audioPath)
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabaseAdmin.storage
       .from('media')
       .upload(audioPath, audioData, {
         contentType: 'audio/mp3',
-        upsert: false
+        upsert: true
       })
 
     if (uploadError) {
@@ -103,8 +111,8 @@ serve(async (req) => {
       console.error('Error cleaning up temporary files:', cleanupError)
     }
 
-    // Update transcription record
-    const { error: updateError } = await supabase
+    // Update transcription record status
+    const { error: updateError } = await supabaseAdmin
       .from('transcriptions')
       .update({ 
         audio_file_path: audioPath,
