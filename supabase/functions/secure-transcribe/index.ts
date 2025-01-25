@@ -8,24 +8,10 @@ const corsHeaders = {
 }
 
 const CATEGORIES = [
-  "ACCIDENTES",
-  "AGENCIAS DE GOBIERNO",
-  "AMBIENTE",
-  "AMBIENTE & EL TIEMPO",
-  "CIENCIA & TECNOLOGIA",
-  "COMUNIDAD",
-  "CRIMEN",
-  "DEPORTES",
-  "ECONOMIA & NEGOCIOS",
-  "EDUCACION & CULTURA",
-  "EE.UU. & INTERNACIONALES",
-  "ENTRETENIMIENTO",
-  "GOBIERNO",
-  "OTRAS",
-  "POLITICA",
-  "RELIGION",
-  "SALUD",
-  "TRIBUNALES"
+  "ACCIDENTES", "AGENCIAS DE GOBIERNO", "AMBIENTE", "AMBIENTE & EL TIEMPO",
+  "CIENCIA & TECNOLOGIA", "COMUNIDAD", "CRIMEN", "DEPORTES",
+  "ECONOMIA & NEGOCIOS", "EDUCACION & CULTURA", "EE.UU. & INTERNACIONALES",
+  "ENTRETENIMIENTO", "GOBIERNO", "OTRAS", "POLITICA", "RELIGION", "SALUD", "TRIBUNALES"
 ];
 
 serve(async (req) => {
@@ -161,14 +147,13 @@ serve(async (req) => {
     // Generate alerts for relevant clients
     if (analysis.client_relevance.high_relevance.length > 0) {
       const alerts = analysis.client_relevance.high_relevance.map((clientName: string) => ({
-        client_id: clientName, // You might want to query the clients table to get the actual ID
-        transcription_id: null, // This will be updated once we have the transcription ID
+        client_id: clientName,
+        transcription_id: null,
         priority: 'high',
         title: `Contenido relevante detectado para ${clientName}`,
         description: analysis.summary
       }));
 
-      // Save alerts to database
       const { error: alertsError } = await supabase
         .from('client_alerts')
         .insert(alerts);
