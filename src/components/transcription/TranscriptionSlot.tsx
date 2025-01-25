@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import TranscriptionMetadata from "./TranscriptionMetadata";
 import TranscriptionEditor from "./TranscriptionEditor";
 import TranscriptionActions from "./TranscriptionActions";
+import TranscriptionAnalysis from "./TranscriptionAnalysis";
 
 interface TranscriptionSlotProps {
   isProcessing: boolean;
@@ -13,6 +14,16 @@ interface TranscriptionSlotProps {
     broadcastTime?: string;
     keywords?: string[];
   };
+  analysis?: {
+    quien?: string;
+    que?: string;
+    cuando?: string;
+    donde?: string;
+    porque?: string;
+    summary?: string;
+    alerts?: any[];
+    keywords?: string[];
+  };
   onTranscriptionChange: (text: string) => void;
 }
 
@@ -20,6 +31,7 @@ const TranscriptionSlot = ({
   isProcessing,
   transcriptionText,
   metadata,
+  analysis,
   onTranscriptionChange,
 }: TranscriptionSlotProps) => {
   return (
@@ -39,6 +51,7 @@ const TranscriptionSlot = ({
           />
         </CardContent>
       </Card>
+      <TranscriptionAnalysis analysis={analysis} />
     </div>
   );
 };

@@ -69,6 +69,18 @@ const Tv = () => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Mock analysis data for testing - replace with actual data from your backend
+  const mockAnalysis = {
+    quien: "Juan Pérez, Secretario de Salud",
+    que: "Anunció nuevas medidas sanitarias",
+    cuando: "Esta mañana",
+    donde: "San Juan, Puerto Rico",
+    porque: "Debido al aumento en casos de COVID-19",
+    summary: "El Secretario de Salud anunció nuevas medidas preventivas en respuesta al aumento de casos de COVID-19 en la isla.",
+    alerts: ["Mención de cliente: Departamento de Salud", "Tema sensible: Salud pública"],
+    keywords: ["COVID-19", "medidas sanitarias", "salud pública", "prevención"]
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -107,6 +119,7 @@ const Tv = () => {
         isProcessing={isProcessing}
         transcriptionText={transcriptionText}
         metadata={transcriptionMetadata}
+        analysis={mockAnalysis} // Add this line to pass the analysis data
         onTranscriptionChange={setTranscriptionText}
       />
     </div>
