@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileUploadZone } from "@/components/upload/FileUploadZone";
+import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileItem from "@/components/radio/AudioFileItem";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { processAudioFile } from "@/components/radio/AudioProcessing";
@@ -62,11 +62,18 @@ const Radio = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
           <FileUploadZone
-            onFilesAdded={handleFilesAdded}
-            accept={{
-              'audio/*': ['.mp3', '.wav', '.m4a', '.aac', '.ogg']
+            isDragging={false}
+            onDragOver={(e) => e.preventDefault()}
+            onDragLeave={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const files = Array.from(e.dataTransfer.files);
+              handleFilesAdded(files);
             }}
-            maxSize={25 * 1024 * 1024} // 25MB
+            onFileInput={(e) => {
+              const files = Array.from(e.target.files || []);
+              handleFilesAdded(files);
+            }}
           />
           <div className="space-y-4">
             {files.map((file, index) => (
