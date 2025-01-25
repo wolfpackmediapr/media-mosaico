@@ -36,49 +36,27 @@ export const processVideoFile = async (
       throw new Error('Error uploading file to storage');
     }
 
-    // Create transcription record
-    const { error: insertError } = await supabase
-      .from('transcriptions')
-      .insert({
-        user_id: user.id,
-        original_file_path: filePath,
-        status: 'pending',
-        progress: 0
+    if (file.size <= 25 * 1024 * 1024) {
+      console.log("Processing file:", filePath);
+      
+      const { data, error } = await supabase.functions.invoke('transcribe-video', {
+        body: { videoPath: filePath }
       });
 
-    if (insertError) {
-      console.error('Insert error:', insertError);
-      throw new Error('Error creating transcription record');
-    }
+      if (error) {
+        console.error('Transcription error:', error);
+        throw error;
+      }
 
-    // Start conversion process
-    console.log("Converting video to audio:", filePath);
-    const { error: conversionError } = await supabase.functions.invoke('convert-to-audio', {
-      body: { videoPath: filePath }
-    });
-
-    if (conversionError) {
-      console.error('Conversion error:', conversionError);
-      throw conversionError;
-    }
-
-    // Start transcription process
-    console.log("Processing transcription:", filePath);
-    const { data, error: transcriptionError } = await supabase.functions.invoke('transcribe-video', {
-      body: { videoPath: filePath }
-    });
-
-    if (transcriptionError) {
-      console.error('Transcription error:', transcriptionError);
-      throw transcriptionError;
-    }
-
-    if (data?.text) {
-      onTranscriptionComplete?.(data.text);
-      toast({
-        title: "Transcripción completada",
-        description: "El archivo ha sido procesado exitosamente",
-      });
+      if (data?.text) {
+        onTranscriptionComplete?.(data.text);
+        toast({
+          title: "Transcripción completada",
+          description: "El archivo ha sido procesado exitosamente",
+        });
+      }
+    } else {
+      throw new Error("File size exceeds 25MB limit");
     }
   } catch (error) {
     console.error('Error processing file:', error);
