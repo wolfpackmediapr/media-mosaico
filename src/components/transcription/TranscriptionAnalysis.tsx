@@ -24,10 +24,22 @@ const TranscriptionAnalysis = ({ analysis }: TranscriptionAnalysisProps) => {
 
   if (!analysis) return null;
 
-  const copyToClipboard = (text: string, section: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${section} copiado al portapapeles`);
+  const copyToClipboard = async (text: string, section: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${section} copiado al portapapeles`);
+    } catch (err) {
+      toast.error("Error al copiar el texto");
+    }
   };
+
+  const analysisFields = [
+    { label: "¿Quién?", value: analysis.quien },
+    { label: "¿Qué?", value: analysis.que },
+    { label: "¿Cuándo?", value: analysis.cuando },
+    { label: "¿Dónde?", value: analysis.donde },
+    { label: "¿Por qué?", value: analysis.porque },
+  ];
 
   return (
     <Card className="mt-6">
@@ -45,80 +57,22 @@ const TranscriptionAnalysis = ({ analysis }: TranscriptionAnalysisProps) => {
         <CollapsibleContent className="space-y-4">
           <CardContent>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {analysis.quien && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">¿Quién?</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(analysis.quien!, "¿Quién?")}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
+              {analysisFields.map(({ label, value }) => 
+                value ? (
+                  <div key={label} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">{label}</h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyToClipboard(value, label)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{value}</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">{analysis.quien}</p>
-                </div>
-              )}
-              {analysis.que && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">¿Qué?</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(analysis.que!, "¿Qué?")}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{analysis.que}</p>
-                </div>
-              )}
-              {analysis.cuando && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">¿Cuándo?</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(analysis.cuando!, "¿Cuándo?")}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{analysis.cuando}</p>
-                </div>
-              )}
-              {analysis.donde && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">¿Dónde?</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(analysis.donde!, "¿Dónde?")}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{analysis.donde}</p>
-                </div>
-              )}
-              {analysis.porque && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">¿Por qué?</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(analysis.porque!, "¿Por qué?")}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{analysis.porque}</p>
-                </div>
+                ) : null
               )}
             </div>
 
@@ -169,6 +123,7 @@ const TranscriptionAnalysis = ({ analysis }: TranscriptionAnalysisProps) => {
                       key={index}
                       variant="secondary"
                       className="cursor-pointer hover:bg-secondary/80"
+                      onClick={() => copyToClipboard(keyword, "Palabra clave")}
                     >
                       {keyword}
                     </Badge>
