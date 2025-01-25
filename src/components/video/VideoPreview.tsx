@@ -1,11 +1,10 @@
-import { Play, Pause, Volume2, FileVideo, Trash2 } from "lucide-react";
+import { FileVideo, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Slider } from "@/components/ui/slider";
-import { useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import VideoPlayer from "./VideoPlayer";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -26,34 +25,12 @@ interface VideoPreviewProps {
 
 const VideoPreview = ({
   uploadedFiles,
-  isPlaying,
-  volume,
   isProcessing,
   progress,
-  onTogglePlayback,
-  onVolumeChange,
   onProcess,
   onTranscriptionComplete,
   onRemoveFile,
 }: VideoPreviewProps) => {
-  const videoRefs = useRef<{ [key: number]: HTMLVideoElement }>({});
-
-  useEffect(() => {
-    Object.values(videoRefs.current).forEach(videoElement => {
-      if (isPlaying) {
-        videoElement.play();
-      } else {
-        videoElement.pause();
-      }
-    });
-  }, [isPlaying]);
-
-  useEffect(() => {
-    Object.values(videoRefs.current).forEach(videoElement => {
-      videoElement.volume = volume[0] / 100;
-    });
-  }, [volume]);
-
   const handleProcess = async (file: UploadedFile) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -124,60 +101,36 @@ const VideoPreview = ({
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="icon" variant="ghost" onClick={onTogglePlayback}>
-                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    </Button>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      onClick={() => onRemoveFile?.(index)}
-                      className="text-destructive hover:text-destructive/90"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    onClick={() => onRemoveFile?.(index)}
+                    className="text-destructive hover:text-destructive/90"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
 
                 {file.preview && (
-                  <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                    <video
-                      ref={el => {
-                        if (el) videoRefs.current[index] = el;
-                      }}
-                      className="w-full h-full object-contain"
-                      src={file.preview}
-                      controls={false}
-                      loop
-                      playsInline
-                      onClick={onTogglePlayback}
-                    />
+                  <VideoPlayer src={file.preview} />
+                )}
+
+                {isProcessing && (
+                  <div className="space-y-2">
+                    <Progress value={progress} className="w-full" />
+                    <p className="text-xs text-center text-gray-500">
+                      {progress === 100 ? 'Procesamiento completado' : `Procesando: ${progress}%`}
+                    </p>
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Volume2 className="w-4 h-4" />
-                    <Slider value={volume} onValueChange={onVolumeChange} max={100} step={1} />
-                  </div>
-
-                  {isProcessing && (
-                    <div className="space-y-2">
-                      <Progress value={progress} className="w-full" />
-                      <p className="text-xs text-center text-gray-500">
-                        {progress === 100 ? 'Procesamiento completado' : `Procesando: ${progress}%`}
-                      </p>
-                    </div>
-                  )}
-
-                  <Button
-                    className="w-full"
-                    onClick={() => handleProcess(file)}
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? 'Procesando...' : 'Procesar Transcripción'}
-                  </Button>
-                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => handleProcess(file)}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? 'Procesando...' : 'Procesar Transcripción'}
+                </Button>
               </div>
             ))
           )}
