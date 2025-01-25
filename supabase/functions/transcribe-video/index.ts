@@ -26,20 +26,34 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Download the file from storage
-    console.log('Downloading file from storage:', videoPath);
-    const { data: fileData, error: downloadError } = await supabase.storage
+    // First, generate a signed URL for the file
+    console.log('Generating signed URL for:', videoPath);
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('media')
-      .download(videoPath);
+      .createSignedUrl(videoPath, 60);
 
-    if (downloadError) {
-      console.error('Download error:', downloadError);
-      throw new Error(`Failed to download file: ${downloadError.message}`);
+    if (signedUrlError) {
+      console.error('Signed URL error:', signedUrlError);
+      throw new Error(`Failed to generate signed URL: ${signedUrlError.message}`);
     }
 
-    if (!fileData) {
-      throw new Error('No file data received');
+    if (!signedUrlData?.signedUrl) {
+      throw new Error('No signed URL generated');
     }
+
+    console.log('Signed URL generated successfully');
+
+    // Download the file using the signed URL
+    console.log('Downloading file from signed URL');
+    const fileResponse = await fetch(signedUrlData.signedUrl);
+    
+    if (!fileResponse.ok) {
+      console.error('File download failed:', fileResponse.status, fileResponse.statusText);
+      throw new Error(`Failed to download file: ${fileResponse.statusText}`);
+    }
+
+    const fileData = await fileResponse.blob();
+    console.log('File downloaded successfully, size:', fileData.size);
 
     // Prepare form data for OpenAI Whisper API
     console.log('Preparing Whisper API request');
@@ -71,12 +85,12 @@ serve(async (req) => {
     // Update transcription record
     const { error: updateError } = await supabase
       .from('transcriptions')
-      .insert({ 
-        user_id: videoPath.split('/')[0],
-        original_file_path: videoPath,
+      .update({ 
         transcription_text: result.text,
-        status: 'completed'
-      });
+        status: 'completed',
+        progress: 100
+      })
+      .eq('original_file_path', videoPath);
 
     if (updateError) {
       console.error('Error updating transcription record:', updateError);
