@@ -20,25 +20,47 @@ export const processVideoFile = async (
       return;
     }
 
-    // First, upload the file to storage
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${crypto.randomUUID()}.${fileExt}`;
-    const filePath = `${user.id}/${fileName}`;
+    // First, check if the file is already uploaded
+    const { data: transcription, error: transcriptionError } = await supabase
+      .from('transcriptions')
+      .select('original_file_path')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-    console.log("Uploading file to storage:", filePath);
-    
-    const { error: uploadError } = await supabase.storage
-      .from('media')
-      .upload(filePath, file);
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError);
-      throw new Error('Error uploading file to storage');
+    if (transcriptionError) {
+      console.error('Error getting transcription:', transcriptionError);
+      throw new Error('Error getting transcription information');
     }
 
-    if (file.size <= 25 * 1024 * 1024) {
-      console.log("Processing file:", filePath);
+    const filePath = transcription?.original_file_path;
+    if (!filePath) {
+      throw new Error('No file path found for transcription');
+    }
+
+    console.log("Processing file:", filePath);
+    
+    if (file.size > 25 * 1024 * 1024) {
+      console.log("File is larger than 25MB, converting to audio first");
       
+      const { data, error } = await supabase.functions.invoke('convert-to-audio', {
+        body: { videoPath: filePath }
+      });
+
+      if (error) {
+        console.error('Conversion error:', error);
+        throw error;
+      }
+
+      if (data?.text) {
+        onTranscriptionComplete?.(data.text);
+        toast({
+          title: "Transcripción completada",
+          description: "El archivo ha sido procesado exitosamente",
+        });
+      }
+    } else {
       const { data, error } = await supabase.functions.invoke('transcribe-video', {
         body: { videoPath: filePath }
       });
@@ -55,8 +77,6 @@ export const processVideoFile = async (
           description: "El archivo ha sido procesado exitosamente",
         });
       }
-    } else {
-      throw new Error("File size exceeds 25MB limit");
     }
   } catch (error) {
     console.error('Error processing file:', error);

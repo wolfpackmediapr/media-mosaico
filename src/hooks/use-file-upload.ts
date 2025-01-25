@@ -8,8 +8,9 @@ const sanitizeFileName = (fileName: string) => {
   // Remove special characters and spaces, replace with underscores
   const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
   const ext = fileName.substring(fileName.lastIndexOf('.'));
-  const sanitized = nameWithoutExt.replace(/[^\w\-]/g, '_');
-  return sanitized + ext;
+  // Replace any non-alphanumeric character (except dots) with underscores
+  const sanitized = nameWithoutExt.replace(/[^a-zA-Z0-9]/g, '_');
+  return `${sanitized}${ext}`.toLowerCase();
 };
 
 export const useFileUpload = () => {
@@ -45,21 +46,21 @@ export const useFileUpload = () => {
       return null;
     }
 
-    const sanitizedFileName = sanitizeFileName(file.name);
-    const fileName = `${user.id}/${Date.now()}_${sanitizedFileName}`;
-
     try {
       setIsUploading(true);
       setUploadProgress(0);
 
-      const options = {
-        cacheControl: '3600',
-        upsert: false,
-      };
+      const sanitizedFileName = sanitizeFileName(file.name);
+      const fileName = `${user.id}/${Date.now()}_${sanitizedFileName}`;
+
+      console.log("Uploading file:", fileName);
 
       const { error: uploadError } = await supabase.storage
         .from('media')
-        .upload(fileName, file, options);
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) throw uploadError;
 
@@ -78,9 +79,8 @@ export const useFileUpload = () => {
 
       if (dbError) throw dbError;
 
-      setIsUploading(false);
       setUploadProgress(100);
-
+      
       toast({
         title: "Archivo subido exitosamente",
         description: file.size > 25 * 1024 * 1024 
@@ -91,13 +91,14 @@ export const useFileUpload = () => {
       return { fileName, preview: URL.createObjectURL(file) };
     } catch (error) {
       console.error('Error uploading file:', error);
-      setIsUploading(false);
       toast({
         title: "Error al subir el archivo",
-        description: "El archivo es demasiado grande. El límite es 50MB.",
+        description: "Ocurrió un error al subir el archivo. Por favor, intenta nuevamente.",
         variant: "destructive",
       });
       return null;
+    } finally {
+      setIsUploading(false);
     }
   };
 

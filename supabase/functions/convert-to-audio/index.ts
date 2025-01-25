@@ -86,7 +86,7 @@ serve(async (req) => {
       .from('media')
       .upload(audioPath, audioData, {
         contentType: 'audio/mp3',
-        upsert: false
+        upsert: true
       })
 
     if (uploadError) {
