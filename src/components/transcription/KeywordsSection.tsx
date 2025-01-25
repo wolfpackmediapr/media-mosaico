@@ -20,7 +20,7 @@ const KeywordsSection = ({ keywords }: KeywordsSectionProps) => {
 
   return (
     <div className="mt-6 space-y-2">
-      <h3 className="font-semibold flex items-center gap-2">
+      <h3 className="font-semibold flex items-center gap-2 text-primary-900">
         <Tag className="h-4 w-4" />
         Palabras Clave
       </h3>
@@ -29,7 +29,7 @@ const KeywordsSection = ({ keywords }: KeywordsSectionProps) => {
           <Badge
             key={index}
             variant="secondary"
-            className="cursor-pointer hover:bg-secondary/80"
+            className="cursor-pointer bg-primary-50 hover:bg-primary-100 text-primary-900 transition-colors"
             onClick={() => copyToClipboard(keyword)}
           >
             {keyword}

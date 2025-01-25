@@ -26,19 +26,19 @@ const TranscriptionAnalysis = ({ analysis }: TranscriptionAnalysisProps) => {
   if (!analysis) return null;
 
   return (
-    <Card className="mt-6">
+    <Card className="mt-6 border-primary-100 shadow-md">
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-2xl font-bold">Análisis de Contenido</CardTitle>
-          <CollapsibleTrigger className="rounded-full p-2 hover:bg-accent">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-primary-50 to-transparent">
+          <CardTitle className="text-2xl font-bold text-primary-900">Análisis de Contenido</CardTitle>
+          <CollapsibleTrigger className="rounded-full p-2 hover:bg-primary-100/50 transition-colors">
             {isExpanded ? (
-              <ChevronUp className="h-4 w-4" />
+              <ChevronUp className="h-4 w-4 text-primary-700" />
             ) : (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4 text-primary-700" />
             )}
           </CollapsibleTrigger>
         </CardHeader>
-        <CollapsibleContent className="space-y-4">
+        <CollapsibleContent className="space-y-6">
           <CardContent>
             <FiveWAnalysis
               quien={analysis.quien}
@@ -48,8 +48,8 @@ const TranscriptionAnalysis = ({ analysis }: TranscriptionAnalysisProps) => {
               porque={analysis.porque}
             />
             {analysis.summary && <SummarySection summary={analysis.summary} />}
-            {analysis.alerts && <AlertsSection alerts={analysis.alerts} />}
-            {analysis.keywords && <KeywordsSection keywords={analysis.keywords} />}
+            {analysis.alerts && analysis.alerts.length > 0 && <AlertsSection alerts={analysis.alerts} />}
+            {analysis.keywords && analysis.keywords.length > 0 && <KeywordsSection keywords={analysis.keywords} />}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
