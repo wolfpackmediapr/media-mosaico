@@ -9,6 +9,84 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      client_alerts: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          priority: string
+          read_at: string | null
+          title: string
+          transcription_id: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority: string
+          read_at?: string | null
+          title: string
+          transcription_id?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          read_at?: string | null
+          title?: string
+          transcription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_alerts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_alerts_transcription_id_fkey"
+            columns: ["transcription_id"]
+            isOneToOne: false
+            referencedRelation: "transcriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          keywords: string[] | null
+          name: string
+          subcategory: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          name: string
+          subcategory?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          name?: string
+          subcategory?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -137,7 +215,25 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      content_category:
+        | "ACCIDENTES"
+        | "AGENCIAS DE GOBIERNO"
+        | "AMBIENTE"
+        | "AMBIENTE & EL TIEMPO"
+        | "CIENCIA & TECNOLOGIA"
+        | "COMUNIDAD"
+        | "CRIMEN"
+        | "DEPORTES"
+        | "ECONOMIA & NEGOCIOS"
+        | "EDUCACION & CULTURA"
+        | "EE.UU. & INTERNACIONALES"
+        | "ENTRETENIMIENTO"
+        | "GOBIERNO"
+        | "OTRAS"
+        | "POLITICA"
+        | "RELIGION"
+        | "SALUD"
+        | "TRIBUNALES"
     }
     CompositeTypes: {
       [_ in never]: never
