@@ -171,7 +171,7 @@ const TranscriptionAnalysis = ({ analysis }: TranscriptionAnalysisProps) => {
                                 notification.importance === 'alta'
                                   ? 'destructive'
                                   : notification.importance === 'media'
-                                  ? 'warning'
+                                  ? 'secondary'
                                   : 'default'
                               }
                             >
