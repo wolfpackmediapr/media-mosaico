@@ -27,24 +27,24 @@ serve(async (req) => {
     )
 
     // Download the file from storage
-    console.log('Attempting to download file from storage:', videoPath);
+    console.log('Downloading file from storage:', videoPath);
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('media')
       .download(videoPath);
 
     if (downloadError) {
       console.error('Download error:', downloadError);
-      throw new Error(`Failed to download file: ${JSON.stringify(downloadError)}`);
+      throw new Error(`Failed to download file: ${downloadError.message}`);
     }
 
     if (!fileData) {
-      throw new Error('No file data received from storage');
+      throw new Error('No file data received');
     }
 
     // Prepare form data for OpenAI Whisper API
     console.log('Preparing Whisper API request');
     const formData = new FormData();
-    formData.append('file', fileData, 'video.mp4');
+    formData.append('file', fileData, 'audio.mp3');
     formData.append('model', 'whisper-1');
     formData.append('response_format', 'verbose_json');
     formData.append('language', 'es');

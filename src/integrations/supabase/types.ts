@@ -36,17 +36,12 @@ export type Database = {
       transcriptions: {
         Row: {
           analysis_alerts: Json | null
-          analysis_category: string | null
-          analysis_client_relevance: Json | null
-          analysis_content_summary: string | null
           analysis_cuando: string | null
           analysis_donde: string | null
           analysis_keywords: string[] | null
-          analysis_notifications: Json[] | null
           analysis_porque: string | null
           analysis_que: string | null
           analysis_quien: string | null
-          analysis_report_data: Json | null
           analysis_summary: string | null
           audio_file_path: string | null
           broadcast_time: string | null
@@ -67,17 +62,12 @@ export type Database = {
         }
         Insert: {
           analysis_alerts?: Json | null
-          analysis_category?: string | null
-          analysis_client_relevance?: Json | null
-          analysis_content_summary?: string | null
           analysis_cuando?: string | null
           analysis_donde?: string | null
           analysis_keywords?: string[] | null
-          analysis_notifications?: Json[] | null
           analysis_porque?: string | null
           analysis_que?: string | null
           analysis_quien?: string | null
-          analysis_report_data?: Json | null
           analysis_summary?: string | null
           audio_file_path?: string | null
           broadcast_time?: string | null
@@ -98,17 +88,12 @@ export type Database = {
         }
         Update: {
           analysis_alerts?: Json | null
-          analysis_category?: string | null
-          analysis_client_relevance?: Json | null
-          analysis_content_summary?: string | null
           analysis_cuando?: string | null
           analysis_donde?: string | null
           analysis_keywords?: string[] | null
-          analysis_notifications?: Json[] | null
           analysis_porque?: string | null
           analysis_que?: string | null
           analysis_quien?: string | null
-          analysis_report_data?: Json | null
           analysis_summary?: string | null
           audio_file_path?: string | null
           broadcast_time?: string | null
