@@ -21,15 +21,29 @@ export const processAudioFile = async (
     }
 
     if (file.size <= 25 * 1024 * 1024) {
+      // Create a proper FormData object
       const formData = new FormData();
-      formData.append('file', file);
+      
+      // Important: The file needs to be added as a Blob with the correct type
+      const blob = new Blob([file], { type: file.type });
+      formData.append('file', blob, file.name);
       formData.append('userId', user.id);
+
+      console.log('Sending file to transcribe:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
 
       const { data, error } = await supabase.functions.invoke('transcribe-audio', {
         body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
       if (error) {
+        console.error('Transcription error:', error);
         throw new Error(error.message);
       }
 
