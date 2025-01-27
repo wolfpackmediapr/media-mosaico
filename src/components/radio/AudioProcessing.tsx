@@ -20,43 +20,59 @@ export const processAudioFile = async (
       return;
     }
 
-    if (file.size <= 25 * 1024 * 1024) {
-      // Create FormData and append file
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', user.id);
+    if (!file || !(file instanceof File)) {
+      console.error('Invalid file object:', file);
+      throw new Error("Archivo inválido");
+    }
 
-      console.log('Sending file to transcribe:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
-      });
+    console.log('Processing file:', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified
+    });
 
-      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-        body: formData,
-      });
-
-      if (error) {
-        console.error('Transcription error:', error);
-        throw new Error(error.message);
-      }
-
-      if (data?.text) {
-        onTranscriptionComplete?.(data.text);
-        toast({
-          title: "Transcripción completada",
-          description: "El archivo ha sido procesado exitosamente",
-        });
-      }
-    } else {
+    if (file.size > 25 * 1024 * 1024) {
       throw new Error("El tamaño del archivo excede el límite de 25MB");
+    }
+
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    formData.append('userId', user.id);
+
+    console.log('Sending request to transcribe with formData:', {
+      fileName: file.name,
+      fileSize: file.size,
+      userId: user.id
+    });
+
+    const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+      body: formData,
+    });
+
+    if (error) {
+      console.error('Transcription error:', error);
+      throw new Error(error.message);
+    }
+
+    console.log('Transcription response:', data);
+
+    if (data?.text) {
+      onTranscriptionComplete?.(data.text);
+      toast({
+        title: "Transcripción completada",
+        description: "El archivo ha sido procesado exitosamente",
+      });
+    } else {
+      throw new Error("No se recibió texto de transcripción");
     }
   } catch (error) {
     console.error('Error processing file:', error);
     toast({
       title: "Error",
-      description: "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+      description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
       variant: "destructive",
     });
+    throw error;
   }
 };

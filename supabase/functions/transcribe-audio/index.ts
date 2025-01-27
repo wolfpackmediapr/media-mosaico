@@ -14,36 +14,39 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Received request to transcribe audio');
+    console.log('Received transcription request');
     
-    // Get content type and verify it's multipart/form-data
+    // Validate content type
     const contentType = req.headers.get('content-type') || '';
-    console.log('Content-Type:', contentType);
-
+    console.log('Request content-type:', contentType);
+    
     if (!contentType.includes('multipart/form-data')) {
       throw new Error('Invalid content type. Expected multipart/form-data');
     }
 
+    // Parse form data
     const formData = await req.formData();
     console.log('FormData received');
 
+    // Extract and validate file
     const file = formData.get('file');
     const userId = formData.get('userId');
 
     if (!file || !(file instanceof File || file instanceof Blob)) {
-      console.error('No valid file provided in request');
+      console.error('No valid file in request:', file);
       throw new Error('No file provided');
     }
 
     if (!userId) {
-      console.error('No user ID provided in request');
+      console.error('No user ID in request');
       throw new Error('No user ID provided');
     }
 
-    console.log('Processing audio file:', {
+    console.log('Processing file:', {
       fileName: file instanceof File ? file.name : 'blob',
       fileSize: file.size,
-      fileType: file.type
+      fileType: file.type,
+      userId: userId
     });
 
     // Initialize Supabase client
@@ -52,9 +55,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Upload file to temporary storage
+    // Convert file to buffer
     const fileBuffer = await file.arrayBuffer();
     const audioData = new Uint8Array(fileBuffer);
+
+    console.log('Uploading to AssemblyAI');
 
     // Upload to AssemblyAI
     const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
@@ -66,7 +71,8 @@ serve(async (req) => {
     });
 
     if (!uploadResponse.ok) {
-      console.error('Failed to upload to AssemblyAI:', await uploadResponse.text());
+      const errorText = await uploadResponse.text();
+      console.error('AssemblyAI upload failed:', errorText);
       throw new Error('Failed to upload audio to AssemblyAI');
     }
 
@@ -87,7 +93,8 @@ serve(async (req) => {
     });
 
     if (!transcribeResponse.ok) {
-      console.error('Failed to start transcription:', await transcribeResponse.text());
+      const errorText = await transcribeResponse.text();
+      console.error('AssemblyAI transcription failed:', errorText);
       throw new Error('Failed to start transcription');
     }
 
@@ -96,7 +103,10 @@ serve(async (req) => {
 
     // Poll for completion
     let transcript;
-    while (true) {
+    let attempts = 0;
+    const maxAttempts = 30; // Maximum polling attempts
+
+    while (attempts < maxAttempts) {
       const pollingResponse = await fetch(
         `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
         {
@@ -105,6 +115,11 @@ serve(async (req) => {
           },
         }
       );
+
+      if (!pollingResponse.ok) {
+        console.error('Polling failed:', await pollingResponse.text());
+        throw new Error('Failed to poll for transcription status');
+      }
 
       transcript = await pollingResponse.json();
       console.log('Polling status:', transcript.status);
@@ -116,8 +131,12 @@ serve(async (req) => {
         throw new Error('Transcription failed');
       }
 
-      // Wait before polling again
+      attempts++;
       await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    if (attempts >= maxAttempts) {
+      throw new Error('Transcription timeout');
     }
 
     // Save transcription to database
@@ -132,7 +151,7 @@ serve(async (req) => {
       });
 
     if (dbError) {
-      console.error('Failed to save transcription:', dbError);
+      console.error('Database error:', dbError);
       throw new Error(`Failed to save transcription: ${dbError.message}`);
     }
 
