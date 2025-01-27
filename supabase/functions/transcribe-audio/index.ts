@@ -7,52 +7,121 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Utility function to validate form data
+async function validateFormData(req: Request) {
+  const contentType = req.headers.get('content-type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    throw new Error('Invalid content type. Expected multipart/form-data');
+  }
+
+  const formData = await req.formData();
+  const file = formData.get('audioFile');
+  const userId = formData.get('userId');
+
+  if (!file || !(file instanceof File)) {
+    throw new Error('No valid file provided');
+  }
+
+  if (!userId) {
+    throw new Error('No user ID provided');
+  }
+
+  return { file, userId };
+}
+
+// Utility function to upload file to AssemblyAI
+async function uploadToAssemblyAI(audioData: Uint8Array) {
+  const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
+    method: 'POST',
+    headers: {
+      'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
+    },
+    body: audioData,
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text();
+    console.error('AssemblyAI upload failed:', errorText);
+    throw new Error('Failed to upload audio to AssemblyAI');
+  }
+
+  return await uploadResponse.json();
+}
+
+// Utility function to start transcription
+async function startTranscription(uploadUrl: string) {
+  const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
+    method: 'POST',
+    headers: {
+      'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      audio_url: uploadUrl,
+      language_code: 'es',
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!transcribeResponse.ok) {
+    const errorText = await transcribeResponse.text();
+    console.error('AssemblyAI transcription failed:', errorText);
+    throw new Error('Failed to start transcription');
+  }
+
+  return await transcribeResponse.json();
+}
+
+// Utility function to poll for transcription completion
+async function pollTranscription(transcriptId: string) {
+  const maxAttempts = 30;
+  const pollInterval = 1000;
+
+  for (let attempts = 0; attempts < maxAttempts; attempts++) {
+    const pollingResponse = await fetch(
+      `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
+      {
+        headers: {
+          'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
+        },
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+
+    if (!pollingResponse.ok) {
+      console.error('Polling failed:', await pollingResponse.text());
+      throw new Error('Failed to poll for transcription status');
+    }
+
+    const transcript = await pollingResponse.json();
+    console.log('Polling status:', transcript.status);
+
+    if (transcript.status === 'completed') {
+      return transcript;
+    }
+    
+    if (transcript.status === 'error') {
+      console.error('Transcription failed:', transcript.error);
+      throw new Error('Transcription failed');
+    }
+
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  }
+
+  throw new Error('Transcription timeout');
+}
+
+// Main handler function
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
     console.log('Received transcription request');
     
-    // Validate content type
-    const contentType = req.headers.get('content-type') || '';
-    console.log('Request content-type:', contentType);
-    
-    if (!contentType.includes('multipart/form-data')) {
-      throw new Error('Invalid content type. Expected multipart/form-data');
-    }
-
-    // Parse form data with timeout
-    const formDataPromise = req.formData();
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Request timeout')), 30000)
-    );
-    
-    const formData = await Promise.race([formDataPromise, timeoutPromise]);
-    console.log('FormData received');
-
-    // Extract and validate file
-    const file = formData.get('audioFile');
-    const userId = formData.get('userId');
-
-    console.log('Received form data:', {
-      hasFile: !!file,
-      hasUserId: !!userId,
-      fileType: file instanceof File ? file.type : typeof file,
-    });
-
-    if (!file || !(file instanceof File)) {
-      console.error('No valid file in request:', file);
-      throw new Error('No file provided');
-    }
-
-    if (!userId) {
-      console.error('No user ID in request');
-      throw new Error('No user ID provided');
-    }
-
+    const { file, userId } = await validateFormData(req);
     console.log('Processing file:', {
       fileName: file.name,
       fileSize: file.size,
@@ -60,99 +129,23 @@ serve(async (req) => {
       userId: userId
     });
 
+    const fileBuffer = await file.arrayBuffer();
+    const audioData = new Uint8Array(fileBuffer);
+
+    console.log('Uploading to AssemblyAI');
+    const { upload_url } = await uploadToAssemblyAI(audioData);
+    console.log('File uploaded to AssemblyAI:', upload_url);
+
+    const { id: transcriptId } = await startTranscription(upload_url);
+    console.log('Transcription started with ID:', transcriptId);
+
+    const transcript = await pollTranscription(transcriptId);
+
     // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
-
-    // Convert file to buffer with timeout
-    const fileBuffer = await file.arrayBuffer();
-    const audioData = new Uint8Array(fileBuffer);
-
-    console.log('Uploading to AssemblyAI');
-
-    // Upload to AssemblyAI with timeout
-    const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
-      },
-      body: audioData,
-      signal: AbortSignal.timeout(30000), // 30 second timeout
-    });
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error('AssemblyAI upload failed:', errorText);
-      throw new Error('Failed to upload audio to AssemblyAI');
-    }
-
-    const { upload_url } = await uploadResponse.json();
-    console.log('File uploaded to AssemblyAI:', upload_url);
-
-    // Start transcription with timeout
-    const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
-      method: 'POST',
-      headers: {
-        'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        audio_url: upload_url,
-        language_code: 'es',
-      }),
-      signal: AbortSignal.timeout(30000), // 30 second timeout
-    });
-
-    if (!transcribeResponse.ok) {
-      const errorText = await transcribeResponse.text();
-      console.error('AssemblyAI transcription failed:', errorText);
-      throw new Error('Failed to start transcription');
-    }
-
-    const { id: transcriptId } = await transcribeResponse.json();
-    console.log('Transcription started with ID:', transcriptId);
-
-    // Poll for completion with better timeout handling
-    let transcript;
-    let attempts = 0;
-    const maxAttempts = 30;
-    const pollInterval = 1000;
-
-    while (attempts < maxAttempts) {
-      const pollingResponse = await fetch(
-        `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
-        {
-          headers: {
-            'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
-          },
-          signal: AbortSignal.timeout(10000), // 10 second timeout for each poll
-        }
-      );
-
-      if (!pollingResponse.ok) {
-        console.error('Polling failed:', await pollingResponse.text());
-        throw new Error('Failed to poll for transcription status');
-      }
-
-      transcript = await pollingResponse.json();
-      console.log('Polling status:', transcript.status);
-
-      if (transcript.status === 'completed') {
-        break;
-      } else if (transcript.status === 'error') {
-        console.error('Transcription failed:', transcript.error);
-        throw new Error('Transcription failed');
-      }
-
-      attempts++;
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-    }
-
-    if (attempts >= maxAttempts) {
-      throw new Error('Transcription timeout');
-    }
 
     // Save transcription to database
     const { error: dbError } = await supabase
