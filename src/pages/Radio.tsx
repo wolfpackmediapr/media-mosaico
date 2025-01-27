@@ -6,8 +6,6 @@ import { processAudioFile } from "@/components/radio/AudioProcessing";
 
 interface UploadedFile extends File {
   preview?: string;
-  name: string;
-  size: number;
 }
 
 const Radio = () => {
@@ -18,15 +16,13 @@ const Radio = () => {
 
   const handleFilesAdded = (newFiles: File[]) => {
     const uploadedFiles = newFiles.map((file) => {
-      // Ensure we have all required properties
-      const uploadedFile: UploadedFile = {
-        ...file,
-        preview: URL.createObjectURL(file),
-        name: file.name || 'Unknown file',
-        size: file.size || 0
-      };
-      console.log('Added file:', uploadedFile); // Debug log
-      return uploadedFile;
+      const uploadedFile = new File([file], file.name, { type: file.type });
+      Object.defineProperty(uploadedFile, 'preview', {
+        value: URL.createObjectURL(file),
+        writable: true
+      });
+      console.log('Added file:', uploadedFile);
+      return uploadedFile as UploadedFile;
     });
     setFiles((prevFiles) => [...prevFiles, ...uploadedFiles]);
   };
@@ -46,10 +42,6 @@ const Radio = () => {
     setIsProcessing(true);
     setProgress(0);
     
-    const updateProgress = (newProgress: number) => {
-      setProgress(newProgress);
-    };
-
     try {
       await processAudioFile(file, (text) => {
         setTranscriptionText(text);

@@ -20,30 +20,25 @@ export const processAudioFile = async (
       return;
     }
 
-    if (!file || !(file instanceof File)) {
-      console.error('Invalid file object:', file);
-      throw new Error("Archivo inválido");
-    }
-
+    // Create a new File object from the uploaded file to ensure it's a valid File instance
+    const validFile = new File([file], file.name, { type: file.type });
     console.log('Processing file:', {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      lastModified: file.lastModified
+      name: validFile.name,
+      size: validFile.size,
+      type: validFile.type
     });
 
-    if (file.size > 25 * 1024 * 1024) {
+    if (validFile.size > 25 * 1024 * 1024) {
       throw new Error("El tamaño del archivo excede el límite de 25MB");
     }
 
-    // Create FormData and append file with specific name
     const formData = new FormData();
-    formData.append('audioFile', file, file.name);
+    formData.append('audioFile', validFile);
     formData.append('userId', user.id);
 
     console.log('Sending request to transcribe with formData:', {
-      fileName: file.name,
-      fileSize: file.size,
+      fileName: validFile.name,
+      fileSize: validFile.size,
       userId: user.id
     });
 
