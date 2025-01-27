@@ -48,8 +48,7 @@ export const processAudioFile = async (
     });
 
     const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-      body: formData,
-      responseType: 'json',
+      body: formData
     });
 
     if (error) {
