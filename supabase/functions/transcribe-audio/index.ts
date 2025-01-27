@@ -29,10 +29,16 @@ serve(async (req) => {
     console.log('FormData received');
 
     // Extract and validate file
-    const file = formData.get('file');
+    const file = formData.get('audioFile');
     const userId = formData.get('userId');
 
-    if (!file || !(file instanceof File || file instanceof Blob)) {
+    console.log('Received form data:', {
+      hasFile: !!file,
+      hasUserId: !!userId,
+      fileType: file instanceof File ? file.type : typeof file,
+    });
+
+    if (!file || !(file instanceof File)) {
       console.error('No valid file in request:', file);
       throw new Error('No file provided');
     }
@@ -43,7 +49,7 @@ serve(async (req) => {
     }
 
     console.log('Processing file:', {
-      fileName: file instanceof File ? file.name : 'blob',
+      fileName: file.name,
       fileSize: file.size,
       fileType: file.type,
       userId: userId
@@ -145,7 +151,7 @@ serve(async (req) => {
       .insert({
         user_id: userId,
         transcription_text: transcript.text,
-        original_file_path: file instanceof File ? file.name : 'uploaded_audio.mp3',
+        original_file_path: file.name,
         status: 'completed',
         progress: 100
       });

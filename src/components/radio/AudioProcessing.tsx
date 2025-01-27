@@ -36,8 +36,9 @@ export const processAudioFile = async (
       throw new Error("El tamaño del archivo excede el límite de 25MB");
     }
 
+    // Create FormData and append file with specific name
     const formData = new FormData();
-    formData.append('file', file, file.name);
+    formData.append('audioFile', file, file.name);
     formData.append('userId', user.id);
 
     console.log('Sending request to transcribe with formData:', {
