@@ -16,10 +16,11 @@ serve(async (req) => {
   try {
     console.log('Received request to transcribe audio');
     
-    // Check content type
-    const contentType = req.headers.get('content-type');
-    if (!contentType?.includes('multipart/form-data')) {
-      console.error('Invalid content type:', contentType);
+    // Get content type and verify it's multipart/form-data
+    const contentType = req.headers.get('content-type') || '';
+    console.log('Content-Type:', contentType);
+
+    if (!contentType.includes('multipart/form-data')) {
       throw new Error('Invalid content type. Expected multipart/form-data');
     }
 
