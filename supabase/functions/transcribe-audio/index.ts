@@ -24,8 +24,13 @@ serve(async (req) => {
       throw new Error('Invalid content type. Expected multipart/form-data');
     }
 
-    // Parse form data
-    const formData = await req.formData();
+    // Parse form data with timeout
+    const formDataPromise = req.formData();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Request timeout')), 30000)
+    );
+    
+    const formData = await Promise.race([formDataPromise, timeoutPromise]);
     console.log('FormData received');
 
     // Extract and validate file
@@ -61,19 +66,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Convert file to buffer
+    // Convert file to buffer with timeout
     const fileBuffer = await file.arrayBuffer();
     const audioData = new Uint8Array(fileBuffer);
 
     console.log('Uploading to AssemblyAI');
 
-    // Upload to AssemblyAI
+    // Upload to AssemblyAI with timeout
     const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
       method: 'POST',
       headers: {
         'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
       },
       body: audioData,
+      signal: AbortSignal.timeout(30000), // 30 second timeout
     });
 
     if (!uploadResponse.ok) {
@@ -85,7 +91,7 @@ serve(async (req) => {
     const { upload_url } = await uploadResponse.json();
     console.log('File uploaded to AssemblyAI:', upload_url);
 
-    // Start transcription
+    // Start transcription with timeout
     const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
@@ -96,6 +102,7 @@ serve(async (req) => {
         audio_url: upload_url,
         language_code: 'es',
       }),
+      signal: AbortSignal.timeout(30000), // 30 second timeout
     });
 
     if (!transcribeResponse.ok) {
@@ -107,10 +114,11 @@ serve(async (req) => {
     const { id: transcriptId } = await transcribeResponse.json();
     console.log('Transcription started with ID:', transcriptId);
 
-    // Poll for completion
+    // Poll for completion with better timeout handling
     let transcript;
     let attempts = 0;
-    const maxAttempts = 30; // Maximum polling attempts
+    const maxAttempts = 30;
+    const pollInterval = 1000;
 
     while (attempts < maxAttempts) {
       const pollingResponse = await fetch(
@@ -119,6 +127,7 @@ serve(async (req) => {
           headers: {
             'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
           },
+          signal: AbortSignal.timeout(10000), // 10 second timeout for each poll
         }
       );
 
@@ -138,7 +147,7 @@ serve(async (req) => {
       }
 
       attempts++;
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
 
     if (attempts >= maxAttempts) {

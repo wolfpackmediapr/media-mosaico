@@ -49,11 +49,12 @@ export const processAudioFile = async (
 
     const { data, error } = await supabase.functions.invoke('transcribe-audio', {
       body: formData,
+      responseType: 'json',
     });
 
     if (error) {
       console.error('Transcription error:', error);
-      throw new Error(error.message);
+      throw new Error(error.message || "Error al procesar la transcripción");
     }
 
     console.log('Transcription response:', data);
