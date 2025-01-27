@@ -1,4 +1,4 @@
-import { FileMusic, Trash2 } from "lucide-react";
+import { FileAudio, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 
@@ -23,15 +23,36 @@ const AudioFileItem = ({
   onProcess,
   onRemove,
 }: AudioFileItemProps) => {
+  // Safely calculate file size in MB
+  const getFileSize = (file: File) => {
+    try {
+      const sizeInMB = file.size / (1024 * 1024);
+      return sizeInMB.toFixed(2);
+    } catch (error) {
+      console.error('Error calculating file size:', error);
+      return '0.00';
+    }
+  };
+
+  // Safely get file name
+  const getFileName = (file: File) => {
+    try {
+      return file.name || 'Unknown file';
+    } catch (error) {
+      console.error('Error getting file name:', error);
+      return 'Unknown file';
+    }
+  };
+
   return (
     <div className="space-y-4 p-4 bg-muted rounded-lg">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <FileMusic className="w-5 h-5" />
+          <FileAudio className="w-5 h-5" />
           <div>
-            <p className="text-sm font-medium">{file.name}</p>
+            <p className="text-sm font-medium">{getFileName(file)}</p>
             <p className="text-xs text-gray-500">
-              {(file.size / (1024 * 1024)).toFixed(2)} MB
+              {getFileSize(file)} MB
             </p>
           </div>
         </div>
