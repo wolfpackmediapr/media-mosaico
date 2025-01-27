@@ -4,6 +4,8 @@ import { Progress } from "@/components/ui/progress";
 
 interface UploadedFile extends File {
   preview?: string;
+  name: string;
+  size: number;
 }
 
 interface AudioFileItemProps {
@@ -23,9 +25,13 @@ const AudioFileItem = ({
   onProcess,
   onRemove,
 }: AudioFileItemProps) => {
-  // Safely calculate file size in MB
-  const getFileSize = (file: File) => {
+  // Safely calculate file size in MB with additional error checking
+  const getFileSize = (file: UploadedFile) => {
     try {
+      if (typeof file.size !== 'number' || isNaN(file.size)) {
+        console.error('Invalid file size:', file.size);
+        return '0.00';
+      }
       const sizeInMB = file.size / (1024 * 1024);
       return sizeInMB.toFixed(2);
     } catch (error) {
@@ -34,10 +40,14 @@ const AudioFileItem = ({
     }
   };
 
-  // Safely get file name
-  const getFileName = (file: File) => {
+  // Safely get file name with additional error checking
+  const getFileName = (file: UploadedFile) => {
     try {
-      return file.name || 'Unknown file';
+      if (!file.name || typeof file.name !== 'string') {
+        console.error('Invalid file name:', file.name);
+        return 'Unknown file';
+      }
+      return file.name;
     } catch (error) {
       console.error('Error getting file name:', error);
       return 'Unknown file';
