@@ -18,6 +18,13 @@ export interface TranscriptionAnalysis {
     status: string;
     results: KeyPhraseResult[];
   };
+  speakers?: Array<{
+    speaker: string;
+    confidence: number;
+    start: number;
+    end: number;
+  }>;
+  redacted_audio_url?: string;
 }
 
 interface ContentSafetyResult {
