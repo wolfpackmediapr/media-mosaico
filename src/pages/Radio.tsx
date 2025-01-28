@@ -62,10 +62,6 @@ const Radio = () => {
     setIsPlaying(!isPlaying);
   };
 
-  const handleTranscriptionComplete = (text: string) => {
-    setTranscriptionText(text);
-  };
-
   const handleRemoveFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
@@ -99,7 +95,6 @@ const Radio = () => {
           onTogglePlayback={togglePlayback}
           onVolumeChange={setVolume}
           onProcess={processVideo}
-          onTranscriptionComplete={handleTranscriptionComplete}
           onRemoveFile={handleRemoveFile}
         />
       </div>

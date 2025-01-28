@@ -49,7 +49,10 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
             body: { videoPath: file.name }
           });
 
-        if (conversionError) throw conversionError;
+        if (conversionError) {
+          console.error('Conversion error:', conversionError);
+          throw conversionError;
+        }
         console.log("Conversion response:", conversionData);
 
         setProgress(50);
@@ -59,8 +62,10 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
             body: { videoPath: conversionData.audioPath }
           });
 
-        if (processError) throw processError;
-        setProgress(90);
+        if (processError) {
+          console.error('Processing error:', processError);
+          throw processError;
+        }
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
@@ -80,7 +85,10 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
             body: { videoPath: file.name }
           });
 
-        if (processError) throw processError;
+        if (processError) {
+          console.error('Processing error:', processError);
+          throw processError;
+        }
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
@@ -97,6 +105,7 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
       }
     } catch (error: any) {
       console.error('Error processing file:', error);
+      setProgress(0);
       toast({
         title: "Error al procesar",
         description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
