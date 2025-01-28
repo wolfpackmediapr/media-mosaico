@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { TranscriptionAnalysis } from "@/types/assemblyai";
 
 interface TranscriptionMetadata {
   channel?: string;
@@ -15,6 +16,7 @@ export const useVideoProcessor = () => {
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
+  const [analysis, setAnalysis] = useState<TranscriptionAnalysis>();
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);
@@ -55,6 +57,9 @@ export const useVideoProcessor = () => {
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          if (transcriptionResult.analysis) {
+            setAnalysis(transcriptionResult.analysis);
+          }
           setProgress(100);
           
           toast({
@@ -73,6 +78,9 @@ export const useVideoProcessor = () => {
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          if (transcriptionResult.analysis) {
+            setAnalysis(transcriptionResult.analysis);
+          }
           setProgress(100);
           
           toast({
@@ -98,6 +106,7 @@ export const useVideoProcessor = () => {
     progress,
     transcriptionText,
     transcriptionMetadata,
+    analysis,
     processVideo,
     setTranscriptionText,
   };
