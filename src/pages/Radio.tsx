@@ -1,9 +1,11 @@
 import { useState } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import { useFileUpload } from "@/hooks/use-file-upload";
-import { useVideoProcessor } from "@/hooks/use-video-processor";
+import { processAudioFile } from "@/components/radio/AudioProcessing";
 import RadioTranscriptionSlot from "@/components/radio/RadioTranscriptionSlot";
 import AudioFileItem from "@/components/radio/AudioFileItem";
+import { toast } from "sonner";
+import { TranscriptionAnalysis } from "@/types/assemblyai";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -13,17 +15,20 @@ const Radio = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [currentFileIndex, setCurrentFileIndex] = useState<number | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [transcriptionText, setTranscriptionText] = useState("");
+  const [transcriptionMetadata, setTranscriptionMetadata] = useState<{
+    channel?: string;
+    program?: string;
+    category?: string;
+    broadcastTime?: string;
+    keywords?: string[];
+    language?: string;
+  }>();
+  const [analysis, setAnalysis] = useState<TranscriptionAnalysis>();
 
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
-  const {
-    isProcessing,
-    progress,
-    transcriptionText,
-    transcriptionMetadata,
-    analysis,
-    processVideo,
-    setTranscriptionText,
-  } = useVideoProcessor();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -44,7 +49,7 @@ const Radio = () => {
           setUploadedFiles(prev => [...prev, uploadedFile]);
         }
       } else {
-        console.error('Invalid file type. Please upload audio files only.');
+        toast.error('Por favor, sube únicamente archivos de audio.');
       }
     }
   };
@@ -69,9 +74,28 @@ const Radio = () => {
   };
 
   const handleProcessFile = async (file: UploadedFile) => {
-    const fileIndex = uploadedFiles.findIndex(f => f === file);
-    setCurrentFileIndex(fileIndex);
-    await processVideo(file);
+    try {
+      const fileIndex = uploadedFiles.findIndex(f => f === file);
+      setCurrentFileIndex(fileIndex);
+      setIsProcessing(true);
+      setProgress(0);
+
+      await processAudioFile(
+        file,
+        (text, metadata, analysisData) => {
+          setTranscriptionText(text);
+          setTranscriptionMetadata(metadata);
+          setAnalysis(analysisData);
+          setProgress(100);
+          setIsProcessing(false);
+        }
+      );
+    } catch (error) {
+      console.error('Error processing file:', error);
+      toast.error('Error al procesar el archivo de audio');
+      setIsProcessing(false);
+      setProgress(0);
+    }
   };
 
   return (
