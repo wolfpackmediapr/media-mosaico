@@ -32,6 +32,7 @@ export const uploadToAssemblyAI = async (audioData: ArrayBuffer): Promise<string
 export const startTranscription = async (audioUrl: string): Promise<string> => {
   console.log('Starting transcription for:', audioUrl);
 
+  // Only request features that are supported across all languages
   const transcriptionConfig: TranscriptionConfig = {
     audio_url: audioUrl,
     language_code: 'es',
