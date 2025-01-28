@@ -7,7 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const uploadToAssemblyAI = async (audioData: Blob) => {
+const uploadToAssemblyAI = async (audioData: ArrayBuffer) => {
+  console.log('Uploading to AssemblyAI...');
   const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
     method: 'POST',
     headers: {
@@ -17,14 +18,18 @@ const uploadToAssemblyAI = async (audioData: Blob) => {
   });
 
   if (!uploadResponse.ok) {
-    throw new Error('Failed to upload to AssemblyAI');
+    const errorText = await uploadResponse.text();
+    console.error('AssemblyAI upload error:', errorText);
+    throw new Error(`Failed to upload to AssemblyAI: ${errorText}`);
   }
 
   const { upload_url } = await uploadResponse.json();
+  console.log('File uploaded to AssemblyAI:', upload_url);
   return upload_url;
 };
 
 const startTranscription = async (audioUrl: string) => {
+  console.log('Starting transcription for URL:', audioUrl);
   const response = await fetch('https://api.assemblyai.com/v2/transcript', {
     method: 'POST',
     headers: {
@@ -47,14 +52,18 @@ const startTranscription = async (audioUrl: string) => {
   });
 
   if (!response.ok) {
-    throw new Error('Failed to start transcription');
+    const errorText = await response.text();
+    console.error('AssemblyAI transcription error:', errorText);
+    throw new Error(`Failed to start transcription: ${errorText}`);
   }
 
   const { id: transcriptId } = await response.json();
+  console.log('Transcription started with ID:', transcriptId);
   return transcriptId;
 };
 
 const pollTranscription = async (transcriptId: string) => {
+  console.log('Polling transcription status for ID:', transcriptId);
   while (true) {
     const response = await fetch(
       `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
@@ -65,7 +74,14 @@ const pollTranscription = async (transcriptId: string) => {
       }
     );
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AssemblyAI polling error:', errorText);
+      throw new Error(`Transcription polling failed: ${errorText}`);
+    }
+
     const result = await response.json();
+    console.log('Polling status:', result.status);
 
     if (result.status === 'completed') {
       return result;
@@ -79,11 +95,13 @@ const pollTranscription = async (transcriptId: string) => {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    console.log('Received request');
     const formData = await req.formData();
     const audioFile = formData.get('audioFile');
     const userId = formData.get('userId');
@@ -102,8 +120,11 @@ serve(async (req) => {
       type: audioFile.type
     });
 
+    // Convert File to ArrayBuffer
+    const arrayBuffer = await audioFile.arrayBuffer();
+    
     // Upload to AssemblyAI
-    const audioUrl = await uploadToAssemblyAI(await audioFile.arrayBuffer());
+    const audioUrl = await uploadToAssemblyAI(arrayBuffer);
     console.log('File uploaded to AssemblyAI:', audioUrl);
 
     // Start transcription with all analysis features
@@ -123,7 +144,9 @@ serve(async (req) => {
     // Update transcription record with all analysis results
     const { error: updateError } = await supabase
       .from('transcriptions')
-      .update({
+      .insert({
+        user_id: userId,
+        original_file_path: audioFile.name,
         transcription_text: result.text,
         status: 'completed',
         progress: 100,
@@ -134,9 +157,7 @@ serve(async (req) => {
         assembly_topics: result.iab_categories_result,
         assembly_chapters: result.chapters,
         assembly_key_phrases: result.auto_highlights_result,
-      })
-      .eq('user_id', userId)
-      .eq('original_file_path', audioFile.name);
+      });
 
     if (updateError) {
       console.error('Error updating transcription:', updateError);
