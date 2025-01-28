@@ -11,7 +11,17 @@ interface TranscriptionMetadata {
   keywords?: string[];
 }
 
-export const useVideoProcessor = () => {
+interface VideoProcessorReturn {
+  isProcessing: boolean;
+  progress: number;
+  transcriptionText: string;
+  transcriptionMetadata: TranscriptionMetadata | undefined;
+  analysis: TranscriptionAnalysis | undefined;
+  processVideo: (file: File) => Promise<void>;
+  setTranscriptionText: React.Dispatch<React.SetStateAction<string>>;
+}
+
+export const useVideoProcessor = (): VideoProcessorReturn => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
