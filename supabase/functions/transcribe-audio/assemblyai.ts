@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
 const ASSEMBLYAI_API_KEY = Deno.env.get('ASSEMBLYAI_API_KEY');
 if (!ASSEMBLYAI_API_KEY) {
@@ -15,7 +15,6 @@ export async function startTranscription(audioUrl: string) {
     body: JSON.stringify({
       audio_url: audioUrl,
       language_detection: true,
-      // Removed unsupported features
       speaker_labels: true,
       entity_detection: true,
       iab_categories: true,

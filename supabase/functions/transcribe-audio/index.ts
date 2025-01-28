@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { startTranscription, getTranscriptionResult, updateTranscriptionStatus } from './assemblyai.ts';
 import { corsHeaders } from './cors.ts';
-
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -13,7 +10,10 @@ serve(async (req) => {
 
   try {
     const { videoPath } = await req.json();
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
     // Get the audio file URL
     const { data: { publicUrl } } = supabase.storage
@@ -33,8 +33,8 @@ serve(async (req) => {
       
       if (result.status === 'completed') {
         await updateTranscriptionStatus(
-          SUPABASE_URL,
-          SUPABASE_ANON_KEY,
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
           transcriptionId,
           'completed',
           100,
@@ -62,8 +62,8 @@ serve(async (req) => {
       }
       
       await updateTranscriptionStatus(
-        SUPABASE_URL,
-        SUPABASE_ANON_KEY,
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
         transcriptionId,
         'processing',
         Math.round((attempts / maxAttempts) * 100)
