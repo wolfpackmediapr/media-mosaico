@@ -5,11 +5,7 @@ interface TranscriptionConfig {
   language_code: string;
   content_safety: boolean;
   entity_detection: boolean;
-  auto_chapters: boolean;
-  auto_highlights: boolean;
-  summarization: boolean;
   iab_categories: boolean;
-  sentiment_analysis: boolean;
 }
 
 export const uploadToAssemblyAI = async (audioData: ArrayBuffer): Promise<string> => {
@@ -41,11 +37,7 @@ export const startTranscription = async (audioUrl: string): Promise<string> => {
     language_code: 'es',
     content_safety: true,
     entity_detection: true,
-    auto_chapters: true,
-    auto_highlights: true,
-    summarization: true,
-    iab_categories: true,
-    sentiment_analysis: true
+    iab_categories: true
   };
 
   console.log('Transcription config:', transcriptionConfig);
