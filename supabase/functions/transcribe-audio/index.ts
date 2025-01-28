@@ -39,15 +39,9 @@ const startTranscription = async (audioUrl: string) => {
     body: JSON.stringify({
       audio_url: audioUrl,
       language_code: 'es',
-      summarization: true,
-      summary_model: 'informative',
-      summary_type: 'bullets',
       content_safety: true,
-      sentiment_analysis: true,
       entity_detection: true,
       iab_categories: true,
-      auto_chapters: true,
-      auto_highlights: true,
     }),
   });
 
@@ -150,13 +144,9 @@ serve(async (req) => {
         transcription_text: result.text,
         status: 'completed',
         progress: 100,
-        assembly_summary: result.summary,
         assembly_content_safety: result.content_safety_labels,
-        assembly_sentiment_analysis: result.sentiment_analysis_results,
         assembly_entities: result.entities,
         assembly_topics: result.iab_categories_result,
-        assembly_chapters: result.chapters,
-        assembly_key_phrases: result.auto_highlights_result,
       });
 
     if (updateError) {
@@ -168,13 +158,9 @@ serve(async (req) => {
       JSON.stringify({
         text: result.text,
         analysis: {
-          summary: result.summary,
           content_safety: result.content_safety_labels,
-          sentiment_analysis: result.sentiment_analysis_results,
           entities: result.entities,
           topics: result.iab_categories_result,
-          chapters: result.chapters,
-          key_phrases: result.auto_highlights_result,
         }
       }),
       {
