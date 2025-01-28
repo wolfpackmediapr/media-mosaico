@@ -103,17 +103,15 @@ const Radio = () => {
           </div>
         </div>
         
-        {(transcriptionText || isProcessing) && (
-          <div className="flex flex-col space-y-6">
-            <TranscriptionSlot
-              isProcessing={isProcessing}
-              transcriptionText={transcriptionText}
-              metadata={transcriptionMetadata}
-              analysis={analysis}
-              onTranscriptionChange={handleTranscriptionChange}
-            />
-          </div>
-        )}
+        <div className="flex flex-col space-y-6">
+          <TranscriptionSlot
+            isProcessing={isProcessing}
+            transcriptionText={transcriptionText}
+            metadata={transcriptionMetadata}
+            analysis={analysis}
+            onTranscriptionChange={handleTranscriptionChange}
+          />
+        </div>
       </div>
     </div>
   );
