@@ -2,15 +2,16 @@ import { corsHeaders } from './cors.ts';
 
 interface TranscriptionConfig {
   audio_url: string;
-  language_detection: boolean;
-  speaker_labels: boolean;
+  language_code: string;
+  summarization: boolean;
+  summary_model: string;
+  summary_type: string;
   content_safety: boolean;
+  sentiment_analysis: boolean;
   entity_detection: boolean;
   iab_categories: boolean;
-  redact_pii: boolean;
-  redact_pii_audio: boolean;
-  redact_pii_policies: string[];
-  auto_punctuation: boolean;
+  auto_chapters: boolean;
+  auto_highlights: boolean;
 }
 
 export const uploadToAssemblyAI = async (audioData: ArrayBuffer): Promise<string> => {
@@ -39,25 +40,16 @@ export const startTranscription = async (audioUrl: string): Promise<string> => {
   
   const transcriptionConfig: TranscriptionConfig = {
     audio_url: audioUrl,
-    language_detection: true,
-    speaker_labels: true,
+    language_code: 'es',
+    summarization: true,
+    summary_model: 'informative',
+    summary_type: 'bullets',
     content_safety: true,
+    sentiment_analysis: true,
     entity_detection: true,
     iab_categories: true,
-    redact_pii: true,
-    redact_pii_audio: true,
-    redact_pii_policies: [
-      "drug",
-      "email",
-      "location",
-      "medical",
-      "number",
-      "person",
-      "phone_number",
-      "url",
-      "us_social_security_number"
-    ],
-    auto_punctuation: true
+    auto_chapters: true,
+    auto_highlights: true,
   };
 
   const response = await fetch('https://api.assemblyai.com/v2/transcript', {

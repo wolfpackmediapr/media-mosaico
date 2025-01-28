@@ -55,8 +55,10 @@ serve(async (req) => {
       assembly_content_safety: result.content_safety_labels,
       assembly_entities: result.entities,
       assembly_topics: result.iab_categories_result,
+      assembly_sentiment_analysis: result.sentiment_analysis_results,
+      assembly_summary: result.summary,
+      assembly_key_phrases: result.auto_highlights_result,
       language: result.language_code,
-      redacted_audio_url: result.redacted_audio_url,
     });
 
     return new Response(
@@ -67,8 +69,9 @@ serve(async (req) => {
           content_safety: result.content_safety_labels,
           entities: result.entities,
           topics: result.iab_categories_result,
-          redacted_audio_url: result.redacted_audio_url,
-          speakers: result.speaker_labels,
+          sentiment_analysis: result.sentiment_analysis_results,
+          summary: result.summary,
+          key_phrases: result.auto_highlights_result,
         }
       }),
       {
