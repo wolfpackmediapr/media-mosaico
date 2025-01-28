@@ -34,14 +34,12 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
     console.log("Starting video processing for file:", file.name);
 
     try {
-      // First check authentication
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) throw new Error('Authentication required');
       if (!user) throw new Error('Please log in to process videos');
 
       setProgress(10);
 
-      // For files larger than 25MB, convert to audio first
       if (file.size > 25 * 1024 * 1024) {
         console.log("File is larger than 25MB, converting to audio first");
         setProgress(20);
@@ -56,7 +54,6 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
 
         setProgress(50);
 
-        // Process the converted audio file
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { videoPath: conversionData.audioPath }
@@ -78,7 +75,6 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
           });
         }
       } else {
-        // For smaller files, process directly
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { videoPath: file.name }
