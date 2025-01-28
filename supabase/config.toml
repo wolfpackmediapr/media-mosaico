@@ -2,4 +2,3 @@ project_id = "qpozetnbnzdinqkrafze"
 
 [functions.transcribe-audio]
 verify_jwt = true
-max_timeout = 300
