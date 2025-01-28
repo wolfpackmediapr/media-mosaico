@@ -25,6 +25,12 @@ export interface TranscriptionAnalysis {
     end: number;
   }>;
   redacted_audio_url?: string;
+  assembly_entities?: any;
+  assembly_key_phrases?: any;
+  assembly_sentiment_analysis?: any;
+  assembly_summary?: string;
+  assembly_content_safety?: any;
+  assembly_topics?: any;
 }
 
 interface ContentSafetyResult {
