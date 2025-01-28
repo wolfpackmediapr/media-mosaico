@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { TranscriptionAnalysis } from "@/types/assemblyai";
 
 interface TranscriptionMetadata {
   channel?: string;
@@ -11,22 +10,11 @@ interface TranscriptionMetadata {
   keywords?: string[];
 }
 
-interface VideoProcessorReturn {
-  isProcessing: boolean;
-  progress: number;
-  transcriptionText: string;
-  transcriptionMetadata: TranscriptionMetadata | undefined;
-  analysis: TranscriptionAnalysis | undefined;
-  processVideo: (file: File) => Promise<void>;
-  setTranscriptionText: React.Dispatch<React.SetStateAction<string>>;
-}
-
-export const useVideoProcessor = (): VideoProcessorReturn => {
+export const useVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
-  const [analysis, setAnalysis] = useState<TranscriptionAnalysis>();
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);
@@ -34,12 +22,14 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
     console.log("Starting video processing for file:", file.name);
 
     try {
+      // First check authentication
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) throw new Error('Authentication required');
       if (!user) throw new Error('Please log in to process videos');
 
       setProgress(10);
 
+      // For files larger than 25MB, convert to audio first
       if (file.size > 25 * 1024 * 1024) {
         console.log("File is larger than 25MB, converting to audio first");
         setProgress(20);
@@ -49,29 +39,22 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
             body: { videoPath: file.name }
           });
 
-        if (conversionError) {
-          console.error('Conversion error:', conversionError);
-          throw conversionError;
-        }
+        if (conversionError) throw conversionError;
         console.log("Conversion response:", conversionData);
 
         setProgress(50);
 
+        // Process the converted audio file
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { videoPath: conversionData.audioPath }
           });
 
-        if (processError) {
-          console.error('Processing error:', processError);
-          throw processError;
-        }
+        if (processError) throw processError;
+        setProgress(90);
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
-          if (transcriptionResult.analysis) {
-            setAnalysis(transcriptionResult.analysis);
-          }
           setProgress(100);
           
           toast({
@@ -80,21 +63,16 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
           });
         }
       } else {
+        // For smaller files, process directly
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { videoPath: file.name }
           });
 
-        if (processError) {
-          console.error('Processing error:', processError);
-          throw processError;
-        }
+        if (processError) throw processError;
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
-          if (transcriptionResult.analysis) {
-            setAnalysis(transcriptionResult.analysis);
-          }
           setProgress(100);
           
           toast({
@@ -105,7 +83,6 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
       }
     } catch (error: any) {
       console.error('Error processing file:', error);
-      setProgress(0);
       toast({
         title: "Error al procesar",
         description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
@@ -121,7 +98,6 @@ export const useVideoProcessor = (): VideoProcessorReturn => {
     progress,
     transcriptionText,
     transcriptionMetadata,
-    analysis,
     processVideo,
     setTranscriptionText,
   };

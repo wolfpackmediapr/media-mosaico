@@ -6,6 +6,10 @@ import { toast } from "sonner";
 import TranscriptionMetadata from "./TranscriptionMetadata";
 import TranscriptionEditor from "./TranscriptionEditor";
 import TranscriptionActions from "./TranscriptionActions";
+import TranscriptionAnalysis from "./TranscriptionAnalysis";
+import ChaptersSection from "../analysis/ChaptersSection";
+import ContentSafetySection from "../analysis/ContentSafetySection";
+import TopicsSection from "../analysis/TopicsSection";
 import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
 
 interface TranscriptionSlotProps {
@@ -17,7 +21,6 @@ interface TranscriptionSlotProps {
     category?: string;
     broadcastTime?: string;
     keywords?: string[];
-    language?: string;
   };
   analysis?: TranscriptionAnalysisType;
   onTranscriptionChange: (text: string) => void;
@@ -27,6 +30,7 @@ const TranscriptionSlot = ({
   isProcessing,
   transcriptionText,
   metadata,
+  analysis,
   onTranscriptionChange,
 }: TranscriptionSlotProps) => {
   const handleGenerateReport = async () => {
@@ -54,32 +58,51 @@ const TranscriptionSlot = ({
     }
   };
 
+  const handleChapterClick = (timestamp: number) => {
+    // Implement audio seeking logic here
+    console.log('Seeking to timestamp:', timestamp);
+  };
+
   return (
-    <Card>
-      <TranscriptionMetadata metadata={metadata} />
-      <CardContent className="space-y-4">
-        <TranscriptionEditor
-          transcriptionText={transcriptionText}
-          isProcessing={isProcessing}
-          onTranscriptionChange={onTranscriptionChange}
-        />
-        <div className="flex justify-between items-center">
-          <TranscriptionActions
+    <div className="space-y-6">
+      <Card>
+        <TranscriptionMetadata metadata={metadata} />
+        <CardContent className="space-y-4">
+          <TranscriptionEditor
             transcriptionText={transcriptionText}
-            metadata={metadata}
             isProcessing={isProcessing}
+            onTranscriptionChange={onTranscriptionChange}
           />
-          <Button
-            variant="outline"
-            onClick={handleGenerateReport}
-            disabled={isProcessing || !transcriptionText}
-          >
-            <FileBarChart className="mr-2 h-4 w-4" />
-            Generate Report
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex justify-between items-center">
+            <TranscriptionActions
+              transcriptionText={transcriptionText}
+              metadata={metadata}
+              isProcessing={isProcessing}
+            />
+            <Button
+              variant="outline"
+              onClick={handleGenerateReport}
+              disabled={isProcessing || !transcriptionText}
+            >
+              <FileBarChart className="mr-2 h-4 w-4" />
+              Generate Report
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {analysis && (
+        <>
+          <TranscriptionAnalysis analysis={analysis} />
+          <ChaptersSection 
+            chapters={analysis.chapters}
+            onChapterClick={handleChapterClick}
+          />
+          <ContentSafetySection contentSafety={analysis.content_safety_labels} />
+          <TopicsSection topics={analysis.iab_categories_result} />
+        </>
+      )}
+    </div>
   );
 };
 

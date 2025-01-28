@@ -168,13 +168,6 @@ export type Database = {
           analysis_quien: string | null
           analysis_report_data: Json | null
           analysis_summary: string | null
-          assembly_chapters: Json | null
-          assembly_content_safety: Json | null
-          assembly_entities: Json | null
-          assembly_key_phrases: Json | null
-          assembly_sentiment_analysis: Json | null
-          assembly_summary: string | null
-          assembly_topics: Json | null
           audio_file_path: string | null
           broadcast_time: string | null
           category: string | null
@@ -206,13 +199,6 @@ export type Database = {
           analysis_quien?: string | null
           analysis_report_data?: Json | null
           analysis_summary?: string | null
-          assembly_chapters?: Json | null
-          assembly_content_safety?: Json | null
-          assembly_entities?: Json | null
-          assembly_key_phrases?: Json | null
-          assembly_sentiment_analysis?: Json | null
-          assembly_summary?: string | null
-          assembly_topics?: Json | null
           audio_file_path?: string | null
           broadcast_time?: string | null
           category?: string | null
@@ -244,13 +230,6 @@ export type Database = {
           analysis_quien?: string | null
           analysis_report_data?: Json | null
           analysis_summary?: string | null
-          assembly_chapters?: Json | null
-          assembly_content_safety?: Json | null
-          assembly_entities?: Json | null
-          assembly_key_phrases?: Json | null
-          assembly_sentiment_analysis?: Json | null
-          assembly_summary?: string | null
-          assembly_topics?: Json | null
           audio_file_path?: string | null
           broadcast_time?: string | null
           category?: string | null
