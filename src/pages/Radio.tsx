@@ -1,9 +1,9 @@
 import { useState } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
-import VideoPreview from "@/components/video/VideoPreview";
-import RadioTranscriptionSlot from "@/components/radio/RadioTranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
+import RadioTranscriptionSlot from "@/components/radio/RadioTranscriptionSlot";
+import AudioFileItem from "@/components/radio/AudioFileItem";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -12,8 +12,7 @@ interface UploadedFile extends File {
 const Radio = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState([50]);
+  const [currentFileIndex, setCurrentFileIndex] = useState<number | null>(null);
 
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
   const {
@@ -38,10 +37,14 @@ const Radio = () => {
 
   const handleFiles = async (files: FileList) => {
     for (const file of Array.from(files)) {
-      const result = await uploadFile(file);
-      if (result) {
-        const uploadedFile = Object.assign(file, { preview: result.preview });
-        setUploadedFiles(prev => [...prev, uploadedFile]);
+      if (file.type.startsWith('audio/')) {
+        const result = await uploadFile(file);
+        if (result) {
+          const uploadedFile = Object.assign(file, { preview: result.preview });
+          setUploadedFiles(prev => [...prev, uploadedFile]);
+        }
+      } else {
+        console.error('Invalid file type. Please upload audio files only.');
       }
     }
   };
@@ -58,12 +61,17 @@ const Radio = () => {
     }
   };
 
-  const togglePlayback = () => {
-    setIsPlaying(!isPlaying);
-  };
-
   const handleRemoveFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    if (currentFileIndex === index) {
+      setCurrentFileIndex(null);
+    }
+  };
+
+  const handleProcessFile = async (file: UploadedFile) => {
+    const fileIndex = uploadedFiles.findIndex(f => f === file);
+    setCurrentFileIndex(fileIndex);
+    await processVideo(file);
   };
 
   return (
@@ -86,17 +94,19 @@ const Radio = () => {
           uploadProgress={uploadProgress}
         />
 
-        <VideoPreview
-          uploadedFiles={uploadedFiles}
-          isPlaying={isPlaying}
-          volume={volume}
-          isProcessing={isProcessing}
-          progress={progress}
-          onTogglePlayback={togglePlayback}
-          onVolumeChange={setVolume}
-          onProcess={processVideo}
-          onRemoveFile={handleRemoveFile}
-        />
+        <div className="space-y-4">
+          {uploadedFiles.map((file, index) => (
+            <AudioFileItem
+              key={index}
+              file={file}
+              index={index}
+              isProcessing={isProcessing && currentFileIndex === index}
+              progress={progress}
+              onProcess={handleProcessFile}
+              onRemove={handleRemoveFile}
+            />
+          ))}
+        </div>
       </div>
 
       <RadioTranscriptionSlot
