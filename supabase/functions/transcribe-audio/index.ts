@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Received request');
+    console.log('Received transcription request');
     const formData = await req.formData();
     const audioFile = formData.get('audioFile');
     const userId = formData.get('userId');
@@ -30,24 +30,36 @@ serve(async (req) => {
       type: audioFile.type
     });
 
+    // Validate file size (25MB limit)
+    if (audioFile.size > 25 * 1024 * 1024) {
+      throw new Error('File size exceeds 25MB limit');
+    }
+
     // Convert File to ArrayBuffer
     const arrayBuffer = await audioFile.arrayBuffer();
     
-    // Upload to AssemblyAI
-    const audioUrl = await uploadToAssemblyAI(arrayBuffer);
+    // Upload to AssemblyAI with timeout
+    console.log('Uploading to AssemblyAI...');
+    const uploadPromise = uploadToAssemblyAI(arrayBuffer);
+    const audioUrl = await Promise.race([
+      uploadPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Upload timeout')), 60000))
+    ]);
     console.log('File uploaded to AssemblyAI:', audioUrl);
 
-    // Start transcription
+    // Start transcription with timeout
+    console.log('Starting transcription...');
     const transcriptId = await startTranscription(audioUrl);
     console.log('Transcription started:', transcriptId);
 
-    // Poll for results
+    // Poll for results with timeout
+    console.log('Polling for results...');
     const result = await pollTranscription(transcriptId);
     console.log('Transcription completed');
 
     // Save to database
     await saveTranscription({
-      user_id: userId,
+      user_id: userId.toString(),
       original_file_path: audioFile.name,
       transcription_text: result.text,
       status: 'completed',
@@ -59,19 +71,22 @@ serve(async (req) => {
       assembly_summary: result.summary,
       assembly_key_phrases: result.auto_highlights_result,
       language: result.language_code,
+      redacted_audio_url: result.redacted_audio_url
     });
 
     return new Response(
       JSON.stringify({
+        success: true,
         text: result.text,
         language: result.language_code,
         analysis: {
-          content_safety: result.content_safety_labels,
+          content_safety_labels: result.content_safety_labels,
           entities: result.entities,
-          topics: result.iab_categories_result,
-          sentiment_analysis: result.sentiment_analysis_results,
+          iab_categories_result: result.iab_categories_result,
+          sentiment_analysis_results: result.sentiment_analysis_results,
           summary: result.summary,
-          key_phrases: result.auto_highlights_result,
+          auto_highlights_result: result.auto_highlights_result,
+          redacted_audio_url: result.redacted_audio_url
         }
       }),
       {
@@ -82,7 +97,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Function error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        success: false,
+        error: error.message || 'An unexpected error occurred'
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

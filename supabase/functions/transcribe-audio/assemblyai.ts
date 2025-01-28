@@ -8,6 +8,7 @@ interface TranscriptionConfig {
 }
 
 export const uploadToAssemblyAI = async (audioData: ArrayBuffer): Promise<string> => {
+  console.log('Starting AssemblyAI upload...');
   const response = await fetch('https://api.assemblyai.com/v2/upload', {
     method: 'POST',
     headers: {
@@ -18,8 +19,9 @@ export const uploadToAssemblyAI = async (audioData: ArrayBuffer): Promise<string
   });
 
   if (!response.ok) {
-    console.error('Upload error:', await response.text());
-    throw new Error('Failed to upload audio file');
+    const errorText = await response.text();
+    console.error('Upload error:', errorText);
+    throw new Error(`Failed to upload audio file: ${errorText}`);
   }
 
   const { upload_url } = await response.json();
@@ -39,8 +41,6 @@ export const startTranscription = async (audioUrl: string): Promise<string> => {
     speaker_labels: true
   };
 
-  console.log('Transcription config:', transcriptionConfig);
-
   const response = await fetch('https://api.assemblyai.com/v2/transcript', {
     method: 'POST',
     headers: {
@@ -51,8 +51,9 @@ export const startTranscription = async (audioUrl: string): Promise<string> => {
   });
 
   if (!response.ok) {
-    console.error('Transcription error:', await response.text());
-    throw new Error('Failed to start transcription');
+    const errorText = await response.text();
+    console.error('Transcription error:', errorText);
+    throw new Error(`Failed to start transcription: ${errorText}`);
   }
 
   const { id } = await response.json();
@@ -62,8 +63,10 @@ export const startTranscription = async (audioUrl: string): Promise<string> => {
 
 export const pollTranscription = async (transcriptId: string): Promise<any> => {
   console.log('Polling transcription status for ID:', transcriptId);
+  const maxAttempts = 60; // 3 minutes with 3-second intervals
+  let attempts = 0;
 
-  while (true) {
+  while (attempts < maxAttempts) {
     const response = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
       headers: {
         'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
@@ -71,8 +74,9 @@ export const pollTranscription = async (transcriptId: string): Promise<any> => {
     });
 
     if (!response.ok) {
-      console.error('Polling error:', await response.text());
-      throw new Error('Failed to poll transcription status');
+      const errorText = await response.text();
+      console.error('Polling error:', errorText);
+      throw new Error(`Failed to poll transcription status: ${errorText}`);
     }
 
     const result = await response.json();
@@ -84,7 +88,10 @@ export const pollTranscription = async (transcriptId: string): Promise<any> => {
       throw new Error(`Transcription failed: ${result.error}`);
     }
 
+    attempts++;
     // Wait 3 seconds before polling again
     await new Promise(resolve => setTimeout(resolve, 3000));
   }
+
+  throw new Error('Transcription timed out after 3 minutes');
 };
