@@ -12,6 +12,7 @@ import ContentSafetySection from "../analysis/ContentSafetySection";
 import TopicsSection from "../analysis/TopicsSection";
 import PIIDetectionSection from "../analysis/PIIDetectionSection";
 import SpeakersSection from "../analysis/SpeakersSection";
+import AnalysisAccordion from "../analysis/AnalysisAccordion";
 import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
 
 interface TranscriptionSlotProps {
@@ -90,7 +91,10 @@ const TranscriptionSlot = ({
       </Card>
 
       {analysis && (
-        <div className="space-y-6">
+        <div className="space-y-6 mt-6">
+          <Card className="p-6">
+            <AnalysisAccordion analysis={analysis} />
+          </Card>
           <TranscriptionAnalysis analysis={analysis} />
           <SpeakersSection speakers={analysis.speakers} />
           <PIIDetectionSection redactedAudioUrl={analysis.redacted_audio_url} />
