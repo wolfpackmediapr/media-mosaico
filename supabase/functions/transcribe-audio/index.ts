@@ -1,106 +1,83 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts"
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from '@supabase/supabase-js';
+import { startTranscription, getTranscriptionResult, updateTranscriptionStatus } from './assemblyai.ts';
 import { corsHeaders } from './cors.ts';
-import { uploadToAssemblyAI, startTranscription, pollTranscription } from './assemblyai.ts';
-import { saveTranscription } from './database.ts';
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    console.log('Received transcription request');
-    const formData = await req.formData();
-    const audioFile = formData.get('audioFile');
-    const userId = formData.get('userId');
+    const { videoPath } = await req.json();
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    if (!audioFile || !(audioFile instanceof File)) {
-      throw new Error('No audio file provided');
-    }
+    // Get the audio file URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('media')
+      .getPublicUrl(videoPath);
 
-    if (!userId) {
-      throw new Error('No user ID provided');
-    }
+    // Start transcription
+    const transcriptionId = await startTranscription(publicUrl);
 
-    console.log('Processing file:', {
-      name: audioFile.name,
-      size: audioFile.size,
-      type: audioFile.type
-    });
-
-    // Validate file size (25MB limit)
-    if (audioFile.size > 25 * 1024 * 1024) {
-      throw new Error('File size exceeds 25MB limit');
-    }
-
-    // Convert File to ArrayBuffer
-    const arrayBuffer = await audioFile.arrayBuffer();
+    // Poll for results
+    let result;
+    let attempts = 0;
+    const maxAttempts = 30;
     
-    // Upload to AssemblyAI with timeout
-    console.log('Uploading to AssemblyAI...');
-    const uploadPromise = uploadToAssemblyAI(arrayBuffer);
-    const audioUrl = await Promise.race([
-      uploadPromise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Upload timeout')), 60000))
-    ]);
-    console.log('File uploaded to AssemblyAI:', audioUrl);
-
-    // Start transcription with timeout
-    console.log('Starting transcription...');
-    const transcriptId = await startTranscription(audioUrl);
-    console.log('Transcription started:', transcriptId);
-
-    // Poll for results with timeout
-    console.log('Polling for results...');
-    const result = await pollTranscription(transcriptId);
-    console.log('Transcription completed');
-
-    // Save to database
-    await saveTranscription({
-      user_id: userId.toString(),
-      original_file_path: audioFile.name,
-      transcription_text: result.text,
-      status: 'completed',
-      progress: 100,
-      assembly_content_safety: result.content_safety_labels,
-      assembly_entities: result.entities,
-      assembly_topics: result.iab_categories_result,
-      assembly_sentiment_analysis: result.sentiment_analysis_results,
-      assembly_summary: result.summary,
-      assembly_key_phrases: result.auto_highlights_result,
-      language: result.language_code,
-      redacted_audio_url: result.redacted_audio_url
-    });
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        text: result.text,
-        language: result.language_code,
-        analysis: {
-          content_safety_labels: result.content_safety_labels,
-          entities: result.entities,
-          iab_categories_result: result.iab_categories_result,
-          sentiment_analysis_results: result.sentiment_analysis_results,
-          summary: result.summary,
-          auto_highlights_result: result.auto_highlights_result,
-          redacted_audio_url: result.redacted_audio_url
-        }
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    while (attempts < maxAttempts) {
+      result = await getTranscriptionResult(transcriptionId);
+      
+      if (result.status === 'completed') {
+        await updateTranscriptionStatus(
+          SUPABASE_URL,
+          SUPABASE_ANON_KEY,
+          transcriptionId,
+          'completed',
+          100,
+          result.text
+        );
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            text: result.text,
+            metadata: {
+              language: result.language_code,
+              confidence: result.confidence,
+              speakers: result.speaker_labels,
+              entities: result.entities,
+              iab_categories: result.iab_categories_result
+            }
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      } else if (result.status === 'error') {
+        throw new Error(`Transcription failed: ${result.error}`);
       }
-    );
+      
+      await updateTranscriptionStatus(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY,
+        transcriptionId,
+        'processing',
+        Math.round((attempts / maxAttempts) * 100)
+      );
+      
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      attempts++;
+    }
 
+    throw new Error('Transcription timed out');
   } catch (error) {
-    console.error('Function error:', error);
+    console.error('Error:', error);
     return new Response(
-      JSON.stringify({ 
-        success: false,
-        error: error.message || 'An unexpected error occurred'
-      }),
+      JSON.stringify({ error: error.message }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1,98 +1,77 @@
-interface TranscriptionConfig {
-  audio_url: string;
-  language_code: string;
-  content_safety: boolean;
-  entity_detection: boolean;
-  iab_categories: boolean;
-  speaker_labels: boolean;
+import { createClient } from '@supabase/supabase-js';
+
+const ASSEMBLYAI_API_KEY = Deno.env.get('ASSEMBLYAI_API_KEY');
+if (!ASSEMBLYAI_API_KEY) {
+  throw new Error('Missing ASSEMBLYAI_API_KEY environment variable');
 }
 
-export const uploadToAssemblyAI = async (audioData: ArrayBuffer): Promise<string> => {
-  console.log('Starting AssemblyAI upload...');
-  const response = await fetch('https://api.assemblyai.com/v2/upload', {
-    method: 'POST',
-    headers: {
-      'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
-      'Content-Type': 'application/json',
-    },
-    body: audioData,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Upload error:', errorText);
-    throw new Error(`Failed to upload audio file: ${errorText}`);
-  }
-
-  const { upload_url } = await response.json();
-  console.log('Audio uploaded successfully:', upload_url);
-  return upload_url;
-};
-
-export const startTranscription = async (audioUrl: string): Promise<string> => {
-  console.log('Starting transcription for:', audioUrl);
-
-  // Only request features that are supported across all languages
-  const transcriptionConfig: TranscriptionConfig = {
-    audio_url: audioUrl,
-    language_code: 'es',
-    content_safety: true,
-    entity_detection: true,
-    iab_categories: true,
-    speaker_labels: true
-  };
-
+export async function startTranscription(audioUrl: string) {
   const response = await fetch('https://api.assemblyai.com/v2/transcript', {
     method: 'POST',
     headers: {
-      'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
+      'Authorization': ASSEMBLYAI_API_KEY,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(transcriptionConfig),
+    body: JSON.stringify({
+      audio_url: audioUrl,
+      language_detection: true,
+      // Removed unsupported features
+      speaker_labels: true,
+      entity_detection: true,
+      iab_categories: true,
+    }),
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Transcription error:', errorText);
-    throw new Error(`Failed to start transcription: ${errorText}`);
+    const error = await response.json();
+    throw new Error(`Failed to start transcription: ${JSON.stringify(error)}`);
   }
 
-  const { id } = await response.json();
-  console.log('Transcription started with ID:', id);
-  return id;
-};
+  const data = await response.json();
+  return data.id;
+}
 
-export const pollTranscription = async (transcriptId: string): Promise<any> => {
-  console.log('Polling transcription status for ID:', transcriptId);
-  const maxAttempts = 60; // 3 minutes with 3-second intervals
-  let attempts = 0;
+export async function getTranscriptionResult(transcriptId: string) {
+  const response = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+    headers: {
+      'Authorization': ASSEMBLYAI_API_KEY,
+    },
+  });
 
-  while (attempts < maxAttempts) {
-    const response = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
-      headers: {
-        'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Polling error:', errorText);
-      throw new Error(`Failed to poll transcription status: ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('Transcription status:', result.status);
-
-    if (result.status === 'completed') {
-      return result;
-    } else if (result.status === 'error') {
-      throw new Error(`Transcription failed: ${result.error}`);
-    }
-
-    attempts++;
-    // Wait 3 seconds before polling again
-    await new Promise(resolve => setTimeout(resolve, 3000));
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to get transcription result: ${JSON.stringify(error)}`);
   }
 
-  throw new Error('Transcription timed out after 3 minutes');
-};
+  return await response.json();
+}
+
+export async function updateTranscriptionStatus(
+  supabaseUrl: string,
+  supabaseKey: string,
+  transcriptionId: string,
+  status: string,
+  progress: number,
+  text?: string,
+  error?: string
+) {
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  const updates: any = {
+    status,
+    progress,
+  };
+
+  if (text) {
+    updates.transcription_text = text;
+  }
+
+  const { error: updateError } = await supabase
+    .from('transcriptions')
+    .update(updates)
+    .eq('id', transcriptionId);
+
+  if (updateError) {
+    throw new Error(`Failed to update transcription status: ${updateError.message}`);
+  }
+}
