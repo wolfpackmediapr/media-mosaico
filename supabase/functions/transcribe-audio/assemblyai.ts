@@ -1,43 +1,42 @@
-import { corsHeaders } from './cors.ts';
-
 interface TranscriptionConfig {
   audio_url: string;
   language_code: string;
   content_safety: boolean;
   entity_detection: boolean;
   iab_categories: boolean;
+  speaker_labels: boolean;
 }
 
 export const uploadToAssemblyAI = async (audioData: ArrayBuffer): Promise<string> => {
-  console.log('Uploading to AssemblyAI...');
-  const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
+  const response = await fetch('https://api.assemblyai.com/v2/upload', {
     method: 'POST',
     headers: {
       'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
+      'Content-Type': 'application/json',
     },
     body: audioData,
   });
 
-  if (!uploadResponse.ok) {
-    const errorText = await uploadResponse.text();
-    console.error('AssemblyAI upload error:', errorText);
-    throw new Error(`Failed to upload to AssemblyAI: ${errorText}`);
+  if (!response.ok) {
+    console.error('Upload error:', await response.text());
+    throw new Error('Failed to upload audio file');
   }
 
-  const { upload_url } = await uploadResponse.json();
-  console.log('File uploaded to AssemblyAI:', upload_url);
+  const { upload_url } = await response.json();
+  console.log('Audio uploaded successfully:', upload_url);
   return upload_url;
 };
 
 export const startTranscription = async (audioUrl: string): Promise<string> => {
-  console.log('Starting transcription for URL:', audioUrl);
-  
+  console.log('Starting transcription for:', audioUrl);
+
   const transcriptionConfig: TranscriptionConfig = {
     audio_url: audioUrl,
     language_code: 'es',
     content_safety: true,
     entity_detection: true,
-    iab_categories: true
+    iab_categories: true,
+    speaker_labels: true
   };
 
   console.log('Transcription config:', transcriptionConfig);
@@ -52,36 +51,32 @@ export const startTranscription = async (audioUrl: string): Promise<string> => {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error('AssemblyAI transcription error:', errorText);
-    throw new Error(`Failed to start transcription: ${errorText}`);
+    console.error('Transcription error:', await response.text());
+    throw new Error('Failed to start transcription');
   }
 
-  const { id: transcriptId } = await response.json();
-  console.log('Transcription started with ID:', transcriptId);
-  return transcriptId;
+  const { id } = await response.json();
+  console.log('Transcription started with ID:', id);
+  return id;
 };
 
-export const pollTranscription = async (transcriptId: string) => {
+export const pollTranscription = async (transcriptId: string): Promise<any> => {
   console.log('Polling transcription status for ID:', transcriptId);
+
   while (true) {
-    const response = await fetch(
-      `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
-      {
-        headers: {
-          'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
-        },
-      }
-    );
+    const response = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+      headers: {
+        'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
+      },
+    });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AssemblyAI polling error:', errorText);
-      throw new Error(`Transcription polling failed: ${errorText}`);
+      console.error('Polling error:', await response.text());
+      throw new Error('Failed to poll transcription status');
     }
 
     const result = await response.json();
-    console.log('Polling status:', result.status);
+    console.log('Transcription status:', result.status);
 
     if (result.status === 'completed') {
       return result;
@@ -89,7 +84,7 @@ export const pollTranscription = async (transcriptId: string) => {
       throw new Error(`Transcription failed: ${result.error}`);
     }
 
-    // Wait before polling again
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait 3 seconds before polling again
+    await new Promise(resolve => setTimeout(resolve, 3000));
   }
 };
