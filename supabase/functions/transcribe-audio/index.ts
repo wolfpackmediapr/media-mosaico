@@ -30,19 +30,29 @@ const uploadToAssemblyAI = async (audioData: ArrayBuffer) => {
 
 const startTranscription = async (audioUrl: string) => {
   console.log('Starting transcription for URL:', audioUrl);
+  
+  // Configure supported features for Spanish transcription
+  const transcriptionConfig = {
+    audio_url: audioUrl,
+    language_detection: true, // Enable automatic language detection
+    speaker_labels: true,    // Enable speaker diarization
+    content_safety: true,    // Enable content moderation
+    entity_detection: true,  // Enable entity detection
+    iab_categories: true,    // Enable topic detection
+    redact_pii: true,       // Enable PII redaction
+    redact_pii_audio: true, // Enable PII audio redaction
+    redact_pii_policies: ["all"], // Redact all PII types
+    dual_channel: true,     // Enable dual channel support
+    auto_punctuation: true  // Enable automatic punctuation
+  };
+
   const response = await fetch('https://api.assemblyai.com/v2/transcript', {
     method: 'POST',
     headers: {
       'Authorization': Deno.env.get('ASSEMBLYAI_API_KEY') ?? '',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      audio_url: audioUrl,
-      language_code: 'es',
-      content_safety: true,
-      entity_detection: true,
-      iab_categories: true,
-    }),
+    body: JSON.stringify(transcriptionConfig),
   });
 
   if (!response.ok) {
@@ -121,7 +131,7 @@ serve(async (req) => {
     const audioUrl = await uploadToAssemblyAI(arrayBuffer);
     console.log('File uploaded to AssemblyAI:', audioUrl);
 
-    // Start transcription with all analysis features
+    // Start transcription with supported features
     const transcriptId = await startTranscription(audioUrl);
     console.log('Transcription started:', transcriptId);
 
@@ -147,6 +157,8 @@ serve(async (req) => {
         assembly_content_safety: result.content_safety_labels,
         assembly_entities: result.entities,
         assembly_topics: result.iab_categories_result,
+        language: result.language_code, // Store detected language
+        redacted_audio_url: result.redacted_audio_url, // Store redacted audio URL if PII was detected
       });
 
     if (updateError) {
@@ -157,10 +169,13 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         text: result.text,
+        language: result.language_code,
         analysis: {
           content_safety: result.content_safety_labels,
           entities: result.entities,
           topics: result.iab_categories_result,
+          redacted_audio_url: result.redacted_audio_url,
+          speakers: result.speaker_labels,
         }
       }),
       {
