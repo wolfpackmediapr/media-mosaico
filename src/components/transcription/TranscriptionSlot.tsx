@@ -10,6 +10,8 @@ import TranscriptionAnalysis from "./TranscriptionAnalysis";
 import ChaptersSection from "../analysis/ChaptersSection";
 import ContentSafetySection from "../analysis/ContentSafetySection";
 import TopicsSection from "../analysis/TopicsSection";
+import PIIDetectionSection from "../analysis/PIIDetectionSection";
+import SpeakersSection from "../analysis/SpeakersSection";
 import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
 
 interface TranscriptionSlotProps {
@@ -21,6 +23,7 @@ interface TranscriptionSlotProps {
     category?: string;
     broadcastTime?: string;
     keywords?: string[];
+    language?: string;
   };
   analysis?: TranscriptionAnalysisType;
   onTranscriptionChange: (text: string) => void;
@@ -94,10 +97,8 @@ const TranscriptionSlot = ({
       {analysis && (
         <>
           <TranscriptionAnalysis analysis={analysis} />
-          <ChaptersSection 
-            chapters={analysis.chapters}
-            onChapterClick={handleChapterClick}
-          />
+          <SpeakersSection speakers={analysis.speakers} />
+          <PIIDetectionSection redactedAudioUrl={analysis.redacted_audio_url} />
           <ContentSafetySection contentSafety={analysis.content_safety_labels} />
           <TopicsSection topics={analysis.iab_categories_result} />
         </>

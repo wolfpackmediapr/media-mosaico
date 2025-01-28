@@ -3,6 +3,7 @@ import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileItem from "@/components/radio/AudioFileItem";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { processAudioFile } from "@/components/radio/AudioProcessing";
+import { TranscriptionAnalysis } from "@/types/assemblyai";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -13,6 +14,15 @@ const Radio = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
+  const [transcriptionMetadata, setTranscriptionMetadata] = useState<{
+    channel?: string;
+    program?: string;
+    category?: string;
+    broadcastTime?: string;
+    keywords?: string[];
+    language?: string;
+  }>();
+  const [analysis, setAnalysis] = useState<TranscriptionAnalysis>();
 
   const handleFilesAdded = (newFiles: File[]) => {
     const uploadedFiles = newFiles.map((file) => {
@@ -43,8 +53,10 @@ const Radio = () => {
     setProgress(0);
     
     try {
-      await processAudioFile(file, (text) => {
+      await processAudioFile(file, (text, metadata, analysisData) => {
         setTranscriptionText(text);
+        setTranscriptionMetadata(metadata);
+        setAnalysis(analysisData);
         setProgress(100);
       });
     } catch (error) {
@@ -94,6 +106,8 @@ const Radio = () => {
           <TranscriptionSlot
             isProcessing={isProcessing}
             transcriptionText={transcriptionText}
+            metadata={transcriptionMetadata}
+            analysis={analysis}
             onTranscriptionChange={handleTranscriptionChange}
           />
         </div>

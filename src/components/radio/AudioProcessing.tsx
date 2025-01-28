@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { TranscriptionAnalysis } from "@/types/assemblyai";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -7,7 +8,18 @@ interface UploadedFile extends File {
 
 export const processAudioFile = async (
   file: UploadedFile,
-  onTranscriptionComplete?: (text: string) => void
+  onTranscriptionComplete?: (
+    text: string,
+    metadata: {
+      channel?: string;
+      program?: string;
+      category?: string;
+      broadcastTime?: string;
+      keywords?: string[];
+      language?: string;
+    },
+    analysis: TranscriptionAnalysis
+  ) => void
 ) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -20,7 +32,6 @@ export const processAudioFile = async (
       return;
     }
 
-    // Create a new File object from the uploaded file to ensure it's a valid File instance
     const validFile = new File([file], file.name, { type: file.type });
     console.log('Processing file:', {
       name: validFile.name,
@@ -54,10 +65,20 @@ export const processAudioFile = async (
     console.log('Transcription response:', data);
 
     if (data?.text) {
-      onTranscriptionComplete?.(data.text);
+      const metadata = {
+        channel: data.channel,
+        program: data.program,
+        category: data.category,
+        broadcastTime: data.broadcast_time,
+        keywords: data.keywords,
+        language: data.language
+      };
+
+      onTranscriptionComplete?.(data.text, metadata, data.analysis);
+      
       toast({
         title: "Transcripción completada",
-        description: "El archivo ha sido procesado exitosamente",
+        description: `El archivo ha sido procesado exitosamente en ${data.language === 'es' ? 'español' : 'otro idioma'}`,
       });
     } else {
       throw new Error("No se recibió texto de transcripción");
