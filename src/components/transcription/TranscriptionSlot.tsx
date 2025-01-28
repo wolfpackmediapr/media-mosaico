@@ -62,7 +62,7 @@ const TranscriptionSlot = ({
   };
 
   return (
-    <div className="space-y-6">
+    <>
       <Card>
         <TranscriptionMetadata metadata={metadata} />
         <CardContent className="space-y-4">
@@ -99,7 +99,7 @@ const TranscriptionSlot = ({
           <ChaptersSection chapters={analysis.chapters} onChapterClick={() => {}} />
         </div>
       )}
-    </div>
+    </>
   );
 };
 

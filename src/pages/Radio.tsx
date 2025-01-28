@@ -104,7 +104,7 @@ const Radio = () => {
         </div>
         
         {(transcriptionText || isProcessing) && (
-          <div className="space-y-6">
+          <div className="flex flex-col space-y-6">
             <TranscriptionSlot
               isProcessing={isProcessing}
               transcriptionText={transcriptionText}
