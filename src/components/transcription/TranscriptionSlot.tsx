@@ -6,13 +6,6 @@ import { toast } from "sonner";
 import TranscriptionMetadata from "./TranscriptionMetadata";
 import TranscriptionEditor from "./TranscriptionEditor";
 import TranscriptionActions from "./TranscriptionActions";
-import TranscriptionAnalysis from "./TranscriptionAnalysis";
-import ChaptersSection from "../analysis/ChaptersSection";
-import ContentSafetySection from "../analysis/ContentSafetySection";
-import TopicsSection from "../analysis/TopicsSection";
-import PIIDetectionSection from "../analysis/PIIDetectionSection";
-import SpeakersSection from "../analysis/SpeakersSection";
-import AnalysisAccordion from "../analysis/AnalysisAccordion";
 import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
 
 interface TranscriptionSlotProps {
@@ -34,7 +27,6 @@ const TranscriptionSlot = ({
   isProcessing,
   transcriptionText,
   metadata,
-  analysis,
   onTranscriptionChange,
 }: TranscriptionSlotProps) => {
   const handleGenerateReport = async () => {
@@ -63,47 +55,31 @@ const TranscriptionSlot = ({
   };
 
   return (
-    <>
-      <Card>
-        <TranscriptionMetadata metadata={metadata} />
-        <CardContent className="space-y-4">
-          <TranscriptionEditor
+    <Card>
+      <TranscriptionMetadata metadata={metadata} />
+      <CardContent className="space-y-4">
+        <TranscriptionEditor
+          transcriptionText={transcriptionText}
+          isProcessing={isProcessing}
+          onTranscriptionChange={onTranscriptionChange}
+        />
+        <div className="flex justify-between items-center">
+          <TranscriptionActions
             transcriptionText={transcriptionText}
+            metadata={metadata}
             isProcessing={isProcessing}
-            onTranscriptionChange={onTranscriptionChange}
           />
-          <div className="flex justify-between items-center">
-            <TranscriptionActions
-              transcriptionText={transcriptionText}
-              metadata={metadata}
-              isProcessing={isProcessing}
-            />
-            <Button
-              variant="outline"
-              onClick={handleGenerateReport}
-              disabled={isProcessing || !transcriptionText}
-            >
-              <FileBarChart className="mr-2 h-4 w-4" />
-              Generate Report
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {analysis && (
-        <div className="space-y-6 mt-6">
-          <Card className="p-6">
-            <AnalysisAccordion analysis={analysis} />
-          </Card>
-          <TranscriptionAnalysis analysis={analysis} />
-          <SpeakersSection speakers={analysis.speakers} />
-          <PIIDetectionSection redactedAudioUrl={analysis.redacted_audio_url} />
-          <ContentSafetySection contentSafety={analysis.content_safety_labels} />
-          <TopicsSection topics={analysis.iab_categories_result} />
-          <ChaptersSection chapters={analysis.chapters} onChapterClick={() => {}} />
+          <Button
+            variant="outline"
+            onClick={handleGenerateReport}
+            disabled={isProcessing || !transcriptionText}
+          >
+            <FileBarChart className="mr-2 h-4 w-4" />
+            Generate Report
+          </Button>
         </div>
-      )}
-    </>
+      </CardContent>
+    </Card>
   );
 };
 

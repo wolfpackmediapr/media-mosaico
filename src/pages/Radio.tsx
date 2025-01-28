@@ -1,118 +1,116 @@
 import { useState } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
-import AudioFileItem from "@/components/radio/AudioFileItem";
-import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
-import { processAudioFile } from "@/components/radio/AudioProcessing";
-import { TranscriptionAnalysis } from "@/types/assemblyai";
+import VideoPreview from "@/components/video/VideoPreview";
+import RadioTranscriptionSlot from "@/components/radio/RadioTranscriptionSlot";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import { useVideoProcessor } from "@/hooks/use-video-processor";
 
 interface UploadedFile extends File {
   preview?: string;
 }
 
 const Radio = () => {
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [transcriptionText, setTranscriptionText] = useState("");
-  const [transcriptionMetadata, setTranscriptionMetadata] = useState<{
-    channel?: string;
-    program?: string;
-    category?: string;
-    broadcastTime?: string;
-    keywords?: string[];
-    language?: string;
-  }>();
-  const [analysis, setAnalysis] = useState<TranscriptionAnalysis>();
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState([50]);
 
-  const handleFilesAdded = (newFiles: File[]) => {
-    const uploadedFiles = newFiles.map((file) => {
-      const uploadedFile = new File([file], file.name, { type: file.type });
-      Object.defineProperty(uploadedFile, 'preview', {
-        value: URL.createObjectURL(file),
-        writable: true
-      });
-      console.log('Added file:', uploadedFile);
-      return uploadedFile as UploadedFile;
-    });
-    setFiles((prevFiles) => [...prevFiles, ...uploadedFiles]);
+  const { isUploading, uploadProgress, uploadFile } = useFileUpload();
+  const {
+    isProcessing,
+    progress,
+    transcriptionText,
+    transcriptionMetadata,
+    analysis,
+    processVideo,
+    setTranscriptionText,
+  } = useVideoProcessor();
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
   };
 
-  const handleRemoveFile = (index: number) => {
-    setFiles((prevFiles) => {
-      const newFiles = [...prevFiles];
-      if (newFiles[index].preview) {
-        URL.revokeObjectURL(newFiles[index].preview!);
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleFiles = async (files: FileList) => {
+    for (const file of Array.from(files)) {
+      const result = await uploadFile(file);
+      if (result) {
+        const uploadedFile = Object.assign(file, { preview: result.preview });
+        setUploadedFiles(prev => [...prev, uploadedFile]);
       }
-      newFiles.splice(index, 1);
-      return newFiles;
-    });
-  };
-
-  const handleProcess = async (file: UploadedFile) => {
-    setIsProcessing(true);
-    setProgress(0);
-    
-    try {
-      await processAudioFile(file, (text, metadata, analysisData) => {
-        setTranscriptionText(text);
-        setTranscriptionMetadata(metadata);
-        setAnalysis(analysisData);
-        setProgress(100);
-      });
-    } catch (error) {
-      console.error("Error processing file:", error);
-    } finally {
-      setIsProcessing(false);
     }
   };
 
-  const handleTranscriptionChange = (newText: string) => {
-    setTranscriptionText(newText);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFiles(e.dataTransfer.files);
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  const togglePlayback = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleTranscriptionComplete = (text: string) => {
+    setTranscriptionText(text);
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-4">
-          <FileUploadZone
-            isDragging={false}
-            onDragOver={(e) => e.preventDefault()}
-            onDragLeave={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const files = Array.from(e.dataTransfer.files);
-              handleFilesAdded(files);
-            }}
-            onFileInput={(e) => {
-              const files = Array.from(e.target.files || []);
-              handleFilesAdded(files);
-            }}
-          />
-          <div className="space-y-4">
-            {files.map((file, index) => (
-              <AudioFileItem
-                key={`${file.name}-${index}`}
-                file={file}
-                index={index}
-                isProcessing={isProcessing}
-                progress={progress}
-                onProcess={handleProcess}
-                onRemove={handleRemoveFile}
-              />
-            ))}
-          </div>
-        </div>
-        
-        <div className="flex flex-col space-y-6">
-          <TranscriptionSlot
-            isProcessing={isProcessing}
-            transcriptionText={transcriptionText}
-            metadata={transcriptionMetadata}
-            analysis={analysis}
-            onTranscriptionChange={handleTranscriptionChange}
-          />
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">MONITOREO RADIO</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">
+          Sube, transcribe y analiza contenido de radio de manera eficiente
+        </p>
       </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <FileUploadZone
+          isDragging={isDragging}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onFileInput={handleFileInput}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
+        />
+
+        <VideoPreview
+          uploadedFiles={uploadedFiles}
+          isPlaying={isPlaying}
+          volume={volume}
+          isProcessing={isProcessing}
+          progress={progress}
+          onTogglePlayback={togglePlayback}
+          onVolumeChange={setVolume}
+          onProcess={processVideo}
+          onTranscriptionComplete={handleTranscriptionComplete}
+          onRemoveFile={handleRemoveFile}
+        />
+      </div>
+
+      <RadioTranscriptionSlot
+        isProcessing={isProcessing}
+        transcriptionText={transcriptionText}
+        metadata={transcriptionMetadata}
+        analysis={analysis}
+        onTranscriptionChange={setTranscriptionText}
+      />
     </div>
   );
 };
