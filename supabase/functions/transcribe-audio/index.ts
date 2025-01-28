@@ -34,16 +34,26 @@ const startTranscription = async (audioUrl: string) => {
   // Configure supported features for Spanish transcription
   const transcriptionConfig = {
     audio_url: audioUrl,
-    language_detection: true, // Enable automatic language detection
-    speaker_labels: true,    // Enable speaker diarization
-    content_safety: true,    // Enable content moderation
-    entity_detection: true,  // Enable entity detection
-    iab_categories: true,    // Enable topic detection
-    redact_pii: true,       // Enable PII redaction
-    redact_pii_audio: true, // Enable PII audio redaction
-    redact_pii_policies: ["all"], // Redact all PII types
-    dual_channel: true,     // Enable dual channel support
-    auto_punctuation: true  // Enable automatic punctuation
+    language_detection: true,
+    speaker_labels: true,
+    content_safety: true,
+    entity_detection: true,
+    iab_categories: true,
+    redact_pii: true,
+    redact_pii_audio: true,
+    redact_pii_policies: [
+      "drug",
+      "email",
+      "location",
+      "medical",
+      "number",
+      "person",
+      "phone_number",
+      "url",
+      "us_social_security_number"
+    ],
+    dual_channel: true,
+    auto_punctuation: true
   };
 
   const response = await fetch('https://api.assemblyai.com/v2/transcript', {
@@ -157,8 +167,8 @@ serve(async (req) => {
         assembly_content_safety: result.content_safety_labels,
         assembly_entities: result.entities,
         assembly_topics: result.iab_categories_result,
-        language: result.language_code, // Store detected language
-        redacted_audio_url: result.redacted_audio_url, // Store redacted audio URL if PII was detected
+        language: result.language_code,
+        redacted_audio_url: result.redacted_audio_url,
       });
 
     if (updateError) {
