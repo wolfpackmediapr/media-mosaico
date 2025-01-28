@@ -61,11 +61,6 @@ const TranscriptionSlot = ({
     }
   };
 
-  const handleChapterClick = (timestamp: number) => {
-    // Implement audio seeking logic here
-    console.log('Seeking to timestamp:', timestamp);
-  };
-
   return (
     <div className="space-y-6">
       <Card>
@@ -95,13 +90,14 @@ const TranscriptionSlot = ({
       </Card>
 
       {analysis && (
-        <>
+        <div className="space-y-6">
           <TranscriptionAnalysis analysis={analysis} />
           <SpeakersSection speakers={analysis.speakers} />
           <PIIDetectionSection redactedAudioUrl={analysis.redacted_audio_url} />
           <ContentSafetySection contentSafety={analysis.content_safety_labels} />
           <TopicsSection topics={analysis.iab_categories_result} />
-        </>
+          <ChaptersSection chapters={analysis.chapters} onChapterClick={() => {}} />
+        </div>
       )}
     </div>
   );

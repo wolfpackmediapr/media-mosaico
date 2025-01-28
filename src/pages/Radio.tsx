@@ -71,8 +71,8 @@ const Radio = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="container mx-auto p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
           <FileUploadZone
             isDragging={false}
@@ -102,15 +102,18 @@ const Radio = () => {
             ))}
           </div>
         </div>
-        <div>
-          <TranscriptionSlot
-            isProcessing={isProcessing}
-            transcriptionText={transcriptionText}
-            metadata={transcriptionMetadata}
-            analysis={analysis}
-            onTranscriptionChange={handleTranscriptionChange}
-          />
-        </div>
+        
+        {(transcriptionText || isProcessing) && (
+          <div className="space-y-6">
+            <TranscriptionSlot
+              isProcessing={isProcessing}
+              transcriptionText={transcriptionText}
+              metadata={transcriptionMetadata}
+              analysis={analysis}
+              onTranscriptionChange={handleTranscriptionChange}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
