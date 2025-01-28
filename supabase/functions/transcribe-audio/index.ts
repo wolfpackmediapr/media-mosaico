@@ -52,7 +52,6 @@ const startTranscription = async (audioUrl: string) => {
       "url",
       "us_social_security_number"
     ],
-    dual_channel: true,
     auto_punctuation: true
   };
 
