@@ -3,10 +3,11 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Newspaper, Search, Filter, Download, RefreshCcw, Calendar } from "lucide-react";
+import { Newspaper, Search, Calendar, Download, RefreshCcw, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { es } from 'date-fns/locale';
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface NewsArticle {
@@ -217,20 +218,21 @@ const Prensa = () => {
                   <CardHeader className="p-0 pb-4">
                     <div className="flex justify-between items-start gap-4">
                       <div className="space-y-1 flex-1">
-                        <CardTitle className="text-xl">
+                        <CardTitle className="text-xl group">
                           <a
                             href={article.link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:text-blue-600 hover:underline"
+                            className="hover:text-blue-600 hover:underline inline-flex items-center gap-2"
                           >
                             {article.title}
+                            <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </a>
                         </CardTitle>
                         <div className="text-sm text-gray-500 flex items-center gap-2">
                           <span className="font-medium">{article.source}</span>
                           <span>•</span>
-                          <span>{format(new Date(article.pub_date), 'PPpp')}</span>
+                          <span>{format(new Date(article.pub_date), 'PPpp', { locale: es })}</span>
                         </div>
                       </div>
                       <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 whitespace-nowrap">
@@ -270,6 +272,24 @@ const Prensa = () => {
                         </div>
                       </div>
                     )}
+                    <div className="pt-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        asChild
+                      >
+                        <a
+                          href={article.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Ver artículo original
+                        </a>
+                      </Button>
+                    </div>
                   </CardContent>
                 </div>
               </div>
