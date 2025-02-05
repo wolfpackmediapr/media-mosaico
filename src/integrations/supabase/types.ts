@@ -87,6 +87,45 @@ export type Database = {
         }
         Relationships: []
       }
+      media_posts: {
+        Row: {
+          caption: string | null
+          created_at: string | null
+          file_path: string
+          file_size: number | null
+          id: string
+          instagram_post_id: string | null
+          mime_type: string | null
+          status: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string | null
+          file_path: string
+          file_size?: number | null
+          id?: string
+          instagram_post_id?: string | null
+          mime_type?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string | null
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          instagram_post_id?: string | null
+          mime_type?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -267,6 +306,36 @@ export type Database = {
           transcription_text?: string | null
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      videos: {
+        Row: {
+          created_at: string | null
+          id: string
+          instagram_post_id: string | null
+          status: string | null
+          storage_path: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instagram_post_id?: string | null
+          status?: string | null
+          storage_path: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instagram_post_id?: string | null
+          status?: string | null
+          storage_path?: string
+          title?: string
+          user_id?: string
         }
         Relationships: []
       }
