@@ -29,12 +29,15 @@ const Prensa = () => {
 
   const fetchArticles = async () => {
     try {
+      console.log('Fetching articles...');
       const { data, error } = await supabase
         .from('news_articles')
         .select('*')
         .order('pub_date', { ascending: false });
 
       if (error) throw error;
+
+      console.log('Fetched articles:', data);
 
       // Convert the data to match NewsArticle interface
       const convertedArticles: NewsArticle[] = (data || []).map(article => ({
@@ -60,6 +63,8 @@ const Prensa = () => {
     try {
       const { user } = (await supabase.auth.getUser()).data;
       if (!user) throw new Error('Not authenticated');
+
+      console.log('Refreshing feed for user:', user.id);
 
       const response = await supabase.functions.invoke('process-rss-feed', {
         body: { user_id: user.id },
@@ -134,67 +139,77 @@ const Prensa = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {filteredArticles.map((article) => (
-          <Card key={article.id}>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <CardTitle className="text-xl">
-                    <a
-                      href={article.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-blue-600"
-                    >
-                      {article.title}
-                    </a>
-                  </CardTitle>
-                  <div className="text-sm text-gray-500">
-                    {article.source} • {format(new Date(article.pub_date), 'PPpp')}
-                  </div>
-                </div>
-                <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                  {article.category}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-600">{article.summary}</p>
-              {article.clients.length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-2">Clientes Relevantes:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {article.clients.map((client, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700"
+      {isLoading ? (
+        <div className="text-center py-8">
+          <p>Actualizando artículos...</p>
+        </div>
+      ) : filteredArticles.length === 0 ? (
+        <div className="text-center py-8">
+          <p>No hay artículos disponibles. Haz clic en "Actualizar" para cargar nuevos artículos.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6">
+          {filteredArticles.map((article) => (
+            <Card key={article.id}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <CardTitle className="text-xl">
+                      <a
+                        href={article.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-blue-600"
                       >
-                        {client}
-                      </span>
-                    ))}
+                        {article.title}
+                      </a>
+                    </CardTitle>
+                    <div className="text-sm text-gray-500">
+                      {article.source} • {format(new Date(article.pub_date), 'PPpp')}
+                    </div>
                   </div>
+                  <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                    {article.category}
+                  </span>
                 </div>
-              )}
-              {article.keywords.length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-2">Palabras Clave:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {article.keywords.map((keyword, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600"
-                      >
-                        {keyword}
-                      </span>
-                    ))}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-600">{article.summary}</p>
+                {article.clients.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Clientes Relevantes:</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {article.clients.map((client, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700"
+                        >
+                          {client}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                )}
+                {article.keywords.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Palabras Clave:</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {article.keywords.map((keyword, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600"
+                        >
+                          {keyword}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
