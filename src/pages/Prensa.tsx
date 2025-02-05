@@ -1,14 +1,13 @@
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Newspaper, Search, Calendar, Download, RefreshCcw, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
-import { es } from 'date-fns/locale';
 import { Skeleton } from "@/components/ui/skeleton";
+import PrensaHeader from "@/components/prensa/PrensaHeader";
+import PrensaSearch from "@/components/prensa/PrensaSearch";
+import PrensaEmptyState from "@/components/prensa/PrensaEmptyState";
+import NewsArticleCard from "@/components/prensa/NewsArticleCard";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 interface NewsArticle {
   id: string;
@@ -44,7 +43,6 @@ const Prensa = () => {
 
       console.log('Fetched articles:', data);
 
-      // Convert the data to match NewsArticle interface
       const convertedArticles: NewsArticle[] = (data || []).map(article => ({
         ...article,
         clients: Array.isArray(article.clients) ? article.clients : 
@@ -110,46 +108,12 @@ const Prensa = () => {
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <Newspaper className="h-8 w-8 text-blue-600" />
-            BOT Prensa
-          </h1>
-          <p className="text-gray-500 mt-2">
-            Monitoreo y análisis de contenido impreso y digital
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={refreshFeed}
-            disabled={isRefreshing}
-          >
-            <RefreshCcw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Actualizando...' : 'Actualizar'}
-          </Button>
-          <Button variant="outline" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            Filtrar por fecha
-          </Button>
-          <Button variant="outline" className="gap-2">
-            <Download className="h-4 w-4" />
-            Exportar
-          </Button>
-        </div>
-      </div>
-
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input
-          placeholder="Buscar por título, categoría, cliente o palabra clave..."
-          className="pl-10 w-full"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
+      <PrensaHeader onRefresh={refreshFeed} isRefreshing={isRefreshing} />
+      
+      <PrensaSearch 
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+      />
 
       {isLoading ? (
         <div className="grid gap-6">
@@ -170,130 +134,14 @@ const Prensa = () => {
           ))}
         </div>
       ) : filteredArticles.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <Newspaper className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-4 text-lg font-medium text-gray-900">No hay artículos disponibles</h3>
-          <p className="mt-2 text-gray-500">
-            {searchTerm 
-              ? "No se encontraron artículos que coincidan con tu búsqueda."
-              : "Haz clic en \"Actualizar\" para cargar nuevos artículos."}
-          </p>
-          {searchTerm && (
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={() => setSearchTerm("")}
-            >
-              Limpiar búsqueda
-            </Button>
-          )}
-        </div>
+        <PrensaEmptyState 
+          searchTerm={searchTerm}
+          onClearSearch={() => setSearchTerm("")}
+        />
       ) : (
         <div className="grid gap-6">
           {filteredArticles.map((article) => (
-            <Card key={article.id} className="hover:shadow-lg transition-shadow overflow-hidden">
-              <div className="flex flex-col md:flex-row">
-                {article.image_url ? (
-                  <div className="md:w-1/4 h-48 md:h-auto">
-                    <img
-                      src={article.image_url}
-                      alt={article.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="md:w-1/4 h-48 md:h-auto">
-                    <img
-                      src="https://images.unsplash.com/photo-1488590528505-98d2b5aba04b"
-                      alt="Placeholder"
-                      className="w-full h-full object-cover opacity-50"
-                    />
-                  </div>
-                )}
-                <div className="md:w-3/4 p-6">
-                  <CardHeader className="p-0 pb-4">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="space-y-1 flex-1">
-                        <CardTitle className="text-xl group">
-                          <a
-                            href={article.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:text-blue-600 hover:underline inline-flex items-center gap-2"
-                          >
-                            {article.title}
-                            <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </a>
-                        </CardTitle>
-                        <div className="text-sm text-gray-500 flex items-center gap-2">
-                          <span className="font-medium">{article.source}</span>
-                          <span>•</span>
-                          <span>{format(new Date(article.pub_date), 'PPpp', { locale: es })}</span>
-                        </div>
-                      </div>
-                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 whitespace-nowrap">
-                        {article.category}
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0 space-y-4">
-                    <p className="text-gray-600 leading-relaxed">{article.summary}</p>
-                    {article.clients.length > 0 && (
-                      <div>
-                        <h4 className="font-semibold mb-2 text-sm text-gray-700">Clientes Relevantes:</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {article.clients.map((client, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700"
-                            >
-                              {client}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {article.keywords.length > 0 && (
-                      <div>
-                        <h4 className="font-semibold mb-2 text-sm text-gray-700">Palabras Clave:</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {article.keywords.map((keyword, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600"
-                            >
-                              {keyword}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div className="pt-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                        asChild
-                      >
-                        <a
-                          href={article.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          Ver artículo original
-                        </a>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </div>
-              </div>
-            </Card>
+            <NewsArticleCard key={article.id} article={article} />
           ))}
         </div>
       )}
