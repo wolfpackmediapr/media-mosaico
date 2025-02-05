@@ -20,6 +20,7 @@ interface NewsArticle {
   category: string;
   clients: string[];
   keywords: string[];
+  image_url?: string;
 }
 
 const Prensa = () => {
@@ -189,64 +190,89 @@ const Prensa = () => {
       ) : (
         <div className="grid gap-6">
           {filteredArticles.map((article) => (
-            <Card key={article.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex justify-between items-start gap-4">
-                  <div className="space-y-1 flex-1">
-                    <CardTitle className="text-xl">
-                      <a
-                        href={article.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-blue-600 hover:underline"
-                      >
-                        {article.title}
-                      </a>
-                    </CardTitle>
-                    <div className="text-sm text-gray-500 flex items-center gap-2">
-                      <span className="font-medium">{article.source}</span>
-                      <span>•</span>
-                      <span>{format(new Date(article.pub_date), 'PPpp')}</span>
-                    </div>
+            <Card key={article.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+              <div className="flex flex-col md:flex-row">
+                {article.image_url ? (
+                  <div className="md:w-1/4 h-48 md:h-auto">
+                    <img
+                      src={article.image_url}
+                      alt={article.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
+                      }}
+                    />
                   </div>
-                  <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 whitespace-nowrap">
-                    {article.category}
-                  </span>
+                ) : (
+                  <div className="md:w-1/4 h-48 md:h-auto">
+                    <img
+                      src="https://images.unsplash.com/photo-1488590528505-98d2b5aba04b"
+                      alt="Placeholder"
+                      className="w-full h-full object-cover opacity-50"
+                    />
+                  </div>
+                )}
+                <div className="md:w-3/4 p-6">
+                  <CardHeader className="p-0 pb-4">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="space-y-1 flex-1">
+                        <CardTitle className="text-xl">
+                          <a
+                            href={article.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-blue-600 hover:underline"
+                          >
+                            {article.title}
+                          </a>
+                        </CardTitle>
+                        <div className="text-sm text-gray-500 flex items-center gap-2">
+                          <span className="font-medium">{article.source}</span>
+                          <span>•</span>
+                          <span>{format(new Date(article.pub_date), 'PPpp')}</span>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 whitespace-nowrap">
+                        {article.category}
+                      </span>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0 space-y-4">
+                    <p className="text-gray-600 leading-relaxed">{article.summary}</p>
+                    {article.clients.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-2 text-sm text-gray-700">Clientes Relevantes:</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {article.clients.map((client, index) => (
+                            <span
+                              key={index}
+                              className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700"
+                            >
+                              {client}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {article.keywords.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-2 text-sm text-gray-700">Palabras Clave:</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {article.keywords.map((keyword, index) => (
+                            <span
+                              key={index}
+                              className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600"
+                            >
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-gray-600 leading-relaxed">{article.summary}</p>
-                {article.clients.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold mb-2 text-sm text-gray-700">Clientes Relevantes:</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {article.clients.map((client, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700"
-                        >
-                          {client}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {article.keywords.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold mb-2 text-sm text-gray-700">Palabras Clave:</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {article.keywords.map((keyword, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600"
-                        >
-                          {keyword}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
+              </div>
             </Card>
           ))}
         </div>

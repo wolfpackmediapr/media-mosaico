@@ -33,6 +33,28 @@ function parseDate(dateStr: string): string {
   }
 }
 
+function extractImageUrl(item: any): string | null {
+  // Try to get image from media:content
+  if (item['media:content'] && item['media:content'][0]?.['@url']) {
+    return item['media:content'][0]['@url'];
+  }
+  
+  // Try to get image from enclosure
+  if (item.enclosure && item.enclosure[0]?.['@url'] && item.enclosure[0]?.['@type']?.startsWith('image/')) {
+    return item.enclosure[0]['@url'];
+  }
+  
+  // Try to find image in description HTML
+  if (item.description && item.description[0]) {
+    const imgMatch = item.description[0].match(/<img[^>]+src="([^">]+)"/);
+    if (imgMatch) {
+      return imgMatch[1];
+    }
+  }
+  
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -57,6 +79,7 @@ serve(async (req) => {
       const link = item.link?.[0] || '';
       const pubDate = item.pubDate?.[0] || '';
       const source = item.source?.[0]?.['#text'] || 'Unknown Source';
+      const imageUrl = extractImageUrl(item);
 
       // Process with OpenAI
       const analysis = await analyzeArticle(title, description);
@@ -71,6 +94,7 @@ serve(async (req) => {
         category: analysis.category,
         clients: analysis.clients,
         keywords: analysis.keywords,
+        image_url: imageUrl,
         user_id
       });
     }
@@ -143,7 +167,7 @@ async function analyzeArticle(title: string, description: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4',
         messages: [
           { role: 'system', content: 'You are a news analysis assistant.' },
           { role: 'user', content: prompt }
