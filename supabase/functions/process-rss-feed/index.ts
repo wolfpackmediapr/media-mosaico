@@ -1,7 +1,7 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts";
+import { parse } from "https://deno.land/x/xml@2.1.1/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
@@ -22,18 +22,17 @@ serve(async (req) => {
     const response = await fetch('https://rss.app/feeds/_7yIWdawnxCYoCtbe.xml');
     const xmlText = await response.text();
     
-    // Parse XML
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-    const items = xmlDoc.getElementsByTagName('item');
+    // Parse XML using the Deno XML parser
+    const xmlDoc = parse(xmlText);
+    const items = xmlDoc.rss.channel.item;
     
     const articles = [];
     for (const item of items) {
-      const title = item.getElementsByTagName('title')[0]?.textContent || '';
-      const description = item.getElementsByTagName('description')[0]?.textContent || '';
-      const link = item.getElementsByTagName('link')[0]?.textContent || '';
-      const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
-      const source = item.getElementsByTagName('source')[0]?.textContent || 'Unknown Source';
+      const title = item.title?.[0] || '';
+      const description = item.description?.[0] || '';
+      const link = item.link?.[0] || '';
+      const pubDate = item.pubDate?.[0] || '';
+      const source = item.source?.[0]?.['#text'] || 'Unknown Source';
 
       // Process with OpenAI
       const analysis = await analyzeArticle(title, description);
@@ -113,7 +112,7 @@ async function analyzeArticle(title: string, description: string) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4',
+      model: 'gpt-4o',
       messages: [
         { role: 'system', content: 'You are a news analysis assistant.' },
         { role: 'user', content: prompt }
