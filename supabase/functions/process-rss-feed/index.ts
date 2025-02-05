@@ -13,6 +13,7 @@ const RSS_FEEDS = [
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 function parseDate(dateStr: string): string {
@@ -37,8 +38,12 @@ function extractImageUrl(item: any): string | null {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, {
+      headers: corsHeaders,
+      status: 204,
+    });
   }
 
   try {
@@ -49,6 +54,9 @@ serve(async (req) => {
       try {
         console.log(`Fetching feed from: ${feed.name}`);
         const response = await fetch(feed.url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const data = await response.json();
         
         if (!data.items) {
@@ -155,7 +163,7 @@ async function analyzeArticle(title: string, description: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4',
         messages: [
           { role: 'system', content: 'Eres un asistente especializado en análisis de noticias en español.' },
           { role: 'user', content: prompt }
@@ -181,3 +189,4 @@ async function analyzeArticle(title: string, description: string) {
     };
   }
 }
+
