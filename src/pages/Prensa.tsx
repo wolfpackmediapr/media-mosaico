@@ -35,7 +35,16 @@ const Prensa = () => {
         .order('pub_date', { ascending: false });
 
       if (error) throw error;
-      setArticles(data || []);
+
+      // Convert the data to match NewsArticle interface
+      const convertedArticles: NewsArticle[] = (data || []).map(article => ({
+        ...article,
+        clients: Array.isArray(article.clients) ? article.clients : 
+                typeof article.clients === 'string' ? [article.clients] : 
+                article.clients ? (article.clients as any) : []
+      }));
+
+      setArticles(convertedArticles);
     } catch (error) {
       console.error('Error fetching articles:', error);
       toast({
