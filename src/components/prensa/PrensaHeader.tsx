@@ -13,7 +13,7 @@ const PrensaHeader = ({ onRefresh, isRefreshing }: PrensaHeaderProps) => {
       <div>
         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
           <Newspaper className="h-8 w-8 text-blue-600" />
-          BOT Prensa
+          Prensa
         </h1>
         <p className="text-gray-500 mt-2">
           Monitoreo y análisis de contenido impreso y digital

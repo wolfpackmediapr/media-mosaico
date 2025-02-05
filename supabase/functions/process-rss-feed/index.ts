@@ -28,14 +28,21 @@ function parseDate(dateStr: string): string {
   }
 }
 
+function extractImageUrl(item: any): string | null {
+  return item.image || 
+         item.banner_image || 
+         item.enclosure?.url ||
+         (item.media_content && item.media_content[0]?.url) ||
+         null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { user_id } = await req.json();
-    console.log('Processing RSS feeds for user:', user_id);
+    console.log('Starting RSS feed processing...');
 
     const articles = [];
     const feedPromises = RSS_FEEDS.map(async (feed) => {
@@ -50,31 +57,35 @@ serve(async (req) => {
         }
 
         return Promise.all(data.items.map(async (item: any) => {
-          // Process with OpenAI
-          const analysis = await analyzeArticle(item.title, item.description || '');
-          
-          return {
-            title: item.title,
-            description: item.description || '',
-            link: item.url || item.link,
-            pub_date: parseDate(item.date_published || item.pubDate || item.published),
-            source: feed.name,
-            summary: analysis.summary,
-            category: analysis.category,
-            clients: analysis.clients,
-            keywords: analysis.keywords,
-            image_url: item.image || item.banner_image || null,
-            user_id
-          };
+          try {
+            // Process with OpenAI
+            const analysis = await analyzeArticle(item.title, item.description || '');
+            
+            return {
+              title: item.title,
+              description: item.description || '',
+              link: item.url || item.link,
+              pub_date: parseDate(item.date_published || item.pubDate || item.published),
+              source: feed.name,
+              summary: analysis.summary,
+              category: analysis.category,
+              clients: analysis.clients,
+              keywords: analysis.keywords,
+              image_url: extractImageUrl(item),
+            };
+          } catch (error) {
+            console.error(`Error processing article from ${feed.name}:`, error);
+            return null;
+          }
         }));
       } catch (error) {
-        console.error(`Error processing feed ${feed.name}:`, error);
+        console.error(`Error fetching feed ${feed.name}:`, error);
         return [];
       }
     });
 
     const results = await Promise.all(feedPromises);
-    const allArticles = results.flat();
+    const allArticles = results.flat().filter(article => article !== null);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -95,14 +106,14 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, articles: data }),
+      JSON.stringify({ success: true, articlesProcessed: allArticles.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('Error processing RSS feeds:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Error al procesar los feeds RSS' }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -144,7 +155,7 @@ async function analyzeArticle(title: string, description: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: 'Eres un asistente especializado en análisis de noticias en español.' },
           { role: 'user', content: prompt }

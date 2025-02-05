@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import PrensaHeader from "@/components/prensa/PrensaHeader";
@@ -55,7 +55,7 @@ const Prensa = () => {
       console.error('Error fetching articles:', error);
       toast({
         title: "Error",
-        description: "Could not fetch news articles",
+        description: "No se pudieron cargar los artículos",
         variant: "destructive",
       });
     } finally {
@@ -66,20 +66,17 @@ const Prensa = () => {
   const refreshFeed = async () => {
     setIsRefreshing(true);
     try {
-      const { user } = (await supabase.auth.getUser()).data;
-      if (!user) throw new Error('Not authenticated');
-
-      console.log('Refreshing feed for user:', user.id);
-
+      console.log('Refreshing feed...');
+      
       const response = await supabase.functions.invoke('process-rss-feed', {
-        body: { user_id: user.id },
+        body: {},
       });
 
       if (response.error) throw response.error;
       
       toast({
-        title: "Success",
-        description: "News feed refreshed successfully",
+        title: "¡Éxito!",
+        description: "Feed de noticias actualizado correctamente",
       });
 
       await fetchArticles();
@@ -87,7 +84,7 @@ const Prensa = () => {
       console.error('Error refreshing feed:', error);
       toast({
         title: "Error",
-        description: "Could not refresh news feed",
+        description: "No se pudo actualizar el feed de noticias",
         variant: "destructive",
       });
     } finally {
