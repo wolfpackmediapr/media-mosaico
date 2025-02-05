@@ -9,6 +9,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function parseDate(dateStr: string): string {
+  try {
+    // First try direct parsing
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+
+    // If that fails, try handling specific RSS date formats
+    // Handle RFC 822 format (common in RSS)
+    const rfc822Date = new Date(dateStr.replace(/([\+\-]\d{4})/, ' UTC$1'));
+    if (!isNaN(rfc822Date.getTime())) {
+      return rfc822Date.toISOString();
+    }
+
+    // If all parsing attempts fail, return current date
+    console.warn(`Could not parse date: ${dateStr}, using current date`);
+    return new Date().toISOString();
+  } catch (error) {
+    console.error(`Error parsing date: ${dateStr}`, error);
+    return new Date().toISOString();
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -41,7 +65,7 @@ serve(async (req) => {
         title,
         description,
         link,
-        pub_date: new Date(pubDate).toISOString(),
+        pub_date: parseDate(pubDate),
         source,
         summary: analysis.summary,
         category: analysis.category,
