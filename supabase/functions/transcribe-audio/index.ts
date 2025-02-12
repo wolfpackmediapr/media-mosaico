@@ -11,6 +11,8 @@ const corsHeaders = {
 async function validateFormData(req: Request) {
   try {
     const contentType = req.headers.get('content-type') || '';
+    console.log('Content-Type:', contentType);
+    
     if (!contentType.includes('multipart/form-data')) {
       throw new Error('Invalid content type. Expected multipart/form-data');
     }
@@ -18,6 +20,12 @@ async function validateFormData(req: Request) {
     const formData = await req.formData();
     const file = formData.get('audioFile');
     const userId = formData.get('userId');
+
+    console.log('Form data received:', {
+      fileExists: !!file,
+      fileIsFile: file instanceof File,
+      userIdExists: !!userId
+    });
 
     if (!file || !(file instanceof File)) {
       throw new Error('No valid file provided');
@@ -28,7 +36,9 @@ async function validateFormData(req: Request) {
     }
 
     // Verify file type
-    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a'];
+    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/webm'];
+    console.log('File type:', file.type);
+    
     if (!allowedTypes.includes(file.type)) {
       throw new Error(`Invalid file type. Got ${file.type}, expected one of: ${allowedTypes.join(', ')}`);
     }
@@ -52,23 +62,29 @@ async function uploadToAssemblyAI(audioData: Uint8Array) {
     
     const assemblyKey = Deno.env.get('ASSEMBLYAI_API_KEY');
     if (!assemblyKey) {
+      console.error('AssemblyAI API key not found in environment variables');
       throw new Error('AssemblyAI API key not configured');
     }
 
+    console.log('Preparing upload request...');
     const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
       method: 'POST',
       headers: {
         'Authorization': assemblyKey,
         'Content-Type': 'application/octet-stream',
+        'Transfer-Encoding': 'chunked'
       },
       body: audioData,
     });
+
+    console.log('Upload response status:', uploadResponse.status);
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
       console.error('AssemblyAI upload failed:', {
         status: uploadResponse.status,
-        response: errorText
+        response: errorText,
+        headers: Object.fromEntries(uploadResponse.headers.entries())
       });
       throw new Error(`Failed to upload audio to AssemblyAI: ${errorText}`);
     }
@@ -88,9 +104,11 @@ async function startTranscription(uploadUrl: string) {
     
     const assemblyKey = Deno.env.get('ASSEMBLYAI_API_KEY');
     if (!assemblyKey) {
+      console.error('AssemblyAI API key not found in environment variables');
       throw new Error('AssemblyAI API key not configured');
     }
 
+    console.log('Preparing transcription request...');
     const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
@@ -112,11 +130,14 @@ async function startTranscription(uploadUrl: string) {
       }),
     });
 
+    console.log('Transcription response status:', transcribeResponse.status);
+
     if (!transcribeResponse.ok) {
       const errorText = await transcribeResponse.text();
       console.error('AssemblyAI transcription failed:', {
         status: transcribeResponse.status,
-        response: errorText
+        response: errorText,
+        headers: Object.fromEntries(transcribeResponse.headers.entries())
       });
       throw new Error(`Failed to start transcription: ${errorText}`);
     }
@@ -137,12 +158,15 @@ async function pollTranscription(transcriptId: string) {
     const assemblyKey = Deno.env.get('ASSEMBLYAI_API_KEY');
 
     if (!assemblyKey) {
+      console.error('AssemblyAI API key not found in environment variables');
       throw new Error('AssemblyAI API key not configured');
     }
 
     console.log('Starting polling for transcript:', transcriptId);
 
     for (let attempts = 0; attempts < maxAttempts; attempts++) {
+      console.log(`Polling attempt ${attempts + 1}/${maxAttempts}`);
+      
       const pollingResponse = await fetch(
         `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
         {
@@ -156,7 +180,8 @@ async function pollTranscription(transcriptId: string) {
         const errorText = await pollingResponse.text();
         console.error('Polling failed:', {
           status: pollingResponse.status,
-          response: errorText
+          response: errorText,
+          headers: Object.fromEntries(pollingResponse.headers.entries())
         });
         throw new Error(`Failed to poll for transcription status: ${errorText}`);
       }
@@ -165,7 +190,7 @@ async function pollTranscription(transcriptId: string) {
       console.log('Polling status:', transcript.status);
 
       if (transcript.status === 'completed') {
-        console.log('Transcription completed');
+        console.log('Transcription completed:', transcript);
         return transcript;
       }
       
@@ -174,7 +199,7 @@ async function pollTranscription(transcriptId: string) {
         throw new Error(`Transcription failed: ${transcript.error}`);
       }
 
-      // Wait before next polling attempt
+      console.log(`Waiting ${pollInterval}ms before next attempt...`);
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
 
@@ -192,6 +217,7 @@ serve(async (req) => {
 
   try {
     console.log('Received transcription request');
+    console.log('Request headers:', Object.fromEntries(req.headers.entries()));
     
     const { file, userId } = await validateFormData(req);
     console.log('Processing file:', {
@@ -203,23 +229,26 @@ serve(async (req) => {
 
     const fileBuffer = await file.arrayBuffer();
     const audioData = new Uint8Array(fileBuffer);
+    console.log('File converted to Uint8Array, size:', audioData.length);
 
     console.log('Uploading to AssemblyAI');
     const { upload_url } = await uploadToAssemblyAI(audioData);
     console.log('File uploaded to AssemblyAI:', upload_url);
 
-    const { id: transcriptId } = await startTranscription(upload_url);
-    console.log('Transcription started with ID:', transcriptId);
+    const transcriptResult = await startTranscription(upload_url);
+    console.log('Transcription started with ID:', transcriptResult.id);
 
-    const transcript = await pollTranscription(transcriptId);
+    const transcript = await pollTranscription(transcriptResult.id);
 
     // Initialize Supabase client
+    console.log('Initializing Supabase client');
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     // Save transcription to database with all advanced features
+    console.log('Saving transcription to database');
     const { error: dbError } = await supabase
       .from('transcriptions')
       .insert({
@@ -269,7 +298,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: error.message,
+        errorDetails: error.stack
       }),
       { 
         status: 500,
