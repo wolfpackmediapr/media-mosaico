@@ -20,13 +20,20 @@ const Radio = () => {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
 
   const handleFilesAdded = (newFiles: File[]) => {
-    const uploadedFiles = newFiles.map((file) => {
+    // Filter only audio files
+    const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
+    
+    if (audioFiles.length < newFiles.length) {
+      console.warn('Some files were skipped because they were not audio files');
+    }
+
+    const uploadedFiles = audioFiles.map((file) => {
       const uploadedFile = new File([file], file.name, { type: file.type });
       Object.defineProperty(uploadedFile, 'preview', {
         value: URL.createObjectURL(file),
         writable: true
       });
-      console.log('Added file:', uploadedFile);
+      console.log('Added audio file:', uploadedFile);
       return uploadedFile as UploadedFile;
     });
     setFiles((prevFiles) => [...prevFiles, ...uploadedFiles]);
@@ -91,6 +98,8 @@ const Radio = () => {
               const files = Array.from(e.target.files || []);
               handleFilesAdded(files);
             }}
+            accept="audio/*"
+            message="Arrastra y suelta archivos de audio o haz clic para seleccionarlos"
           />
           {files.length > 0 && (
             <div className="space-y-4">

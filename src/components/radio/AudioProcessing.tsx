@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -18,6 +19,11 @@ export const processAudioFile = async (
         variant: "destructive",
       });
       return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('audio/')) {
+      throw new Error("Solo se permiten archivos de audio");
     }
 
     // Create a new File object from the uploaded file to ensure it's a valid File instance
