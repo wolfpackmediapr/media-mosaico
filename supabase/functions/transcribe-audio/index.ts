@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
@@ -7,7 +8,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Utility function to validate form data
 async function validateFormData(req: Request) {
   const contentType = req.headers.get('content-type') || '';
   if (!contentType.includes('multipart/form-data')) {
@@ -29,7 +29,6 @@ async function validateFormData(req: Request) {
   return { file, userId };
 }
 
-// Utility function to upload file to AssemblyAI
 async function uploadToAssemblyAI(audioData: Uint8Array) {
   const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
     method: 'POST',
@@ -49,7 +48,6 @@ async function uploadToAssemblyAI(audioData: Uint8Array) {
   return await uploadResponse.json();
 }
 
-// Utility function to start transcription
 async function startTranscription(uploadUrl: string) {
   const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
     method: 'POST',
@@ -60,6 +58,15 @@ async function startTranscription(uploadUrl: string) {
     body: JSON.stringify({
       audio_url: uploadUrl,
       language_code: 'es',
+      speaker_labels: true,
+      entity_detection: true,
+      auto_chapters: true,
+      sentiment_analysis: true,
+      content_safety: true,
+      auto_highlights: true,
+      summarization: true,
+      summary_model: 'informative',
+      summary_type: 'bullets'
     }),
     signal: AbortSignal.timeout(30000),
   });
@@ -73,10 +80,9 @@ async function startTranscription(uploadUrl: string) {
   return await transcribeResponse.json();
 }
 
-// Utility function to poll for transcription completion
 async function pollTranscription(transcriptId: string) {
-  const maxAttempts = 30;
-  const pollInterval = 1000;
+  const maxAttempts = 60; // Increased due to more analysis being performed
+  const pollInterval = 3000; // Increased interval to reduce API load
 
   for (let attempts = 0; attempts < maxAttempts; attempts++) {
     const pollingResponse = await fetch(
@@ -112,7 +118,6 @@ async function pollTranscription(transcriptId: string) {
   throw new Error('Transcription timeout');
 }
 
-// Main handler function
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -147,7 +152,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Save transcription to database
+    // Save transcription to database with all advanced features
     const { error: dbError } = await supabase
       .from('transcriptions')
       .insert({
@@ -155,7 +160,14 @@ serve(async (req) => {
         transcription_text: transcript.text,
         original_file_path: file.name,
         status: 'completed',
-        progress: 100
+        progress: 100,
+        assembly_chapters: transcript.chapters,
+        assembly_content_safety: transcript.content_safety_labels,
+        assembly_entities: transcript.entities,
+        assembly_key_phrases: transcript.auto_highlights_result,
+        assembly_sentiment_analysis: transcript.sentiment_analysis_results,
+        assembly_summary: transcript.summary,
+        assembly_topics: transcript.iab_categories_result
       });
 
     if (dbError) {
@@ -163,12 +175,19 @@ serve(async (req) => {
       throw new Error(`Failed to save transcription: ${dbError.message}`);
     }
 
-    console.log('Transcription completed and saved');
+    console.log('Transcription completed and saved with advanced features');
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        text: transcript.text 
+        text: transcript.text,
+        chapters: transcript.chapters,
+        content_safety: transcript.content_safety_labels,
+        sentiment: transcript.sentiment_analysis_results,
+        summary: transcript.summary,
+        topics: transcript.iab_categories_result,
+        entities: transcript.entities,
+        key_phrases: transcript.auto_highlights_result
       }),
       { 
         headers: { 
