@@ -6,6 +6,7 @@ import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { processAudioFile } from "@/components/radio/AudioProcessing";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { AudioPlayer } from "@/components/radio/AudioPlayer";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -92,37 +93,43 @@ const Radio = () => {
             }}
           />
           {files.length > 0 && (
-            <div className="bg-muted rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handlePreviousFile}
-                  disabled={currentFileIndex === 0}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  {currentFileIndex + 1} de {files.length}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleNextFile}
-                  disabled={currentFileIndex === files.length - 1}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+            <div className="space-y-4">
+              <div className="bg-muted rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handlePreviousFile}
+                    disabled={currentFileIndex === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {currentFileIndex + 1} de {files.length}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleNextFile}
+                    disabled={currentFileIndex === files.length - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+                <AudioPlayer 
+                  file={files[currentFileIndex]}
+                  onEnded={handleNextFile}
+                />
+                <AudioFileItem
+                  key={`${files[currentFileIndex].name}-${currentFileIndex}`}
+                  file={files[currentFileIndex]}
+                  index={currentFileIndex}
+                  isProcessing={isProcessing}
+                  progress={progress}
+                  onProcess={handleProcess}
+                  onRemove={handleRemoveFile}
+                />
               </div>
-              <AudioFileItem
-                key={`${files[currentFileIndex].name}-${currentFileIndex}`}
-                file={files[currentFileIndex]}
-                index={currentFileIndex}
-                isProcessing={isProcessing}
-                progress={progress}
-                onProcess={handleProcess}
-                onRemove={handleRemoveFile}
-              />
             </div>
           )}
         </div>
