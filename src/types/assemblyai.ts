@@ -1,3 +1,4 @@
+
 export interface TranscriptionAnalysis {
   summary?: string;
   content_safety_labels?: {
