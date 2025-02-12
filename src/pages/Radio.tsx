@@ -1,8 +1,11 @@
+
 import { useState } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileItem from "@/components/radio/AudioFileItem";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { processAudioFile } from "@/components/radio/AudioProcessing";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -13,6 +16,7 @@ const Radio = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
 
   const handleFilesAdded = (newFiles: File[]) => {
     const uploadedFiles = newFiles.map((file) => {
@@ -34,6 +38,9 @@ const Radio = () => {
         URL.revokeObjectURL(newFiles[index].preview!);
       }
       newFiles.splice(index, 1);
+      if (currentFileIndex >= newFiles.length && currentFileIndex > 0) {
+        setCurrentFileIndex(newFiles.length - 1);
+      }
       return newFiles;
     });
   };
@@ -58,6 +65,14 @@ const Radio = () => {
     setTranscriptionText(newText);
   };
 
+  const handlePreviousFile = () => {
+    setCurrentFileIndex((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleNextFile = () => {
+    setCurrentFileIndex((prev) => Math.min(files.length - 1, prev + 1));
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -76,19 +91,40 @@ const Radio = () => {
               handleFilesAdded(files);
             }}
           />
-          <div className="space-y-4">
-            {files.map((file, index) => (
+          {files.length > 0 && (
+            <div className="bg-muted rounded-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePreviousFile}
+                  disabled={currentFileIndex === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {currentFileIndex + 1} de {files.length}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleNextFile}
+                  disabled={currentFileIndex === files.length - 1}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
               <AudioFileItem
-                key={`${file.name}-${index}`}
-                file={file}
-                index={index}
+                key={`${files[currentFileIndex].name}-${currentFileIndex}`}
+                file={files[currentFileIndex]}
+                index={currentFileIndex}
                 isProcessing={isProcessing}
                 progress={progress}
                 onProcess={handleProcess}
                 onRemove={handleRemoveFile}
               />
-            ))}
-          </div>
+            </div>
+          )}
         </div>
         <div>
           <TranscriptionSlot
