@@ -13,12 +13,14 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const howler = useRef<Howl | null>(null);
-  const progressInterval = useRef<NodeJS.Timer>();
+  const progressInterval = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
     if (howler.current) {
       howler.current.stop();
-      clearInterval(progressInterval.current);
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+      }
     }
 
     const fileUrl = URL.createObjectURL(file);
@@ -27,7 +29,9 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
       format: ['mp3', 'wav'],
       onpause: () => {
         setIsPlaying(false);
-        clearInterval(progressInterval.current);
+        if (progressInterval.current) {
+          clearInterval(progressInterval.current);
+        }
       },
       onplay: () => {
         setIsPlaying(true);
@@ -35,13 +39,17 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
       },
       onend: () => {
         setIsPlaying(false);
-        clearInterval(progressInterval.current);
+        if (progressInterval.current) {
+          clearInterval(progressInterval.current);
+        }
         setProgress(0);
         if (onEnded) onEnded();
       },
       onstop: () => {
         setIsPlaying(false);
-        clearInterval(progressInterval.current);
+        if (progressInterval.current) {
+          clearInterval(progressInterval.current);
+        }
         setProgress(0);
       },
       onload: () => {
@@ -52,7 +60,9 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
     howler.current = sound;
 
     return () => {
-      clearInterval(progressInterval.current);
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+      }
       URL.revokeObjectURL(fileUrl);
       sound.unload();
     };
