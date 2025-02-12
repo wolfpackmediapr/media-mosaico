@@ -35,8 +35,11 @@ async function validateFormData(req: Request) {
       throw new Error('No user ID provided');
     }
 
-    // Verify file type
-    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/webm'];
+    // Updated to include video formats
+    const allowedTypes = [
+      'audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/webm',
+      'video/mp4', 'video/webm', 'video/mpeg', 'video/quicktime'
+    ];
     console.log('File type:', file.type);
     
     if (!allowedTypes.includes(file.type)) {
