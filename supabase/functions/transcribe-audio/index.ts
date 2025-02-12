@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
@@ -123,13 +122,8 @@ async function startTranscription(uploadUrl: string) {
         language_code: 'es',
         speaker_labels: true,
         entity_detection: true,
-        auto_chapters: true,
-        sentiment_analysis: true,
         content_safety: true,
-        auto_highlights: true,
-        summarization: true,
-        summary_model: 'informative',
-        summary_type: 'bullets'
+        iab_categories: true
       }),
     });
 
@@ -250,7 +244,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Save transcription to database with all advanced features
+    // Save transcription to database with supported features only
     console.log('Saving transcription to database');
     const { error: dbError } = await supabase
       .from('transcriptions')
@@ -260,12 +254,8 @@ serve(async (req) => {
         original_file_path: file.name,
         status: 'completed',
         progress: 100,
-        assembly_chapters: transcript.chapters,
         assembly_content_safety: transcript.content_safety_labels,
         assembly_entities: transcript.entities,
-        assembly_key_phrases: transcript.auto_highlights_result,
-        assembly_sentiment_analysis: transcript.sentiment_analysis_results,
-        assembly_summary: transcript.summary,
         assembly_topics: transcript.iab_categories_result
       });
 
@@ -274,19 +264,15 @@ serve(async (req) => {
       throw new Error(`Failed to save transcription: ${dbError.message}`);
     }
 
-    console.log('Transcription completed and saved with advanced features');
+    console.log('Transcription completed and saved with supported features');
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         text: transcript.text,
-        chapters: transcript.chapters,
         content_safety: transcript.content_safety_labels,
-        sentiment: transcript.sentiment_analysis_results,
-        summary: transcript.summary,
-        topics: transcript.iab_categories_result,
         entities: transcript.entities,
-        key_phrases: transcript.auto_highlights_result
+        topics: transcript.iab_categories_result
       }),
       { 
         headers: { 
