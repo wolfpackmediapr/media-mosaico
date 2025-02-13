@@ -8,6 +8,15 @@ import PrensaSearch from "@/components/prensa/PrensaSearch";
 import PrensaEmptyState from "@/components/prensa/PrensaEmptyState";
 import NewsArticleCard from "@/components/prensa/NewsArticleCard";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface NewsArticle {
   id: string;
@@ -21,23 +30,42 @@ interface NewsArticle {
   clients: string[];
   keywords: string[];
   image_url?: string;
+  last_processed?: string;
 }
+
+const ITEMS_PER_PAGE = 10;
 
 const Prensa = () => {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
 
-  const fetchArticles = async () => {
+  const fetchArticles = async (page: number) => {
     try {
-      console.log('Fetching articles...');
+      console.log('Fetching articles for page:', page);
       setIsLoading(true);
+      
+      // Calculate the range for pagination
+      const from = (page - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      // Fetch total count for pagination
+      const { count } = await supabase
+        .from('news_articles')
+        .select('*', { count: 'exact', head: true });
+
+      setTotalCount(count || 0);
+
+      // Fetch paginated articles
       const { data, error } = await supabase
         .from('news_articles')
         .select('*')
-        .order('pub_date', { ascending: false });
+        .order('pub_date', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
 
@@ -79,7 +107,7 @@ const Prensa = () => {
         description: "Feed de noticias actualizado correctamente",
       });
 
-      await fetchArticles();
+      await fetchArticles(currentPage);
     } catch (error) {
       console.error('Error refreshing feed:', error);
       toast({
@@ -93,8 +121,8 @@ const Prensa = () => {
   };
 
   useEffect(() => {
-    fetchArticles();
-  }, []);
+    fetchArticles(currentPage);
+  }, [currentPage]);
 
   const filteredArticles = articles.filter(article =>
     article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -102,6 +130,13 @@ const Prensa = () => {
     article.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
     article.clients.some(client => client.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
@@ -136,11 +171,61 @@ const Prensa = () => {
           onClearSearch={() => setSearchTerm("")}
         />
       ) : (
-        <div className="grid gap-6">
-          {filteredArticles.map((article) => (
-            <NewsArticleCard key={article.id} article={article} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-6">
+            {filteredArticles.map((article) => (
+              <NewsArticleCard key={article.id} article={article} />
+            ))}
+          </div>
+
+          <Pagination className="mt-8">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => currentPage > 1 && handlePageChange(currentPage - 1)}
+                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+              
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const pageNumber = i + 1;
+                return (
+                  <PaginationItem key={pageNumber}>
+                    <PaginationLink
+                      onClick={() => handlePageChange(pageNumber)}
+                      isActive={currentPage === pageNumber}
+                    >
+                      {pageNumber}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              })}
+
+              {totalPages > 5 && (
+                <>
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationLink
+                      onClick={() => handlePageChange(totalPages)}
+                      isActive={currentPage === totalPages}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => currentPage < totalPages && handlePageChange(currentPage + 1)}
+                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </>
       )}
     </div>
   );

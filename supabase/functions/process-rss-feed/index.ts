@@ -16,6 +16,9 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+const BATCH_SIZE = 5; // Process 5 articles at a time
+const MAX_RETRIES = 3;
+
 function parseDate(dateStr: string): string {
   try {
     const date = new Date(dateStr);
@@ -37,110 +40,68 @@ function extractImageUrl(item: any): string | null {
          null;
 }
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: corsHeaders,
-      status: 204,
-    });
-  }
-
+async function getClientKeywords(supabase: any) {
   try {
-    console.log('Starting RSS feed processing...');
+    const { data: clients, error } = await supabase
+      .from('clients')
+      .select('name, keywords')
+      .not('keywords', 'is', null);
 
-    const articles = [];
-    const feedPromises = RSS_FEEDS.map(async (feed) => {
-      try {
-        console.log(`Fetching feed from: ${feed.name}`);
-        const response = await fetch(feed.url);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        
-        if (!data.items) {
-          console.error(`No items found in feed: ${feed.name}`);
-          return [];
-        }
-
-        return Promise.all(data.items.map(async (item: any) => {
-          try {
-            // Process with OpenAI
-            const analysis = await analyzeArticle(item.title, item.description || '');
-            
-            return {
-              title: item.title,
-              description: item.description || '',
-              link: item.url || item.link,
-              pub_date: parseDate(item.date_published || item.pubDate || item.published),
-              source: feed.name,
-              summary: analysis.summary,
-              category: analysis.category,
-              clients: analysis.clients,
-              keywords: analysis.keywords,
-              image_url: extractImageUrl(item),
-            };
-          } catch (error) {
-            console.error(`Error processing article from ${feed.name}:`, error);
-            return null;
-          }
-        }));
-      } catch (error) {
-        console.error(`Error fetching feed ${feed.name}:`, error);
-        return [];
-      }
-    });
-
-    const results = await Promise.all(feedPromises);
-    const allArticles = results.flat().filter(article => article !== null);
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Insert articles into database
-    const { data, error } = await supabase
-      .from('news_articles')
-      .upsert(allArticles, { 
-        onConflict: 'link',
-        ignoreDuplicates: true 
-      });
-
-    if (error) {
-      console.error('Database error:', error);
-      throw error;
-    }
-
-    return new Response(
-      JSON.stringify({ success: true, articlesProcessed: allArticles.length }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
+    if (error) throw error;
+    return clients;
   } catch (error) {
-    console.error('Error processing RSS feeds:', error);
-    return new Response(
-      JSON.stringify({ error: 'Error al procesar los feeds RSS' }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    console.error('Error fetching client keywords:', error);
+    return [];
   }
-});
+}
 
-async function analyzeArticle(title: string, description: string) {
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIApiKey) {
-    throw new Error('OpenAI API key not configured');
+async function processArticleBatch(articles: any[], openAIApiKey: string, clients: any[]) {
+  const results = [];
+  
+  for (const article of articles) {
+    try {
+      const analysis = await analyzeArticle(
+        article.title,
+        article.description || '',
+        openAIApiKey,
+        clients
+      );
+      
+      results.push({
+        title: article.title,
+        description: article.description || '',
+        link: article.url || article.link,
+        pub_date: parseDate(article.date_published || article.pubDate || article.published),
+        source: article.source,
+        summary: analysis.summary,
+        category: analysis.category,
+        clients: analysis.clients,
+        keywords: analysis.keywords,
+        image_url: extractImageUrl(article),
+        last_processed: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error(`Error processing article: ${article.title}`, error);
+    }
   }
   
+  return results;
+}
+
+async function analyzeArticle(title: string, description: string, openAIApiKey: string, clients: any[]) {
+  const clientInfo = clients.map(c => ({
+    name: c.name,
+    keywords: c.keywords
+  }));
+
   const prompt = `
-    Analiza este artículo de noticias y proporciona:
-    1. Un resumen breve (3-5 oraciones)
+    Analiza este artículo de noticias considerando los siguientes clientes y sus palabras clave:
+    ${JSON.stringify(clientInfo, null, 2)}
+
+    Proporciona:
+    1. Un resumen breve (3-4 oraciones)
     2. Categorízalo en UNA de estas categorías: ACCIDENTES, AGENCIAS DE GOBIERNO, AMBIENTE, AMBIENTE & EL TIEMPO, CIENCIA & TECNOLOGÍA, COMUNIDAD, CRIMEN, DEPORTES, ECONOMÍA & NEGOCIOS, EDUCACIÓN & CULTURA, EE.UU. & INTERNACIONALES, ENTRETENIMIENTO, GOBIERNO, OTRAS, POLÍTICA, RELIGIÓN, SALUD, TRIBUNALES
-    3. Identifica si alguno de estos clientes es relevante: First Medical, Menonita, MMM, Auxilio Mutuo, Pavía, Therapy Network, Merck, Infinigen, NF Energía, AES, Ford, Ética Gubernamental, Municipio de Naguabo, PROMESA, Coop de Seguros Múltiples, Telemundo, Para la Naturaleza, Cruz Roja Americana, Hospital del Niño, Serrallés, McDonald's, Metropistas
+    3. Identifica qué clientes son relevantes basado en el contenido y las palabras clave proporcionadas
     4. Extrae palabras clave relevantes
 
     Título: ${title}
@@ -155,38 +116,124 @@ async function analyzeArticle(title: string, description: string) {
     }
   `;
 
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4',
-        messages: [
-          { role: 'system', content: 'Eres un asistente especializado en análisis de noticias en español.' },
-          { role: 'user', content: prompt }
-        ],
-      }),
-    });
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: 'Eres un asistente especializado en análisis de noticias en español.' },
+            { role: 'user', content: prompt }
+          ],
+        }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('OpenAI API error:', errorData);
+        throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      return JSON.parse(data.choices[0].message.content);
+    } catch (error) {
+      if (attempt === MAX_RETRIES - 1) throw error;
+      // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
     }
-
-    const data = await response.json();
-    return JSON.parse(data.choices[0].message.content);
-  } catch (error) {
-    console.error('Error analyzing article:', error);
-    return {
-      summary: 'Error al analizar el artículo',
-      category: 'OTRAS',
-      clients: [],
-      keywords: []
-    };
   }
+
+  return {
+    summary: 'Error al analizar el artículo',
+    category: 'OTRAS',
+    clients: [],
+    keywords: []
+  };
 }
 
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    console.log('Starting RSS feed processing...');
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch client keywords
+    const clients = await getClientKeywords(supabase);
+    console.log(`Fetched ${clients.length} clients with keywords`);
+
+    const processedArticles = [];
+    for (const feed of RSS_FEEDS) {
+      try {
+        console.log(`Fetching feed from: ${feed.name}`);
+        const response = await fetch(feed.url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        if (!data.items) {
+          console.error(`No items found in feed: ${feed.name}`);
+          continue;
+        }
+
+        // Process articles in batches
+        for (let i = 0; i < data.items.length; i += BATCH_SIZE) {
+          const batch = data.items.slice(i, i + BATCH_SIZE);
+          const batchResults = await processArticleBatch(
+            batch.map((item: any) => ({ ...item, source: feed.name })),
+            openAIApiKey,
+            clients
+          );
+          processedArticles.push(...batchResults);
+        }
+      } catch (error) {
+        console.error(`Error processing feed ${feed.name}:`, error);
+      }
+    }
+
+    if (processedArticles.length > 0) {
+      const { error } = await supabase
+        .from('news_articles')
+        .upsert(processedArticles, {
+          onConflict: 'link',
+          ignoreDuplicates: true
+        });
+
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        articlesProcessed: processedArticles.length 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error processing RSS feeds:', error);
+    return new Response(
+      JSON.stringify({ error: 'Error al procesar los feeds RSS' }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+});
