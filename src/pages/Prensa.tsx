@@ -93,11 +93,16 @@ const Prensa = () => {
     try {
       console.log('Refreshing feed...');
       
-      const response = await supabase.functions.invoke('process-rss-feed', {
-        body: {},
+      const { data, error } = await supabase.functions.invoke('process-rss-feed', {
+        body: { timestamp: new Date().toISOString() }
       });
 
-      if (response.error) throw response.error;
+      if (error) {
+        console.error('Error from edge function:', error);
+        throw error;
+      }
+      
+      console.log('Feed refresh response:', data);
       
       toast({
         title: "¡Éxito!",

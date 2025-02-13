@@ -24,4 +24,3 @@ verify_jwt = true
 
 [functions.analyze-content]
 verify_jwt = true
-
