@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
@@ -19,6 +18,17 @@ const corsHeaders = {
 
 const BATCH_SIZE = 5;
 const MAX_RETRIES = 3;
+const MAX_TEXT_LENGTH = 1000; // Limit text length for OpenAI
+
+function sanitizeText(text: string): string {
+  if (!text) return '';
+  // Remove special characters and limit length
+  return text
+    .replace(/[`'"]/g, '') // Remove problematic quotes and backticks
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+    .substring(0, MAX_TEXT_LENGTH)
+    .trim();
+}
 
 function parseDate(dateStr: string): string {
   try {
@@ -54,36 +64,39 @@ async function getClientKeywords(supabase: any) {
 }
 
 async function analyzeArticle(title: string, description: string, openAIApiKey: string, clients: any[]) {
+  const sanitizedTitle = sanitizeText(title);
+  const sanitizedDescription = sanitizeText(description);
+  
   const clientInfo = clients.map(c => ({
-    name: c.name,
-    keywords: c.keywords
+    name: sanitizeText(c.name),
+    keywords: Array.isArray(c.keywords) ? c.keywords.map(k => sanitizeText(k)) : []
   }));
 
   const prompt = `
-    Analiza este artículo de noticias en español. Considera los siguientes clientes y sus palabras clave:
-    ${JSON.stringify(clientInfo, null, 2)}
+    Por favor, analiza este artículo de noticias y proporciona un análisis estructurado.
+    
+    CLIENTES Y PALABRAS CLAVE:
+    ${JSON.stringify(clientInfo)}
 
-    Título: ${title}
-    Descripción: ${description}
+    ARTÍCULO:
+    Título: ${sanitizedTitle}
+    Descripción: ${sanitizedDescription}
 
-    Instrucciones:
-    1. Resume el contenido en 3-4 oraciones concisas.
-    2. Clasifica en UNA categoría: ACCIDENTES, AGENCIAS DE GOBIERNO, AMBIENTE, AMBIENTE & EL TIEMPO, CIENCIA & TECNOLOGÍA, COMUNIDAD, CRIMEN, DEPORTES, ECONOMÍA & NEGOCIOS, EDUCACIÓN & CULTURA, EE.UU. & INTERNACIONALES, ENTRETENIMIENTO, GOBIERNO, OTRAS, POLÍTICA, RELIGIÓN, SALUD, TRIBUNALES
-    3. Identifica clientes relevantes basado en el contenido y palabras clave.
-    4. Extrae 5-7 palabras clave principales.
-
-    Responde en JSON:
+    INSTRUCCIONES:
+    Proporciona un análisis en formato JSON con la siguiente estructura exacta:
     {
-      "summary": "string",
-      "category": "string",
-      "clients": ["string"],
-      "keywords": ["string"]
+      "summary": "Resumen de 3-4 oraciones",
+      "category": "UNA de las siguientes categorías: ACCIDENTES, AGENCIAS DE GOBIERNO, AMBIENTE, AMBIENTE & EL TIEMPO, CIENCIA & TECNOLOGÍA, COMUNIDAD, CRIMEN, DEPORTES, ECONOMÍA & NEGOCIOS, EDUCACIÓN & CULTURA, EE.UU. & INTERNACIONALES, ENTRETENIMIENTO, GOBIERNO, OTRAS, POLÍTICA, RELIGIÓN, SALUD, TRIBUNALES",
+      "clients": ["Lista de nombres de clientes relevantes"],
+      "keywords": ["5-7 palabras clave"]
     }
+
+    IMPORTANTE: Asegúrate de que la respuesta sea un JSON válido y utilice comillas dobles.
   `;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      console.log(`Attempting OpenAI API call for article: "${title}" (attempt ${attempt + 1})`);
+      console.log(`Analyzing article (attempt ${attempt + 1}): "${sanitizedTitle}"`);
       
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -94,9 +107,13 @@ async function analyzeArticle(title: string, description: string, openAIApiKey: 
         body: JSON.stringify({
           model: 'gpt-4',
           messages: [
-            { role: 'system', content: 'Eres un asistente especializado en análisis de noticias en español.' },
+            { 
+              role: 'system', 
+              content: 'Eres un asistente especializado en análisis de noticias. Respondes ÚNICAMENTE en formato JSON válido.' 
+            },
             { role: 'user', content: prompt }
           ],
+          temperature: 0.3 // Lower temperature for more consistent JSON formatting
         }),
       });
 
@@ -107,12 +124,48 @@ async function analyzeArticle(title: string, description: string, openAIApiKey: 
       }
 
       const data = await response.json();
-      const result = JSON.parse(data.choices[0].message.content);
-      console.log(`Successfully analyzed article: "${title}"`);
-      return result;
+      const content = data.choices[0].message.content;
+      
+      // Log the raw response for debugging
+      console.log('Raw OpenAI response:', content);
+
+      try {
+        // Attempt to parse the JSON response
+        const parsedResult = JSON.parse(content);
+        
+        // Validate the required fields
+        if (!parsedResult.summary || !parsedResult.category || 
+            !Array.isArray(parsedResult.clients) || !Array.isArray(parsedResult.keywords)) {
+          throw new Error('Missing required fields in OpenAI response');
+        }
+        
+        return parsedResult;
+      } catch (parseError) {
+        console.error(`JSON parsing error for article "${sanitizedTitle}":`, parseError);
+        console.error('Failed content:', content);
+        
+        if (attempt === MAX_RETRIES - 1) {
+          // If this was the last attempt, return a fallback object
+          return {
+            summary: 'Error al analizar el artículo',
+            category: 'OTRAS',
+            clients: [],
+            keywords: []
+          };
+        }
+        // Otherwise, throw the error to trigger another attempt
+        throw parseError;
+      }
     } catch (error) {
-      console.error(`Attempt ${attempt + 1} failed for article "${title}":`, error);
-      if (attempt === MAX_RETRIES - 1) throw error;
+      console.error(`Attempt ${attempt + 1} failed for article "${sanitizedTitle}":`, error);
+      if (attempt === MAX_RETRIES - 1) {
+        return {
+          summary: 'Error al analizar el artículo',
+          category: 'OTRAS',
+          clients: [],
+          keywords: []
+        };
+      }
       await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
     }
   }
@@ -163,13 +216,6 @@ async function processArticleBatch(articles: any[], openAIApiKey: string, client
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
-  }
-
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: corsHeaders }
-    );
   }
 
   try {
@@ -226,7 +272,7 @@ serve(async (req) => {
 
     if (processedArticles.length > 0) {
       console.log('Upserting articles to database...');
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('news_articles')
         .upsert(processedArticles, {
           onConflict: 'link',
