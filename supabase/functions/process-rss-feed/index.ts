@@ -13,6 +13,8 @@ const RSS_FEEDS = [
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Content-Type': 'application/json'
 };
 
 const BATCH_SIZE = 5;
@@ -155,8 +157,16 @@ async function processArticleBatch(articles: any[], openAIApiKey: string, client
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: corsHeaders }
+    );
   }
 
   try {
@@ -218,16 +228,19 @@ serve(async (req) => {
         success: true, 
         articlesProcessed: processedArticles.length 
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: corsHeaders }
     );
 
   } catch (error) {
     console.error('Error processing RSS feeds:', error);
     return new Response(
-      JSON.stringify({ error: 'Error al procesar los feeds RSS' }),
+      JSON.stringify({ 
+        error: 'Error al procesar los feeds RSS',
+        details: error.message 
+      }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: corsHeaders
       }
     );
   }
