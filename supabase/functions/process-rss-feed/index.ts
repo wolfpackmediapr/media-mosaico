@@ -13,19 +13,15 @@ const RSS_FEEDS = [
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const BATCH_SIZE = 5; // Process 5 articles at a time
+const BATCH_SIZE = 5;
 const MAX_RETRIES = 3;
 
 function parseDate(dateStr: string): string {
   try {
     const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString();
-    }
-    return new Date().toISOString();
+    return !isNaN(date.getTime()) ? date.toISOString() : new Date().toISOString();
   } catch (error) {
     console.error(`Error parsing date: ${dateStr}`, error);
     return new Date().toISOString();
@@ -55,11 +51,81 @@ async function getClientKeywords(supabase: any) {
   }
 }
 
+async function analyzeArticle(title: string, description: string, openAIApiKey: string, clients: any[]) {
+  const clientInfo = clients.map(c => ({
+    name: c.name,
+    keywords: c.keywords
+  }));
+
+  const prompt = `
+    Analiza este artículo de noticias en español. Considera los siguientes clientes y sus palabras clave:
+    ${JSON.stringify(clientInfo, null, 2)}
+
+    Título: ${title}
+    Descripción: ${description}
+
+    Instrucciones:
+    1. Resume el contenido en 3-4 oraciones concisas.
+    2. Clasifica en UNA categoría: ACCIDENTES, AGENCIAS DE GOBIERNO, AMBIENTE, AMBIENTE & EL TIEMPO, CIENCIA & TECNOLOGÍA, COMUNIDAD, CRIMEN, DEPORTES, ECONOMÍA & NEGOCIOS, EDUCACIÓN & CULTURA, EE.UU. & INTERNACIONALES, ENTRETENIMIENTO, GOBIERNO, OTRAS, POLÍTICA, RELIGIÓN, SALUD, TRIBUNALES
+    3. Identifica clientes relevantes basado en el contenido y palabras clave.
+    4. Extrae 5-7 palabras clave principales.
+
+    Responde en JSON:
+    {
+      "summary": "string",
+      "category": "string",
+      "clients": ["string"],
+      "keywords": ["string"]
+    }
+  `;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: 'Eres un asistente especializado en análisis de noticias en español.' },
+            { role: 'user', content: prompt }
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('OpenAI API error:', errorData);
+        throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      return JSON.parse(data.choices[0].message.content);
+    } catch (error) {
+      console.error(`Attempt ${attempt + 1} failed:`, error);
+      if (attempt === MAX_RETRIES - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+    }
+  }
+
+  return {
+    summary: 'Error al analizar el artículo',
+    category: 'OTRAS',
+    clients: [],
+    keywords: []
+  };
+}
+
 async function processArticleBatch(articles: any[], openAIApiKey: string, clients: any[]) {
   const results = [];
   
   for (const article of articles) {
     try {
+      console.log(`Processing article: ${article.title}`);
+      
       const analysis = await analyzeArticle(
         article.title,
         article.description || '',
@@ -88,74 +154,6 @@ async function processArticleBatch(articles: any[], openAIApiKey: string, client
   return results;
 }
 
-async function analyzeArticle(title: string, description: string, openAIApiKey: string, clients: any[]) {
-  const clientInfo = clients.map(c => ({
-    name: c.name,
-    keywords: c.keywords
-  }));
-
-  const prompt = `
-    Analiza este artículo de noticias considerando los siguientes clientes y sus palabras clave:
-    ${JSON.stringify(clientInfo, null, 2)}
-
-    Proporciona:
-    1. Un resumen breve (3-4 oraciones)
-    2. Categorízalo en UNA de estas categorías: ACCIDENTES, AGENCIAS DE GOBIERNO, AMBIENTE, AMBIENTE & EL TIEMPO, CIENCIA & TECNOLOGÍA, COMUNIDAD, CRIMEN, DEPORTES, ECONOMÍA & NEGOCIOS, EDUCACIÓN & CULTURA, EE.UU. & INTERNACIONALES, ENTRETENIMIENTO, GOBIERNO, OTRAS, POLÍTICA, RELIGIÓN, SALUD, TRIBUNALES
-    3. Identifica qué clientes son relevantes basado en el contenido y las palabras clave proporcionadas
-    4. Extrae palabras clave relevantes
-
-    Título: ${title}
-    Descripción: ${description}
-
-    Responde en formato JSON:
-    {
-      "summary": "string",
-      "category": "string",
-      "clients": ["string"],
-      "keywords": ["string"]
-    }
-  `;
-
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: 'Eres un asistente especializado en análisis de noticias en español.' },
-            { role: 'user', content: prompt }
-          ],
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('OpenAI API error:', errorData);
-        throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
-      }
-
-      const data = await response.json();
-      return JSON.parse(data.choices[0].message.content);
-    } catch (error) {
-      if (attempt === MAX_RETRIES - 1) throw error;
-      // Exponential backoff
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-    }
-  }
-
-  return {
-    summary: 'Error al analizar el artículo',
-    category: 'OTRAS',
-    clients: [],
-    keywords: []
-  };
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -164,13 +162,11 @@ serve(async (req) => {
   try {
     console.log('Starting RSS feed processing...');
 
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch client keywords
     const clients = await getClientKeywords(supabase);
     console.log(`Fetched ${clients.length} clients with keywords`);
 
@@ -189,7 +185,6 @@ serve(async (req) => {
           continue;
         }
 
-        // Process articles in batches
         for (let i = 0; i < data.items.length; i += BATCH_SIZE) {
           const batch = data.items.slice(i, i + BATCH_SIZE);
           const batchResults = await processArticleBatch(

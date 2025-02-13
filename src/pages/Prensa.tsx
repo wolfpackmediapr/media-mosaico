@@ -49,18 +49,15 @@ const Prensa = () => {
       console.log('Fetching articles for page:', page);
       setIsLoading(true);
       
-      // Calculate the range for pagination
       const from = (page - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
-      // Fetch total count for pagination
       const { count } = await supabase
         .from('news_articles')
         .select('*', { count: 'exact', head: true });
 
       setTotalCount(count || 0);
 
-      // Fetch paginated articles
       const { data, error } = await supabase
         .from('news_articles')
         .select('*')
