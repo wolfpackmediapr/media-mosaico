@@ -1,3 +1,4 @@
+
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,8 @@ interface FileUploadZoneProps {
   onFileInput: (e: React.ChangeEvent<HTMLInputElement>) => void;
   isUploading?: boolean;
   uploadProgress?: number;
+  accept?: string;
+  message?: string;
 }
 
 const FileUploadZone = ({
@@ -21,13 +24,15 @@ const FileUploadZone = ({
   onFileInput,
   isUploading = false,
   uploadProgress = 0,
+  accept,
+  message = "Arrastra y suelta archivos aquí o selecciónalos manualmente"
 }: FileUploadZoneProps) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Subir Videos</CardTitle>
+        <CardTitle>Subir Archivos</CardTitle>
         <CardDescription>
-          Arrastra y suelta archivos de video aquí o selecciónalos manualmente
+          {message}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -49,13 +54,10 @@ const FileUploadZone = ({
           ) : (
             <>
               <p className="mb-2 text-sm text-gray-500">
-                Arrastra y suelta archivos de video aquí o selecciona un archivo para subir.
+                {message}
               </p>
               <p className="text-xs text-gray-500 mb-2">
                 Tamaño máximo permitido: 50MB
-              </p>
-              <p className="text-xs text-gray-500 mb-4">
-                Archivos mayores a 25MB serán convertidos automáticamente a formato audio.
               </p>
               <Button
                 variant="outline"
@@ -69,7 +71,7 @@ const FileUploadZone = ({
             id="fileInput"
             type="file"
             className="hidden"
-            accept="video/*"
+            accept={accept}
             multiple
             onChange={onFileInput}
           />
