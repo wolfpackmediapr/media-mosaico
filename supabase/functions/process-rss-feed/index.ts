@@ -83,6 +83,8 @@ async function analyzeArticle(title: string, description: string, openAIApiKey: 
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
+      console.log(`Attempting OpenAI API call for article: "${title}" (attempt ${attempt + 1})`);
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -90,7 +92,7 @@ async function analyzeArticle(title: string, description: string, openAIApiKey: 
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4',
           messages: [
             { role: 'system', content: 'Eres un asistente especializado en análisis de noticias en español.' },
             { role: 'user', content: prompt }
@@ -105,9 +107,11 @@ async function analyzeArticle(title: string, description: string, openAIApiKey: 
       }
 
       const data = await response.json();
-      return JSON.parse(data.choices[0].message.content);
+      const result = JSON.parse(data.choices[0].message.content);
+      console.log(`Successfully analyzed article: "${title}"`);
+      return result;
     } catch (error) {
-      console.error(`Attempt ${attempt + 1} failed:`, error);
+      console.error(`Attempt ${attempt + 1} failed for article "${title}":`, error);
       if (attempt === MAX_RETRIES - 1) throw error;
       await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
     }
@@ -157,7 +161,6 @@ async function processArticleBatch(articles: any[], openAIApiKey: string, client
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -172,9 +175,14 @@ serve(async (req) => {
   try {
     console.log('Starting RSS feed processing...');
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+
+    if (!supabaseUrl || !supabaseKey || !openAIApiKey) {
+      throw new Error('Missing required environment variables');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const clients = await getClientKeywords(supabase);
@@ -189,14 +197,19 @@ serve(async (req) => {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
+        console.log(`Received data from ${feed.name}:`, JSON.stringify(data).slice(0, 200) + '...');
         
-        if (!data.items) {
-          console.error(`No items found in feed: ${feed.name}`);
+        if (!data.items || !Array.isArray(data.items)) {
+          console.error(`Invalid or empty feed data from: ${feed.name}`);
           continue;
         }
 
+        console.log(`Found ${data.items.length} articles in ${feed.name}`);
+
         for (let i = 0; i < data.items.length; i += BATCH_SIZE) {
           const batch = data.items.slice(i, i + BATCH_SIZE);
+          console.log(`Processing batch ${i / BATCH_SIZE + 1} of ${Math.ceil(data.items.length / BATCH_SIZE)} for ${feed.name}`);
+          
           const batchResults = await processArticleBatch(
             batch.map((item: any) => ({ ...item, source: feed.name })),
             openAIApiKey,
@@ -209,8 +222,11 @@ serve(async (req) => {
       }
     }
 
+    console.log(`Total articles processed: ${processedArticles.length}`);
+
     if (processedArticles.length > 0) {
-      const { error } = await supabase
+      console.log('Upserting articles to database...');
+      const { data, error } = await supabase
         .from('news_articles')
         .upsert(processedArticles, {
           onConflict: 'link',
@@ -221,6 +237,7 @@ serve(async (req) => {
         console.error('Database error:', error);
         throw error;
       }
+      console.log('Successfully upserted articles');
     }
 
     return new Response(
