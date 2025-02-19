@@ -16,45 +16,47 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
   const progressInterval = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
+    // Clean up previous instance
     if (howler.current) {
-      howler.current.stop();
+      howler.current.unload();
       if (progressInterval.current) {
         clearInterval(progressInterval.current);
       }
     }
 
+    // Create new audio instance
     const fileUrl = URL.createObjectURL(file);
     const sound = new Howl({
       src: [fileUrl],
-      format: ['mp3', 'wav'],
+      format: ['mp3', 'wav', 'ogg', 'm4a'], // Added more supported formats
+      onload: () => {
+        setDuration(sound.duration());
+      },
+      onplay: () => {
+        setIsPlaying(true);
+        updateProgress();
+      },
       onpause: () => {
         setIsPlaying(false);
         if (progressInterval.current) {
           clearInterval(progressInterval.current);
         }
       },
-      onplay: () => {
-        setIsPlaying(true);
-        updateProgress();
-      },
       onend: () => {
         setIsPlaying(false);
+        setProgress(0);
         if (progressInterval.current) {
           clearInterval(progressInterval.current);
         }
-        setProgress(0);
         if (onEnded) onEnded();
       },
       onstop: () => {
         setIsPlaying(false);
+        setProgress(0);
         if (progressInterval.current) {
           clearInterval(progressInterval.current);
         }
-        setProgress(0);
       },
-      onload: () => {
-        setDuration(sound.duration());
-      }
     });
 
     howler.current = sound;
@@ -66,14 +68,16 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
       URL.revokeObjectURL(fileUrl);
       sound.unload();
     };
-  }, [file]);
+  }, [file, onEnded]);
 
   const updateProgress = () => {
     if (!howler.current) return;
 
     progressInterval.current = setInterval(() => {
-      const seek = howler.current?.seek() || 0;
-      setProgress(seek);
+      if (howler.current) {
+        const seek = howler.current.seek() || 0;
+        setProgress(seek);
+      }
     }, 1000);
   };
 
@@ -121,14 +125,12 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
 
   return (
     <div className="w-full bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl p-4 shadow-xl transition-all duration-300">
-      {/* Audio info */}
       <div className="mb-4 px-2">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">
           {file.name}
         </h3>
       </div>
 
-      {/* Progress bar */}
       <div className="mb-4 px-2">
         <div
           className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full cursor-pointer group"
@@ -150,7 +152,6 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
         </div>
       </div>
 
-      {/* Control buttons */}
       <div className="flex items-center justify-between px-4">
         <button
           onClick={() => handleSkip('backward')}

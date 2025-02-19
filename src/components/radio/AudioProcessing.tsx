@@ -38,8 +38,9 @@ export const processAudioFile = async (
       throw new Error("El tamaño del archivo excede el límite de 25MB");
     }
 
+    // Create FormData and append file and user ID
     const formData = new FormData();
-    formData.append('audioFile', validFile);
+    formData.append('file', validFile); // Changed from 'audioFile' to 'file' to match Edge Function expectation
     formData.append('userId', user.id);
 
     console.log('Sending request to transcribe with formData:', {
@@ -48,8 +49,12 @@ export const processAudioFile = async (
       userId: user.id
     });
 
+    // Call Supabase Edge Function with proper headers
     const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-      body: formData
+      body: formData,
+      headers: {
+        'Accept': 'application/json',
+      },
     });
 
     if (error) {
@@ -68,7 +73,7 @@ export const processAudioFile = async (
     } else {
       throw new Error("No se recibió texto de transcripción");
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error processing file:', error);
     toast({
       title: "Error",
