@@ -18,16 +18,155 @@ const corsHeaders = {
 
 const BATCH_SIZE = 5;
 const MAX_RETRIES = 3;
-const MAX_TEXT_LENGTH = 1000; // Limit text length for OpenAI
+const MAX_TEXT_LENGTH = 2000; // Increased from 1000 to handle longer articles
+const MIN_TEXT_LENGTH = 50;   // Minimum length for meaningful analysis
 
 function sanitizeText(text: string): string {
   if (!text) return '';
-  // Remove special characters and limit length
+  
+  // Enhanced text sanitization
   return text
-    .replace(/[`'"]/g, '') // Remove problematic quotes and backticks
+    .replace(/[`'"]/g, '') // Remove problematic quotes
     .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
-    .substring(0, MAX_TEXT_LENGTH)
-    .trim();
+    .replace(/&[a-zA-Z0-9]+;/g, ' ') // Convert HTML entities to spaces
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .trim()
+    .substring(0, MAX_TEXT_LENGTH);
+}
+
+async function analyzeArticle(title: string, description: string, openAIApiKey: string, clients: any[]) {
+  const sanitizedTitle = sanitizeText(title);
+  const sanitizedDescription = sanitizeText(description);
+  
+  // Log article details for debugging
+  console.log(`Processing article: "${sanitizedTitle.substring(0, 100)}..."`);
+  console.log(`Content lengths - Title: ${sanitizedTitle.length}, Description: ${sanitizedDescription.length}`);
+
+  // Content validation
+  if (!sanitizedTitle || sanitizedTitle.length < MIN_TEXT_LENGTH) {
+    console.warn('Article title too short or invalid');
+    return getFallbackAnalysis('Título insuficiente para análisis');
+  }
+
+  if (!sanitizedDescription || sanitizedDescription.length < MIN_TEXT_LENGTH) {
+    console.warn('Article description too short or invalid');
+    return getFallbackAnalysis('Descripción insuficiente para análisis');
+  }
+
+  const prompt = `
+    Analiza este artículo de noticias y proporciona un análisis estructurado.
+    
+    ARTÍCULO:
+    Título: ${sanitizedTitle}
+    Descripción: ${sanitizedDescription}
+
+    INSTRUCCIONES:
+    Proporciona un análisis en formato JSON que siga EXACTAMENTE esta estructura:
+    {
+      "summary": "Resumen conciso de 2-3 oraciones que capture los puntos principales",
+      "category": "ACCIDENTES|AGENCIAS DE GOBIERNO|AMBIENTE|AMBIENTE & EL TIEMPO|CIENCIA & TECNOLOGÍA|COMUNIDAD|CRIMEN|DEPORTES|ECONOMÍA & NEGOCIOS|EDUCACIÓN & CULTURA|EE.UU. & INTERNACIONALES|ENTRETENIMIENTO|GOBIERNO|OTRAS|POLÍTICA|RELIGIÓN|SALUD|TRIBUNALES",
+      "clients": ["Solo nombres de clientes mencionados"],
+      "keywords": ["5-7 palabras clave relevantes"]
+    }
+
+    REGLAS:
+    1. Usa SOLO las categorías listadas arriba
+    2. Genera JSON válido con comillas dobles
+    3. Si no hay suficiente contexto, usa "OTRAS" como categoría
+    4. El resumen debe ser conciso pero informativo
+    5. Las palabras clave deben ser específicas al contenido
+  `;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      console.log(`Attempt ${attempt + 1} for article analysis`);
+      
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini', // Using the faster model for better performance
+          messages: [
+            { 
+              role: 'system', 
+              content: 'Eres un asistente especializado en análisis de noticias. Respondes ÚNICAMENTE en formato JSON válido.'
+            },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.3, // Lower temperature for more consistent output
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(`OpenAI API error (attempt ${attempt + 1}):`, errorData);
+        
+        if (attempt === MAX_RETRIES - 1) {
+          return getFallbackAnalysis('Error en el servicio de análisis');
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        continue;
+      }
+
+      const data = await response.json();
+      const content = data.choices[0].message.content;
+      
+      try {
+        const parsedResult = JSON.parse(content);
+        
+        // Validate required fields
+        if (!parsedResult.summary || !parsedResult.category || 
+            !Array.isArray(parsedResult.clients) || !Array.isArray(parsedResult.keywords)) {
+          throw new Error('Invalid JSON structure');
+        }
+        
+        // Validate category
+        if (!isValidCategory(parsedResult.category)) {
+          parsedResult.category = 'OTRAS';
+        }
+        
+        return parsedResult;
+      } catch (parseError) {
+        console.error(`JSON parsing error (attempt ${attempt + 1}):`, parseError);
+        console.error('Failed content:', content);
+        
+        if (attempt === MAX_RETRIES - 1) {
+          return getFallbackAnalysis('Error en el formato de análisis');
+        }
+      }
+    } catch (error) {
+      console.error(`Analysis attempt ${attempt + 1} failed:`, error);
+      if (attempt === MAX_RETRIES - 1) {
+        return getFallbackAnalysis('Error en el proceso de análisis');
+      }
+    }
+  }
+
+  return getFallbackAnalysis('Error después de múltiples intentos');
+}
+
+function getFallbackAnalysis(reason: string) {
+  return {
+    summary: reason,
+    category: 'OTRAS',
+    clients: [],
+    keywords: []
+  };
+}
+
+function isValidCategory(category: string): boolean {
+  const validCategories = [
+    'ACCIDENTES', 'AGENCIAS DE GOBIERNO', 'AMBIENTE', 'AMBIENTE & EL TIEMPO',
+    'CIENCIA & TECNOLOGÍA', 'COMUNIDAD', 'CRIMEN', 'DEPORTES',
+    'ECONOMÍA & NEGOCIOS', 'EDUCACIÓN & CULTURA', 'EE.UU. & INTERNACIONALES',
+    'ENTRETENIMIENTO', 'GOBIERNO', 'OTRAS', 'POLÍTICA', 'RELIGIÓN', 'SALUD', 'TRIBUNALES'
+  ];
+  return validCategories.includes(category);
 }
 
 function parseDate(dateStr: string): string {
@@ -61,121 +200,6 @@ async function getClientKeywords(supabase: any) {
     console.error('Error fetching client keywords:', error);
     return [];
   }
-}
-
-async function analyzeArticle(title: string, description: string, openAIApiKey: string, clients: any[]) {
-  const sanitizedTitle = sanitizeText(title);
-  const sanitizedDescription = sanitizeText(description);
-  
-  const clientInfo = clients.map(c => ({
-    name: sanitizeText(c.name),
-    keywords: Array.isArray(c.keywords) ? c.keywords.map(k => sanitizeText(k)) : []
-  }));
-
-  const prompt = `
-    Por favor, analiza este artículo de noticias y proporciona un análisis estructurado.
-    
-    CLIENTES Y PALABRAS CLAVE:
-    ${JSON.stringify(clientInfo)}
-
-    ARTÍCULO:
-    Título: ${sanitizedTitle}
-    Descripción: ${sanitizedDescription}
-
-    INSTRUCCIONES:
-    Proporciona un análisis en formato JSON con la siguiente estructura exacta:
-    {
-      "summary": "Resumen de 3-4 oraciones",
-      "category": "UNA de las siguientes categorías: ACCIDENTES, AGENCIAS DE GOBIERNO, AMBIENTE, AMBIENTE & EL TIEMPO, CIENCIA & TECNOLOGÍA, COMUNIDAD, CRIMEN, DEPORTES, ECONOMÍA & NEGOCIOS, EDUCACIÓN & CULTURA, EE.UU. & INTERNACIONALES, ENTRETENIMIENTO, GOBIERNO, OTRAS, POLÍTICA, RELIGIÓN, SALUD, TRIBUNALES",
-      "clients": ["Lista de nombres de clientes relevantes"],
-      "keywords": ["5-7 palabras clave"]
-    }
-
-    IMPORTANTE: Asegúrate de que la respuesta sea un JSON válido y utilice comillas dobles.
-  `;
-
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      console.log(`Analyzing article (attempt ${attempt + 1}): "${sanitizedTitle}"`);
-      
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4',
-          messages: [
-            { 
-              role: 'system', 
-              content: 'Eres un asistente especializado en análisis de noticias. Respondes ÚNICAMENTE en formato JSON válido.' 
-            },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.3 // Lower temperature for more consistent JSON formatting
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('OpenAI API error:', errorData);
-        throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices[0].message.content;
-      
-      // Log the raw response for debugging
-      console.log('Raw OpenAI response:', content);
-
-      try {
-        // Attempt to parse the JSON response
-        const parsedResult = JSON.parse(content);
-        
-        // Validate the required fields
-        if (!parsedResult.summary || !parsedResult.category || 
-            !Array.isArray(parsedResult.clients) || !Array.isArray(parsedResult.keywords)) {
-          throw new Error('Missing required fields in OpenAI response');
-        }
-        
-        return parsedResult;
-      } catch (parseError) {
-        console.error(`JSON parsing error for article "${sanitizedTitle}":`, parseError);
-        console.error('Failed content:', content);
-        
-        if (attempt === MAX_RETRIES - 1) {
-          // If this was the last attempt, return a fallback object
-          return {
-            summary: 'Error al analizar el artículo',
-            category: 'OTRAS',
-            clients: [],
-            keywords: []
-          };
-        }
-        // Otherwise, throw the error to trigger another attempt
-        throw parseError;
-      }
-    } catch (error) {
-      console.error(`Attempt ${attempt + 1} failed for article "${sanitizedTitle}":`, error);
-      if (attempt === MAX_RETRIES - 1) {
-        return {
-          summary: 'Error al analizar el artículo',
-          category: 'OTRAS',
-          clients: [],
-          keywords: []
-        };
-      }
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-    }
-  }
-
-  return {
-    summary: 'Error al analizar el artículo',
-    category: 'OTRAS',
-    clients: [],
-    keywords: []
-  };
 }
 
 async function processArticleBatch(articles: any[], openAIApiKey: string, clients: any[]) {
