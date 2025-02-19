@@ -213,6 +213,33 @@ export type Database = {
         }
         Relationships: []
       }
+      processing_errors: {
+        Row: {
+          article_info: Json | null
+          created_at: string
+          error_message: string
+          id: string
+          raw_content: string | null
+          stage: string
+        }
+        Insert: {
+          article_info?: Json | null
+          created_at?: string
+          error_message: string
+          id?: string
+          raw_content?: string | null
+          stage: string
+        }
+        Update: {
+          article_info?: Json | null
+          created_at?: string
+          error_message?: string
+          id?: string
+          raw_content?: string | null
+          stage?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -458,7 +485,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_processing_errors_if_not_exists: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       content_category:
