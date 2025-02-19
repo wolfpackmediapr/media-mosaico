@@ -16,70 +16,125 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 };
 
-const BATCH_SIZE = 5;
-const MAX_RETRIES = 3;
-const MAX_TEXT_LENGTH = 2000; // Increased from 1000 to handle longer articles
-const MIN_TEXT_LENGTH = 50;   // Minimum length for meaningful analysis
-
-function sanitizeText(text: string): string {
-  if (!text) return '';
-  
-  // Enhanced text sanitization
-  return text
-    .replace(/[`'"]/g, '') // Remove problematic quotes
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
-    .replace(/&[a-zA-Z0-9]+;/g, ' ') // Convert HTML entities to spaces
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim()
-    .substring(0, MAX_TEXT_LENGTH);
+interface ProcessingError {
+  stage: 'extraction' | 'preprocessing' | 'analysis' | 'parsing';
+  error: string;
+  article?: {
+    title: string;
+    description: string;
+    source: string;
+  };
+  rawContent?: string;
 }
 
-async function analyzeArticle(title: string, description: string, openAIApiKey: string, clients: any[]) {
-  const sanitizedTitle = sanitizeText(title);
-  const sanitizedDescription = sanitizeText(description);
-  
-  // Log article details for debugging
-  console.log(`Processing article: "${sanitizedTitle.substring(0, 100)}..."`);
-  console.log(`Content lengths - Title: ${sanitizedTitle.length}, Description: ${sanitizedDescription.length}`);
+const BATCH_SIZE = 5;
+const MAX_RETRIES = 3;
+const MAX_TEXT_LENGTH = 2000;
+const MIN_TEXT_LENGTH = 50;
 
-  // Content validation
+async function logProcessingError(supabase: any, error: ProcessingError) {
+  try {
+    const { error: dbError } = await supabase
+      .from('processing_errors')
+      .insert([{
+        stage: error.stage,
+        error_message: error.error,
+        article_info: error.article,
+        raw_content: error.rawContent,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (dbError) {
+      console.error('Error logging processing error:', dbError);
+    }
+  } catch (e) {
+    console.error('Failed to log processing error:', e);
+  }
+}
+
+function sanitizeText(text: string, debug = false): { text: string; issues: string[] } {
+  if (!text) return { text: '', issues: ['Empty text'] };
+  
+  const issues: string[] = [];
+  let sanitized = text;
+
+  // Track transformations
+  if (debug) {
+    const originalLength = text.length;
+    
+    if (/[`'"]/g.test(text)) {
+      issues.push('Contains problematic quotes');
+    }
+    
+    if (/[\u0000-\u001F\u007F-\u009F]/g.test(text)) {
+      issues.push('Contains control characters');
+    }
+    
+    if (/&[a-zA-Z0-9]+;/g.test(text)) {
+      issues.push('Contains HTML entities');
+    }
+  }
+
+  // Enhanced sanitization
+  sanitized = text
+    .replace(/[`'"]/g, '')
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+    .replace(/&[a-zA-Z0-9]+;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (sanitized.length > MAX_TEXT_LENGTH) {
+    issues.push(`Text truncated from ${sanitized.length} to ${MAX_TEXT_LENGTH} characters`);
+    sanitized = sanitized.substring(0, MAX_TEXT_LENGTH);
+  }
+
+  return { text: sanitized, issues };
+}
+
+async function analyzeArticle(title: string, description: string, openAIApiKey: string, clients: any[], supabase: any) {
+  const { text: sanitizedTitle, issues: titleIssues } = sanitizeText(title, true);
+  const { text: sanitizedDescription, issues: descriptionIssues } = sanitizeText(description, true);
+  
+  // Detailed logging of content analysis
+  console.log('Article analysis started:', {
+    title: {
+      original: title?.length,
+      sanitized: sanitizedTitle.length,
+      issues: titleIssues
+    },
+    description: {
+      original: description?.length,
+      sanitized: sanitizedDescription.length,
+      issues: descriptionIssues
+    }
+  });
+
+  // Content validation with detailed error tracking
   if (!sanitizedTitle || sanitizedTitle.length < MIN_TEXT_LENGTH) {
-    console.warn('Article title too short or invalid');
+    const error = {
+      stage: 'preprocessing' as const,
+      error: 'Title too short or invalid',
+      article: { title, description, source: 'N/A' },
+      rawContent: title
+    };
+    await logProcessingError(supabase, error);
     return getFallbackAnalysis('Título insuficiente para análisis');
   }
 
   if (!sanitizedDescription || sanitizedDescription.length < MIN_TEXT_LENGTH) {
-    console.warn('Article description too short or invalid');
+    const error = {
+      stage: 'preprocessing' as const,
+      error: 'Description too short or invalid',
+      article: { title, description, source: 'N/A' },
+      rawContent: description
+    };
+    await logProcessingError(supabase, error);
     return getFallbackAnalysis('Descripción insuficiente para análisis');
   }
 
-  const prompt = `
-    Analiza este artículo de noticias y proporciona un análisis estructurado.
-    
-    ARTÍCULO:
-    Título: ${sanitizedTitle}
-    Descripción: ${sanitizedDescription}
-
-    INSTRUCCIONES:
-    Proporciona un análisis en formato JSON que siga EXACTAMENTE esta estructura:
-    {
-      "summary": "Resumen conciso de 2-3 oraciones que capture los puntos principales",
-      "category": "ACCIDENTES|AGENCIAS DE GOBIERNO|AMBIENTE|AMBIENTE & EL TIEMPO|CIENCIA & TECNOLOGÍA|COMUNIDAD|CRIMEN|DEPORTES|ECONOMÍA & NEGOCIOS|EDUCACIÓN & CULTURA|EE.UU. & INTERNACIONALES|ENTRETENIMIENTO|GOBIERNO|OTRAS|POLÍTICA|RELIGIÓN|SALUD|TRIBUNALES",
-      "clients": ["Solo nombres de clientes mencionados"],
-      "keywords": ["5-7 palabras clave relevantes"]
-    }
-
-    REGLAS:
-    1. Usa SOLO las categorías listadas arriba
-    2. Genera JSON válido con comillas dobles
-    3. Si no hay suficiente contexto, usa "OTRAS" como categoría
-    4. El resumen debe ser conciso pero informativo
-    5. Las palabras clave deben ser específicas al contenido
-  `;
-
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      console.log(`Attempt ${attempt + 1} for article analysis`);
+      console.log(`Analysis attempt ${attempt + 1} for: "${sanitizedTitle.substring(0, 50)}..."`);
       
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -88,15 +143,28 @@ async function analyzeArticle(title: string, description: string, openAIApiKey: 
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini', // Using the faster model for better performance
+          model: 'gpt-4o-mini',
           messages: [
             { 
               role: 'system', 
               content: 'Eres un asistente especializado en análisis de noticias. Respondes ÚNICAMENTE en formato JSON válido.'
             },
-            { role: 'user', content: prompt }
+            { 
+              role: 'user', 
+              content: `Analiza este artículo y proporciona un análisis estructurado.
+                Título: ${sanitizedTitle}
+                Descripción: ${sanitizedDescription}
+                
+                Responde SOLO con un JSON válido que siga esta estructura:
+                {
+                  "summary": "string",
+                  "category": "string (una de las categorías permitidas)",
+                  "clients": ["array de strings"],
+                  "keywords": ["array de 5-7 palabras clave"]
+                }` 
+            }
           ],
-          temperature: 0.3, // Lower temperature for more consistent output
+          temperature: 0.3,
         }),
       });
 
@@ -105,10 +173,14 @@ async function analyzeArticle(title: string, description: string, openAIApiKey: 
         console.error(`OpenAI API error (attempt ${attempt + 1}):`, errorData);
         
         if (attempt === MAX_RETRIES - 1) {
+          await logProcessingError(supabase, {
+            stage: 'analysis',
+            error: `OpenAI API error: ${JSON.stringify(errorData)}`,
+            article: { title, description, source: 'N/A' }
+          });
           return getFallbackAnalysis('Error en el servicio de análisis');
         }
         
-        // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
         continue;
       }
@@ -119,35 +191,55 @@ async function analyzeArticle(title: string, description: string, openAIApiKey: 
       try {
         const parsedResult = JSON.parse(content);
         
-        // Validate required fields
-        if (!parsedResult.summary || !parsedResult.category || 
-            !Array.isArray(parsedResult.clients) || !Array.isArray(parsedResult.keywords)) {
-          throw new Error('Invalid JSON structure');
-        }
-        
-        // Validate category
-        if (!isValidCategory(parsedResult.category)) {
-          parsedResult.category = 'OTRAS';
+        if (!isValidResult(parsedResult)) {
+          throw new Error('Invalid result structure');
         }
         
         return parsedResult;
       } catch (parseError) {
-        console.error(`JSON parsing error (attempt ${attempt + 1}):`, parseError);
-        console.error('Failed content:', content);
+        console.error(`JSON parsing error (attempt ${attempt + 1}):`, {
+          error: parseError,
+          content
+        });
         
         if (attempt === MAX_RETRIES - 1) {
+          await logProcessingError(supabase, {
+            stage: 'parsing',
+            error: `JSON parsing error: ${parseError.message}`,
+            article: { title, description, source: 'N/A' },
+            rawContent: content
+          });
           return getFallbackAnalysis('Error en el formato de análisis');
         }
       }
     } catch (error) {
       console.error(`Analysis attempt ${attempt + 1} failed:`, error);
+      
       if (attempt === MAX_RETRIES - 1) {
+        await logProcessingError(supabase, {
+          stage: 'analysis',
+          error: error.message,
+          article: { title, description, source: 'N/A' }
+        });
         return getFallbackAnalysis('Error en el proceso de análisis');
       }
     }
   }
 
   return getFallbackAnalysis('Error después de múltiples intentos');
+}
+
+function isValidResult(result: any): boolean {
+  return (
+    result &&
+    typeof result.summary === 'string' &&
+    typeof result.category === 'string' &&
+    Array.isArray(result.clients) &&
+    Array.isArray(result.keywords) &&
+    result.keywords.length >= 1 &&
+    result.keywords.length <= 7 &&
+    isValidCategory(result.category)
+  );
 }
 
 function getFallbackAnalysis(reason: string) {
@@ -202,7 +294,7 @@ async function getClientKeywords(supabase: any) {
   }
 }
 
-async function processArticleBatch(articles: any[], openAIApiKey: string, clients: any[]) {
+async function processArticleBatch(articles: any[], openAIApiKey: string, clients: any[], supabase: any) {
   const results = [];
   
   for (const article of articles) {
@@ -213,7 +305,8 @@ async function processArticleBatch(articles: any[], openAIApiKey: string, client
         article.title,
         article.description || '',
         openAIApiKey,
-        clients
+        clients,
+        supabase
       );
       
       results.push({
@@ -239,12 +332,10 @@ async function processArticleBatch(articles: any[], openAIApiKey: string, client
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('Starting RSS feed processing...');
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -254,6 +345,9 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Create processing_errors table if it doesn't exist
+    await supabase.rpc('create_processing_errors_if_not_exists');
 
     const clients = await getClientKeywords(supabase);
     console.log(`Fetched ${clients.length} clients with keywords`);
@@ -283,7 +377,8 @@ serve(async (req) => {
           const batchResults = await processArticleBatch(
             batch.map((item: any) => ({ ...item, source: feed.name })),
             openAIApiKey,
-            clients
+            clients,
+            supabase
           );
           processedArticles.push(...batchResults);
         }
