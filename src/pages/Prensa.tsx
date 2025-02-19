@@ -93,25 +93,21 @@ const Prensa = () => {
     try {
       console.log('Refreshing feed...');
       
-      // Try direct fetch first
-      const functionUrl = `https://qpozetnbnzdinqkrafze.supabase.co/functions/v1/process-rss-feed`;
-      const { data: authData } = await supabase.auth.getSession();
+      // Get the current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
       
-      const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authData.session?.access_token || ''}`,
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-        },
-        body: JSON.stringify({ timestamp: new Date().toISOString() })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!session) {
+        throw new Error('No active session');
       }
 
-      const data = await response.json();
+      // Use supabase.functions.invoke instead of fetch
+      const { data, error } = await supabase.functions.invoke('process-rss-feed', {
+        body: { timestamp: new Date().toISOString() }
+      });
+
+      if (error) throw error;
+      
       console.log('Feed refresh response:', data);
       
       toast({
