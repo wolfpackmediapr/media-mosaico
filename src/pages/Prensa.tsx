@@ -93,20 +93,31 @@ const Prensa = () => {
     try {
       console.log('Refreshing feed...');
       
-      // Get the current session
+      // Check authentication first
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        throw new Error('Error al verificar la sesión');
+      }
       
       if (!session) {
-        throw new Error('No active session');
+        toast({
+          title: "Error de autenticación",
+          description: "Debe iniciar sesión para actualizar el feed",
+          variant: "destructive",
+        });
+        return;
       }
 
-      // Use supabase.functions.invoke instead of fetch
+      // Use supabase.functions.invoke with error handling
       const { data, error } = await supabase.functions.invoke('process-rss-feed', {
         body: { timestamp: new Date().toISOString() }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Function error:', error);
+        throw error;
+      }
       
       console.log('Feed refresh response:', data);
       
@@ -120,7 +131,7 @@ const Prensa = () => {
       console.error('Error refreshing feed:', error);
       toast({
         title: "Error",
-        description: "No se pudo actualizar el feed de noticias",
+        description: error instanceof Error ? error.message : "No se pudo actualizar el feed de noticias",
         variant: "destructive",
       });
     } finally {
