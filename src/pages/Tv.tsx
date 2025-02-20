@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
@@ -25,7 +25,6 @@ const Tv = () => {
     setTranscriptionText,
   } = useVideoProcessor();
 
-  // Test data for the analysis section
   const testAnalysis = {
     quien: "José Luis Pérez, Secretario del Departamento de Desarrollo Económico",
     que: "Anunció un nuevo programa de incentivos para pequeños y medianos empresarios",
@@ -49,6 +48,17 @@ const Tv = () => {
       "agricultura"
     ]
   };
+
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = "//embed.typeform.com/next/embed.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -140,6 +150,11 @@ const Tv = () => {
         analysis={testAnalysis}
         onTranscriptionChange={setTranscriptionText}
       />
+
+      <div className="mt-8 p-6 bg-muted rounded-lg">
+        <h2 className="text-2xl font-bold mb-4">Alerta TV</h2>
+        <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK"></div>
+      </div>
     </div>
   );
 };

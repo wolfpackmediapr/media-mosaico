@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileItem from "@/components/radio/AudioFileItem";
 import RadioTranscriptionSlot from "@/components/radio/RadioTranscriptionSlot";
@@ -120,6 +120,18 @@ const Radio = () => {
     setCurrentFileIndex((prev) => Math.min(files.length - 1, prev + 1));
   };
 
+  useEffect(() => {
+    // Load Typeform embed script
+    const script = document.createElement('script');
+    script.src = "//embed.typeform.com/next/embed.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -190,6 +202,12 @@ const Radio = () => {
             onTranscriptionChange={handleTranscriptionChange}
           />
         </div>
+      </div>
+
+      {/* Typeform Embed for Radio */}
+      <div className="mt-8 p-6 bg-muted rounded-lg">
+        <h2 className="text-2xl font-bold mb-4">Alerta Radio</h2>
+        <div data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG"></div>
       </div>
     </div>
   );
