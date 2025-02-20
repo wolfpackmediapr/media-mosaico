@@ -44,21 +44,15 @@ export const useNewsFeed = () => {
     }
   };
 
-  const fetchArticles = async (page: number) => {
+  const fetchArticles = async (page: number, searchTerm: string = '') => {
     try {
-      console.log('Fetching articles for page:', page);
+      console.log('Fetching articles for page:', page, 'search:', searchTerm);
       setIsLoading(true);
       
       const from = (page - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
-      const { count } = await supabase
-        .from('news_articles')
-        .select('*', { count: 'exact', head: true });
-
-      setTotalCount(count || 0);
-
-      const { data: articlesData, error } = await supabase
+      let query = supabase
         .from('news_articles')
         .select(`
           *,
@@ -66,7 +60,24 @@ export const useNewsFeed = () => {
             name,
             last_successful_fetch
           )
-        `)
+        `, { count: 'exact' });
+
+      // Apply search filter if searchTerm exists
+      if (searchTerm) {
+        query = query.or(
+          `title.ilike.%${searchTerm}%,` +
+          `description.ilike.%${searchTerm}%,` +
+          `category.ilike.%${searchTerm}%,` +
+          `clients.cs.{"${searchTerm}"}`
+        );
+      }
+
+      // Get total count first
+      const { count } = await query;
+      setTotalCount(count || 0);
+
+      // Then get paginated results
+      const { data: articlesData, error } = await query
         .order('pub_date', { ascending: false })
         .range(from, to);
 

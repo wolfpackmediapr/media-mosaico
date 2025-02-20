@@ -24,22 +24,25 @@ const Prensa = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    fetchArticles(currentPage);
+    // Reset to first page when search term changes
+    setCurrentPage(1);
+    fetchArticles(1, searchTerm);
     fetchFeedSources();
-  }, [currentPage]);
+  }, [searchTerm]);
 
-  const filteredArticles = articles.filter(article =>
-    article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    article.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    article.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    article.clients.some(client => client.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  useEffect(() => {
+    fetchArticles(currentPage, searchTerm);
+  }, [currentPage]);
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
   };
 
   return (
@@ -50,11 +53,11 @@ const Prensa = () => {
 
       <PrensaSearch 
         searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
+        onSearchChange={handleSearchChange}
       />
 
       <NewsList
-        articles={filteredArticles}
+        articles={articles}
         isLoading={isLoading}
         searchTerm={searchTerm}
         currentPage={currentPage}
