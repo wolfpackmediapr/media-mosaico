@@ -123,6 +123,42 @@ export type Database = {
         }
         Relationships: []
       }
+      feed_sources: {
+        Row: {
+          active: boolean | null
+          created_at: string
+          error_count: number | null
+          id: string
+          last_fetch_error: string | null
+          last_successful_fetch: string | null
+          name: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string
+          error_count?: number | null
+          id?: string
+          last_fetch_error?: string | null
+          last_successful_fetch?: string | null
+          name: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string
+          error_count?: number | null
+          id?: string
+          last_fetch_error?: string | null
+          last_successful_fetch?: string | null
+          name?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       media_posts: {
         Row: {
           caption: string | null
@@ -168,9 +204,11 @@ export type Database = {
           clients: Json | null
           created_at: string
           description: string | null
+          feed_source_id: string | null
           id: string
           image_url: string | null
           keywords: string[] | null
+          last_processed: string | null
           link: string
           pub_date: string
           source: string
@@ -184,9 +222,11 @@ export type Database = {
           clients?: Json | null
           created_at?: string
           description?: string | null
+          feed_source_id?: string | null
           id?: string
           image_url?: string | null
           keywords?: string[] | null
+          last_processed?: string | null
           link: string
           pub_date: string
           source: string
@@ -200,9 +240,11 @@ export type Database = {
           clients?: Json | null
           created_at?: string
           description?: string | null
+          feed_source_id?: string | null
           id?: string
           image_url?: string | null
           keywords?: string[] | null
+          last_processed?: string | null
           link?: string
           pub_date?: string
           source?: string
@@ -211,7 +253,15 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "news_articles_feed_source_id_fkey"
+            columns: ["feed_source_id"]
+            isOneToOne: false
+            referencedRelation: "feed_sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       processing_errors: {
         Row: {

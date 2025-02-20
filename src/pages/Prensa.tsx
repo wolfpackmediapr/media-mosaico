@@ -31,6 +31,10 @@ interface NewsArticle {
   keywords: string[];
   image_url?: string;
   last_processed?: string;
+  feed_source?: {
+    name: string;
+    last_successful_fetch: string | null;
+  };
 }
 
 interface FeedSource {
@@ -57,13 +61,25 @@ const Prensa = () => {
 
   const fetchFeedSources = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: sourcesData, error } = await supabase
         .from('feed_sources')
-        .select('*')
+        .select('id, name, url, active, last_successful_fetch, last_fetch_error, error_count')
         .order('name');
 
       if (error) throw error;
-      setFeedSources(data || []);
+      
+      // Ensure type safety by explicitly casting the response
+      const typedSources: FeedSource[] = sourcesData?.map(source => ({
+        id: source.id,
+        name: source.name,
+        url: source.url,
+        active: source.active,
+        last_successful_fetch: source.last_successful_fetch,
+        last_fetch_error: source.last_fetch_error,
+        error_count: source.error_count
+      })) || [];
+      
+      setFeedSources(typedSources);
     } catch (error) {
       console.error('Error fetching feed sources:', error);
       toast({
@@ -88,11 +104,11 @@ const Prensa = () => {
 
       setTotalCount(count || 0);
 
-      const { data, error } = await supabase
+      const { data: articlesData, error } = await supabase
         .from('news_articles')
         .select(`
           *,
-          feed_sources (
+          feed_source:feed_source_id (
             name,
             last_successful_fetch
           )
@@ -102,9 +118,9 @@ const Prensa = () => {
 
       if (error) throw error;
 
-      console.log('Fetched articles:', data);
+      console.log('Fetched articles:', articlesData);
 
-      const convertedArticles: NewsArticle[] = (data || []).map(article => ({
+      const convertedArticles: NewsArticle[] = (articlesData || []).map(article => ({
         ...article,
         clients: Array.isArray(article.clients) ? article.clients : 
                 typeof article.clients === 'string' ? [article.clients] : 
