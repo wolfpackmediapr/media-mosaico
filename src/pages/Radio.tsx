@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileItem from "@/components/radio/AudioFileItem";
@@ -66,11 +65,18 @@ const Radio = () => {
     setProgress(0);
     
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Debes iniciar sesión para procesar transcripciones");
+        return;
+      }
+
       const { data: transcriptionData, error: transcriptionError } = await supabase
         .from('transcriptions')
         .insert({
           original_file_path: file.name,
-          status: 'processing'
+          status: 'processing',
+          user_id: user.id
         })
         .select()
         .single();
@@ -84,7 +90,6 @@ const Radio = () => {
         setProgress(100);
       });
 
-      // Update transcription status
       const { error: updateError } = await supabase
         .from('transcriptions')
         .update({
@@ -95,9 +100,9 @@ const Radio = () => {
 
       if (updateError) throw updateError;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error processing file:", error);
-      toast.error("Error al procesar el archivo");
+      toast.error(error.message || "Error al procesar el archivo");
     } finally {
       setIsProcessing(false);
     }
