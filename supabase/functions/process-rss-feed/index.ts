@@ -27,15 +27,25 @@ interface Article {
 
 interface RSSResponse {
   status: string;
-  items: {
+  feed: {
+    url: string;
+    title: string;
+    link: string;
+    description: string;
+  };
+  items: Array<{
     title: string;
     description: string;
     link: string;
     published: string;
-    image?: {
-      url: string;
+    created: number;
+    category: string[];
+    content: string;
+    media: {
+      thumbnail?: { url: string };
+      content?: { url: string };
     };
-  }[];
+  }>;
 }
 
 async function processArticle(
@@ -115,24 +125,32 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    const feedData: RSSResponse = await response.json();
-    console.log(`Received feed data for ${feedSource.name}:`, feedData);
+    const feedData = await response.json();
+    console.log(`Received feed data for ${feedSource.name}:`, JSON.stringify(feedData, null, 2));
 
-    if (!feedData.items || !Array.isArray(feedData.items)) {
-      throw new Error('Invalid feed format: items array not found');
+    // Validate feed structure
+    if (!feedData || !Array.isArray(feedData.items)) {
+      throw new Error(`Invalid feed format for ${feedSource.name}: items array not found or not an array`);
     }
 
     let successCount = 0;
     let errorCount = 0;
 
     for (const item of feedData.items) {
+      if (!item.title || !item.link || !item.published) {
+        console.warn(`Skipping invalid item in ${feedSource.name}:`, item);
+        continue;
+      }
+
       const article: Article = {
         title: item.title,
-        description: item.description || '',
+        description: item.description || item.content || '',
         link: item.link,
         pub_date: item.published,
         source: feedSource.name,
-        image_url: item.image?.url
+        image_url: item.media?.content?.url || 
+                  item.media?.thumbnail?.url || 
+                  undefined
       };
 
       const result = await processArticle(article, feedSource.id, supabase, openAIApiKey);
