@@ -24,27 +24,53 @@ interface Article {
   image_url?: string;
 }
 
-interface RSSResponse {
-  status: string;
-  feed: {
-    url: string;
-    title: string;
-    link: string;
-    description: string;
+interface FeedItem {
+  title: string;
+  link?: string;
+  url?: string;
+  description?: string;
+  content?: string;
+  content_text?: string;
+  content_html?: string;
+  published?: string;
+  created?: number;
+  date_published?: string;
+  image?: string;
+  media?: {
+    thumbnail?: { url: string };
+    content?: { url: string };
   };
-  items: Array<{
-    title: string;
-    description: string;
-    link: string;
-    published: string;
-    created: number;
-    category: string[];
-    content: string;
-    media: {
-      thumbnail?: { url: string };
-      content?: { url: string };
-    };
-  }>;
+  attachments?: Array<{ url: string }>;
+}
+
+function getArticleLink(item: FeedItem): string {
+  return item.link || item.url || '';
+}
+
+function getArticleContent(item: FeedItem): string {
+  return item.description || 
+         item.content || 
+         item.content_text ||
+         (item.content_html ? stripHtml(item.content_html) : '') || 
+         '';
+}
+
+function getArticleDate(item: FeedItem): string {
+  return item.date_published || 
+         item.published || 
+         (item.created ? new Date(item.created).toISOString() : '') ||
+         new Date().toISOString();
+}
+
+function getArticleImage(item: FeedItem): string | undefined {
+  return item.image ||
+         item.media?.content?.url ||
+         item.media?.thumbnail?.url ||
+         item.attachments?.[0]?.url;
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function parsePublicationDate(dateStr: string): Date {
@@ -190,26 +216,25 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
 
     // Sort items by publication date (newest first)
     const sortedItems = feedData.items.sort((a, b) => {
-      const dateA = new Date(a.published || a.created);
-      const dateB = new Date(b.published || b.created);
+      const dateA = new Date(getArticleDate(a));
+      const dateB = new Date(getArticleDate(b));
       return dateB.getTime() - dateA.getTime();
     });
 
     for (const item of sortedItems) {
-      if (!item.title || !item.link || (!item.published && !item.created)) {
-        console.warn(`Skipping invalid item in ${feedSource.name}:`, item);
+      const link = getArticleLink(item);
+      if (!item.title || !link) {
+        console.warn(`Skipping invalid item in ${feedSource.name}:`, JSON.stringify(item, null, 2));
         continue;
       }
 
       const article: Article = {
         title: item.title,
-        description: item.description || item.content || '',
-        link: item.link,
-        pub_date: item.published || new Date(item.created).toISOString(),
+        description: getArticleContent(item),
+        link: link,
+        pub_date: getArticleDate(item),
         source: feedSource.name,
-        image_url: item.media?.content?.url || 
-                  item.media?.thumbnail?.url || 
-                  undefined
+        image_url: getArticleImage(item)
       };
 
       const result = await processArticle(article, feedSource.id, supabase, openAIApiKey);
