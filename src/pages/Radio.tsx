@@ -2,7 +2,7 @@
 import { useState } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileItem from "@/components/radio/AudioFileItem";
-import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
+import RadioTranscriptionSlot from "@/components/radio/RadioTranscriptionSlot";
 import { processAudioFile } from "@/components/radio/AudioProcessing";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -18,9 +18,14 @@ const Radio = () => {
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const [metadata, setMetadata] = useState<{
+    emisora?: string;
+    programa?: string;
+    horario?: string;
+    categoria?: string;
+  }>();
 
   const handleFilesAdded = (newFiles: File[]) => {
-    // Filter only audio files
     const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
     
     if (audioFiles.length < newFiles.length) {
@@ -143,9 +148,10 @@ const Radio = () => {
           )}
         </div>
         <div>
-          <TranscriptionSlot
+          <RadioTranscriptionSlot
             isProcessing={isProcessing}
             transcriptionText={transcriptionText}
+            metadata={metadata}
             onTranscriptionChange={handleTranscriptionChange}
           />
         </div>
