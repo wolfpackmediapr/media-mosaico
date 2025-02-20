@@ -64,26 +64,20 @@ export const useNewsFeed = () => {
 
       // Apply search filter if searchTerm exists
       if (searchTerm) {
-        query = query.or(
-          `title.ilike.%${searchTerm}%,` +
-          `description.ilike.%${searchTerm}%,` +
-          `category.ilike.%${searchTerm}%,` +
-          `clients.cs.{"${searchTerm}"}`
-        );
+        const searchPattern = `%${searchTerm}%`;
+        query = query.or(`title.ilike.${searchPattern},description.ilike.${searchPattern},category.ilike.${searchPattern}`);
       }
 
-      // Get total count first
-      const { count } = await query;
-      setTotalCount(count || 0);
-
-      // Then get paginated results
-      const { data: articlesData, error } = await query
+      // Get total count and paginated results
+      const { data: articlesData, error, count } = await query
         .order('pub_date', { ascending: false })
         .range(from, to);
 
       if (error) throw error;
 
-      console.log('Fetched articles:', articlesData);
+      console.log('Fetched articles:', articlesData, 'Total count:', count);
+      
+      setTotalCount(count || 0);
 
       const convertedArticles: NewsArticle[] = (articlesData || []).map(article => ({
         ...article,
