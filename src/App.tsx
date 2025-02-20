@@ -68,6 +68,8 @@ function App() {
                 <Route path="/reportes" element={<Reportes />} />
                 <Route path="/ayuda" element={<Ayuda />} />
                 <Route path="/ajustes" element={<Ajustes />} />
+                {/* Add redirect from old route to new route */}
+                <Route path="/alertas" element={<Navigate to="/notificaciones" replace />} />
               </Route>
             </Routes>
           </BrowserRouter>
