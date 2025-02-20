@@ -9,6 +9,7 @@ import Tv from "./pages/Tv";
 import Radio from "./pages/Radio";
 import Prensa from "./pages/Prensa";
 import Notificaciones from "./pages/Notificaciones";
+import EnvioAlertas from "./pages/EnvioAlertas";
 import Reportes from "./pages/Reportes";
 import Ayuda from "./pages/Ayuda";
 import Ajustes from "./pages/Ajustes";
@@ -65,6 +66,7 @@ function App() {
                 <Route path="/radio" element={<Radio />} />
                 <Route path="/prensa" element={<Prensa />} />
                 <Route path="/notificaciones" element={<Notificaciones />} />
+                <Route path="/envio-alertas" element={<EnvioAlertas />} />
                 <Route path="/reportes" element={<Reportes />} />
                 <Route path="/ayuda" element={<Ayuda />} />
                 <Route path="/ajustes" element={<Ajustes />} />
