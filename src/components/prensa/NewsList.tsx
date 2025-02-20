@@ -23,6 +23,59 @@ interface NewsListProps {
   onPageChange: (page: number) => void;
 }
 
+const ArticleSkeleton = () => (
+  <div className="animate-pulse">
+    <div className="flex flex-col md:flex-row border rounded-lg overflow-hidden">
+      {/* Image skeleton */}
+      <div className="md:w-1/4 h-48 bg-muted"></div>
+      
+      <div className="md:w-3/4 p-6 space-y-4">
+        {/* Title and metadata skeleton */}
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-3/4" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </div>
+
+        {/* Content skeleton */}
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-4/6" />
+        </div>
+
+        {/* Tags skeleton */}
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-16" />
+          <div className="flex gap-2">
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
+        </div>
+
+        {/* Button skeleton */}
+        <Skeleton className="h-9 w-36 mt-4" />
+      </div>
+    </div>
+  </div>
+);
+
+const PaginationSkeleton = () => (
+  <div className="flex justify-center mt-8">
+    <div className="flex gap-2">
+      <Skeleton className="h-10 w-24" /> {/* Previous */}
+      <Skeleton className="h-10 w-10" />
+      <Skeleton className="h-10 w-10" />
+      <Skeleton className="h-10 w-10" />
+      <Skeleton className="h-10 w-24" /> {/* Next */}
+    </div>
+  </div>
+);
+
 const NewsList = ({
   articles,
   isLoading,
@@ -34,10 +87,11 @@ const NewsList = ({
 }: NewsListProps) => {
   if (isLoading) {
     return (
-      <div className="grid gap-6">
-        {[1, 2, 3].map((index) => (
-          <Skeleton key={index} className="h-[200px]" />
+      <div className="space-y-6">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <ArticleSkeleton key={index} />
         ))}
+        <PaginationSkeleton />
       </div>
     );
   }
