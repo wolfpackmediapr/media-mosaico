@@ -2,17 +2,214 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface FeedSource {
+  id: string;
+  name: string;
+  url: string;
+  last_successful_fetch: string | null;
+}
+
+interface Article {
+  title: string;
+  description: string;
+  link: string;
+  pub_date: string;
+  source: string;
+  image_url?: string;
+}
+
+async function processArticle(
+  article: Article,
+  feedSourceId: string,
+  supabase: any,
+  openAIApiKey: string
+) {
+  try {
+    // Check for duplicate articles
+    const { data: existingArticle } = await supabase
+      .from('news_articles')
+      .select('id')
+      .eq('link', article.link)
+      .maybeSingle();
+
+    if (existingArticle) {
+      console.log('Article already exists:', article.title);
+      return null;
+    }
+
+    // Analyze article content
+    const analysis = await analyzeArticle(
+      article.title,
+      article.description,
+      openAIApiKey,
+      article.source,
+      supabase
+    );
+
+    // Insert the new article
+    const { data: newArticle, error: insertError } = await supabase
+      .from('news_articles')
+      .insert([{
+        title: article.title,
+        description: article.description,
+        link: article.link,
+        pub_date: new Date(article.pub_date).toISOString(),
+        source: article.source,
+        image_url: article.image_url,
+        category: analysis.category,
+        summary: analysis.summary,
+        keywords: analysis.keywords,
+        clients: analysis.clients,
+        feed_source_id: feedSourceId,
+        last_processed: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    return newArticle;
+  } catch (error) {
+    console.error('Error processing article:', error);
+    await logProcessingError(supabase, {
+      stage: 'article_processing',
+      error: error.message,
+      article: {
+        title: article.title,
+        description: article.description,
+        source: article.source
+      }
+    });
+    return null;
+  }
+}
+
+async function processFeedSource(feedSource: FeedSource, supabase: any, openAIApiKey: string) {
+  console.log(`Processing feed source: ${feedSource.name}`);
+  
+  try {
+    const response = await fetch(feedSource.url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const feed = await response.json();
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const article of feed) {
+      const result = await processArticle(article, feedSource.id, supabase, openAIApiKey);
+      if (result) {
+        successCount++;
+      } else {
+        errorCount++;
+      }
+    }
+
+    // Update feed source status
+    await supabase
+      .from('feed_sources')
+      .update({
+        last_successful_fetch: new Date().toISOString(),
+        last_fetch_error: null,
+        error_count: 0
+      })
+      .eq('id', feedSource.id);
+
+    return { successCount, errorCount };
+  } catch (error) {
+    console.error(`Error processing feed ${feedSource.name}:`, error);
+    
+    // Update feed source error status
+    await supabase
+      .from('feed_sources')
+      .update({
+        last_fetch_error: error.message,
+        error_count: feedSource.error_count + 1
+      })
+      .eq('id', feedSource.id);
+
+    return { successCount: 0, errorCount: 1, error: error.message };
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+
+    if (!supabaseUrl || !supabaseKey || !openAIApiKey) {
+      throw new Error('Missing required environment variables');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get active feed sources
+    const { data: feedSources, error: feedSourcesError } = await supabase
+      .from('feed_sources')
+      .select('*')
+      .eq('active', true);
+
+    if (feedSourcesError) {
+      throw feedSourcesError;
+    }
+
+    const results = [];
+    for (const feedSource of feedSources) {
+      const result = await processFeedSource(feedSource, supabase, openAIApiKey);
+      results.push({
+        source: feedSource.name,
+        ...result
+      });
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        results,
+        timestamp: new Date().toISOString()
+      }),
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
+    );
+
+  } catch (error) {
+    console.error('Error processing RSS feeds:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Error al procesar los feeds RSS',
+        details: error.message 
+      }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+});
+
 const RSS_FEEDS = [
   { url: "https://rss.app/feeds/v1.1/Zk2ySs2LemEIrBaR.json", name: "El Nuevo Día" },
   { url: "https://rss.app/feeds/v1.1/lzpdZAZO66AyiC3I.json", name: "Primera Hora" },
   { url: "https://rss.app/feeds/v1.1/JyTkN9iWY5xFVmwa.json", name: "Metro PR" },
   { url: "https://rss.app/feeds/v1.1/gW8MsZ8sYypQRq1A.json", name: "El Vocero" }
 ];
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 interface ProcessingError {
   stage: 'extraction' | 'preprocessing' | 'analysis' | 'parsing';
@@ -247,56 +444,3 @@ function getFallbackAnalysis(reason: string) {
     keywords: []
   };
 }
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-
-    if (!supabaseUrl || !supabaseKey || !openAIApiKey) {
-      throw new Error('Missing required environment variables');
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Create processing_errors table if it doesn't exist
-    await supabase.rpc('create_processing_errors_if_not_exists');
-
-    for (const feed of RSS_FEEDS) {
-      try {
-        const response = await fetch(feed.url);
-        const articles = await response.json();
-
-        for (const article of articles) {
-          const { title, description, source } = article;
-          await analyzeArticle(title, description, openAIApiKey, feed.name, supabase);
-        }
-      } catch (error) {
-        console.error(`Error processing feed ${feed.name}:`, error);
-      }
-    }
-
-    return new Response(
-      JSON.stringify({ success: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error) {
-    console.error('Error processing RSS feeds:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: 'Error al procesar los feeds RSS',
-        details: error.message 
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
-});

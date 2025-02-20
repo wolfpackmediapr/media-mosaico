@@ -7,7 +7,6 @@ import PrensaHeader from "@/components/prensa/PrensaHeader";
 import PrensaSearch from "@/components/prensa/PrensaSearch";
 import PrensaEmptyState from "@/components/prensa/PrensaEmptyState";
 import NewsArticleCard from "@/components/prensa/NewsArticleCard";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Pagination,
   PaginationContent,
@@ -17,6 +16,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface NewsArticle {
   id: string;
@@ -33,16 +33,46 @@ interface NewsArticle {
   last_processed?: string;
 }
 
+interface FeedSource {
+  id: string;
+  name: string;
+  url: string;
+  active: boolean;
+  last_successful_fetch: string | null;
+  last_fetch_error: string | null;
+  error_count: number;
+}
+
 const ITEMS_PER_PAGE = 10;
 
 const Prensa = () => {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [feedSources, setFeedSources] = useState<FeedSource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
+
+  const fetchFeedSources = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('feed_sources')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setFeedSources(data || []);
+    } catch (error) {
+      console.error('Error fetching feed sources:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las fuentes de noticias",
+        variant: "destructive",
+      });
+    }
+  };
 
   const fetchArticles = async (page: number) => {
     try {
@@ -60,7 +90,13 @@ const Prensa = () => {
 
       const { data, error } = await supabase
         .from('news_articles')
-        .select('*')
+        .select(`
+          *,
+          feed_sources (
+            name,
+            last_successful_fetch
+          )
+        `)
         .order('pub_date', { ascending: false })
         .range(from, to);
 
@@ -93,7 +129,6 @@ const Prensa = () => {
     try {
       console.log('Refreshing feed...');
       
-      // Check authentication first
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) {
         console.error('Session error:', sessionError);
@@ -109,7 +144,6 @@ const Prensa = () => {
         return;
       }
 
-      // Use supabase.functions.invoke with error handling
       const { data, error } = await supabase.functions.invoke('process-rss-feed', {
         body: { timestamp: new Date().toISOString() }
       });
@@ -121,12 +155,15 @@ const Prensa = () => {
       
       console.log('Feed refresh response:', data);
       
+      await Promise.all([
+        fetchArticles(currentPage),
+        fetchFeedSources()
+      ]);
+
       toast({
         title: "¡Éxito!",
         description: "Feed de noticias actualizado correctamente",
       });
-
-      await fetchArticles(currentPage);
     } catch (error) {
       console.error('Error refreshing feed:', error);
       toast({
@@ -141,6 +178,7 @@ const Prensa = () => {
 
   useEffect(() => {
     fetchArticles(currentPage);
+    fetchFeedSources();
   }, [currentPage]);
 
   const filteredArticles = articles.filter(article =>
@@ -157,10 +195,48 @@ const Prensa = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const renderFeedStatus = () => {
+    if (feedSources.length === 0) return null;
+
+    return (
+      <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {feedSources.map((source) => (
+          <div
+            key={source.id}
+            className="bg-card rounded-lg p-4 shadow-sm border"
+          >
+            <div className="flex items-start justify-between">
+              <h3 className="font-medium text-sm">{source.name}</h3>
+              {source.error_count > 0 ? (
+                <AlertCircle className="h-5 w-5 text-destructive" />
+              ) : source.last_successful_fetch ? (
+                <CheckCircle2 className="h-5 w-5 text-success" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-warning" />
+              )}
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              {source.last_successful_fetch ? (
+                <p>Última actualización: {new Date(source.last_successful_fetch).toLocaleString()}</p>
+              ) : (
+                <p>Sin actualizaciones recientes</p>
+              )}
+              {source.last_fetch_error && (
+                <p className="text-destructive mt-1">Error: {source.last_fetch_error}</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       <PrensaHeader onRefresh={refreshFeed} isRefreshing={isRefreshing} />
       
+      {renderFeedStatus()}
+
       <PrensaSearch 
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -169,19 +245,7 @@ const Prensa = () => {
       {isLoading ? (
         <div className="grid gap-6">
           {[1, 2, 3].map((index) => (
-            <Card key={index}>
-              <CardHeader>
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/4 mt-2" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-20 w-full" />
-                <div className="mt-4 space-y-2">
-                  <Skeleton className="h-4 w-1/2" />
-                  <Skeleton className="h-4 w-1/3" />
-                </div>
-              </CardContent>
-            </Card>
+            <Skeleton key={index} className="h-[200px]" />
           ))}
         </div>
       ) : filteredArticles.length === 0 ? (
