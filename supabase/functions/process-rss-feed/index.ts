@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
@@ -12,6 +13,7 @@ interface FeedSource {
   name: string;
   url: string;
   last_successful_fetch: string | null;
+  error_count: number;
 }
 
 interface Article {
@@ -21,6 +23,19 @@ interface Article {
   pub_date: string;
   source: string;
   image_url?: string;
+}
+
+interface RSSResponse {
+  status: string;
+  items: {
+    title: string;
+    description: string;
+    link: string;
+    published: string;
+    image?: {
+      url: string;
+    };
+  }[];
 }
 
 async function processArticle(
@@ -100,11 +115,26 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    const feed = await response.json();
+    const feedData: RSSResponse = await response.json();
+    console.log(`Received feed data for ${feedSource.name}:`, feedData);
+
+    if (!feedData.items || !Array.isArray(feedData.items)) {
+      throw new Error('Invalid feed format: items array not found');
+    }
+
     let successCount = 0;
     let errorCount = 0;
 
-    for (const article of feed) {
+    for (const item of feedData.items) {
+      const article: Article = {
+        title: item.title,
+        description: item.description || '',
+        link: item.link,
+        pub_date: item.published,
+        source: feedSource.name,
+        image_url: item.image?.url
+      };
+
       const result = await processArticle(article, feedSource.id, supabase, openAIApiKey);
       if (result) {
         successCount++;
@@ -128,11 +158,12 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
     console.error(`Error processing feed ${feedSource.name}:`, error);
     
     // Update feed source error status
+    const currentErrorCount = (feedSource.error_count || 0) + 1;
     await supabase
       .from('feed_sources')
       .update({
         last_fetch_error: error.message,
-        error_count: feedSource.error_count + 1
+        error_count: currentErrorCount
       })
       .eq('id', feedSource.id);
 
