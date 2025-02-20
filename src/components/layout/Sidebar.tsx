@@ -1,3 +1,4 @@
+
 import { Home, Tv, Radio, Newspaper, Bell, BarChart2, Settings, HelpCircle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Image } from "@/components/ui/image";
@@ -7,7 +8,7 @@ const mainMenuItems = [
   { icon: Tv, label: "TV", path: "/tv" },
   { icon: Radio, label: "Radio", path: "/radio" },
   { icon: Newspaper, label: "Prensa", path: "/prensa" },
-  { icon: Bell, label: "Alertas", path: "/alertas" },
+  { icon: Bell, label: "Notificaciones", path: "/notificaciones" },
   { icon: BarChart2, label: "Reportes", path: "/reportes" },
 ];
 

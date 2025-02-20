@@ -1,9 +1,10 @@
+
 import { Bell, BellDot, Flag, MessageSquare } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-const alerts = [
+const notifications = [
   {
     id: 1,
     title: "Nueva mención en medios",
@@ -30,11 +31,11 @@ const alerts = [
   },
 ];
 
-const Alertas = () => {
+const Notificaciones = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Alertas</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Notificaciones</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-2">
           Gestión de notificaciones y alertas importantes
         </p>
@@ -45,7 +46,7 @@ const Alertas = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BellDot className="h-5 w-5 text-red-500" />
-              <span>Alertas Nuevas</span>
+              <span>Notificaciones Nuevas</span>
             </CardTitle>
             <CardDescription>Notificaciones sin revisar</CardDescription>
           </CardHeader>
@@ -58,7 +59,7 @@ const Alertas = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Flag className="h-5 w-5 text-yellow-500" />
-              <span>Alertas Urgentes</span>
+              <span>Notificaciones Urgentes</span>
             </CardTitle>
             <CardDescription>Requieren atención inmediata</CardDescription>
           </CardHeader>
@@ -82,31 +83,31 @@ const Alertas = () => {
       </div>
 
       <div className="space-y-4">
-        {alerts.map((alert) => (
+        {notifications.map((notification) => (
           <Alert
-            key={alert.id}
+            key={notification.id}
             className="dark:border-gray-800 dark:bg-gray-900"
           >
             <Bell className="h-4 w-4" />
             <AlertTitle className="flex items-center gap-2">
-              {alert.title}
+              {notification.title}
               <Badge
                 variant={
-                  alert.status === "urgent"
+                  notification.status === "urgent"
                     ? "destructive"
-                    : alert.status === "new"
+                    : notification.status === "new"
                     ? "default"
                     : "secondary"
                 }
                 className="ml-2"
               >
-                {alert.status}
+                {notification.status}
               </Badge>
             </AlertTitle>
             <AlertDescription className="flex justify-between items-center">
-              <span>{alert.description}</span>
+              <span>{notification.description}</span>
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                {alert.timestamp}
+                {notification.timestamp}
               </span>
             </AlertDescription>
           </Alert>
@@ -116,4 +117,4 @@ const Alertas = () => {
   );
 };
 
-export default Alertas;
+export default Notificaciones;

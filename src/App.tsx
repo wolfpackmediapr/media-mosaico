@@ -1,3 +1,4 @@
+
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,7 +8,7 @@ import Index from "./pages/Index";
 import Tv from "./pages/Tv";
 import Radio from "./pages/Radio";
 import Prensa from "./pages/Prensa";
-import Alertas from "./pages/Alertas";
+import Notificaciones from "./pages/Notificaciones";
 import Reportes from "./pages/Reportes";
 import Ayuda from "./pages/Ayuda";
 import Ajustes from "./pages/Ajustes";
@@ -63,7 +64,7 @@ function App() {
                 <Route path="/tv" element={<Tv />} />
                 <Route path="/radio" element={<Radio />} />
                 <Route path="/prensa" element={<Prensa />} />
-                <Route path="/alertas" element={<Alertas />} />
+                <Route path="/notificaciones" element={<Notificaciones />} />
                 <Route path="/reportes" element={<Reportes />} />
                 <Route path="/ayuda" element={<Ayuda />} />
                 <Route path="/ajustes" element={<Ajustes />} />
