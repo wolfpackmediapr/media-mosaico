@@ -1,59 +1,88 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
-import FiveWAnalysis from "./FiveWAnalysis";
-import SummarySection from "./SummarySection";
-import AlertsSection from "./AlertsSection";
-import KeywordsSection from "./KeywordsSection";
+import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface TranscriptionAnalysisProps {
-  analysis?: {
-    quien?: string;
-    que?: string;
-    cuando?: string;
-    donde?: string;
-    porque?: string;
-    summary?: string;
-    alerts?: string[];
-    keywords?: string[];
-  };
+  transcriptionText?: string;
 }
 
-const TranscriptionAnalysis = ({ analysis }: TranscriptionAnalysisProps) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+const TranscriptionAnalysis = ({ transcriptionText }: TranscriptionAnalysisProps) => {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState("");
 
-  if (!analysis) return null;
+  const analyzeContent = async () => {
+    if (!transcriptionText) {
+      toast({
+        title: "Error",
+        description: "No hay texto para analizar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-content', {
+        body: { transcriptionText }
+      });
+
+      if (error) throw error;
+
+      if (data?.analysis) {
+        setAnalysis(data.analysis);
+        toast({
+          title: "Análisis completado",
+          description: "El contenido ha sido analizado exitosamente.",
+        });
+      }
+    } catch (error) {
+      console.error('Error analyzing content:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo analizar el contenido. Por favor, intenta nuevamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   return (
-    <Card className="mt-6 border-primary-100 shadow-md">
-      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-primary-50 to-transparent">
-          <CardTitle className="text-2xl font-bold text-primary-900">Análisis de Contenido</CardTitle>
-          <CollapsibleTrigger className="rounded-full p-2 hover:bg-primary-100/50 transition-colors">
-            {isExpanded ? (
-              <ChevronUp className="h-4 w-4 text-primary-700" />
+    <Card className="mt-6">
+      <CardHeader className="bg-gradient-to-r from-primary-50 to-transparent">
+        <CardTitle className="text-2xl font-bold text-primary-900">
+          Análisis de Contenido
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-4">
+        <div className="flex justify-end">
+          <Button
+            onClick={analyzeContent}
+            disabled={isAnalyzing || !transcriptionText}
+            className="w-full sm:w-auto"
+          >
+            {isAnalyzing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Analizando...
+              </>
             ) : (
-              <ChevronDown className="h-4 w-4 text-primary-700" />
+              'Analizar Contenido'
             )}
-          </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent className="space-y-6">
-          <CardContent>
-            <FiveWAnalysis
-              quien={analysis.quien}
-              que={analysis.que}
-              cuando={analysis.cuando}
-              donde={analysis.donde}
-              porque={analysis.porque}
-            />
-            {analysis.summary && <SummarySection summary={analysis.summary} />}
-            {analysis.alerts && analysis.alerts.length > 0 && <AlertsSection alerts={analysis.alerts} />}
-            {analysis.keywords && analysis.keywords.length > 0 && <KeywordsSection keywords={analysis.keywords} />}
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
+          </Button>
+        </div>
+        <Textarea
+          value={analysis}
+          readOnly
+          className="min-h-[200px] font-mono text-sm"
+          placeholder="El análisis del contenido aparecerá aquí..."
+        />
+      </CardContent>
     </Card>
   );
 };

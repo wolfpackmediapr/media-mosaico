@@ -60,7 +60,6 @@ const TranscriptionSlot = ({
   };
 
   const handleChapterClick = (timestamp: number) => {
-    // Implement audio seeking logic here
     console.log('Seeking to timestamp:', timestamp);
   };
 
@@ -92,9 +91,10 @@ const TranscriptionSlot = ({
         </CardContent>
       </Card>
 
+      <TranscriptionAnalysis transcriptionText={transcriptionText} />
+
       {analysis && (
         <>
-          <TranscriptionAnalysis analysis={analysis} />
           <ChaptersSection 
             chapters={analysis.chapters}
             onChapterClick={handleChapterClick}

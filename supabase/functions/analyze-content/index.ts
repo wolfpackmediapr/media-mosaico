@@ -1,6 +1,6 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,107 +8,73 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { text } = await req.json()
-    console.log('Analyzing content:', text)
+    const { transcriptionText } = await req.json()
+    console.log('Analyzing content:', transcriptionText.substring(0, 100) + '...')
 
-    if (!text) {
-      throw new Error('No text provided for analysis')
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY')
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key not configured')
     }
 
-    // Initialize OpenAI API call
-    console.log('Calling GPT-4 for content analysis...')
-    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: `You are a media analysis assistant specialized in analyzing Spanish language news content. 
-            Analyze the provided text and extract key information following these aspects:
-            - Main topic and subtopics
-            - Key entities (people, organizations, locations)
-            - Sentiment analysis
-            - Important dates or timeframes
-            - Potential impact or implications
-            - Related topics or contexts
-            
-            Provide your analysis in Spanish, structured as a JSON object with the following fields:
-            {
-              "topic": "main topic",
-              "subtopics": ["array of subtopics"],
-              "entities": {
-                "people": ["relevant people"],
-                "organizations": ["relevant organizations"],
-                "locations": ["relevant locations"]
-              },
-              "sentiment": {
-                "score": "numeric score from -1 to 1",
-                "description": "brief description of the sentiment"
-              },
-              "timeframe": {
-                "dates": ["relevant dates"],
-                "period": "time period description"
-              },
-              "impact": ["potential impacts or implications"],
-              "related_contexts": ["related topics or contexts"],
-              "keywords": ["relevant keywords"]
-            }`
+            content: `Eres un asistente especializado en analizar transcripciones de noticias de televisión.
+              Analiza el texto proporcionado y extrae la información en este formato exacto:
+
+              * Canal: [nombre del canal]
+              * Programa/horario: [nombre del programa] / [horario]
+              * Título de la noticia: [título extraído o generado]
+              * Descripción o resumen de la noticia: [resumen conciso]
+              * Keywords: [palabras clave separadas por coma]
+
+              Mantén el formato exacto y asegúrate de incluir todos los campos.
+              Si no puedes determinar algún dato con certeza, usa "No especificado".`
           },
           {
             role: 'user',
-            content: text
+            content: transcriptionText
           }
         ],
         temperature: 0.7,
-        max_tokens: 2000
-      })
-    });
+        max_tokens: 1000
+      }),
+    })
 
-    if (!analysisResponse.ok) {
-      const errorText = await analysisResponse.text();
-      console.error('OpenAI API error:', errorText);
-      throw new Error(`OpenAI API error: ${errorText}`);
+    if (!response.ok) {
+      throw new Error('Failed to analyze content')
     }
 
-    const result = await analysisResponse.json();
-    const analysis = JSON.parse(result.choices[0].message.content);
-    console.log('Analysis completed successfully');
+    const result = await response.json()
+    const analysis = result.choices[0].message.content
+
+    console.log('Analysis completed successfully')
 
     return new Response(
-      JSON.stringify({ success: true, analysis }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
-    );
-
+      JSON.stringify({ analysis }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   } catch (error) {
-    console.error('Error in analyze-content function:', error);
+    console.error('Analysis error:', error)
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message 
-      }),
+      JSON.stringify({ error: error.message }),
       { 
         status: 500,
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    );
+    )
   }
-});
+})
