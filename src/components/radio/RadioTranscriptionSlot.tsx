@@ -11,6 +11,7 @@ import RadioAnalysis from "./RadioAnalysis";
 interface RadioTranscriptionSlotProps {
   isProcessing: boolean;
   transcriptionText: string;
+  transcriptionId?: string;
   metadata?: {
     emisora?: string;
     programa?: string;
@@ -23,6 +24,7 @@ interface RadioTranscriptionSlotProps {
 const RadioTranscriptionSlot = ({
   isProcessing,
   transcriptionText,
+  transcriptionId,
   metadata,
   onTranscriptionChange,
 }: RadioTranscriptionSlotProps) => {
@@ -54,6 +56,7 @@ const RadioTranscriptionSlot = ({
             transcriptionText={transcriptionText}
             isProcessing={isProcessing}
             onTranscriptionChange={onTranscriptionChange}
+            transcriptionId={transcriptionId}
           />
           <div className="flex justify-end">
             <Button

@@ -8,12 +8,14 @@ interface RadioTranscriptionEditorProps {
   transcriptionText: string;
   isProcessing: boolean;
   onTranscriptionChange: (text: string) => void;
+  transcriptionId?: string;
 }
 
 const RadioTranscriptionEditor = ({
   transcriptionText,
   isProcessing,
   onTranscriptionChange,
+  transcriptionId,
 }: RadioTranscriptionEditorProps) => {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
@@ -28,12 +30,17 @@ const RadioTranscriptionEditor = ({
     setLocalText(newText);
     onTranscriptionChange(newText);
     
+    if (!transcriptionId) {
+      console.warn('No transcription ID provided for saving');
+      return;
+    }
+    
     setIsSaving(true);
     try {
       const { error } = await supabase
-        .from('radio_transcriptions')
+        .from('transcriptions')
         .update({ transcription_text: newText })
-        .eq('transcription_text', transcriptionText);
+        .eq('id', transcriptionId);
 
       if (error) throw error;
 

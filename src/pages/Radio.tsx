@@ -7,6 +7,8 @@ import { processAudioFile } from "@/components/radio/AudioProcessing";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { AudioPlayer } from "@/components/radio/AudioPlayer";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -17,6 +19,7 @@ const Radio = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
+  const [transcriptionId, setTranscriptionId] = useState<string>();
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [metadata, setMetadata] = useState<{
     emisora?: string;
@@ -63,12 +66,38 @@ const Radio = () => {
     setProgress(0);
     
     try {
+      const { data: transcriptionData, error: transcriptionError } = await supabase
+        .from('transcriptions')
+        .insert({
+          original_file_path: file.name,
+          status: 'processing'
+        })
+        .select()
+        .single();
+
+      if (transcriptionError) throw transcriptionError;
+
+      setTranscriptionId(transcriptionData.id);
+
       await processAudioFile(file, (text) => {
         setTranscriptionText(text);
         setProgress(100);
       });
+
+      // Update transcription status
+      const { error: updateError } = await supabase
+        .from('transcriptions')
+        .update({
+          transcription_text: transcriptionText,
+          status: 'completed'
+        })
+        .eq('id', transcriptionData.id);
+
+      if (updateError) throw updateError;
+
     } catch (error) {
       console.error("Error processing file:", error);
+      toast.error("Error al procesar el archivo");
     } finally {
       setIsProcessing(false);
     }
@@ -151,6 +180,7 @@ const Radio = () => {
           <RadioTranscriptionSlot
             isProcessing={isProcessing}
             transcriptionText={transcriptionText}
+            transcriptionId={transcriptionId}
             metadata={metadata}
             onTranscriptionChange={handleTranscriptionChange}
           />

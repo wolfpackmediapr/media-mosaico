@@ -264,6 +264,42 @@ export type Database = {
         }
         Relationships: []
       }
+      radio_transcriptions: {
+        Row: {
+          analysis_result: Json | null
+          created_at: string | null
+          emisora: string | null
+          horario: string | null
+          id: string
+          programa: string | null
+          transcription_text: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_result?: Json | null
+          created_at?: string | null
+          emisora?: string | null
+          horario?: string | null
+          id?: string
+          programa?: string | null
+          transcription_text?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_result?: Json | null
+          created_at?: string | null
+          emisora?: string | null
+          horario?: string | null
+          id?: string
+          programa?: string | null
+          transcription_text?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       reports: {
         Row: {
           created_at: string
