@@ -37,25 +37,29 @@ const RadioTranscriptionEditor = ({
     
     setIsSaving(true);
     try {
+      // Using 'transcriptions' table instead of 'radio_transcriptions'
       const { error } = await supabase
         .from('transcriptions')
-        .update({ transcription_text: newText })
+        .update({ 
+          transcription_text: newText,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', transcriptionId);
 
       if (error) throw error;
 
-      setTimeout(() => setIsSaving(false), 1000);
-      
       toast({
         title: "Guardado automático",
         description: "La transcripción se ha guardado correctamente",
       });
     } catch (error) {
+      console.error('Error saving transcription:', error);
       toast({
         title: "Error al guardar",
         description: "No se pudo guardar la transcripción",
         variant: "destructive",
       });
+    } finally {
       setIsSaving(false);
     }
   };
