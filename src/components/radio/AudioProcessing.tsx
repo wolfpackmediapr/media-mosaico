@@ -40,7 +40,7 @@ export const processAudioFile = async (
 
     // Create FormData and append file and user ID
     const formData = new FormData();
-    formData.append('file', validFile); // Changed from 'audioFile' to 'file' to match Edge Function expectation
+    formData.append('file', validFile);
     formData.append('userId', user.id);
 
     console.log('Sending request to transcribe with formData:', {
