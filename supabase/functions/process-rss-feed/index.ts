@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
@@ -48,6 +47,46 @@ interface RSSResponse {
   }>;
 }
 
+function parsePublicationDate(dateStr: string): Date {
+  try {
+    // First try parsing as ISO string
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+    
+    // If that fails, try parsing various RSS date formats
+    const formats = [
+      // RFC 822
+      /^\w{3}, \d{1,2} \w{3} \d{4} \d{2}:\d{2}:\d{2} [+-]\d{4}$/,
+      // RFC 850
+      /^\w{6,9}, \d{2}-\w{3}-\d{2} \d{2}:\d{2}:\d{2} GMT$/,
+      // ANSI C
+      /^\w{3} \w{3} \d{1,2} \d{2}:\d{2}:\d{2} \d{4}$/
+    ];
+
+    for (const format of formats) {
+      if (format.test(dateStr)) {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+          return parsed;
+        }
+      }
+    }
+
+    // Last resort: try parsing with Date.parse
+    const timestamp = Date.parse(dateStr);
+    if (!isNaN(timestamp)) {
+      return new Date(timestamp);
+    }
+
+    throw new Error(`Unable to parse date: ${dateStr}`);
+  } catch (error) {
+    console.error(`Error parsing date ${dateStr}:`, error);
+    return new Date(); // Fallback to current date if parsing fails
+  }
+}
+
 async function processArticle(
   article: Article,
   feedSourceId: string,
@@ -67,6 +106,19 @@ async function processArticle(
       return null;
     }
 
+    // Parse and validate the publication date
+    const pubDate = parsePublicationDate(article.pub_date);
+    console.log(`Parsed date for "${article.title}":`, pubDate.toISOString());
+
+    // Don't process articles older than 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    if (pubDate < sevenDaysAgo) {
+      console.log(`Skipping old article "${article.title}" from ${pubDate.toLocaleDateString()}`);
+      return null;
+    }
+
     // Analyze article content
     const analysis = await analyzeArticle(
       article.title,
@@ -83,7 +135,7 @@ async function processArticle(
         title: article.title,
         description: article.description,
         link: article.link,
-        pub_date: new Date(article.pub_date).toISOString(),
+        pub_date: pubDate.toISOString(), // Use the parsed date
         source: article.source,
         image_url: article.image_url,
         category: analysis.category,
@@ -126,7 +178,7 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
     }
     
     const feedData = await response.json();
-    console.log(`Received feed data for ${feedSource.name}:`, JSON.stringify(feedData, null, 2));
+    console.log(`Processing ${feedData.items?.length || 0} items from ${feedSource.name}`);
 
     // Validate feed structure
     if (!feedData || !Array.isArray(feedData.items)) {
@@ -136,8 +188,15 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
     let successCount = 0;
     let errorCount = 0;
 
-    for (const item of feedData.items) {
-      if (!item.title || !item.link || !item.published) {
+    // Sort items by publication date (newest first)
+    const sortedItems = feedData.items.sort((a, b) => {
+      const dateA = new Date(a.published || a.created);
+      const dateB = new Date(b.published || b.created);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    for (const item of sortedItems) {
+      if (!item.title || !item.link || (!item.published && !item.created)) {
         console.warn(`Skipping invalid item in ${feedSource.name}:`, item);
         continue;
       }
@@ -146,7 +205,7 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
         title: item.title,
         description: item.description || item.content || '',
         link: item.link,
-        pub_date: item.published,
+        pub_date: item.published || new Date(item.created).toISOString(),
         source: feedSource.name,
         image_url: item.media?.content?.url || 
                   item.media?.thumbnail?.url || 
