@@ -1,3 +1,5 @@
+
+import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
@@ -12,142 +14,126 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting video conversion process')
     const { videoPath } = await req.json()
-    
-    if (!videoPath) {
-      throw new Error('Video path is required')
-    }
-
-    console.log('Video path received:', videoPath)
+    console.log('Converting video to audio:', videoPath)
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // First get a signed URL for the video
-    console.log('Getting signed URL for video')
+    // Get signed URL for video file
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('media')
       .createSignedUrl(videoPath, 60)
 
     if (signedUrlError) {
-      console.error('Signed URL error:', signedUrlError)
-      throw new Error(`Failed to get signed URL: ${signedUrlError.message}`)
+      console.error('Error getting signed URL:', signedUrlError)
+      throw new Error('Failed to get video file URL')
     }
 
-    if (!signedUrlData?.signedUrl) {
-      throw new Error('No signed URL received')
+    // Initialize CloudConvert
+    const cloudConvertApiKey = Deno.env.get('CLOUDCONVERT_API_KEY')
+    if (!cloudConvertApiKey) {
+      throw new Error('CloudConvert API key not configured')
     }
 
-    console.log('Signed URL obtained, downloading video')
-    
-    // Download the video using the signed URL
-    const videoResponse = await fetch(signedUrlData.signedUrl)
-    if (!videoResponse.ok) {
-      throw new Error(`Failed to download video: ${videoResponse.statusText}`)
-    }
-
-    const videoData = await videoResponse.blob()
-    console.log('Video downloaded successfully, size:', videoData.size)
-
-    // Create temporary files for FFmpeg processing
-    const tempVideoPath = await Deno.makeTempFile({ suffix: '.mp4' })
-    const tempAudioPath = await Deno.makeTempFile({ suffix: '.mp3' })
-
-    // Write video data to temp file
-    await Deno.writeFile(tempVideoPath, new Uint8Array(await videoData.arrayBuffer()))
-    console.log('Video data written to temporary file')
-
-    // Use FFmpeg to convert video to audio
-    console.log('Starting FFmpeg conversion')
-    const ffmpegCommand = new Deno.Command('ffmpeg', {
-      args: [
-        '-i', tempVideoPath,
-        '-vn',                // Disable video
-        '-ar', '16000',       // Set sample rate to 16kHz
-        '-ac', '1',           // Convert to mono
-        '-b:a', '64k',        // Set bitrate
-        '-f', 'mp3',          // Force mp3 format
-        tempAudioPath
-      ],
+    // Create conversion job
+    const jobResponse = await fetch('https://api.cloudconvert.com/v2/jobs', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${cloudConvertApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tasks: {
+          'import-file': {
+            operation: 'import/url',
+            url: signedUrlData.signedUrl
+          },
+          'convert-file': {
+            operation: 'convert',
+            input: ['import-file'],
+            output_format: 'mp3',
+            engine: 'ffmpeg'
+          },
+          'export-file': {
+            operation: 'export/url',
+            input: ['convert-file']
+          }
+        }
+      })
     })
 
-    const { success: conversionSuccess, stderr } = await ffmpegCommand.output()
-    
-    if (!conversionSuccess) {
-      console.error('FFmpeg conversion error:', new TextDecoder().decode(stderr))
-      throw new Error('FFmpeg conversion failed')
+    if (!jobResponse.ok) {
+      const error = await jobResponse.text()
+      console.error('CloudConvert job creation failed:', error)
+      throw new Error('Failed to start conversion')
     }
 
-    console.log('Audio conversion completed')
+    const job = await jobResponse.json()
+    console.log('Conversion job created:', job.data.id)
 
-    // Read the converted audio file
-    const audioData = await Deno.readFile(tempAudioPath)
-    console.log('Audio file read, size:', audioData.length)
+    // Wait for job completion
+    let jobStatus
+    do {
+      const statusResponse = await fetch(`https://api.cloudconvert.com/v2/jobs/${job.data.id}`, {
+        headers: {
+          'Authorization': `Bearer ${cloudConvertApiKey}`
+        }
+      })
+      
+      if (!statusResponse.ok) {
+        throw new Error('Failed to check conversion status')
+      }
 
-    // Upload the converted audio file
-    const audioPath = `${videoPath.split('.')[0]}_audio.mp3`
-    console.log('Uploading converted audio:', audioPath)
+      jobStatus = await statusResponse.json()
+      if (jobStatus.data.status === 'error') {
+        throw new Error('Conversion failed: ' + jobStatus.data.message)
+      }
+      
+      if (jobStatus.data.status !== 'finished') {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+    } while (jobStatus.data.status !== 'finished')
 
+    // Get the converted audio file URL
+    const exportTask = jobStatus.data.tasks.find((task: any) => task.operation === 'export/url')
+    const audioUrl = exportTask.result.files[0].url
+
+    // Download the audio file
+    const audioResponse = await fetch(audioUrl)
+    if (!audioResponse.ok) {
+      throw new Error('Failed to download converted audio')
+    }
+
+    const audioBuffer = await audioResponse.arrayBuffer()
+    const audioFile = new File([audioBuffer], 'converted.mp3', { type: 'audio/mp3' })
+
+    // Upload audio to Supabase
+    const audioPath = `audio/${crypto.randomUUID()}.mp3`
     const { error: uploadError } = await supabase.storage
       .from('media')
-      .upload(audioPath, audioData, {
-        contentType: 'audio/mp3',
-        upsert: true
-      })
+      .upload(audioPath, audioFile)
 
     if (uploadError) {
-      console.error('Upload error:', uploadError)
-      throw new Error(`Failed to upload audio: ${uploadError.message}`)
+      console.error('Error uploading audio:', uploadError)
+      throw new Error('Failed to upload converted audio')
     }
 
-    // Clean up temporary files
-    try {
-      await Deno.remove(tempVideoPath)
-      await Deno.remove(tempAudioPath)
-      console.log('Temporary files cleaned up')
-    } catch (cleanupError) {
-      console.error('Error cleaning up temporary files:', cleanupError)
-    }
-
-    // Update transcription record
-    const { error: updateError } = await supabase
-      .from('transcriptions')
-      .update({ 
-        audio_file_path: audioPath,
-        status: 'ready_for_transcription'
-      })
-      .eq('original_file_path', videoPath)
-
-    if (updateError) {
-      console.error('Update error:', updateError)
-      throw new Error(`Failed to update transcription record: ${updateError.message}`)
-    }
-
-    console.log('Conversion process completed successfully')
+    console.log('Audio conversion and upload complete')
 
     return new Response(
-      JSON.stringify({ 
-        message: 'Video converted successfully',
-        audioPath 
-      }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
+      JSON.stringify({ audioPath }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
-
   } catch (error) {
-    console.error('Function error:', error)
+    console.error('Conversion error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
   }

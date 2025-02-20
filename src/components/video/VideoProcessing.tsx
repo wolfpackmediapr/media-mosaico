@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -41,8 +42,14 @@ export const processVideoFile = async (
 
     console.log("Processing file:", filePath);
     
-    if (file.size > 25 * 1024 * 1024) {
-      console.log("File is larger than 25MB, converting to audio first");
+    // Updated size limit to 20MB
+    if (file.size > 20 * 1024 * 1024) {
+      console.log("File is larger than 20MB, converting to audio first");
+      
+      toast({
+        title: "Procesando video",
+        description: "El archivo es grande, se está convirtiendo a audio primero...",
+      });
       
       const { data, error } = await supabase.functions.invoke('convert-to-audio', {
         body: { videoPath: filePath }
@@ -53,12 +60,28 @@ export const processVideoFile = async (
         throw error;
       }
 
-      if (data?.text) {
-        onTranscriptionComplete?.(data.text);
+      if (data?.audioPath) {
         toast({
-          title: "Transcripción completada",
-          description: "El archivo ha sido procesado exitosamente",
+          title: "Conversión completada",
+          description: "Iniciando transcripción del audio...",
         });
+
+        const { data: transcriptionData, error: transcriptionError } = await supabase.functions.invoke('transcribe-video', {
+          body: { videoPath: data.audioPath }
+        });
+
+        if (transcriptionError) {
+          console.error('Transcription error:', transcriptionError);
+          throw transcriptionError;
+        }
+
+        if (transcriptionData?.text) {
+          onTranscriptionComplete?.(transcriptionData.text);
+          toast({
+            title: "Transcripción completada",
+            description: "El archivo ha sido procesado exitosamente",
+          });
+        }
       }
     } else {
       const { data, error } = await supabase.functions.invoke('transcribe-video', {

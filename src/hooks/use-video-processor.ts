@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -29,9 +30,9 @@ export const useVideoProcessor = () => {
 
       setProgress(10);
 
-      // For files larger than 25MB, convert to audio first
-      if (file.size > 25 * 1024 * 1024) {
-        console.log("File is larger than 25MB, converting to audio first");
+      // Updated size limit to 20MB
+      if (file.size > 20 * 1024 * 1024) {
+        console.log("File is larger than 20MB, converting to audio first");
         setProgress(20);
 
         const { data: conversionData, error: conversionError } = await supabase.functions
