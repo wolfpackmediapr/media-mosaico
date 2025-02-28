@@ -82,18 +82,21 @@ export const useNewsFeed = () => {
 
       // Transform the article data to match NewsArticle type
       const convertedArticles: NewsArticle[] = articlesData.map(article => {
-        // Handle clients array properly
+        // Handle clients array properly - ensure it's a string array
         let clients: string[] = [];
         if (article.clients) {
           if (Array.isArray(article.clients)) {
-            clients = article.clients;
+            // Convert each item to string
+            clients = article.clients.map(client => String(client));
           } else if (typeof article.clients === 'string') {
             clients = [article.clients];
           } else if (typeof article.clients === 'object') {
             // Handle clients as JSONB object
             try {
               const clientsObj = article.clients as Record<string, any>;
-              clients = Object.values(clientsObj).filter(Boolean).map(String);
+              clients = Object.values(clientsObj)
+                .filter(Boolean)
+                .map(value => String(value)); // Convert all values to strings
             } catch (e) {
               console.error('Error parsing clients:', e);
             }
@@ -111,7 +114,9 @@ export const useNewsFeed = () => {
           summary: article.summary || '',
           category: article.category || '',
           clients: clients,
-          keywords: Array.isArray(article.keywords) ? article.keywords : [],
+          keywords: Array.isArray(article.keywords) 
+            ? article.keywords.map(keyword => String(keyword))
+            : [],
           image_url: article.image_url || undefined,
           last_processed: article.last_processed || undefined,
           feed_source: article.feed_source ? {
