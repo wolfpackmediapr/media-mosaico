@@ -19,7 +19,7 @@ export const fetchPlatformsData = async () => {
   // Only get social media platforms, exclude news platforms
   const { data, error } = await supabase
     .from('feed_sources')
-    .select('id, platform, platform_display_name, name, profile_image_url')
+    .select('id, platform, platform_display_name, name')
     .in('platform', SOCIAL_PLATFORMS)
     .not('platform', 'is', null)
     .order('name');
@@ -33,7 +33,7 @@ export const fetchPlatformCounts = async () => {
   // Get feed source IDs for social feeds
   const { data: feedSources } = await supabase
     .from('feed_sources')
-    .select('id, name, platform, profile_image_url')
+    .select('id, name, platform')
     .in('url', SOCIAL_FEED_URLS);
   
   const feedSourceIds = feedSources?.map(fs => fs.id) || [];
@@ -41,7 +41,7 @@ export const fetchPlatformCounts = async () => {
   // Now get articles only from these feed sources
   const { data: articles, error } = await supabase
     .from('news_articles')
-    .select('id, feed_source_id, feed_source:feed_source_id(name, platform, profile_image_url)')
+    .select('id, feed_source_id, feed_source:feed_source_id(name, platform)')
     .in('feed_source_id', feedSourceIds);
     
   if (error) throw error;
@@ -60,7 +60,7 @@ export const fetchSocialPosts = async (
   // Get feed source IDs for social feeds
   const { data: feedSources } = await supabase
     .from('feed_sources')
-    .select('id, name, profile_image_url')
+    .select('id, name')
     .in('url', SOCIAL_FEED_URLS);
   
   const feedSourceIds = feedSources?.map(fs => fs.id) || [];
