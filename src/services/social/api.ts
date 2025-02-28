@@ -113,10 +113,9 @@ export const refreshSocialFeeds = async () => {
     throw new Error('Debe iniciar sesión para actualizar el feed');
   }
 
-  const { data, error } = await supabase.functions.invoke('process-rss-feed', {
+  const { data, error } = await supabase.functions.invoke('process-social-feeds', {
     body: { 
-      timestamp: new Date().toISOString(),
-      specificFeed: JAY_FONSECA_FEED
+      timestamp: new Date().toISOString()
     }
   });
 
