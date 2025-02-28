@@ -123,6 +123,45 @@ export type Database = {
         }
         Relationships: []
       }
+      conversion_jobs: {
+        Row: {
+          cloudconvert_job_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          error: string | null
+          file_path: string
+          id: string
+          result_url: string | null
+          status: string
+          target_format: string
+          user_id: string
+        }
+        Insert: {
+          cloudconvert_job_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          error?: string | null
+          file_path: string
+          id?: string
+          result_url?: string | null
+          status?: string
+          target_format: string
+          user_id: string
+        }
+        Update: {
+          cloudconvert_job_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          error?: string | null
+          file_path?: string
+          id?: string
+          result_url?: string | null
+          status?: string
+          target_format?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       feed_sources: {
         Row: {
           active: boolean | null
