@@ -27,8 +27,13 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   // Track image loading state
   const [imageError, setImageError] = useState(false);
   
-  // Get the profile image URL from the feed_source if available
-  const profileImageUrl = post.feed_source?.profile_image_url;
+  // Determine profile image based on platform/source name
+  let profileImageUrl = null;
+  if (post.source === "Jay Fonseca") {
+    profileImageUrl = "https://pbs.twimg.com/profile_images/1558655232365838336/VIkxQIZF_400x400.jpg";
+  } else if (post.source === "Jugando Pelota Dura") {
+    profileImageUrl = "https://pbs.twimg.com/profile_images/1705012252200456192/tLh9Cu7t_400x400.jpg";
+  }
   
   // Determine which image to display - prioritize:
   // 1. Post image if available and not errored

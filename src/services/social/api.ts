@@ -72,6 +72,7 @@ export const fetchSocialPosts = async (
 
   console.log(`Fetching posts from feed sources: ${feedSourceIds.join(', ')}`);
 
+  // Update the query to remove profile_image_url from the feed_source join
   let query = supabase
     .from('news_articles')
     .select(`
@@ -81,7 +82,6 @@ export const fetchSocialPosts = async (
         platform,
         platform_display_name,
         platform_icon,
-        profile_image_url,
         last_successful_fetch
       )
     `, { count: 'exact' })
