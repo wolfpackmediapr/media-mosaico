@@ -5,6 +5,9 @@ import type { SocialPost, SocialPlatform } from "@/types/social";
 // List of social media platforms to include
 export const SOCIAL_PLATFORMS = ['twitter', 'facebook', 'instagram', 'youtube', 'linkedin', 'social_media'];
 
+// Jay Fonseca feed URL
+export const JAY_FONSECA_FEED = "https://rss.app/feeds/nrAbJHacD1J6WUYp.xml";
+
 // Constants
 export const ITEMS_PER_PAGE = 10;
 
@@ -24,10 +27,19 @@ export const fetchPlatformsData = async () => {
 
 // Fetch platform counts
 export const fetchPlatformCounts = async () => {
+  // Get feed source IDs for Jay Fonseca's feed
+  const { data: feedSources } = await supabase
+    .from('feed_sources')
+    .select('id')
+    .eq('url', JAY_FONSECA_FEED);
+  
+  const feedSourceIds = feedSources?.map(fs => fs.id) || [];
+  
+  // Now get articles only from these feed sources
   const { data: articles, error } = await supabase
     .from('news_articles')
     .select('id, feed_source_id, feed_source:feed_source_id(platform)')
-    .in('feed_source.platform', SOCIAL_PLATFORMS);
+    .in('feed_source_id', feedSourceIds);
     
   if (error) throw error;
   return articles;
@@ -42,6 +54,19 @@ export const fetchSocialPosts = async (
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
+  // Get feed source IDs for Jay Fonseca's feed
+  const { data: feedSources } = await supabase
+    .from('feed_sources')
+    .select('id')
+    .eq('url', JAY_FONSECA_FEED);
+  
+  const feedSourceIds = feedSources?.map(fs => fs.id) || [];
+  
+  // If no feed sources found, return empty result
+  if (feedSourceIds.length === 0) {
+    return { data: [], count: 0 };
+  }
+
   let query = supabase
     .from('news_articles')
     .select(`
@@ -54,7 +79,7 @@ export const fetchSocialPosts = async (
         last_successful_fetch
       )
     `, { count: 'exact' })
-    .in('feed_source.platform', SOCIAL_PLATFORMS); // Only include social media platforms
+    .in('feed_source_id', feedSourceIds);
 
   // Filter by platform if specified
   if (selectedPlatforms.length > 0) {
@@ -89,7 +114,10 @@ export const refreshSocialFeeds = async () => {
   }
 
   const { data, error } = await supabase.functions.invoke('process-rss-feed', {
-    body: { timestamp: new Date().toISOString() }
+    body: { 
+      timestamp: new Date().toISOString(),
+      specificFeed: JAY_FONSECA_FEED
+    }
   });
 
   if (error) {

@@ -7,6 +7,7 @@ const ERROR_MESSAGES = {
   posts: "No se pudieron cargar las publicaciones",
   refresh: "No se pudieron actualizar los feeds",
   auth: "Debe iniciar sesión para actualizar el feed",
+  feed: "No se pudo cargar el feed de Jay Fonseca",
   default: "Ha ocurrido un error inesperado"
 };
 
