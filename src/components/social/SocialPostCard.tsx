@@ -32,7 +32,8 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   if (post.source === "Jay Fonseca") {
     profileImageUrl = "https://pbs.twimg.com/profile_images/1558655232365838336/VIkxQIZF_400x400.jpg";
   } else if (post.source === "Jugando Pelota Dura") {
-    profileImageUrl = "https://pbs.twimg.com/profile_images/1705012252200456192/tLh9Cu7t_400x400.jpg";
+    // Use the newly uploaded image for Jugando Pelota Dura
+    profileImageUrl = "/lovable-uploads/2cc77865-c53b-42a6-a1fd-96ed2c7a031e.png";
   }
   
   // Determine which image to display - prioritize:
@@ -54,6 +55,9 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
             className="w-full h-full object-cover"
             onError={() => setImageError(true)}
             crossOrigin="anonymous"
+            loading="lazy"
+            width={400}
+            height={400}
           />
         </div>
         <div className="p-4">
