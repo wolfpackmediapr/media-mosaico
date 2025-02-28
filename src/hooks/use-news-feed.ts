@@ -54,7 +54,7 @@ export const useNewsFeed = () => {
       const from = (page - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
-      // Get articles from news sources only (platform = 'news' or platform IS NULL)
+      // Build the query to get articles
       let query = supabase
         .from('news_articles')
         .select(`
@@ -64,13 +64,15 @@ export const useNewsFeed = () => {
             last_successful_fetch,
             platform
           )
-        `, { count: 'exact' })
-        .or('feed_source.platform.eq.news,feed_source.platform.is.null');
+        `, { count: 'exact' });
+
+      // Filter by news platform or null platform
+      // Fix for the query syntax issue
+      query = query.or('feed_source.platform.eq.news,feed_source.platform.is.null');
 
       // Apply search filter if searchTerm exists
       if (searchTerm) {
-        const searchPattern = `%${searchTerm}%`;
-        query = query.or(`title.ilike.${searchPattern},description.ilike.${searchPattern},category.ilike.${searchPattern}`);
+        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`);
       }
 
       // Get total count and paginated results
