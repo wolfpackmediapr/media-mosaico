@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { NewsArticle, FeedSource } from "@/types/prensa";
+import { SOCIAL_PLATFORMS } from "@/services/social/api";
 
 // Constants
 export const ITEMS_PER_PAGE = 10;
@@ -11,6 +12,7 @@ export const fetchNewsSourcesFromDatabase = async () => {
   const { data: sourcesData, error } = await supabase
     .from('feed_sources')
     .select('id, name, url, active, last_successful_fetch, last_fetch_error, error_count')
+    .not('platform', 'in', `(${SOCIAL_PLATFORMS.join(',')})`)
     .or('platform.eq.news,platform.is.null')
     .order('name');
 
@@ -24,13 +26,35 @@ export const fetchArticlesFromDatabase = async (page: number, searchTerm: string
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Get all articles first and then filter in application code if needed
-  const { data: articlesData, error, count } = await supabase
+  // Get only news articles, not social media posts
+  let query = supabase
     .from('news_articles')
     .select(`
       *,
       feed_source:feed_source_id(*)
-    `, { count: 'exact' })
+    `, { count: 'exact' });
+  
+  // Get feed sources that are NOT social media platforms
+  const { data: newsSources } = await supabase
+    .from('feed_sources')
+    .select('id')
+    .not('platform', 'in', `(${SOCIAL_PLATFORMS.join(',')})`)
+    .or('platform.eq.news,platform.is.null');
+  
+  if (newsSources && newsSources.length > 0) {
+    const newsSourceIds = newsSources.map(source => source.id);
+    // Only include articles from news sources
+    query = query.in('feed_source_id', newsSourceIds);
+  }
+
+  // Add search term filter if provided
+  if (searchTerm) {
+    const searchPattern = `%${searchTerm}%`;
+    query = query.or(`title.ilike.${searchPattern},description.ilike.${searchPattern}`);
+  }
+
+  // Execute the query with pagination
+  const { data: articlesData, error, count } = await query
     .order('pub_date', { ascending: false })
     .range(from, to);
 

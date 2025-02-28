@@ -34,7 +34,8 @@ export const fetchPlatformCounts = async () => {
   const { data: feedSources } = await supabase
     .from('feed_sources')
     .select('id, name, platform')
-    .in('url', SOCIAL_FEED_URLS);
+    .in('url', SOCIAL_FEED_URLS)
+    .in('platform', SOCIAL_PLATFORMS);
   
   const feedSourceIds = feedSources?.map(fs => fs.id) || [];
   
@@ -57,11 +58,12 @@ export const fetchSocialPosts = async (
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Get feed source IDs for social feeds
+  // Get feed source IDs for social feeds - only those marked as social platforms
   const { data: feedSources } = await supabase
     .from('feed_sources')
     .select('id, name')
-    .in('url', SOCIAL_FEED_URLS);
+    .in('url', SOCIAL_FEED_URLS)
+    .in('platform', SOCIAL_PLATFORMS);
   
   const feedSourceIds = feedSources?.map(fs => fs.id) || [];
   
@@ -72,7 +74,6 @@ export const fetchSocialPosts = async (
 
   console.log(`Fetching posts from feed sources: ${feedSourceIds.join(', ')}`);
 
-  // Update the query to remove profile_image_url from the feed_source join
   let query = supabase
     .from('news_articles')
     .select(`
@@ -93,7 +94,8 @@ export const fetchSocialPosts = async (
     const { data: filteredSources } = await supabase
       .from('feed_sources')
       .select('id')
-      .in('name', selectedPlatforms);
+      .in('name', selectedPlatforms)
+      .in('platform', SOCIAL_PLATFORMS);
     
     if (filteredSources && filteredSources.length > 0) {
       const filteredSourceIds = filteredSources.map(fs => fs.id);
