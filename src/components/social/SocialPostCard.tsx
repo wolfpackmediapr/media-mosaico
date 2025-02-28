@@ -30,7 +30,8 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   // Determine profile image based on platform/source name
   let profileImageUrl = null;
   if (post.source === "Jay Fonseca") {
-    profileImageUrl = "https://pbs.twimg.com/profile_images/1558655232365838336/VIkxQIZF_400x400.jpg";
+    // Use the newly uploaded image for Jay Fonseca
+    profileImageUrl = "/lovable-uploads/245cf068-419d-4227-918d-f35e38320b3e.png";
   } else if (post.source === "Jugando Pelota Dura") {
     // Use the newly uploaded image for Jugando Pelota Dura
     profileImageUrl = "/lovable-uploads/2cc77865-c53b-42a6-a1fd-96ed2c7a031e.png";
