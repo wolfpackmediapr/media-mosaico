@@ -6,7 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { platformIcons } from "@/lib/platform-icons";
 import type { SocialPost } from "@/types/social";
-import { sanitizeSocialContent, extractImageFromHtml, getPlatformPlaceholderImage } from "@/services/social/content-sanitizer";
+import { sanitizeSocialContent, extractImageFromHtml } from "@/services/social/content-sanitizer";
 import { useState } from "react";
 import { Image } from "@/components/ui/image";
 
@@ -21,13 +21,13 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   // Extract image from content if no image_url is provided
   const contentImage = !post.image_url ? extractImageFromHtml(post.description) : null;
   
-  // Use platform-specific placeholder as fallback
-  const placeholderImage = getPlatformPlaceholderImage(post.platform);
+  // Use a more specific placeholder image for Twitter/social media
+  const placeholderImage = `https://images.unsplash.com/photo-1611162616475-46b635cb6868?q=80&w=2874&auto=format&fit=crop`;
   
   // Track image loading state
   const [imageError, setImageError] = useState(false);
   
-  // Determine which image to display
+  // Determine which image to display - prioritize actual post image
   const imageToUse = imageError ? placeholderImage : (post.image_url || contentImage || placeholderImage);
   
   return (
@@ -39,6 +39,7 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
             alt={post.title}
             className="w-full h-full object-cover"
             onError={() => setImageError(true)}
+            crossOrigin="anonymous"
           />
         </div>
         <div className="p-4">
@@ -54,7 +55,7 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
           <h3 className="font-bold text-lg mb-2 line-clamp-2">{post.title}</h3>
           {sanitizedDescription && (
             <div 
-              className="text-muted-foreground mb-2 prose-sm max-w-none"
+              className="text-muted-foreground mb-2 prose-sm max-w-none line-clamp-3"
               dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
             />
           )}

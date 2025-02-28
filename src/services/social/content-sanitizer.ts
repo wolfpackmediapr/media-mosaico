@@ -72,7 +72,17 @@ export const extractImageFromHtml = (content: string): string | null => {
   // Try to find image tag
   const imgMatch = content.match(/<img[^>]+src=["']([^"']+)["']/i);
   if (imgMatch && imgMatch[1]) {
-    return imgMatch[1];
+    // Verify it's not a tiny icon
+    const urlLower = imgMatch[1].toLowerCase();
+    if (!urlLower.includes('icon') && !urlLower.includes('avatar') && !urlLower.includes('emoji')) {
+      return imgMatch[1];
+    }
+  }
+  
+  // Try to find Twitter image cards
+  const twitterMatch = content.match(/twitter:image[^>]+content=["']([^"']+)["']/i);
+  if (twitterMatch && twitterMatch[1]) {
+    return twitterMatch[1];
   }
   
   // Look for background images in style attributes
@@ -89,11 +99,11 @@ export const extractImageFromHtml = (content: string): string | null => {
  */
 export const getPlatformPlaceholderImage = (platform: string): string => {
   const placeholders = {
-    twitter: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b",
-    facebook: "https://images.unsplash.com/photo-1721322800607-8c38375eef04",
-    instagram: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158",
-    linkedin: "https://images.unsplash.com/photo-1487958449943-2429e8be8625",
-    default: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b"
+    twitter: "https://images.unsplash.com/photo-1611162616475-46b635cb6868",
+    facebook: "https://images.unsplash.com/photo-1611162618071-b39a2ec055fb",
+    instagram: "https://images.unsplash.com/photo-1611262588024-d12430b98920",
+    linkedin: "https://images.unsplash.com/photo-1611944212129-29977ae1398c",
+    default: "https://images.unsplash.com/photo-1611162616475-46b635cb6868"
   };
   
   return placeholders[platform as keyof typeof placeholders] || placeholders.default;

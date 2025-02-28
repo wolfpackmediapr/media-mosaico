@@ -17,11 +17,11 @@ const PlatformFilters = ({
   selectedPlatforms,
   onPlatformChange,
 }: PlatformFiltersProps) => {
-  const togglePlatform = (platformId: string) => {
-    if (selectedPlatforms.includes(platformId)) {
-      onPlatformChange(selectedPlatforms.filter(id => id !== platformId));
+  const togglePlatform = (platformName: string) => {
+    if (selectedPlatforms.includes(platformName)) {
+      onPlatformChange(selectedPlatforms.filter(name => name !== platformName));
     } else {
-      onPlatformChange([...selectedPlatforms, platformId]);
+      onPlatformChange([...selectedPlatforms, platformName]);
     }
   };
 
@@ -54,13 +54,13 @@ const PlatformFilters = ({
           ) : (
             <ul className="space-y-2">
               {platforms.map((platform) => {
-                const isSelected = selectedPlatforms.includes(platform.id);
-                const PlatformIcon = platformIcons[platform.id] || platformIcons.news;
+                const isSelected = selectedPlatforms.includes(platform.name);
+                const PlatformIcon = platformIcons[platform.id] || platformIcons.twitter;
                 
                 return (
-                  <li key={platform.id}>
+                  <li key={platform.name}>
                     <button
-                      onClick={() => togglePlatform(platform.id)}
+                      onClick={() => togglePlatform(platform.name)}
                       className={cn(
                         "flex items-center w-full px-3 py-2 text-sm rounded-md transition-colors",
                         isSelected

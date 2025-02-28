@@ -1,4 +1,3 @@
-
 import type { SocialPost, SocialPlatform } from "@/types/social";
 import { extractImageFromHtml } from "./content-sanitizer";
 
@@ -43,7 +42,7 @@ export const transformArticlesToPosts = (articlesData: any[]): SocialPost[] => {
       source: article.feed_source?.name || article.source,
       image_url: image,
       platform: article.feed_source?.platform || 'social_media',
-      platform_display_name: article.feed_source?.platform_display_name || article.feed_source?.platform || 'Social Media',
+      platform_display_name: article.feed_source?.name || article.feed_source?.platform_display_name || article.feed_source?.platform || 'Social Media',
       platform_icon: article.feed_source?.platform_icon
     };
   });
@@ -51,24 +50,32 @@ export const transformArticlesToPosts = (articlesData: any[]): SocialPost[] => {
 
 // Transform platform data into SocialPlatform format
 export const transformPlatformData = (
-  platformData: Array<{ platform: string; platform_display_name: string | null }>,
+  platformData: Array<any>,
   platformCounts: Record<string, number>
 ): SocialPlatform[] => {
-  const platformNames: Record<string, string> = {};
+  const platformMap: Record<string, SocialPlatform> = {};
   
-  // Create platform names mapping
+  // Create platform entries from feed sources
   platformData.forEach(fs => {
-    if (fs.platform) {
-      platformNames[fs.platform] = fs.platform_display_name || fs.platform;
+    // Use the source name (e.g., "Jay Fonseca") as the platform identifier
+    const platformName = fs.name;
+    if (platformName) {
+      // If this platform name is already in the map, just update the count
+      if (platformMap[platformName]) {
+        platformMap[platformName].count += platformCounts[platformName] || 0;
+      } else {
+        // Otherwise create a new entry
+        platformMap[platformName] = {
+          id: fs.platform || 'twitter', // Default to twitter for icon purposes
+          name: platformName,
+          count: platformCounts[platformName] || 0
+        };
+      }
     }
   });
   
-  // Transform data to match SocialPlatform interface
-  const platforms: SocialPlatform[] = Object.keys(platformNames).map(platform => ({
-    id: platform,
-    name: platformNames[platform] || platform,
-    count: platformCounts[platform] || 0
-  }));
+  // Convert map to array and sort
+  const platforms = Object.values(platformMap);
   
   // Sort by count descending, then name ascending
   platforms.sort((a, b) => {
@@ -84,9 +91,9 @@ export const calculatePlatformCounts = (articles: any[]): Record<string, number>
   const platformCounts: Record<string, number> = {};
   
   articles.forEach(article => {
-    if (article.feed_source?.platform) {
-      platformCounts[article.feed_source.platform] = 
-        (platformCounts[article.feed_source.platform] || 0) + 1;
+    if (article.feed_source?.name) {
+      const sourceName = article.feed_source.name;
+      platformCounts[sourceName] = (platformCounts[sourceName] || 0) + 1;
     }
   });
   
