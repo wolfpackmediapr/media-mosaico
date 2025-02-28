@@ -62,3 +62,39 @@ const handleTwitterContent = (content: string): string => {
     .replace(/<\/blockquote>/g, '</div>')
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 };
+
+/**
+ * Extract image URL from content if post doesn't have one
+ */
+export const extractImageFromHtml = (content: string): string | null => {
+  if (!content) return null;
+  
+  // Try to find image tag
+  const imgMatch = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (imgMatch && imgMatch[1]) {
+    return imgMatch[1];
+  }
+  
+  // Look for background images in style attributes
+  const bgMatch = content.match(/background-image:\s*url\(['"]?([^'"]+)['"]?\)/i);
+  if (bgMatch && bgMatch[1]) {
+    return bgMatch[1];
+  }
+  
+  return null;
+};
+
+/**
+ * Generate a placeholder image URL for social platforms
+ */
+export const getPlatformPlaceholderImage = (platform: string): string => {
+  const placeholders = {
+    twitter: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b",
+    facebook: "https://images.unsplash.com/photo-1721322800607-8c38375eef04",
+    instagram: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158",
+    linkedin: "https://images.unsplash.com/photo-1487958449943-2429e8be8625",
+    default: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b"
+  };
+  
+  return placeholders[platform as keyof typeof placeholders] || placeholders.default;
+};

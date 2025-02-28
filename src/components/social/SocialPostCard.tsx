@@ -6,7 +6,9 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { platformIcons } from "@/lib/platform-icons";
 import type { SocialPost } from "@/types/social";
-import { sanitizeSocialContent } from "@/services/social/content-sanitizer";
+import { sanitizeSocialContent, extractImageFromHtml, getPlatformPlaceholderImage } from "@/services/social/content-sanitizer";
+import { useState } from "react";
+import { Image } from "@/components/ui/image";
 
 interface SocialPostCardProps {
   post: SocialPost;
@@ -16,18 +18,29 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   const PlatformIcon = platformIcons[post.platform] || platformIcons.news;
   const sanitizedDescription = sanitizeSocialContent(post.description);
   
+  // Extract image from content if no image_url is provided
+  const contentImage = !post.image_url ? extractImageFromHtml(post.description) : null;
+  
+  // Use platform-specific placeholder as fallback
+  const placeholderImage = getPlatformPlaceholderImage(post.platform);
+  
+  // Track image loading state
+  const [imageError, setImageError] = useState(false);
+  
+  // Determine which image to display
+  const imageToUse = imageError ? placeholderImage : (post.image_url || contentImage || placeholderImage);
+  
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
       <CardContent className="p-0">
-        {post.image_url && (
-          <div className="w-full h-48 overflow-hidden">
-            <img 
-              src={post.image_url} 
-              alt={post.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
+        <div className="w-full h-48 overflow-hidden">
+          <Image 
+            src={imageToUse}
+            alt={post.title}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        </div>
         <div className="p-4">
           <div className="flex items-center space-x-2 mb-2">
             <PlatformIcon className="h-4 w-4 text-muted-foreground" />
