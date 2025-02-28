@@ -1,123 +1,95 @@
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
-import { format } from "date-fns";
-import { es } from 'date-fns/locale';
-
-interface NewsArticle {
-  id: string;
-  title: string;
-  description: string;
-  link: string;
-  pub_date: string;
-  source: string;
-  summary: string;
-  category: string;
-  clients: string[];
-  keywords: string[];
-  image_url?: string;
-}
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
+import type { NewsArticle } from "@/types/prensa";
+import { sanitizeSocialContent } from "@/services/social/content-sanitizer";
 
 interface NewsArticleCardProps {
   article: NewsArticle;
 }
 
 const NewsArticleCard = ({ article }: NewsArticleCardProps) => {
+  const pubDateFormatted = article.pub_date
+    ? formatDistanceToNow(new Date(article.pub_date), { 
+        addSuffix: true,
+        locale: es
+      })
+    : "";
+  
+  // Use the sanitizer to clean up the description
+  const sanitizedDescription = sanitizeSocialContent(article.description || '');
+  
   return (
-    <Card className="hover:shadow-lg transition-shadow overflow-hidden">
-      <div className="flex flex-col md:flex-row">
-        <div className="md:w-1/4 h-48 md:h-auto">
-          <img
-            src={article.image_url || "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b"}
-            alt={article.title}
-            className={`w-full h-full object-cover ${!article.image_url ? 'opacity-50' : ''}`}
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
-            }}
-          />
-        </div>
-        <div className="md:w-3/4 p-6">
-          <CardHeader className="p-0 pb-4">
-            <div className="flex justify-between items-start gap-4">
-              <div className="space-y-1 flex-1">
-                <CardTitle className="text-xl group">
-                  <a
-                    href={article.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-blue-600 hover:underline inline-flex items-center gap-2"
-                  >
-                    {article.title}
-                    <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </a>
-                </CardTitle>
-                <div className="text-sm text-gray-500 flex items-center gap-2">
-                  <span className="font-medium">{article.source}</span>
-                  <span>•</span>
-                  <span>{format(new Date(article.pub_date), 'PPpp', { locale: es })}</span>
-                </div>
-              </div>
-              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 whitespace-nowrap">
-                {article.category}
-              </span>
+    <Card className="overflow-hidden transition-shadow hover:shadow-md">
+      <CardContent className="p-0">
+        <div className="flex flex-col md:flex-row">
+          {article.image_url && (
+            <div className="md:w-1/4 h-48 md:h-auto flex-shrink-0">
+              <img 
+                src={article.image_url} 
+                alt={article.title}
+                className="w-full h-full object-cover"
+              />
             </div>
-          </CardHeader>
-          <CardContent className="p-0 space-y-4">
-            <p className="text-gray-600 leading-relaxed">{article.summary}</p>
-            {article.clients.length > 0 && (
-              <div>
-                <h4 className="font-semibold mb-2 text-sm text-gray-700">Clientes Relevantes:</h4>
+          )}
+          
+          <div className={`${article.image_url ? 'md:w-3/4' : 'w-full'} p-6`}>
+            <div className="flex items-center space-x-2 mb-2">
+              <span className="text-sm font-medium text-muted-foreground">
+                {article.source}
+              </span>
+              <span className="text-muted-foreground">•</span>
+              <span className="text-sm text-muted-foreground">{pubDateFormatted}</span>
+              
+              {article.category && (
+                <Badge variant="outline" className="ml-auto">
+                  {article.category}
+                </Badge>
+              )}
+            </div>
+            
+            <h3 className="font-bold text-xl mb-3">{article.title}</h3>
+            
+            {sanitizedDescription && (
+              <div 
+                className="text-muted-foreground mb-4 prose-sm max-w-none line-clamp-3"
+                dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
+              />
+            )}
+            
+            {article.clients && article.clients.length > 0 && (
+              <div className="mb-4">
+                <span className="text-xs text-muted-foreground block mb-1">Clientes relacionados:</span>
                 <div className="flex flex-wrap gap-2">
                   {article.clients.map((client, index) => (
-                    <span
-                      key={index}
-                      className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700"
-                    >
+                    <Badge key={index} variant="secondary">
                       {client}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>
             )}
-            {article.keywords.length > 0 && (
-              <div>
-                <h4 className="font-semibold mb-2 text-sm text-gray-700">Palabras Clave:</h4>
-                <div className="flex flex-wrap gap-2">
-                  {article.keywords.map((keyword, index) => (
-                    <span
-                      key={index}
-                      className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600"
-                    >
-                      {keyword}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="pt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                asChild
+            
+            <Button variant="outline" size="sm" asChild>
+              <a
+                href={article.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center"
               >
-                <a
-                  href={article.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Ver artículo original
-                </a>
-              </Button>
-            </div>
-          </CardContent>
+                Leer artículo completo
+                <ExternalLink className="ml-2 h-3 w-3" />
+              </a>
+            </Button>
+          </div>
         </div>
-      </div>
-    </Card>
+      </CardContent>
+    </CardContent>
+  </Card>
   );
 };
 

@@ -16,9 +16,11 @@ export const useNewsFeed = () => {
 
   const fetchFeedSources = async () => {
     try {
+      // Only get news sources, exclude social media platforms
       const { data: sourcesData, error } = await supabase
         .from('feed_sources')
         .select('id, name, url, active, last_successful_fetch, last_fetch_error, error_count')
+        .or('platform.eq.news,platform.is.null')
         .order('name');
 
       if (error) throw error;
@@ -52,15 +54,18 @@ export const useNewsFeed = () => {
       const from = (page - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
+      // Get articles from news sources only (platform = 'news' or platform IS NULL)
       let query = supabase
         .from('news_articles')
         .select(`
           *,
           feed_source:feed_source_id (
             name,
-            last_successful_fetch
+            last_successful_fetch,
+            platform
           )
-        `, { count: 'exact' });
+        `, { count: 'exact' })
+        .or('feed_source.platform.eq.news,feed_source.platform.is.null');
 
       // Apply search filter if searchTerm exists
       if (searchTerm) {
