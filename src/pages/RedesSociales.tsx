@@ -21,6 +21,11 @@ const RedesSociales = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
+    // Initial load - fetch posts when the component mounts
+    fetchPosts(1, searchTerm, selectedPlatforms);
+  }, []); // Empty dependency array means this runs once when component mounts
+
+  useEffect(() => {
     // Reset to first page when search term or platforms change
     setCurrentPage(1);
     fetchPosts(1, searchTerm, selectedPlatforms);

@@ -3,7 +3,7 @@
 // https://deno.land/manual/examples/deploy_node_app
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { createClient } from "@supabase/supabase-js";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") as string;
@@ -22,6 +22,82 @@ const SOCIAL_FEEDS = [
     platform: "twitter"
   }
 ];
+
+const processRssJsonFeed = async (supabase, feed, feedSourceId) => {
+  console.log(`Fetching JSON feed: ${feed.url}`);
+  const response = await fetch(feed.url);
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  const feedData = await response.json();
+  
+  if (!feedData.items || !Array.isArray(feedData.items)) {
+    throw new Error("Invalid feed format: items array not found");
+  }
+  
+  console.log(`Found ${feedData.items.length} items in feed`);
+  
+  // Process each item in the feed
+  const articlesToInsert = [];
+  
+  for (const item of feedData.items) {
+    // Check if article already exists by link
+    const { data: existingArticle } = await supabase
+      .from("news_articles")
+      .select("id")
+      .eq("link", item.url || item.link)
+      .maybeSingle();
+    
+    if (existingArticle) {
+      console.log(`Article already exists: ${item.title}`);
+      continue;
+    }
+    
+    // Parse the publication date
+    let pubDate;
+    try {
+      pubDate = new Date(item.date_published || item.pubDate || item.published).toISOString();
+    } catch (e) {
+      console.error(`Error parsing date for "${item.title}": ${e.message}`);
+      pubDate = new Date().toISOString();
+    }
+    
+    const newArticle = {
+      feed_source_id: feedSourceId,
+      title: item.title,
+      description: item.content_html || item.summary || item.description || "",
+      link: item.url || item.link,
+      pub_date: pubDate,
+      source: feed.name,
+      image_url: item.image || (item.attachments && item.attachments[0]?.url) || item.thumbnail,
+      category: "Social Media",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    articlesToInsert.push(newArticle);
+  }
+  
+  // Insert new articles in batch
+  if (articlesToInsert.length > 0) {
+    const { data: insertedArticles, error: insertError } = await supabase
+      .from("news_articles")
+      .insert(articlesToInsert)
+      .select("id");
+    
+    if (insertError) {
+      throw new Error(`Error inserting articles: ${insertError.message}`);
+    }
+    
+    console.log(`Successfully inserted ${insertedArticles.length} articles`);
+    return insertedArticles.length;
+  }
+  
+  console.log(`No new articles to insert for ${feed.name}`);
+  return 0;
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -109,85 +185,13 @@ serve(async (req) => {
           console.log(`Created new feed source with ID: ${feedSourceId}`);
         }
         
-        // Fetch the JSON feed
-        const response = await fetch(feed.url);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        // Process the feed based on its format
+        const insertedCount = await processRssJsonFeed(supabase, feed, feedSourceId);
         
-        const feedData = await response.json();
-        
-        if (!feedData.items || !Array.isArray(feedData.items)) {
-          throw new Error("Invalid feed format: items array not found");
-        }
-        
-        console.log(`Found ${feedData.items.length} items in feed`);
-        
-        // Process each item in the feed
-        const articlesToInsert = [];
-        
-        for (const item of feedData.items) {
-          // Check if article already exists by link
-          const { data: existingArticle } = await supabase
-            .from("news_articles")
-            .select("id")
-            .eq("link", item.url)
-            .maybeSingle();
-          
-          if (existingArticle) {
-            console.log(`Article already exists: ${item.title}`);
-            continue;
-          }
-          
-          // Parse the publication date
-          let pubDate;
-          try {
-            pubDate = new Date(item.date_published).toISOString();
-            console.log(`Parsed date for "${item.title}": ${pubDate}`);
-          } catch (e) {
-            console.error(`Error parsing date for "${item.title}": ${e.message}`);
-            pubDate = new Date().toISOString();
-          }
-          
-          const newArticle = {
-            feed_source_id: feedSourceId,
-            title: item.title,
-            description: item.content_html || item.summary,
-            link: item.url,
-            pub_date: pubDate,
-            source: feed.name,
-            image_url: item.image || (item.attachments && item.attachments[0]?.url),
-            category: "Social Media",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          
-          articlesToInsert.push(newArticle);
-        }
-        
-        // Insert new articles in batch
-        if (articlesToInsert.length > 0) {
-          const { data: insertedArticles, error: insertError } = await supabase
-            .from("news_articles")
-            .insert(articlesToInsert)
-            .select("id");
-          
-          if (insertError) {
-            throw new Error(`Error inserting articles: ${insertError.message}`);
-          }
-          
-          console.log(`Successfully inserted ${insertedArticles.length} articles`);
-          results.push({
-            feed: feed.name,
-            inserted: insertedArticles.length
-          });
-        } else {
-          console.log(`No new articles to insert for ${feed.name}`);
-          results.push({
-            feed: feed.name,
-            inserted: 0
-          });
-        }
+        results.push({
+          feed: feed.name,
+          inserted: insertedCount
+        });
       } catch (error) {
         console.error(`Error processing feed ${feed.name}: ${error.message}`);
         
