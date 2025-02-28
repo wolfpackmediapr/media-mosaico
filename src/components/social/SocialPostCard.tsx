@@ -27,8 +27,17 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   // Track image loading state
   const [imageError, setImageError] = useState(false);
   
-  // Determine which image to display - prioritize actual post image
-  const imageToUse = imageError ? placeholderImage : (post.image_url || contentImage || placeholderImage);
+  // Get the profile image URL from the feed_source if available
+  const profileImageUrl = post.feed_source?.profile_image_url;
+  
+  // Determine which image to display - prioritize:
+  // 1. Post image if available and not errored
+  // 2. Content extracted image if available
+  // 3. Profile image if available
+  // 4. Generic placeholder as last resort
+  const imageToUse = imageError 
+    ? (profileImageUrl || placeholderImage)
+    : (post.image_url || contentImage || profileImageUrl || placeholderImage);
   
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">

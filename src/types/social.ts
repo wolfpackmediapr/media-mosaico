@@ -10,6 +10,11 @@ export interface SocialPost {
   platform: string;
   platform_display_name?: string;
   platform_icon?: string;
+  feed_source?: {
+    profile_image_url?: string | null;
+    name?: string;
+    platform?: string;
+  };
 }
 
 export interface SocialPlatform {

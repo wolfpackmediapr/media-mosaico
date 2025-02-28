@@ -1,3 +1,4 @@
+
 import type { SocialPost, SocialPlatform } from "@/types/social";
 import { extractImageFromHtml } from "./content-sanitizer";
 
@@ -43,7 +44,12 @@ export const transformArticlesToPosts = (articlesData: any[]): SocialPost[] => {
       image_url: image,
       platform: article.feed_source?.platform || 'social_media',
       platform_display_name: article.feed_source?.name || article.feed_source?.platform_display_name || article.feed_source?.platform || 'Social Media',
-      platform_icon: article.feed_source?.platform_icon
+      platform_icon: article.feed_source?.platform_icon,
+      feed_source: article.feed_source ? {
+        profile_image_url: article.feed_source.profile_image_url,
+        name: article.feed_source.name,
+        platform: article.feed_source.platform
+      } : undefined
     };
   });
 };
