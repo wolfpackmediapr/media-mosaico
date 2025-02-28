@@ -6,6 +6,9 @@ import type { SocialPost, SocialPlatform } from "@/types/social";
 
 const ITEMS_PER_PAGE = 10;
 
+// List of social media platforms to include
+const SOCIAL_PLATFORMS = ['twitter', 'facebook', 'instagram', 'youtube', 'linkedin', 'social_media'];
+
 export const useSocialFeeds = () => {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [platforms, setPlatforms] = useState<SocialPlatform[]>([]);
@@ -16,11 +19,11 @@ export const useSocialFeeds = () => {
 
   const fetchPlatforms = async () => {
     try {
-      // Using a raw SQL query with .from('platform_counts') virtual view instead of RPC
-      // This avoids the TypeScript error while still getting the same data
+      // Only get social media platforms, exclude news platforms
       const { data, error } = await supabase
         .from('feed_sources')
         .select('platform, platform_display_name')
+        .in('platform', SOCIAL_PLATFORMS)
         .not('platform', 'is', null)
         .order('platform');
 
@@ -31,10 +34,11 @@ export const useSocialFeeds = () => {
         const platformCounts: Record<string, number> = {};
         const platformNames: Record<string, string> = {};
         
-        // Get all news articles to count by platform
+        // Get all social media posts to count by platform
         const { data: articles, error: articlesError } = await supabase
           .from('news_articles')
-          .select('id, feed_source_id, feed_source:feed_source_id(platform)');
+          .select('id, feed_source_id, feed_source:feed_source_id(platform)')
+          .in('feed_source.platform', SOCIAL_PLATFORMS);
           
         if (articlesError) throw articlesError;
         
@@ -99,7 +103,8 @@ export const useSocialFeeds = () => {
             platform_icon,
             last_successful_fetch
           )
-        `, { count: 'exact' });
+        `, { count: 'exact' })
+        .in('feed_source.platform', SOCIAL_PLATFORMS); // Only include social media platforms
 
       // Filter by platform if specified
       if (selectedPlatforms.length > 0) {
@@ -129,10 +134,10 @@ export const useSocialFeeds = () => {
           description: article.description || '',
           link: article.link,
           pub_date: article.pub_date,
-          source: article.source,
+          source: article.feed_source?.name || article.source,
           image_url: article.image_url,
-          platform: article.feed_source?.platform || 'news',
-          platform_display_name: article.feed_source?.platform_display_name || article.feed_source?.platform || 'News',
+          platform: article.feed_source?.platform || 'social_media',
+          platform_display_name: article.feed_source?.platform_display_name || article.feed_source?.platform || 'Social Media',
           platform_icon: article.feed_source?.platform_icon
         }));
 
