@@ -88,8 +88,7 @@ const NewsArticleCard = ({ article }: NewsArticleCardProps) => {
           </div>
         </div>
       </CardContent>
-    </CardContent>
-  </Card>
+    </Card>
   );
 };
 
