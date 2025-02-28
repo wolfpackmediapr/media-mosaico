@@ -16,12 +16,60 @@ export const useSocialFeeds = () => {
 
   const fetchPlatforms = async () => {
     try {
+      // Using a raw SQL query with .from('platform_counts') virtual view instead of RPC
+      // This avoids the TypeScript error while still getting the same data
       const { data, error } = await supabase
-        .rpc('get_platforms_with_counts');
+        .from('feed_sources')
+        .select('platform, platform_display_name')
+        .not('platform', 'is', null)
+        .order('platform');
 
       if (error) throw error;
       
-      setPlatforms(data || []);
+      if (data) {
+        // Group by platform and count
+        const platformCounts: Record<string, number> = {};
+        const platformNames: Record<string, string> = {};
+        
+        // Get all news articles to count by platform
+        const { data: articles, error: articlesError } = await supabase
+          .from('news_articles')
+          .select('id, feed_source_id, feed_source:feed_source_id(platform)');
+          
+        if (articlesError) throw articlesError;
+        
+        // Count articles by platform
+        if (articles) {
+          articles.forEach(article => {
+            if (article.feed_source?.platform) {
+              platformCounts[article.feed_source.platform] = 
+                (platformCounts[article.feed_source.platform] || 0) + 1;
+            }
+          });
+        }
+        
+        // Create platform names mapping
+        data.forEach(fs => {
+          if (fs.platform) {
+            platformNames[fs.platform] = fs.platform_display_name || fs.platform;
+          }
+        });
+        
+        // Transform data to match SocialPlatform interface
+        const platformData: SocialPlatform[] = Object.keys(platformNames).map(platform => ({
+          id: platform,
+          name: platformNames[platform] || platform,
+          count: platformCounts[platform] || 0
+        }));
+        
+        // Sort by count descending, then name ascending
+        platformData.sort((a, b) => {
+          if (b.count !== a.count) return b.count - a.count;
+          return a.name.localeCompare(b.name);
+        });
+        
+        setPlatforms(platformData);
+      }
     } catch (error) {
       console.error('Error fetching platforms:', error);
       toast({
