@@ -26,6 +26,35 @@ const SOCIAL_FEEDS = [
 // Number of posts to fetch per feed
 const POSTS_PER_FEED = 10;
 
+// Clean up HTML content for better display
+const cleanHtmlContent = (html: string): string => {
+  if (!html) return '';
+  
+  // Remove script tags
+  let cleaned = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  
+  // Remove excessive newlines and spaces
+  cleaned = cleaned.replace(/\n\s+/g, '\n').trim();
+  
+  return cleaned;
+};
+
+// Extract image URL from content if possible
+const extractImageUrl = (item: any): string | null => {
+  // Try different image sources in order of preference
+  return item.image || 
+         (item.attachments && item.attachments[0]?.url) || 
+         item.thumbnail ||
+         item.media_content ||
+         extractImageFromHtml(item.content_html || item.description || '');
+};
+
+// Extract image from HTML content
+const extractImageFromHtml = (html: string): string | null => {
+  const imgMatch = html.match(/<img[^>]+src="([^">]+)"/);
+  return imgMatch ? imgMatch[1] : null;
+};
+
 const processRssJsonFeed = async (supabase, feed, feedSourceId) => {
   console.log(`Fetching JSON feed: ${feed.url}`);
   const response = await fetch(feed.url);
@@ -47,11 +76,17 @@ const processRssJsonFeed = async (supabase, feed, feedSourceId) => {
   const itemsToProcess = feedData.items.slice(0, POSTS_PER_FEED);
   
   for (const item of itemsToProcess) {
+    const linkUrl = item.url || item.link;
+    if (!linkUrl) {
+      console.warn(`Skipping item without URL: ${item.title}`);
+      continue;
+    }
+    
     // Check if article already exists by link
     const { data: existingArticle } = await supabase
       .from("news_articles")
       .select("id")
-      .eq("link", item.url || item.link)
+      .eq("link", linkUrl)
       .maybeSingle();
     
     if (existingArticle) {
@@ -68,14 +103,22 @@ const processRssJsonFeed = async (supabase, feed, feedSourceId) => {
       pubDate = new Date().toISOString();
     }
     
+    // Get the best description content (prefer content_html over summary over description)
+    const description = cleanHtmlContent(
+      item.content_html || item.content || item.summary || item.description || ""
+    );
+    
+    // Extract image URL
+    const imageUrl = extractImageUrl(item);
+    
     const newArticle = {
       feed_source_id: feedSourceId,
       title: item.title,
-      description: item.content_html || item.summary || item.description || "",
-      link: item.url || item.link,
+      description: description,
+      link: linkUrl,
       pub_date: pubDate,
       source: feed.name,
-      image_url: item.image || (item.attachments && item.attachments[0]?.url) || item.thumbnail,
+      image_url: imageUrl,
       category: "Social Media",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -114,6 +157,7 @@ serve(async (req) => {
     const requestData = await req.json();
     const timestamp = requestData.timestamp || new Date().toISOString();
     const specificFeed = requestData.specificFeed;
+    const forceFetch = requestData.forceFetch || false;
 
     console.log(`Starting social feed processing at ${timestamp}`);
 
@@ -208,7 +252,7 @@ serve(async (req) => {
           // Update feed source with error if it exists
           const { data: existingSource } = await supabase
             .from("feed_sources")
-            .select("id")
+            .select("id, error_count")
             .eq("url", feed.url)
             .maybeSingle();
             

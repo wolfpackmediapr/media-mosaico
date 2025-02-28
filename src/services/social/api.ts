@@ -5,7 +5,7 @@ import type { SocialPost, SocialPlatform } from "@/types/social";
 // List of social media platforms to include
 export const SOCIAL_PLATFORMS = ['twitter', 'facebook', 'instagram', 'youtube', 'linkedin', 'social_media'];
 
-// Social feed URLs
+// Social feed URLs - ensure we're using the correct .json format
 export const SOCIAL_FEED_URLS = [
   "https://rss.app/feeds/v1.1/nrAbJHacD1J6WUYp.json",
   "https://rss.app/feeds/v1.1/zk9arb6A8VuE0TNe.json"
@@ -120,7 +120,8 @@ export const refreshSocialFeeds = async () => {
 
   const { data, error } = await supabase.functions.invoke('process-social-feeds', {
     body: { 
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      forceFetch: true // Add this flag to force fetching even if no changes
     }
   });
 

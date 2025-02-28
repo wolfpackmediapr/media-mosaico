@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { platformIcons } from "@/lib/platform-icons";
 import type { SocialPost } from "@/types/social";
+import { sanitizeSocialContent } from "@/services/social/content-sanitizer";
 
 interface SocialPostCardProps {
   post: SocialPost;
@@ -13,6 +14,7 @@ interface SocialPostCardProps {
 
 const SocialPostCard = ({ post }: SocialPostCardProps) => {
   const PlatformIcon = platformIcons[post.platform] || platformIcons.news;
+  const sanitizedDescription = sanitizeSocialContent(post.description);
   
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
@@ -37,8 +39,11 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
             </Badge>
           </div>
           <h3 className="font-bold text-lg mb-2 line-clamp-2">{post.title}</h3>
-          {post.description && (
-            <p className="text-muted-foreground line-clamp-3 mb-2">{post.description}</p>
+          {sanitizedDescription && (
+            <div 
+              className="text-muted-foreground mb-2 prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
+            />
           )}
         </div>
       </CardContent>
