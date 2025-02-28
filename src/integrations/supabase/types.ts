@@ -171,6 +171,9 @@ export type Database = {
           last_fetch_error: string | null
           last_successful_fetch: string | null
           name: string
+          platform: string | null
+          platform_display_name: string | null
+          platform_icon: string | null
           updated_at: string
           url: string
         }
@@ -182,6 +185,9 @@ export type Database = {
           last_fetch_error?: string | null
           last_successful_fetch?: string | null
           name: string
+          platform?: string | null
+          platform_display_name?: string | null
+          platform_icon?: string | null
           updated_at?: string
           url: string
         }
@@ -193,6 +199,9 @@ export type Database = {
           last_fetch_error?: string | null
           last_successful_fetch?: string | null
           name?: string
+          platform?: string | null
+          platform_display_name?: string | null
+          platform_icon?: string | null
           updated_at?: string
           url?: string
         }

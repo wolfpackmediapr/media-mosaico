@@ -1,0 +1,169 @@
+
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import type { SocialPost, SocialPlatform } from "@/types/social";
+
+const ITEMS_PER_PAGE = 10;
+
+export const useSocialFeeds = () => {
+  const [posts, setPosts] = useState<SocialPost[]>([]);
+  const [platforms, setPlatforms] = useState<SocialPlatform[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const { toast } = useToast();
+
+  const fetchPlatforms = async () => {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_platforms_with_counts');
+
+      if (error) throw error;
+      
+      setPlatforms(data || []);
+    } catch (error) {
+      console.error('Error fetching platforms:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las plataformas",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchPosts = async (page: number, searchTerm: string = '', selectedPlatforms: string[] = []) => {
+    try {
+      console.log('Fetching posts for page:', page, 'search:', searchTerm, 'platforms:', selectedPlatforms);
+      setIsLoading(true);
+      
+      const from = (page - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      let query = supabase
+        .from('news_articles')
+        .select(`
+          *,
+          feed_source:feed_source_id (
+            name,
+            platform,
+            platform_display_name,
+            platform_icon,
+            last_successful_fetch
+          )
+        `, { count: 'exact' });
+
+      // Filter by platform if specified
+      if (selectedPlatforms.length > 0) {
+        query = query.in('feed_source.platform', selectedPlatforms);
+      }
+
+      // Apply search filter if searchTerm exists
+      if (searchTerm) {
+        const searchPattern = `%${searchTerm}%`;
+        query = query.or(`title.ilike.${searchPattern},description.ilike.${searchPattern}`);
+      }
+
+      // Get total count and paginated results
+      const { data: articlesData, error, count } = await query
+        .order('pub_date', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      
+      setTotalCount(count || 0);
+
+      if (articlesData) {
+        // Transform the data to include platform information
+        const transformedPosts: SocialPost[] = articlesData.map(article => ({
+          id: article.id,
+          title: article.title,
+          description: article.description || '',
+          link: article.link,
+          pub_date: article.pub_date,
+          source: article.source,
+          image_url: article.image_url,
+          platform: article.feed_source?.platform || 'news',
+          platform_display_name: article.feed_source?.platform_display_name || article.feed_source?.platform || 'News',
+          platform_icon: article.feed_source?.platform_icon
+        }));
+
+        setPosts(transformedPosts);
+      }
+
+      // Fetch platforms with counts
+      await fetchPlatforms();
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las publicaciones",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refreshFeeds = async () => {
+    setIsRefreshing(true);
+    try {
+      console.log('Refreshing social feeds...');
+      
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        throw new Error('Error al verificar la sesión');
+      }
+      
+      if (!session) {
+        toast({
+          title: "Error de autenticación",
+          description: "Debe iniciar sesión para actualizar el feed",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('process-rss-feed', {
+        body: { timestamp: new Date().toISOString() }
+      });
+
+      if (error) {
+        console.error('Function error:', error);
+        throw error;
+      }
+      
+      console.log('Social feed refresh response:', data);
+      
+      // Reset to first page after refresh
+      await fetchPosts(1);
+      await fetchPlatforms();
+
+      toast({
+        title: "¡Éxito!",
+        description: "Feeds de redes sociales actualizados correctamente",
+      });
+    } catch (error) {
+      console.error('Error refreshing feeds:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "No se pudieron actualizar los feeds",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  return {
+    posts,
+    platforms,
+    isLoading,
+    isRefreshing,
+    totalCount,
+    fetchPosts,
+    fetchPlatforms,
+    refreshFeeds,
+  };
+};

@@ -25,3 +25,28 @@ begin
   );
 end;
 $$;
+
+-- Function to get platforms with post counts
+create or replace function get_platforms_with_counts()
+returns table (
+  id text,
+  name text,
+  count bigint
+)
+language sql
+as $$
+  select 
+    fs.platform as id,
+    coalesce(fs.platform_display_name, initcap(fs.platform)) as name,
+    count(na.id) as count
+  from 
+    feed_sources fs
+  left join 
+    news_articles na on fs.id = na.feed_source_id
+  where 
+    fs.platform is not null
+  group by 
+    fs.platform, fs.platform_display_name
+  order by 
+    count desc, name asc;
+$$;
