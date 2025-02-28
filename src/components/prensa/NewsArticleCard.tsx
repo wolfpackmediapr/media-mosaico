@@ -1,6 +1,6 @@
 
 import { ExternalLink } from "lucide-react";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
@@ -31,7 +31,7 @@ const NewsArticleCard = ({ article }: NewsArticleCardProps) => {
             <div className="md:w-1/4 h-48 md:h-auto flex-shrink-0">
               <img 
                 src={article.image_url} 
-                alt={article.title}
+                alt={article.title || "Article image"}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -40,7 +40,7 @@ const NewsArticleCard = ({ article }: NewsArticleCardProps) => {
           <div className={`${article.image_url ? 'md:w-3/4' : 'w-full'} p-6`}>
             <div className="flex items-center space-x-2 mb-2">
               <span className="text-sm font-medium text-muted-foreground">
-                {article.source}
+                {article.source || (article.feed_source?.name || "")}
               </span>
               <span className="text-muted-foreground">•</span>
               <span className="text-sm text-muted-foreground">{pubDateFormatted}</span>

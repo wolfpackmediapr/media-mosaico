@@ -54,45 +54,74 @@ export const useNewsFeed = () => {
       const from = (page - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
-      // Build the query to get articles
-      let query = supabase
+      // Get all articles first and then filter in application code if needed
+      const { data: articlesData, error, count } = await supabase
         .from('news_articles')
         .select(`
           *,
-          feed_source:feed_source_id (
-            name,
-            last_successful_fetch,
-            platform
-          )
-        `, { count: 'exact' });
-
-      // Filter by news platform or null platform
-      // Fix for the query syntax issue
-      query = query.or('feed_source.platform.eq.news,feed_source.platform.is.null');
-
-      // Apply search filter if searchTerm exists
-      if (searchTerm) {
-        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`);
-      }
-
-      // Get total count and paginated results
-      const { data: articlesData, error, count } = await query
+          feed_source:feed_source_id(*)
+        `, { count: 'exact' })
         .order('pub_date', { ascending: false })
         .range(from, to);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database query error:', error);
+        throw error;
+      }
 
-      console.log('Fetched articles:', articlesData, 'Total count:', count);
+      console.log('Fetched articles data:', articlesData);
+      
+      if (!articlesData || articlesData.length === 0) {
+        console.log('No articles found, setting empty array');
+        setArticles([]);
+        setTotalCount(0);
+        return;
+      }
       
       setTotalCount(count || 0);
 
-      const convertedArticles: NewsArticle[] = (articlesData || []).map(article => ({
-        ...article,
-        clients: Array.isArray(article.clients) ? article.clients : 
-                typeof article.clients === 'string' ? [article.clients] : 
-                article.clients ? (article.clients as any) : []
-      }));
+      // Transform the article data to match NewsArticle type
+      const convertedArticles: NewsArticle[] = articlesData.map(article => {
+        // Handle clients array properly
+        let clients: string[] = [];
+        if (article.clients) {
+          if (Array.isArray(article.clients)) {
+            clients = article.clients;
+          } else if (typeof article.clients === 'string') {
+            clients = [article.clients];
+          } else if (typeof article.clients === 'object') {
+            // Handle clients as JSONB object
+            try {
+              const clientsObj = article.clients as Record<string, any>;
+              clients = Object.values(clientsObj).filter(Boolean).map(String);
+            } catch (e) {
+              console.error('Error parsing clients:', e);
+            }
+          }
+        }
 
+        // Create a properly structured NewsArticle object
+        return {
+          id: article.id,
+          title: article.title || '',
+          description: article.description || '',
+          link: article.link || '',
+          pub_date: article.pub_date || '',
+          source: article.source || '',
+          summary: article.summary || '',
+          category: article.category || '',
+          clients: clients,
+          keywords: Array.isArray(article.keywords) ? article.keywords : [],
+          image_url: article.image_url || undefined,
+          last_processed: article.last_processed || undefined,
+          feed_source: article.feed_source ? {
+            name: article.feed_source.name || '',
+            last_successful_fetch: article.feed_source.last_successful_fetch
+          } : undefined
+        };
+      });
+
+      console.log('Processed articles:', convertedArticles);
       setArticles(convertedArticles);
     } catch (error) {
       console.error('Error fetching articles:', error);
@@ -101,6 +130,8 @@ export const useNewsFeed = () => {
         description: "No se pudieron cargar los artículos",
         variant: "destructive",
       });
+      // Set empty articles in case of error
+      setArticles([]);
     } finally {
       setIsLoading(false);
     }
