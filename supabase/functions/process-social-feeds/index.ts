@@ -23,6 +23,9 @@ const SOCIAL_FEEDS = [
   }
 ];
 
+// Number of posts to fetch per feed
+const POSTS_PER_FEED = 10;
+
 const processRssJsonFeed = async (supabase, feed, feedSourceId) => {
   console.log(`Fetching JSON feed: ${feed.url}`);
   const response = await fetch(feed.url);
@@ -37,12 +40,13 @@ const processRssJsonFeed = async (supabase, feed, feedSourceId) => {
     throw new Error("Invalid feed format: items array not found");
   }
   
-  console.log(`Found ${feedData.items.length} items in feed`);
+  console.log(`Found ${feedData.items.length} items in feed, will process up to ${POSTS_PER_FEED}`);
   
-  // Process each item in the feed
+  // Process only the latest posts (up to POSTS_PER_FEED)
   const articlesToInsert = [];
+  const itemsToProcess = feedData.items.slice(0, POSTS_PER_FEED);
   
-  for (const item of feedData.items) {
+  for (const item of itemsToProcess) {
     // Check if article already exists by link
     const { data: existingArticle } = await supabase
       .from("news_articles")
@@ -91,7 +95,7 @@ const processRssJsonFeed = async (supabase, feed, feedSourceId) => {
       throw new Error(`Error inserting articles: ${insertError.message}`);
     }
     
-    console.log(`Successfully inserted ${insertedArticles.length} articles`);
+    console.log(`Successfully inserted ${insertedArticles.length} articles from ${feed.name}`);
     return insertedArticles.length;
   }
   
@@ -143,11 +147,15 @@ serve(async (req) => {
         let feedSourceId;
         
         // Check if feed source already exists
-        const { data: existingSource } = await supabase
+        const { data: existingSource, error: sourceQueryError } = await supabase
           .from("feed_sources")
           .select("id")
           .eq("url", feed.url)
-          .single();
+          .maybeSingle();
+        
+        if (sourceQueryError) {
+          console.error(`Error checking for existing feed source: ${sourceQueryError.message}`);
+        }
         
         if (existingSource) {
           feedSourceId = existingSource.id;
@@ -194,24 +202,37 @@ serve(async (req) => {
         });
       } catch (error) {
         console.error(`Error processing feed ${feed.name}: ${error.message}`);
+        console.error(error.stack);
         
-        // Update feed source with error
-        await supabase
-          .from("feed_sources")
-          .update({
-            last_fetch_error: error.message,
-            error_count: supabase.rpc("increment", { row_id: feed.url })
-          })
-          .eq("url", feed.url);
-        
-        // Log the error in the processing_errors table
-        await supabase
-          .from("processing_errors")
-          .insert({
-            stage: "feed_processing",
-            error_message: error.message,
-            article_info: { feed_url: feed.url, feed_name: feed.name }
-          });
+        try {
+          // Update feed source with error if it exists
+          const { data: existingSource } = await supabase
+            .from("feed_sources")
+            .select("id")
+            .eq("url", feed.url)
+            .maybeSingle();
+            
+          if (existingSource) {
+            await supabase
+              .from("feed_sources")
+              .update({
+                last_fetch_error: error.message,
+                error_count: existingSource.error_count ? existingSource.error_count + 1 : 1
+              })
+              .eq("url", feed.url);
+          }
+          
+          // Log the error in the processing_errors table
+          await supabase
+            .from("processing_errors")
+            .insert({
+              stage: "feed_processing",
+              error_message: error.message,
+              article_info: { feed_url: feed.url, feed_name: feed.name }
+            });
+        } catch (logError) {
+          console.error(`Failed to log error: ${logError.message}`);
+        }
         
         results.push({
           feed: feed.name,
@@ -234,6 +255,7 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error(`Global error: ${error.message}`);
+    console.error(error.stack);
     
     return new Response(
       JSON.stringify({ 

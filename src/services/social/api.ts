@@ -5,8 +5,11 @@ import type { SocialPost, SocialPlatform } from "@/types/social";
 // List of social media platforms to include
 export const SOCIAL_PLATFORMS = ['twitter', 'facebook', 'instagram', 'youtube', 'linkedin', 'social_media'];
 
-// Jay Fonseca feed URL
-export const JAY_FONSECA_FEED = "https://rss.app/feeds/nrAbJHacD1J6WUYp.xml";
+// Social feed URLs
+export const SOCIAL_FEED_URLS = [
+  "https://rss.app/feeds/v1.1/nrAbJHacD1J6WUYp.json",
+  "https://rss.app/feeds/v1.1/zk9arb6A8VuE0TNe.json"
+];
 
 // Constants
 export const ITEMS_PER_PAGE = 10;
@@ -27,11 +30,11 @@ export const fetchPlatformsData = async () => {
 
 // Fetch platform counts
 export const fetchPlatformCounts = async () => {
-  // Get feed source IDs for Jay Fonseca's feed
+  // Get feed source IDs for social feeds
   const { data: feedSources } = await supabase
     .from('feed_sources')
     .select('id')
-    .eq('url', JAY_FONSECA_FEED);
+    .in('url', SOCIAL_FEED_URLS);
   
   const feedSourceIds = feedSources?.map(fs => fs.id) || [];
   
@@ -54,11 +57,11 @@ export const fetchSocialPosts = async (
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Get feed source IDs for Jay Fonseca's feed
+  // Get feed source IDs for social feeds
   const { data: feedSources } = await supabase
     .from('feed_sources')
     .select('id')
-    .eq('url', JAY_FONSECA_FEED);
+    .in('url', SOCIAL_FEED_URLS);
   
   const feedSourceIds = feedSources?.map(fs => fs.id) || [];
   
@@ -66,6 +69,8 @@ export const fetchSocialPosts = async (
   if (feedSourceIds.length === 0) {
     return { data: [], count: 0 };
   }
+
+  console.log(`Fetching posts from feed sources: ${feedSourceIds.join(', ')}`);
 
   let query = supabase
     .from('news_articles')
