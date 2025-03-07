@@ -50,7 +50,11 @@ export const useVideoProcessor = () => {
             body: { videoPath: file.name }
           });
 
-        if (conversionError) throw conversionError;
+        if (conversionError) {
+          console.error("Conversion error:", conversionError);
+          throw new Error(`Error converting video: ${conversionError.message}`);
+        }
+        
         console.log("Conversion response:", conversionData);
 
         setProgress(50);
@@ -64,7 +68,11 @@ export const useVideoProcessor = () => {
             }
           });
 
-        if (processError) throw processError;
+        if (processError) {
+          console.error("Transcription error:", processError);
+          throw new Error(`Error transcribing audio: ${processError.message}`);
+        }
+        
         setProgress(80);
 
         console.log("Transcription result:", transcriptionResult);
@@ -101,7 +109,10 @@ export const useVideoProcessor = () => {
             }
           });
 
-        if (processError) throw processError;
+        if (processError) {
+          console.error("Transcription error:", processError);
+          throw new Error(`Error transcribing video: ${processError.message}`);
+        }
         
         console.log("Transcription result for small file:", transcriptionResult);
 

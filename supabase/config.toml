@@ -11,7 +11,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.transcribe-video]
-verify_jwt = true
+verify_jwt = false
 
 [functions.secure-transcribe]
 verify_jwt = true
