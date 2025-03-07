@@ -25,7 +25,7 @@ const RedesSociales = () => {
     isLoading: isPostsLoading
   } = fetchPostsQuery(currentPage, searchTerm, selectedPlatforms);
 
-  const { posts, totalCount } = data;
+  const { posts = [], totalCount = 0 } = data;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const handleSearch = (search: string) => {

@@ -25,7 +25,7 @@ const Prensa = () => {
     isLoading: isArticlesLoading
   } = fetchArticlesQuery(currentPage, searchTerm);
 
-  const { articles, totalCount } = data;
+  const { articles = [], totalCount = 0 } = data;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const handleSearch = (search: string) => {
