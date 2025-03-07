@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -59,20 +58,11 @@ export const useFileUpload = () => {
 
       console.log("Uploading file:", fileName);
 
-      // For larger files, update progress more frequently
-      let chunkSize = 1024 * 1024; // 1MB chunks
-      let uploaded = 0;
-      
-      const { error: uploadError } = await supabase.storage
+      const { data, error: uploadError } = await supabase.storage
         .from('media')
         .upload(fileName, file, {
           cacheControl: '3600',
-          upsert: false,
-          onUploadProgress: (progress) => {
-            uploaded += progress.loaded;
-            const percentage = Math.round((uploaded / file.size) * 100);
-            setUploadProgress(percentage);
-          }
+          upsert: false
         });
 
       if (uploadError) {
@@ -82,6 +72,8 @@ export const useFileUpload = () => {
         }
         throw uploadError;
       }
+
+      setUploadProgress(100);
 
       const { error: dbError } = await supabase
         .from('transcriptions')
