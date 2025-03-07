@@ -13,7 +13,7 @@ const Prensa = () => {
   const [currentPage, setCurrentPage] = useState(1);
   
   const { 
-    feedSources = [], 
+    feedSources = [] as FeedSource[], 
     isSourcesLoading,
     fetchArticlesQuery,
     isRefreshing, 
@@ -21,7 +21,7 @@ const Prensa = () => {
   } = useNewsFeed();
 
   const { 
-    data = { articles: [], totalCount: 0 },
+    data = { articles: [] as NewsArticle[], totalCount: 0 },
     isLoading: isArticlesLoading
   } = fetchArticlesQuery(currentPage, searchTerm);
 

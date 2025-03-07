@@ -13,7 +13,7 @@ const RedesSociales = () => {
   const [currentPage, setCurrentPage] = useState(1);
   
   const { 
-    platforms = [], 
+    platforms = [] as SocialPlatform[], 
     isPlatformsLoading,
     fetchPostsQuery,
     isRefreshing, 
@@ -21,7 +21,7 @@ const RedesSociales = () => {
   } = useSocialFeeds();
 
   const { 
-    data = { posts: [], totalCount: 0 },
+    data = { posts: [] as SocialPost[], totalCount: 0 },
     isLoading: isPostsLoading
   } = fetchPostsQuery(currentPage, searchTerm, selectedPlatforms);
 
