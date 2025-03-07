@@ -1,7 +1,6 @@
 
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { NewsArticle, FeedSource } from "@/types/prensa";
 import { 
   fetchNewsSourcesFromDatabase, 
@@ -14,129 +13,85 @@ import {
   transformDatabaseArticlesToNewsArticles 
 } from "@/services/news/transforms";
 import { handleNewsFeedError } from "@/services/news/error-handler";
-import { getCachedData, saveCacheData } from "@/utils/cache-utils";
 
 export const useNewsFeed = () => {
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [feedSources, setFeedSources] = useState<FeedSource[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  // Query for feed sources
-  const { 
-    data: feedSources = [], 
-    isLoading: isSourcesLoading
-  } = useQuery({
-    queryKey: ['feedSources'],
-    queryFn: async () => {
-      try {
-        // Check cache first
-        const cachedSources = getCachedData('feedSources');
-        if (cachedSources) {
-          console.log('Using cached feed sources');
-          return cachedSources;
-        }
-
-        const sourcesData = await fetchNewsSourcesFromDatabase();
-        const transformedSources = transformSourcesToFeedSources(sourcesData);
-        
-        // Save to cache
-        saveCacheData('feedSources', transformedSources);
-        
-        return transformedSources;
-      } catch (error) {
-        handleNewsFeedError(error, "sources", toast);
-        return [];
-      }
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
-  // Query for articles
-  const fetchArticlesQuery = (page: number, searchTerm: string = '') => {
-    return useQuery({
-      queryKey: ['articles', page, searchTerm],
-      queryFn: async () => {
-        try {
-          console.log('Fetching articles for page:', page, 'search:', searchTerm);
-          
-          // Check cache first for non-search requests
-          if (!searchTerm) {
-            const cacheKey = `articles_page_${page}`;
-            const cachedArticles = getCachedData(cacheKey);
-            if (cachedArticles) {
-              console.log('Using cached articles for page', page);
-              return cachedArticles;
-            }
-          }
-          
-          const { articlesData, count } = await fetchArticlesFromDatabase(page, searchTerm);
-          
-          if (!articlesData || articlesData.length === 0) {
-            console.log('No articles found, setting empty array');
-            return { articles: [], totalCount: 0 };
-          }
-          
-          const convertedArticles = transformDatabaseArticlesToNewsArticles(articlesData);
-          const result = { 
-            articles: convertedArticles, 
-            totalCount: count || 0
-          };
-          
-          // Save to cache if not a search request
-          if (!searchTerm) {
-            saveCacheData(`articles_page_${page}`, result);
-          }
-          
-          console.log('Processed articles:', convertedArticles);
-          return result;
-        } catch (error) {
-          handleNewsFeedError(error, "articles", toast);
-          return { articles: [], totalCount: 0 };
-        }
-      },
-      staleTime: 2 * 60 * 1000, // 2 minutes
-      placeholderData: (previousData) => previousData // This replaces keepPreviousData
-    });
+  const fetchFeedSources = async () => {
+    try {
+      const sourcesData = await fetchNewsSourcesFromDatabase();
+      const typedSources = transformSourcesToFeedSources(sourcesData);
+      setFeedSources(typedSources);
+    } catch (error) {
+      handleNewsFeedError(error, "sources", toast);
+    }
   };
 
-  // Mutation for refreshing feed
-  const refreshFeedMutation = useMutation({
-    mutationFn: refreshNewsFeedViaFunction,
-    onMutate: () => {
-      setIsRefreshing(true);
-      console.log('Refreshing feed...');
-    },
-    onSuccess: async () => {
-      console.log('Feed refreshed successfully');
+  const fetchArticles = async (page: number, searchTerm: string = '') => {
+    try {
+      console.log('Fetching articles for page:', page, 'search:', searchTerm);
+      setIsLoading(true);
       
-      // Invalidate queries to refetch data
+      const { articlesData, count } = await fetchArticlesFromDatabase(page, searchTerm);
+      
+      if (!articlesData || articlesData.length === 0) {
+        console.log('No articles found, setting empty array');
+        setArticles([]);
+        setTotalCount(0);
+        return;
+      }
+      
+      setTotalCount(count || 0);
+      const convertedArticles = transformDatabaseArticlesToNewsArticles(articlesData);
+      
+      console.log('Processed articles:', convertedArticles);
+      setArticles(convertedArticles);
+    } catch (error) {
+      handleNewsFeedError(error, "articles", toast);
+      // Set empty articles in case of error
+      setArticles([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refreshFeed = async () => {
+    setIsRefreshing(true);
+    try {
+      console.log('Refreshing feed...');
+      
+      const data = await refreshNewsFeedViaFunction();
+      console.log('Feed refresh response:', data);
+      
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['articles'] }),
-        queryClient.invalidateQueries({ queryKey: ['feedSources'] })
+        fetchArticles(1), // Reset to first page after refresh
+        fetchFeedSources()
       ]);
 
       toast({
         title: "¡Éxito!",
         description: "Feed de noticias actualizado correctamente",
       });
-    },
-    onError: (error) => {
+    } catch (error) {
       handleNewsFeedError(error, "refresh", toast);
-    },
-    onSettled: () => {
+    } finally {
       setIsRefreshing(false);
     }
-  });
-
-  const refreshFeed = () => {
-    refreshFeedMutation.mutate();
   };
 
   return {
+    articles,
     feedSources,
-    isSourcesLoading,
-    fetchArticlesQuery,
+    isLoading,
     isRefreshing,
+    totalCount,
+    fetchArticles,
+    fetchFeedSources,
     refreshFeed,
   };
 };

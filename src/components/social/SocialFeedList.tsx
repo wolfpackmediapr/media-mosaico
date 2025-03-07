@@ -8,15 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import SocialEmptyState from "./SocialEmptyState";
 import { Card } from "@/components/ui/card";
 import type { SocialPost } from "@/types/social";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 
 interface SocialFeedListProps {
   posts: SocialPost[];
@@ -29,6 +20,8 @@ interface SocialFeedListProps {
   onPageChange: (page: number) => void;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 const SocialFeedList = ({
   posts,
   isLoading,
@@ -40,7 +33,7 @@ const SocialFeedList = ({
   onPageChange,
 }: SocialFeedListProps) => {
   const [inputValue, setInputValue] = useState(searchTerm);
-  const totalPages = Math.ceil(totalCount / 10); // Calculate from totalCount
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,53 +97,36 @@ const SocialFeedList = ({
           </div>
           
           {totalPages > 1 && (
-            <Pagination className="mt-8">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
-                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
-                  />
-                </PaginationItem>
-                
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pageNumber = i + 1;
-                  return (
-                    <PaginationItem key={pageNumber}>
-                      <PaginationLink
-                        onClick={() => onPageChange(pageNumber)}
-                        isActive={currentPage === pageNumber}
-                      >
-                        {pageNumber}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                })}
-
-                {totalPages > 5 && (
-                  <>
-                    <PaginationItem>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                    <PaginationItem>
-                      <PaginationLink
-                        onClick={() => onPageChange(totalPages)}
-                        isActive={currentPage === totalPages}
-                      >
-                        {totalPages}
-                      </PaginationLink>
-                    </PaginationItem>
-                  </>
-                )}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
-                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+            <div className="flex justify-center mt-6">
+              <div className="join">
+                <Button
+                  variant="outline"
+                  className="join-item"
+                  disabled={currentPage === 1}
+                  onClick={() => onPageChange(currentPage - 1)}
+                >
+                  «
+                </Button>
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <Button
+                    key={i}
+                    variant={currentPage === i + 1 ? "default" : "outline"}
+                    className="join-item"
+                    onClick={() => onPageChange(i + 1)}
+                  >
+                    {i + 1}
+                  </Button>
+                ))}
+                <Button
+                  variant="outline"
+                  className="join-item"
+                  disabled={currentPage === totalPages}
+                  onClick={() => onPageChange(currentPage + 1)}
+                >
+                  »
+                </Button>
+              </div>
+            </div>
           )}
         </>
       )}

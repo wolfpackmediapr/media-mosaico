@@ -9,16 +9,13 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
     console.log('Request received');
-    const requestData = await req.json();
-    const { videoPath, identifySegments = true } = requestData; // Default to true
-    
+    const { videoPath, identifySegments = false } = await req.json();
     console.log('Video path received:', videoPath);
     console.log('Identify segments:', identifySegments);
 
@@ -26,36 +23,25 @@ serve(async (req) => {
       throw new Error('Video path is required');
     }
 
-    // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
     // First check if the file exists in the bucket
-    console.log('Checking if file exists in storage');
-    
-    // Adjust the path parsing based on how your files are stored
-    const folderPath = videoPath.split('/')[0] || '';
-    const fileName = videoPath.split('/').length > 1 ? videoPath.split('/')[1] : videoPath;
-    
-    console.log('Folder path:', folderPath);
-    console.log('File name:', fileName);
-    
     const { data: fileExists, error: fileCheckError } = await supabase
       .storage
       .from('media')
-      .list(folderPath, {
-        limit: 100,
-        search: fileName
+      .list(videoPath.split('/')[0], {
+        limit: 1,
+        offset: 0,
+        search: videoPath.split('/')[1]
       });
 
     if (fileCheckError) {
       console.error('Error checking file existence:', fileCheckError);
       throw new Error(`Failed to check file existence: ${fileCheckError.message}`);
     }
-
-    console.log('File list response:', fileExists);
 
     if (!fileExists || fileExists.length === 0) {
       console.error('File not found in storage:', videoPath);
@@ -121,8 +107,8 @@ serve(async (req) => {
 
     let segments = [];
     
-    // Always identify segments (identifySegments is set to true by default)
-    if (transcriptionResult.text) {
+    // If segment identification is requested, process the full transcription to identify news segments
+    if (identifySegments && transcriptionResult.text) {
       console.log('Identifying news segments in transcription');
       
       try {
@@ -175,63 +161,44 @@ serve(async (req) => {
         });
 
         if (!segmentResponse.ok) {
-          const errorText = await segmentResponse.text();
-          console.error('Segment identification error:', errorText);
-          throw new Error(`Error identifying segments: ${errorText}`);
+          throw new Error(`Error identifying segments: ${segmentResponse.statusText}`);
         }
 
         const segmentData = await segmentResponse.json();
-        console.log('Segment identification response:', segmentData);
         
         if (segmentData.choices && segmentData.choices[0]?.message?.content) {
-          try {
-            const parsedContent = JSON.parse(segmentData.choices[0].message.content);
-            segments = parsedContent.segments || [];
-            console.log(`Identified ${segments.length} news segments`);
-          } catch (parseError) {
-            console.error('Error parsing segment data:', parseError);
-            console.log('Raw content:', segmentData.choices[0].message.content);
-          }
+          const parsedContent = JSON.parse(segmentData.choices[0].message.content);
+          segments = parsedContent.segments || [];
+          console.log(`Identified ${segments.length} news segments`);
         }
       } catch (segmentError) {
         console.error('Error identifying segments:', segmentError);
         // If segmentation fails, continue with just the transcription
-        segments = [{
-          title: "Transcripción completa",
-          text: transcriptionResult.text,
-          startTime: 0,
-          endTime: 0
-        }];
       }
     }
 
-    try {
-      // Update transcription record if it exists
-      const { error: updateError } = await supabase
-        .from('transcriptions')
-        .update({ 
-          transcription_text: transcriptionResult.text,
-          status: 'completed',
-          progress: 100,
-          ...(segments.length > 0 ? { 
-            assembly_chapters: segments 
-          } : {})
-        })
-        .eq('original_file_path', videoPath);
+    // Update transcription record
+    const { error: updateError } = await supabase
+      .from('transcriptions')
+      .update({ 
+        transcription_text: transcriptionResult.text,
+        status: 'completed',
+        progress: 100,
+        ...(segments.length > 0 ? { 
+          assembly_chapters: segments 
+        } : {})
+      })
+      .eq('original_file_path', videoPath);
 
-      if (updateError) {
-        console.error('Error updating transcription record:', updateError);
-        // Non-critical error, continue
-      }
-    } catch (dbError) {
-      console.error('Database update error:', dbError);
-      // Non-critical error, continue
+    if (updateError) {
+      console.error('Error updating transcription record:', updateError);
+      throw new Error(`Error updating transcription: ${updateError.message}`);
     }
 
     return new Response(
       JSON.stringify({ 
         text: transcriptionResult.text,
-        segments: segments
+        segments: segments.length > 0 ? segments : null
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
