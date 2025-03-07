@@ -17,7 +17,7 @@ serve(async (req) => {
   try {
     console.log('Request received');
     const requestData = await req.json();
-    const { videoPath, identifySegments = false } = requestData;
+    const { videoPath, identifySegments = true } = requestData; // Default to true
     
     console.log('Video path received:', videoPath);
     console.log('Identify segments:', identifySegments);
@@ -121,8 +121,8 @@ serve(async (req) => {
 
     let segments = [];
     
-    // If segment identification is requested, process the full transcription to identify news segments
-    if (identifySegments && transcriptionResult.text) {
+    // Always identify segments (identifySegments is set to true by default)
+    if (transcriptionResult.text) {
       console.log('Identifying news segments in transcription');
       
       try {
@@ -196,6 +196,12 @@ serve(async (req) => {
       } catch (segmentError) {
         console.error('Error identifying segments:', segmentError);
         // If segmentation fails, continue with just the transcription
+        segments = [{
+          title: "Transcripción completa",
+          text: transcriptionResult.text,
+          startTime: 0,
+          endTime: 0
+        }];
       }
     }
 
@@ -225,7 +231,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         text: transcriptionResult.text,
-        segments: segments.length > 0 ? segments : null
+        segments: segments
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

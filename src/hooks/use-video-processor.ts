@@ -59,7 +59,7 @@ export const useVideoProcessor = () => {
 
         setProgress(50);
 
-        // Process the converted audio file with segment identification
+        // Process the converted audio file with segment identification explicitly set to true
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { 
@@ -100,7 +100,7 @@ export const useVideoProcessor = () => {
           toast.success("Transcripción completada. El video ha sido transcrito y segmentado exitosamente.");
         }
       } else {
-        // For smaller files, process directly with segment identification
+        // For smaller files, process directly with segment identification explicitly set to true
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { 
