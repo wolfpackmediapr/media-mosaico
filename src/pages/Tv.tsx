@@ -1,9 +1,10 @@
+
 import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
-import { useVideoProcessor } from "@/hooks/use-video-processor";
+import { useVideoProcessor, NewsSegment } from "@/hooks/use-video-processor";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -21,8 +22,10 @@ const Tv = () => {
     progress,
     transcriptionText,
     transcriptionMetadata,
+    newsSegments,
     processVideo,
     setTranscriptionText,
+    setNewsSegments,
   } = useVideoProcessor();
 
   const testAnalysis = {
@@ -104,6 +107,41 @@ const Tv = () => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleSegmentChange = (index: number, updatedText: string) => {
+    setNewsSegments(prev => {
+      const updated = [...prev];
+      if (updated[index]) {
+        updated[index] = { ...updated[index], text: updatedText };
+      }
+      return updated;
+    });
+  };
+
+  // Mock news segments for testing UI
+  const testNewsSegments: NewsSegment[] = [
+    {
+      title: "Desarrollo Económico anuncia incentivos",
+      text: "El Secretario del Departamento de Desarrollo Económico, José Luis Pérez, anunció esta mañana un nuevo programa de incentivos para pequeños y medianos empresarios valorado en $50 millones.",
+      startTime: 0,
+      endTime: 30,
+      category: "Economía"
+    },
+    {
+      title: "Autoridad de Carreteras inicia obras",
+      text: "La Autoridad de Carreteras y Transportación anunció el inicio de obras de repavimentación en la PR-52, con una inversión de $12 millones para mejorar la infraestructura vial del país.",
+      startTime: 31,
+      endTime: 62,
+      category: "Infraestructura"
+    },
+    {
+      title: "Departamento de Educación amplía horario escolar",
+      text: "El Departamento de Educación implementará un horario extendido en 50 escuelas del sistema público a partir del próximo semestre, con el fin de ofrecer actividades extracurriculares y apoyo académico adicional.",
+      startTime: 63,
+      endTime: 95,
+      category: "Educación"
+    }
+  ];
+
   return (
     <div className="space-y-6">
       <div>
@@ -141,6 +179,7 @@ const Tv = () => {
       <TranscriptionSlot
         isProcessing={isProcessing}
         transcriptionText={transcriptionText || "Transcripción de ejemplo para probar el análisis de contenido..."}
+        newsSegments={newsSegments.length > 0 ? newsSegments : testNewsSegments}
         metadata={transcriptionMetadata || {
           channel: "WIPR",
           program: "Noticias Puerto Rico",
@@ -149,6 +188,7 @@ const Tv = () => {
         }}
         analysis={testAnalysis}
         onTranscriptionChange={setTranscriptionText}
+        onSegmentChange={handleSegmentChange}
       />
 
       <div className="mt-8 p-6 bg-muted rounded-lg">

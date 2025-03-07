@@ -11,11 +11,21 @@ interface TranscriptionMetadata {
   keywords?: string[];
 }
 
+export interface NewsSegment {
+  title: string;
+  text: string;
+  startTime: number;
+  endTime: number;
+  keywords?: string[];
+  category?: string;
+}
+
 export const useVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
+  const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);
@@ -45,40 +55,74 @@ export const useVideoProcessor = () => {
 
         setProgress(50);
 
-        // Process the converted audio file
+        // Process the converted audio file with segment identification
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
-            body: { videoPath: conversionData.audioPath }
+            body: { 
+              videoPath: conversionData.audioPath,
+              identifySegments: true 
+            }
           });
 
         if (processError) throw processError;
-        setProgress(90);
+        setProgress(80);
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          
+          // Handle segments if available
+          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
+            setNewsSegments(transcriptionResult.segments);
+          } else {
+            // Default to a single segment if no segments were identified
+            setNewsSegments([{
+              title: "Transcripción completa",
+              text: transcriptionResult.text,
+              startTime: 0,
+              endTime: 0
+            }]);
+          }
+          
           setProgress(100);
           
           toast({
             title: "Transcripción completada",
-            description: "El video ha sido transcrito exitosamente.",
+            description: "El video ha sido transcrito y segmentado exitosamente.",
           });
         }
       } else {
-        // For smaller files, process directly
+        // For smaller files, process directly with segment identification
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
-            body: { videoPath: file.name }
+            body: { 
+              videoPath: file.name,
+              identifySegments: true 
+            }
           });
 
         if (processError) throw processError;
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          
+          // Handle segments if available
+          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
+            setNewsSegments(transcriptionResult.segments);
+          } else {
+            // Default to a single segment if no segments were identified
+            setNewsSegments([{
+              title: "Transcripción completa",
+              text: transcriptionResult.text,
+              startTime: 0,
+              endTime: 0
+            }]);
+          }
+          
           setProgress(100);
           
           toast({
             title: "Transcripción completada",
-            description: "El video ha sido transcrito exitosamente.",
+            description: "El video ha sido transcrito y segmentado exitosamente.",
           });
         }
       }
@@ -99,7 +143,9 @@ export const useVideoProcessor = () => {
     progress,
     transcriptionText,
     transcriptionMetadata,
+    newsSegments,
     processVideo,
     setTranscriptionText,
+    setNewsSegments,
   };
 };
