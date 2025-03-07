@@ -5,6 +5,7 @@ import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";
 import { useSocialFeeds } from "@/hooks/use-social-feeds";
 import { ITEMS_PER_PAGE } from "@/services/social/api";
+import type { SocialPost, SocialPlatform } from "@/types/social";
 
 const RedesSociales = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -12,7 +13,7 @@ const RedesSociales = () => {
   const [currentPage, setCurrentPage] = useState(1);
   
   const { 
-    platforms, 
+    platforms = [], 
     isPlatformsLoading,
     fetchPostsQuery,
     isRefreshing, 

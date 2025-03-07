@@ -6,13 +6,14 @@ import NewsList from "@/components/prensa/NewsList";
 import FeedStatus from "@/components/prensa/FeedStatus";
 import { useNewsFeed } from "@/hooks/use-news-feed";
 import { ITEMS_PER_PAGE } from "@/services/news/api";
+import type { NewsArticle, FeedSource } from "@/types/prensa";
 
 const Prensa = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   
   const { 
-    feedSources, 
+    feedSources = [], 
     isSourcesLoading,
     fetchArticlesQuery,
     isRefreshing, 
