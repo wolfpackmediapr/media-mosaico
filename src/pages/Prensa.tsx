@@ -25,7 +25,7 @@ const Prensa = () => {
     isLoading: isArticlesLoading
   } = fetchArticlesQuery(currentPage, searchTerm);
 
-  const { articles = [], totalCount = 0 } = data;
+  const { articles = [] as NewsArticle[], totalCount = 0 } = data;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const handleSearch = (search: string) => {
@@ -44,7 +44,7 @@ const Prensa = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="w-full max-w-full mx-auto py-6 px-4 md:px-6 space-y-6">
       <PrensaHeader 
         isRefreshing={isRefreshing}
         onRefresh={refreshFeed}

@@ -85,7 +85,7 @@ const Tv = () => {
   console.log("News Segments in Tv component:", newsSegments);
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-full mx-auto py-6 px-4 md:px-6 space-y-6">
       <TvHeader />
 
       <VideoSection 

@@ -25,7 +25,7 @@ const RedesSociales = () => {
     isLoading: isPostsLoading
   } = fetchPostsQuery(currentPage, searchTerm, selectedPlatforms);
 
-  const { posts = [], totalCount = 0 } = data;
+  const { posts = [] as SocialPost[], totalCount = 0 } = data;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const handleSearch = (search: string) => {
@@ -49,7 +49,7 @@ const RedesSociales = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="w-full max-w-full mx-auto py-6 px-4 md:px-6 space-y-6">
       <SocialHeader 
         isRefreshing={isRefreshing}
         onRefresh={refreshFeeds}
