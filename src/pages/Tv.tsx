@@ -74,7 +74,7 @@ const Tv = () => {
   };
 
   const handleSegmentChange = (index: number, updatedText: string) => {
-    setNewsSegments(prev => {
+    setNewsSegments((prev: NewsSegment[]) => {
       const updated = [...prev];
       if (updated[index]) {
         updated[index] = { ...updated[index], text: updatedText };

@@ -54,7 +54,7 @@ const Prensa = () => {
           <PrensaSearch
             searchTerm={searchTerm}
             onSearch={handleSearch}
-            onClear={handleClearSearch}
+            onClearSearch={handleClearSearch}
           />
 
           <NewsList
@@ -70,7 +70,7 @@ const Prensa = () => {
 
         <div>
           <FeedStatus 
-            sources={feedSources}
+            feedSources={feedSources}
             isLoading={isSourcesLoading}
           />
         </div>

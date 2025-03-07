@@ -16,6 +16,7 @@ import {
   calculatePlatformCounts 
 } from "@/services/social/utils";
 import { handleSocialFeedError } from "@/services/social/error-handler";
+import { getCachedData, saveCacheData } from "@/utils/cache-utils";
 
 export const useSocialFeeds = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -30,6 +31,13 @@ export const useSocialFeeds = () => {
     queryKey: ['socialPlatforms'],
     queryFn: async () => {
       try {
+        // Check cache first
+        const cachedPlatforms = getCachedData('socialPlatforms');
+        if (cachedPlatforms) {
+          console.log('Using cached social platforms');
+          return cachedPlatforms;
+        }
+
         // Fetch platform data
         const platformData = await fetchPlatformsData();
         
@@ -41,7 +49,12 @@ export const useSocialFeeds = () => {
           const platformCounts = calculatePlatformCounts(articles || []);
           
           // Transform data to SocialPlatform format
-          return transformPlatformData(platformData, platformCounts);
+          const transformedPlatforms = transformPlatformData(platformData, platformCounts);
+          
+          // Save to cache
+          saveCacheData('socialPlatforms', transformedPlatforms);
+          
+          return transformedPlatforms;
         }
         return [];
       } catch (error) {
@@ -60,6 +73,16 @@ export const useSocialFeeds = () => {
         try {
           console.log('Fetching posts for page:', page, 'search:', searchTerm, 'platforms:', selectedPlatforms);
           
+          // Check cache for non-filtered requests
+          if (!searchTerm && selectedPlatforms.length === 0) {
+            const cacheKey = `socialPosts_page_${page}`;
+            const cachedPosts = getCachedData(cacheKey);
+            if (cachedPosts) {
+              console.log('Using cached social posts for page', page);
+              return cachedPosts;
+            }
+          }
+          
           // Fetch posts with filters
           const { data, count } = await fetchSocialPosts(page, searchTerm, selectedPlatforms);
           
@@ -69,18 +92,24 @@ export const useSocialFeeds = () => {
 
           // Transform the data to include platform information
           const transformedPosts = transformArticlesToPosts(data);
-          
-          return { 
+          const result = { 
             posts: transformedPosts, 
             totalCount: count || 0 
           };
+          
+          // Save to cache for non-filtered requests
+          if (!searchTerm && selectedPlatforms.length === 0) {
+            saveCacheData(`socialPosts_page_${page}`, result);
+          }
+          
+          return result;
         } catch (error) {
           handleSocialFeedError(error, 'posts', toast);
           return { posts: [], totalCount: 0 };
         }
       },
       staleTime: 2 * 60 * 1000, // 2 minutes
-      keepPreviousData: true,
+      placeholderData: (previousData) => previousData // This replaces keepPreviousData
     });
   };
 

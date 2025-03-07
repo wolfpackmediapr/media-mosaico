@@ -14,6 +14,7 @@ import {
   transformDatabaseArticlesToNewsArticles 
 } from "@/services/news/transforms";
 import { handleNewsFeedError } from "@/services/news/error-handler";
+import { getCachedData, saveCacheData } from "@/utils/cache-utils";
 
 export const useNewsFeed = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -28,8 +29,20 @@ export const useNewsFeed = () => {
     queryKey: ['feedSources'],
     queryFn: async () => {
       try {
+        // Check cache first
+        const cachedSources = getCachedData('feedSources');
+        if (cachedSources) {
+          console.log('Using cached feed sources');
+          return cachedSources;
+        }
+
         const sourcesData = await fetchNewsSourcesFromDatabase();
-        return transformSourcesToFeedSources(sourcesData);
+        const transformedSources = transformSourcesToFeedSources(sourcesData);
+        
+        // Save to cache
+        saveCacheData('feedSources', transformedSources);
+        
+        return transformedSources;
       } catch (error) {
         handleNewsFeedError(error, "sources", toast);
         return [];
@@ -45,6 +58,17 @@ export const useNewsFeed = () => {
       queryFn: async () => {
         try {
           console.log('Fetching articles for page:', page, 'search:', searchTerm);
+          
+          // Check cache first for non-search requests
+          if (!searchTerm) {
+            const cacheKey = `articles_page_${page}`;
+            const cachedArticles = getCachedData(cacheKey);
+            if (cachedArticles) {
+              console.log('Using cached articles for page', page);
+              return cachedArticles;
+            }
+          }
+          
           const { articlesData, count } = await fetchArticlesFromDatabase(page, searchTerm);
           
           if (!articlesData || articlesData.length === 0) {
@@ -53,19 +77,25 @@ export const useNewsFeed = () => {
           }
           
           const convertedArticles = transformDatabaseArticlesToNewsArticles(articlesData);
-          
-          console.log('Processed articles:', convertedArticles);
-          return { 
+          const result = { 
             articles: convertedArticles, 
             totalCount: count || 0
           };
+          
+          // Save to cache if not a search request
+          if (!searchTerm) {
+            saveCacheData(`articles_page_${page}`, result);
+          }
+          
+          console.log('Processed articles:', convertedArticles);
+          return result;
         } catch (error) {
           handleNewsFeedError(error, "articles", toast);
           return { articles: [], totalCount: 0 };
         }
       },
       staleTime: 2 * 60 * 1000, // 2 minutes
-      keepPreviousData: true,
+      placeholderData: (previousData) => previousData // This replaces keepPreviousData
     });
   };
 

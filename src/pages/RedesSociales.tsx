@@ -52,16 +52,12 @@ const RedesSociales = () => {
       <SocialHeader 
         isRefreshing={isRefreshing}
         onRefresh={refreshFeeds}
-        searchTerm={searchTerm}
-        onSearch={handleSearch}
-        onClearSearch={handleClearSearch}
       />
 
       <div className="grid md:grid-cols-4 gap-6">
         <div className="md:col-span-1">
           <PlatformFilters
             platforms={platforms}
-            isLoading={isPlatformsLoading}
             selectedPlatforms={selectedPlatforms}
             onSelectPlatforms={handlePlatformSelect}
           />
@@ -73,7 +69,8 @@ const RedesSociales = () => {
             isLoading={isPostsLoading}
             searchTerm={searchTerm}
             currentPage={currentPage}
-            totalPages={totalPages}
+            totalCount={totalCount}
+            onSearchChange={handleSearch}
             onClearSearch={handleClearSearch}
             onPageChange={handlePageChange}
           />
