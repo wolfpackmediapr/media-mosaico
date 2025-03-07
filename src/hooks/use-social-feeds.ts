@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { SocialPost, SocialPlatform } from "@/types/social";
 import { 
   fetchPlatformsData, 
@@ -17,93 +18,110 @@ import {
 import { handleSocialFeedError } from "@/services/social/error-handler";
 
 export const useSocialFeeds = () => {
-  const [posts, setPosts] = useState<SocialPost[]>([]);
-  const [platforms, setPlatforms] = useState<SocialPlatform[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const fetchPlatforms = async () => {
-    try {
-      // Fetch platform data
-      const platformData = await fetchPlatformsData();
-      
-      if (platformData) {
-        // Fetch platform counts
-        const articles = await fetchPlatformCounts();
+  // Query for platforms
+  const { 
+    data: platforms = [], 
+    isLoading: isPlatformsLoading 
+  } = useQuery({
+    queryKey: ['socialPlatforms'],
+    queryFn: async () => {
+      try {
+        // Fetch platform data
+        const platformData = await fetchPlatformsData();
         
-        // Calculate counts by platform
-        const platformCounts = calculatePlatformCounts(articles || []);
-        
-        // Transform data to SocialPlatform format
-        const platformsData = transformPlatformData(platformData, platformCounts);
-        
-        setPlatforms(platformsData);
+        if (platformData) {
+          // Fetch platform counts
+          const articles = await fetchPlatformCounts();
+          
+          // Calculate counts by platform
+          const platformCounts = calculatePlatformCounts(articles || []);
+          
+          // Transform data to SocialPlatform format
+          return transformPlatformData(platformData, platformCounts);
+        }
+        return [];
+      } catch (error) {
+        handleSocialFeedError(error, 'platforms', toast);
+        return [];
       }
-    } catch (error) {
-      handleSocialFeedError(error, 'platforms', toast);
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Query for posts
+  const fetchPostsQuery = (page: number, searchTerm: string = '', selectedPlatforms: string[] = []) => {
+    return useQuery({
+      queryKey: ['socialPosts', page, searchTerm, selectedPlatforms],
+      queryFn: async () => {
+        try {
+          console.log('Fetching posts for page:', page, 'search:', searchTerm, 'platforms:', selectedPlatforms);
+          
+          // Fetch posts with filters
+          const { data, count } = await fetchSocialPosts(page, searchTerm, selectedPlatforms);
+          
+          if (!data || data.length === 0) {
+            return { posts: [], totalCount: 0 };
+          }
+
+          // Transform the data to include platform information
+          const transformedPosts = transformArticlesToPosts(data);
+          
+          return { 
+            posts: transformedPosts, 
+            totalCount: count || 0 
+          };
+        } catch (error) {
+          handleSocialFeedError(error, 'posts', toast);
+          return { posts: [], totalCount: 0 };
+        }
+      },
+      staleTime: 2 * 60 * 1000, // 2 minutes
+      keepPreviousData: true,
+    });
   };
 
-  const fetchPosts = async (page: number, searchTerm: string = '', selectedPlatforms: string[] = []) => {
-    try {
-      console.log('Fetching posts for page:', page, 'search:', searchTerm, 'platforms:', selectedPlatforms);
-      setIsLoading(true);
-      
-      // Fetch posts with filters
-      const { data, count } = await fetchSocialPosts(page, searchTerm, selectedPlatforms);
-      
-      setTotalCount(count);
-
-      if (data) {
-        // Transform the data to include platform information
-        const transformedPosts = transformArticlesToPosts(data);
-        setPosts(transformedPosts);
-      }
-
-      // Fetch platforms with counts
-      await fetchPlatforms();
-    } catch (error) {
-      handleSocialFeedError(error, 'posts', toast);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const refreshFeeds = async () => {
-    setIsRefreshing(true);
-    try {
+  // Mutation for refreshing feeds
+  const refreshFeedsMutation = useMutation({
+    mutationFn: refreshSocialFeeds,
+    onMutate: () => {
+      setIsRefreshing(true);
       console.log('Refreshing social feeds...');
+    },
+    onSuccess: async () => {
+      console.log('Social feeds refreshed successfully');
       
-      // Call the refresh function
-      const data = await refreshSocialFeeds();
-      
-      console.log('Social feed refresh response:', data);
-      
-      // Reset to first page after refresh
-      await fetchPosts(1);
-      await fetchPlatforms();
+      // Invalidate queries to refetch data
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['socialPosts'] }),
+        queryClient.invalidateQueries({ queryKey: ['socialPlatforms'] })
+      ]);
 
       toast({
         title: "¡Éxito!",
         description: "Feeds de redes sociales actualizados correctamente",
       });
-    } catch (error) {
+    },
+    onError: (error) => {
       handleSocialFeedError(error, 'refresh', toast);
-    } finally {
+    },
+    onSettled: () => {
       setIsRefreshing(false);
     }
+  });
+
+  const refreshFeeds = () => {
+    refreshFeedsMutation.mutate();
   };
 
   return {
-    posts,
     platforms,
-    isLoading,
+    isPlatformsLoading,
+    fetchPostsQuery,
     isRefreshing,
-    totalCount,
-    fetchPosts,
-    fetchPlatforms,
     refreshFeeds,
   };
 };

@@ -1,46 +1,45 @@
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import SocialHeader from "@/components/social/SocialHeader";
 import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";
 import { useSocialFeeds } from "@/hooks/use-social-feeds";
+import { ITEMS_PER_PAGE } from "@/services/social/api";
 
 const RedesSociales = () => {
-  const {
-    posts,
-    platforms,
-    isLoading,
-    isRefreshing,
-    totalCount,
-    fetchPosts,
-    refreshFeeds,
-  } = useSocialFeeds();
-  
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  
+  const { 
+    platforms, 
+    isPlatformsLoading,
+    fetchPostsQuery,
+    isRefreshing, 
+    refreshFeeds
+  } = useSocialFeeds();
 
-  useEffect(() => {
-    // Initial load - fetch posts when the component mounts
-    fetchPosts(1, searchTerm, selectedPlatforms);
-  }, []); // Empty dependency array means this runs once when component mounts
+  const { 
+    data = { posts: [], totalCount: 0 },
+    isLoading: isPostsLoading
+  } = fetchPostsQuery(currentPage, searchTerm, selectedPlatforms);
 
-  useEffect(() => {
-    // Reset to first page when search term or platforms change
-    setCurrentPage(1);
-    fetchPosts(1, searchTerm, selectedPlatforms);
-  }, [searchTerm, selectedPlatforms]);
+  const { posts, totalCount } = data;
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
-  useEffect(() => {
-    fetchPosts(currentPage, searchTerm, selectedPlatforms);
-  }, [currentPage]);
-
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
+  const handleSearch = (search: string) => {
+    setSearchTerm(search);
+    setCurrentPage(1); // Reset to first page when searching
   };
 
-  const handlePlatformChange = (platforms: string[]) => {
+  const handleClearSearch = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
+  };
+
+  const handlePlatformSelect = (platforms: string[]) => {
     setSelectedPlatforms(platforms);
+    setCurrentPage(1); // Reset to first page when filtering
   };
 
   const handlePageChange = (page: number) => {
@@ -49,27 +48,34 @@ const RedesSociales = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
-      <SocialHeader onRefresh={refreshFeeds} isRefreshing={isRefreshing} />
-      
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-1">
-          <PlatformFilters 
+    <div className="container mx-auto py-6 space-y-6">
+      <SocialHeader 
+        isRefreshing={isRefreshing}
+        onRefresh={refreshFeeds}
+        searchTerm={searchTerm}
+        onSearch={handleSearch}
+        onClearSearch={handleClearSearch}
+      />
+
+      <div className="grid md:grid-cols-4 gap-6">
+        <div className="md:col-span-1">
+          <PlatformFilters
             platforms={platforms}
+            isLoading={isPlatformsLoading}
             selectedPlatforms={selectedPlatforms}
-            onPlatformChange={handlePlatformChange}
+            onSelectPlatforms={handlePlatformSelect}
           />
         </div>
-        <div className="lg:col-span-3">
+
+        <div className="md:col-span-3">
           <SocialFeedList
             posts={posts}
-            isLoading={isLoading}
+            isLoading={isPostsLoading}
             searchTerm={searchTerm}
-            onSearchChange={handleSearchChange}
             currentPage={currentPage}
-            totalCount={totalCount}
+            totalPages={totalPages}
+            onClearSearch={handleClearSearch}
             onPageChange={handlePageChange}
-            onClearSearch={() => setSearchTerm("")}
           />
         </div>
       </div>

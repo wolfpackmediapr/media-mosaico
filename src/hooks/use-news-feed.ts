@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { NewsArticle, FeedSource } from "@/types/prensa";
 import { 
   fetchNewsSourcesFromDatabase, 
@@ -15,83 +16,97 @@ import {
 import { handleNewsFeedError } from "@/services/news/error-handler";
 
 export const useNewsFeed = () => {
-  const [articles, setArticles] = useState<NewsArticle[]>([]);
-  const [feedSources, setFeedSources] = useState<FeedSource[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const fetchFeedSources = async () => {
-    try {
-      const sourcesData = await fetchNewsSourcesFromDatabase();
-      const typedSources = transformSourcesToFeedSources(sourcesData);
-      setFeedSources(typedSources);
-    } catch (error) {
-      handleNewsFeedError(error, "sources", toast);
-    }
-  };
-
-  const fetchArticles = async (page: number, searchTerm: string = '') => {
-    try {
-      console.log('Fetching articles for page:', page, 'search:', searchTerm);
-      setIsLoading(true);
-      
-      const { articlesData, count } = await fetchArticlesFromDatabase(page, searchTerm);
-      
-      if (!articlesData || articlesData.length === 0) {
-        console.log('No articles found, setting empty array');
-        setArticles([]);
-        setTotalCount(0);
-        return;
+  // Query for feed sources
+  const { 
+    data: feedSources = [], 
+    isLoading: isSourcesLoading
+  } = useQuery({
+    queryKey: ['feedSources'],
+    queryFn: async () => {
+      try {
+        const sourcesData = await fetchNewsSourcesFromDatabase();
+        return transformSourcesToFeedSources(sourcesData);
+      } catch (error) {
+        handleNewsFeedError(error, "sources", toast);
+        return [];
       }
-      
-      setTotalCount(count || 0);
-      const convertedArticles = transformDatabaseArticlesToNewsArticles(articlesData);
-      
-      console.log('Processed articles:', convertedArticles);
-      setArticles(convertedArticles);
-    } catch (error) {
-      handleNewsFeedError(error, "articles", toast);
-      // Set empty articles in case of error
-      setArticles([]);
-    } finally {
-      setIsLoading(false);
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Query for articles
+  const fetchArticlesQuery = (page: number, searchTerm: string = '') => {
+    return useQuery({
+      queryKey: ['articles', page, searchTerm],
+      queryFn: async () => {
+        try {
+          console.log('Fetching articles for page:', page, 'search:', searchTerm);
+          const { articlesData, count } = await fetchArticlesFromDatabase(page, searchTerm);
+          
+          if (!articlesData || articlesData.length === 0) {
+            console.log('No articles found, setting empty array');
+            return { articles: [], totalCount: 0 };
+          }
+          
+          const convertedArticles = transformDatabaseArticlesToNewsArticles(articlesData);
+          
+          console.log('Processed articles:', convertedArticles);
+          return { 
+            articles: convertedArticles, 
+            totalCount: count || 0
+          };
+        } catch (error) {
+          handleNewsFeedError(error, "articles", toast);
+          return { articles: [], totalCount: 0 };
+        }
+      },
+      staleTime: 2 * 60 * 1000, // 2 minutes
+      keepPreviousData: true,
+    });
   };
 
-  const refreshFeed = async () => {
-    setIsRefreshing(true);
-    try {
+  // Mutation for refreshing feed
+  const refreshFeedMutation = useMutation({
+    mutationFn: refreshNewsFeedViaFunction,
+    onMutate: () => {
+      setIsRefreshing(true);
       console.log('Refreshing feed...');
+    },
+    onSuccess: async () => {
+      console.log('Feed refreshed successfully');
       
-      const data = await refreshNewsFeedViaFunction();
-      console.log('Feed refresh response:', data);
-      
+      // Invalidate queries to refetch data
       await Promise.all([
-        fetchArticles(1), // Reset to first page after refresh
-        fetchFeedSources()
+        queryClient.invalidateQueries({ queryKey: ['articles'] }),
+        queryClient.invalidateQueries({ queryKey: ['feedSources'] })
       ]);
 
       toast({
         title: "¡Éxito!",
         description: "Feed de noticias actualizado correctamente",
       });
-    } catch (error) {
+    },
+    onError: (error) => {
       handleNewsFeedError(error, "refresh", toast);
-    } finally {
+    },
+    onSettled: () => {
       setIsRefreshing(false);
     }
+  });
+
+  const refreshFeed = () => {
+    refreshFeedMutation.mutate();
   };
 
   return {
-    articles,
     feedSources,
-    isLoading,
+    isSourcesLoading,
+    fetchArticlesQuery,
     isRefreshing,
-    totalCount,
-    fetchArticles,
-    fetchFeedSources,
     refreshFeed,
   };
 };

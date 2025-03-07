@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -20,19 +21,68 @@ export interface NewsSegment {
   category?: string;
 }
 
+interface CachedTranscription {
+  text: string;
+  metadata?: TranscriptionMetadata;
+  segments: NewsSegment[];
+  timestamp: number;
+}
+
+// Local storage key for caching
+const TRANSCRIPTION_CACHE_KEY = 'video_transcription_cache';
+
+// Get cached transcription from local storage
+const getCachedTranscription = (): CachedTranscription | null => {
+  try {
+    const cached = localStorage.getItem(TRANSCRIPTION_CACHE_KEY);
+    if (!cached) return null;
+    
+    const parsedCache = JSON.parse(cached) as CachedTranscription;
+    
+    // Verify cache is not older than 24 hours
+    const cacheAge = Date.now() - parsedCache.timestamp;
+    if (cacheAge > 24 * 60 * 60 * 1000) return null;
+    
+    return parsedCache;
+  } catch (error) {
+    console.error('Error retrieving cache:', error);
+    return null;
+  }
+};
+
+// Save transcription to local storage
+const cacheTranscription = (transcription: string, segments: NewsSegment[], metadata?: TranscriptionMetadata) => {
+  try {
+    const cacheData: CachedTranscription = {
+      text: transcription,
+      segments,
+      metadata,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(TRANSCRIPTION_CACHE_KEY, JSON.stringify(cacheData));
+  } catch (error) {
+    console.error('Error caching transcription:', error);
+  }
+};
+
 export const useVideoProcessor = () => {
+  // Get initial state from cache
+  const cachedData = getCachedTranscription();
+  
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [transcriptionText, setTranscriptionText] = useState("");
-  const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
-  const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
+  const [transcriptionText, setTranscriptionText] = useState(cachedData?.text || "");
+  const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata | undefined>(
+    cachedData?.metadata
+  );
+  const [newsSegments, setNewsSegments] = useState<NewsSegment[]>(cachedData?.segments || []);
 
-  const processVideo = async (file: File) => {
-    setIsProcessing(true);
-    setProgress(0);
-    console.log("Starting video processing for file:", file.name);
+  // Use mutation for video processing
+  const processVideoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      console.log("Starting video processing for file:", file.name);
+      setProgress(0);
 
-    try {
       // First check authentication
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) throw new Error('Authentication required');
@@ -76,29 +126,8 @@ export const useVideoProcessor = () => {
         setProgress(80);
 
         console.log("Transcription result:", transcriptionResult);
-
-        if (transcriptionResult?.text) {
-          setTranscriptionText(transcriptionResult.text);
-          
-          // Handle segments if available
-          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
-            console.log("Received segments:", transcriptionResult.segments);
-            setNewsSegments(transcriptionResult.segments);
-          } else {
-            // Default to a single segment if no segments were identified
-            console.log("No segments received, creating default segment");
-            setNewsSegments([{
-              title: "Transcripción completa",
-              text: transcriptionResult.text,
-              startTime: 0,
-              endTime: 0
-            }]);
-          }
-          
-          setProgress(100);
-          
-          toast.success("Transcripción completada. El video ha sido transcrito y segmentado exitosamente.");
-        }
+        
+        return transcriptionResult;
       } else {
         // For smaller files, process directly with segment identification explicitly set to true
         const { data: transcriptionResult, error: processError } = await supabase.functions
@@ -115,36 +144,65 @@ export const useVideoProcessor = () => {
         }
         
         console.log("Transcription result for small file:", transcriptionResult);
-
-        if (transcriptionResult?.text) {
-          setTranscriptionText(transcriptionResult.text);
-          
-          // Handle segments if available
-          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
-            console.log("Received segments for small file:", transcriptionResult.segments);
-            setNewsSegments(transcriptionResult.segments);
-          } else {
-            // Default to a single segment if no segments were identified
-            console.log("No segments received for small file, creating default segment");
-            setNewsSegments([{
-              title: "Transcripción completa",
-              text: transcriptionResult.text,
-              startTime: 0,
-              endTime: 0
-            }]);
-          }
-          
-          setProgress(100);
-          
-          toast.success("Transcripción completada. El video ha sido transcrito y segmentado exitosamente.");
-        }
+        
+        return transcriptionResult;
       }
-    } catch (error: any) {
+    },
+    onMutate: () => {
+      setIsProcessing(true);
+    },
+    onSuccess: (data) => {
+      if (data?.text) {
+        setTranscriptionText(data.text);
+        
+        // Handle segments if available
+        if (data.segments && Array.isArray(data.segments)) {
+          console.log("Received segments:", data.segments);
+          setNewsSegments(data.segments);
+        } else {
+          // Default to a single segment if no segments were identified
+          console.log("No segments received, creating default segment");
+          setNewsSegments([{
+            title: "Transcripción completa",
+            text: data.text,
+            startTime: 0,
+            endTime: 0
+          }]);
+        }
+        
+        setProgress(100);
+        
+        // Cache the transcription result
+        cacheTranscription(data.text, data.segments || [], transcriptionMetadata);
+        
+        toast.success("Transcripción completada. El video ha sido transcrito y segmentado exitosamente.");
+      }
+    },
+    onError: (error: any) => {
       console.error('Error processing file:', error);
       toast.error(error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.");
-    } finally {
+    },
+    onSettled: () => {
       setIsProcessing(false);
     }
+  });
+
+  const processVideo = (file: File) => {
+    processVideoMutation.mutate(file);
+  };
+
+  // Custom handler for updating transcription text
+  const updateTranscriptionText = (text: string) => {
+    setTranscriptionText(text);
+    // Update cache
+    cacheTranscription(text, newsSegments, transcriptionMetadata);
+  };
+
+  // Custom handler for updating news segments
+  const updateNewsSegments = (segments: NewsSegment[]) => {
+    setNewsSegments(segments);
+    // Update cache
+    cacheTranscription(transcriptionText, segments, transcriptionMetadata);
   };
 
   return {
@@ -154,7 +212,7 @@ export const useVideoProcessor = () => {
     transcriptionMetadata,
     newsSegments,
     processVideo,
-    setTranscriptionText,
-    setNewsSegments,
+    setTranscriptionText: updateTranscriptionText,
+    setNewsSegments: updateNewsSegments,
   };
 };

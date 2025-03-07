@@ -1,7 +1,6 @@
 
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Layout from "./components/layout/Layout";
 import Index from "./pages/Index";
@@ -21,8 +20,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
-
-const queryClient = new QueryClient();
+import { QueryProvider } from "./providers/QueryProvider";
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -42,7 +40,7 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryProvider>
       <ThemeProvider defaultTheme="light" storageKey="app-theme">
         <TooltipProvider>
           <BrowserRouter>
@@ -80,7 +78,7 @@ function App() {
           <Sonner />
         </TooltipProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+    </QueryProvider>
   );
 }
 

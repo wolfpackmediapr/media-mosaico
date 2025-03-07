@@ -1,70 +1,80 @@
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import PrensaHeader from "@/components/prensa/PrensaHeader";
 import PrensaSearch from "@/components/prensa/PrensaSearch";
 import NewsList from "@/components/prensa/NewsList";
 import FeedStatus from "@/components/prensa/FeedStatus";
 import { useNewsFeed } from "@/hooks/use-news-feed";
-
-const ITEMS_PER_PAGE = 10;
+import { ITEMS_PER_PAGE } from "@/services/news/api";
 
 const Prensa = () => {
-  const {
-    articles,
-    feedSources,
-    isLoading,
-    isRefreshing,
-    totalCount,
-    fetchArticles,
-    fetchFeedSources,
-    refreshFeed,
-  } = useNewsFeed();
-  
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  
+  const { 
+    feedSources, 
+    isSourcesLoading,
+    fetchArticlesQuery,
+    isRefreshing, 
+    refreshFeed 
+  } = useNewsFeed();
 
-  useEffect(() => {
-    // Reset to first page when search term changes
-    setCurrentPage(1);
-    fetchArticles(1, searchTerm);
-    fetchFeedSources();
-  }, [searchTerm]);
+  const { 
+    data = { articles: [], totalCount: 0 },
+    isLoading: isArticlesLoading
+  } = fetchArticlesQuery(currentPage, searchTerm);
 
-  useEffect(() => {
-    fetchArticles(currentPage, searchTerm);
-  }, [currentPage]);
-
+  const { articles, totalCount } = data;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  const handleSearch = (search: string) => {
+    setSearchTerm(search);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
+  };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
-  };
-
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
-      <PrensaHeader onRefresh={refreshFeed} isRefreshing={isRefreshing} />
-      
-      <FeedStatus feedSources={feedSources} />
-
-      <PrensaSearch 
-        searchTerm={searchTerm}
-        onSearchChange={handleSearchChange}
+    <div className="container mx-auto py-6 space-y-6">
+      <PrensaHeader 
+        isRefreshing={isRefreshing}
+        onRefresh={refreshFeed}
       />
 
-      <NewsList
-        articles={articles}
-        isLoading={isLoading}
-        searchTerm={searchTerm}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onClearSearch={() => setSearchTerm("")}
-        onPageChange={handlePageChange}
-      />
+      <div className="grid md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 space-y-6">
+          <PrensaSearch
+            searchTerm={searchTerm}
+            onSearch={handleSearch}
+            onClear={handleClearSearch}
+          />
+
+          <NewsList
+            articles={articles}
+            isLoading={isArticlesLoading}
+            searchTerm={searchTerm}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onClearSearch={handleClearSearch}
+            onPageChange={handlePageChange}
+          />
+        </div>
+
+        <div>
+          <FeedStatus 
+            sources={feedSources}
+            isLoading={isSourcesLoading}
+          />
+        </div>
+      </div>
     </div>
   );
 };
