@@ -3,8 +3,10 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-// Increase the max file size from 50MB to 100MB
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
+// Adjust max file size to match Supabase's practical limits
+// Supabase can technically handle 5GB files, but for video processing
+// we'll set a more conservative limit for reliable processing
+const MAX_FILE_SIZE = 80 * 1024 * 1024; // 80MB in bytes
 
 const sanitizeFileName = (fileName: string) => {
   // Remove special characters and spaces, replace with underscores
@@ -32,7 +34,7 @@ export const useFileUpload = () => {
     if (file.size > MAX_FILE_SIZE) {
       toast({
         title: "Archivo demasiado grande",
-        description: "El archivo excede el límite de 100MB. Por favor, reduce su tamaño antes de subirlo.",
+        description: "El archivo excede el límite de 80MB. Por favor, reduce su tamaño antes de subirlo.",
         variant: "destructive",
       });
       return null;
@@ -57,21 +59,36 @@ export const useFileUpload = () => {
 
       console.log("Uploading file:", fileName);
 
+      // For larger files, update progress more frequently
+      let chunkSize = 1024 * 1024; // 1MB chunks
+      let uploaded = 0;
+      
       const { error: uploadError } = await supabase.storage
         .from('media')
         .upload(fileName, file, {
           cacheControl: '3600',
-          upsert: false
+          upsert: false,
+          onUploadProgress: (progress) => {
+            uploaded += progress.loaded;
+            const percentage = Math.round((uploaded / file.size) * 100);
+            setUploadProgress(percentage);
+          }
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        if (uploadError.message && uploadError.message.includes("too large")) {
+          throw new Error("El archivo es demasiado grande para el servicio de almacenamiento. Intenta con un archivo más pequeño.");
+        }
+        throw uploadError;
+      }
 
       const { error: dbError } = await supabase
         .from('transcriptions')
         .insert({
           user_id: user.id,
           original_file_path: fileName,
-          status: file.size > 25 * 1024 * 1024 ? 'needs_conversion' : 'pending',
+          status: file.size > 20 * 1024 * 1024 ? 'needs_conversion' : 'pending',
           channel: 'Canal Example',
           program: 'Programa Example',
           category: 'Noticias',
@@ -85,7 +102,7 @@ export const useFileUpload = () => {
       
       toast({
         title: "Archivo subido exitosamente",
-        description: file.size > 25 * 1024 * 1024 
+        description: file.size > 20 * 1024 * 1024 
           ? "El archivo será convertido a audio automáticamente."
           : "Listo para procesar la transcripción.",
       });
@@ -95,7 +112,7 @@ export const useFileUpload = () => {
       console.error('Error uploading file:', error);
       toast({
         title: "Error al subir el archivo",
-        description: "Ocurrió un error al subir el archivo. Por favor, intenta nuevamente.",
+        description: error instanceof Error ? error.message : "Ocurrió un error al subir el archivo. Por favor, intenta nuevamente.",
         variant: "destructive",
       });
       return null;
