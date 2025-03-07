@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
@@ -117,7 +116,6 @@ const Tv = () => {
     });
   };
 
-  // Mock news segments for testing UI
   const testNewsSegments: NewsSegment[] = [
     {
       title: "Desarrollo Económico anuncia incentivos",
