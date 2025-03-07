@@ -11,15 +11,25 @@ interface TranscriptionMetadata {
   keywords?: string[];
 }
 
+export interface NewsSegment {
+  headline: string;
+  text: string;
+  start: number;
+  end: number;
+}
+
 export const useVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
+  const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
+  const [assemblyId, setAssemblyId] = useState<string | null>(null);
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);
     setProgress(0);
+    setNewsSegments([]);
     console.log("Starting video processing for file:", file.name);
 
     try {
@@ -56,11 +66,22 @@ export const useVideoProcessor = () => {
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          
+          // Handle news segments if available
+          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
+            setNewsSegments(transcriptionResult.segments);
+          }
+          
+          // Store AssemblyAI ID if available
+          if (transcriptionResult.assemblyId) {
+            setAssemblyId(transcriptionResult.assemblyId);
+          }
+          
           setProgress(100);
           
           toast({
             title: "Transcripción completada",
-            description: "El video ha sido transcrito exitosamente.",
+            description: `Se han identificado ${transcriptionResult.segments?.length || 0} segmentos de noticias.`,
           });
         }
       } else {
@@ -74,11 +95,22 @@ export const useVideoProcessor = () => {
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          
+          // Handle news segments if available
+          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
+            setNewsSegments(transcriptionResult.segments);
+          }
+          
+          // Store AssemblyAI ID if available
+          if (transcriptionResult.assemblyId) {
+            setAssemblyId(transcriptionResult.assemblyId);
+          }
+          
           setProgress(100);
           
           toast({
             title: "Transcripción completada",
-            description: "El video ha sido transcrito exitosamente.",
+            description: `Se han identificado ${transcriptionResult.segments?.length || 0} segmentos de noticias.`,
           });
         }
       }
@@ -99,7 +131,10 @@ export const useVideoProcessor = () => {
     progress,
     transcriptionText,
     transcriptionMetadata,
+    newsSegments,
+    assemblyId,
     processVideo,
     setTranscriptionText,
+    setNewsSegments
   };
 };

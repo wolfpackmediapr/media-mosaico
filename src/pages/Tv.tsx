@@ -1,9 +1,12 @@
+
 import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
+import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
+import { useRef } from "react";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -14,6 +17,7 @@ const Tv = () => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState([50]);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
   const {
@@ -21,8 +25,10 @@ const Tv = () => {
     progress,
     transcriptionText,
     transcriptionMetadata,
+    newsSegments,
     processVideo,
     setTranscriptionText,
+    setNewsSegments
   } = useVideoProcessor();
 
   const testAnalysis = {
@@ -104,6 +110,21 @@ const Tv = () => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleSeekToTimestamp = (timestamp: number) => {
+    // Convert milliseconds to seconds for video element
+    const timeInSeconds = timestamp / 1000;
+    
+    // Find the current video element and seek to the timestamp
+    const videoElements = document.querySelectorAll('video');
+    if (videoElements.length > 0) {
+      const videoElement = videoElements[0];
+      videoElement.currentTime = timeInSeconds;
+      videoElement.play();
+    } else {
+      console.warn('No video element found to seek');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -137,6 +158,14 @@ const Tv = () => {
           onRemoveFile={handleRemoveFile}
         />
       </div>
+
+      {/* News Segments Container */}
+      <NewsSegmentsContainer
+        segments={newsSegments}
+        onSegmentsChange={setNewsSegments}
+        onSeek={handleSeekToTimestamp}
+        isProcessing={isProcessing}
+      />
 
       <TranscriptionSlot
         isProcessing={isProcessing}
