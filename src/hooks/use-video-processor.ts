@@ -73,14 +73,6 @@ export const useVideoProcessor = () => {
           // Handle segments if available
           if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
             setNewsSegments(transcriptionResult.segments);
-          } else {
-            // Default to a single segment if no segments were identified
-            setNewsSegments([{
-              title: "Transcripción completa",
-              text: transcriptionResult.text,
-              startTime: 0,
-              endTime: 0
-            }]);
           }
           
           setProgress(100);
@@ -108,14 +100,6 @@ export const useVideoProcessor = () => {
           // Handle segments if available
           if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
             setNewsSegments(transcriptionResult.segments);
-          } else {
-            // Default to a single segment if no segments were identified
-            setNewsSegments([{
-              title: "Transcripción completa",
-              text: transcriptionResult.text,
-              startTime: 0,
-              endTime: 0
-            }]);
           }
           
           setProgress(100);

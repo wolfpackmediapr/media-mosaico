@@ -1,10 +1,10 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
-import { useVideoProcessor, NewsSegment } from "@/hooks/use-video-processor";
+import { useVideoProcessor } from "@/hooks/use-video-processor";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -27,30 +27,6 @@ const Tv = () => {
     setTranscriptionText,
     setNewsSegments,
   } = useVideoProcessor();
-
-  const testAnalysis = {
-    quien: "José Luis Pérez, Secretario del Departamento de Desarrollo Económico",
-    que: "Anunció un nuevo programa de incentivos para pequeños y medianos empresarios",
-    cuando: "Durante una conferencia de prensa esta mañana, 15 de marzo de 2024",
-    donde: "Centro de Convenciones de San Juan, Puerto Rico",
-    porque: "Para impulsar la recuperación económica y crear nuevos empleos en sectores clave de la economía local",
-    summary: "El Secretario del Desarrollo Económico presentó una iniciativa significativa que incluye $50 millones en incentivos para PyMEs, enfocándose en sectores como tecnología, manufactura y agricultura. El programa busca generar 5,000 nuevos empleos en los próximos 18 meses.",
-    alerts: [
-      "Mención directa de cliente: Departamento de Desarrollo Económico",
-      "Tema de alto impacto: Desarrollo económico y empleos",
-      "Oportunidad de negocio: Programa de incentivos"
-    ],
-    keywords: [
-      "desarrollo económico",
-      "incentivos",
-      "PyMEs",
-      "empleos",
-      "recuperación económica",
-      "tecnología",
-      "manufactura",
-      "agricultura"
-    ]
-  };
 
   useEffect(() => {
     const script = document.createElement('script');
@@ -117,31 +93,6 @@ const Tv = () => {
     });
   };
 
-  // Mock news segments for testing UI
-  const testNewsSegments: NewsSegment[] = [
-    {
-      title: "Desarrollo Económico anuncia incentivos",
-      text: "El Secretario del Departamento de Desarrollo Económico, José Luis Pérez, anunció esta mañana un nuevo programa de incentivos para pequeños y medianos empresarios valorado en $50 millones.",
-      startTime: 0,
-      endTime: 30,
-      category: "Economía"
-    },
-    {
-      title: "Autoridad de Carreteras inicia obras",
-      text: "La Autoridad de Carreteras y Transportación anunció el inicio de obras de repavimentación en la PR-52, con una inversión de $12 millones para mejorar la infraestructura vial del país.",
-      startTime: 31,
-      endTime: 62,
-      category: "Infraestructura"
-    },
-    {
-      title: "Departamento de Educación amplía horario escolar",
-      text: "El Departamento de Educación implementará un horario extendido en 50 escuelas del sistema público a partir del próximo semestre, con el fin de ofrecer actividades extracurriculares y apoyo académico adicional.",
-      startTime: 63,
-      endTime: 95,
-      category: "Educación"
-    }
-  ];
-
   return (
     <div className="space-y-6">
       <div>
@@ -176,20 +127,16 @@ const Tv = () => {
         />
       </div>
 
-      <TranscriptionSlot
-        isProcessing={isProcessing}
-        transcriptionText={transcriptionText || "Transcripción de ejemplo para probar el análisis de contenido..."}
-        newsSegments={newsSegments.length > 0 ? newsSegments : testNewsSegments}
-        metadata={transcriptionMetadata || {
-          channel: "WIPR",
-          program: "Noticias Puerto Rico",
-          category: "Economía",
-          broadcastTime: "2024-03-15T10:00:00Z"
-        }}
-        analysis={testAnalysis}
-        onTranscriptionChange={setTranscriptionText}
-        onSegmentChange={handleSegmentChange}
-      />
+      {(transcriptionText || newsSegments.length > 0) && (
+        <TranscriptionSlot
+          isProcessing={isProcessing}
+          transcriptionText={transcriptionText}
+          newsSegments={newsSegments}
+          metadata={transcriptionMetadata}
+          onTranscriptionChange={setTranscriptionText}
+          onSegmentChange={handleSegmentChange}
+        />
+      )}
 
       <div className="mt-8 p-6 bg-muted rounded-lg">
         <h2 className="text-2xl font-bold mb-4">Alerta TV</h2>

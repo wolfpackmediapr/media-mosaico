@@ -14,203 +14,152 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Request received');
-    const { videoPath, identifySegments = false } = await req.json();
-    console.log('Video path received:', videoPath);
-    console.log('Identify segments:', identifySegments);
-
-    if (!videoPath) {
-      throw new Error('Video path is required');
-    }
+    const { videoPath, identifySegments = false } = await req.json()
+    console.log('Processing video transcription:', videoPath, 'with segments:', identifySegments)
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // First check if the file exists in the bucket
-    const { data: fileExists, error: fileCheckError } = await supabase
-      .storage
-      .from('media')
-      .list(videoPath.split('/')[0], {
-        limit: 1,
-        offset: 0,
-        search: videoPath.split('/')[1]
-      });
-
-    if (fileCheckError) {
-      console.error('Error checking file existence:', fileCheckError);
-      throw new Error(`Failed to check file existence: ${fileCheckError.message}`);
-    }
-
-    if (!fileExists || fileExists.length === 0) {
-      console.error('File not found in storage:', videoPath);
-      throw new Error('File not found in storage');
-    }
-
-    console.log('File exists in storage, generating signed URL');
-
-    // Generate signed URL for the file
+    // Get signed URL for video file
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('media')
-      .createSignedUrl(videoPath, 60);
+      .createSignedUrl(videoPath, 60)
 
     if (signedUrlError) {
-      console.error('Signed URL error:', signedUrlError);
-      throw new Error(`Failed to generate signed URL: ${signedUrlError.message}`);
+      console.error('Error getting signed URL:', signedUrlError)
+      throw new Error('Failed to get video file URL')
     }
 
-    if (!signedUrlData?.signedUrl) {
-      throw new Error('No signed URL generated');
+    // Initialize AssemblyAI
+    const assemblyAiApiKey = Deno.env.get('ASSEMBLYAI_API_KEY')
+    if (!assemblyAiApiKey) {
+      throw new Error('AssemblyAI API key not configured')
     }
 
-    console.log('Signed URL generated successfully');
-
-    // Download the file using the signed URL
-    console.log('Downloading file from signed URL');
-    const fileResponse = await fetch(signedUrlData.signedUrl);
-    
-    if (!fileResponse.ok) {
-      console.error('File download failed:', fileResponse.status, fileResponse.statusText);
-      throw new Error(`Failed to download file: ${fileResponse.statusText}`);
-    }
-
-    const fileData = await fileResponse.blob();
-    console.log('File downloaded successfully, size:', fileData.size);
-
-    // Prepare form data for OpenAI Whisper API
-    console.log('Preparing Whisper API request');
-    const formData = new FormData();
-    formData.append('file', fileData, 'audio.mp3');
-    formData.append('model', 'whisper-1');
-    formData.append('response_format', 'verbose_json');
-    formData.append('language', 'es');
-
-    // Call OpenAI Whisper API
-    console.log('Calling Whisper API');
-    const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    // Start transcription
+    console.log('Starting AssemblyAI transcription with URL:', signedUrlData.signedUrl)
+    const transcriptResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': assemblyAiApiKey,
+        'Content-Type': 'application/json'
       },
-      body: formData,
-    });
+      body: JSON.stringify({
+        audio_url: signedUrlData.signedUrl,
+        speaker_labels: true,
+        auto_chapters: true,
+        entity_detection: true,
+        summarization: true,
+        auto_highlights: true,
+        iab_categories: true,
+        content_safety: true,
+        language_code: 'es'
+      })
+    })
 
-    if (!whisperResponse.ok) {
-      const errorText = await whisperResponse.text();
-      console.error('OpenAI API error:', errorText);
-      throw new Error(`OpenAI API error: ${errorText}`);
+    if (!transcriptResponse.ok) {
+      const error = await transcriptResponse.text()
+      console.error('AssemblyAI transcription request failed:', error)
+      throw new Error('Failed to start transcription')
     }
 
-    const transcriptionResult = await whisperResponse.json();
-    console.log('Transcription completed successfully');
+    const transcriptData = await transcriptResponse.json()
+    const transcriptId = transcriptData.id
+    console.log('Transcription started with ID:', transcriptId)
 
-    let segments = [];
+    // Poll for completion
+    let transcript
+    let complete = false
     
-    // If segment identification is requested, process the full transcription to identify news segments
-    if (identifySegments && transcriptionResult.text) {
-      console.log('Identifying news segments in transcription');
+    while (!complete) {
+      await new Promise(resolve => setTimeout(resolve, 3000))
       
-      try {
-        // Call OpenAI to identify segments in the transcription
-        const segmentResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content: `Eres un experto en análisis de noticias y transcripciones de televisión. 
-                Tu tarea es identificar y separar diferentes segmentos de noticias dentro de una transcripción.
-                
-                Para cada segmento de noticia que identifiques, debes proporcionar:
-                1. Un título descriptivo
-                2. El texto completo del segmento
-                3. Una categoría (Política, Economía, Salud, Deportes, Seguridad, etc.)
-                4. Palabras clave relevantes (hasta 5)
-                
-                Identifica hasta 6 segmentos diferentes dentro de la transcripción. Si hay menos, proporciona solo los que encuentres.
-                Si la transcripción parece ser una sola noticia o segmento, devuelve solo un segmento.
-                
-                Responde usando ÚNICAMENTE JSON con este formato exacto:
-                {
-                  "segments": [
-                    {
-                      "title": "Título del segmento 1",
-                      "text": "Texto completo del segmento 1",
-                      "category": "Categoría",
-                      "keywords": ["palabra1", "palabra2", "palabra3"],
-                      "startTime": 0,
-                      "endTime": 0
-                    },
-                    ...más segmentos
-                  ]
-                }`
-              },
-              {
-                role: 'user',
-                content: `Identifica los diferentes segmentos de noticias en esta transcripción:\n\n${transcriptionResult.text}`
-              }
-            ],
-            response_format: { type: "json_object" }
-          }),
-        });
-
-        if (!segmentResponse.ok) {
-          throw new Error(`Error identifying segments: ${segmentResponse.statusText}`);
-        }
-
-        const segmentData = await segmentResponse.json();
-        
-        if (segmentData.choices && segmentData.choices[0]?.message?.content) {
-          const parsedContent = JSON.parse(segmentData.choices[0].message.content);
-          segments = parsedContent.segments || [];
-          console.log(`Identified ${segments.length} news segments`);
-        }
-      } catch (segmentError) {
-        console.error('Error identifying segments:', segmentError);
-        // If segmentation fails, continue with just the transcription
+      const pollingResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+        headers: { 'Authorization': assemblyAiApiKey }
+      })
+      
+      if (!pollingResponse.ok) {
+        throw new Error('Failed to check transcription status')
+      }
+      
+      transcript = await pollingResponse.json()
+      console.log('Transcript status:', transcript.status)
+      
+      if (['completed', 'error'].includes(transcript.status)) {
+        complete = true
       }
     }
 
-    // Update transcription record
+    if (transcript.status === 'error') {
+      throw new Error(`Transcription failed: ${transcript.error}`)
+    }
+
+    // Process transcript for news segments if requested
+    let segments = []
+    if (identifySegments && transcript.chapters && transcript.chapters.length > 0) {
+      console.log('Processing transcript chapters as news segments')
+      segments = transcript.chapters.map((chapter: any) => ({
+        title: chapter.headline,
+        text: chapter.summary,
+        startTime: chapter.start,
+        endTime: chapter.end,
+        keywords: chapter.gist.split(',').map((k: string) => k.trim())
+      }))
+    }
+
+    // Update transcription in database
     const { error: updateError } = await supabase
       .from('transcriptions')
-      .update({ 
-        transcription_text: transcriptionResult.text,
+      .update({
+        transcription_text: transcript.text,
         status: 'completed',
-        progress: 100,
-        ...(segments.length > 0 ? { 
-          assembly_chapters: segments 
-        } : {})
+        assembly_chapters: transcript.chapters,
+        assembly_topics: transcript.iab_categories_result,
+        assembly_key_phrases: transcript.auto_highlights_result,
+        assembly_entities: transcript.entities,
+        assembly_sentiment_analysis: transcript.sentiment_analysis_results,
+        assembly_content_safety: transcript.content_safety_labels,
+        assembly_summary: transcript.summary
       })
-      .eq('original_file_path', videoPath);
+      .eq('original_file_path', videoPath)
 
     if (updateError) {
-      console.error('Error updating transcription record:', updateError);
-      throw new Error(`Error updating transcription: ${updateError.message}`);
+      console.error('Error updating transcription record:', updateError)
     }
+
+    console.log('Transcription complete and saved to database')
 
     return new Response(
       JSON.stringify({ 
-        text: transcriptionResult.text,
-        segments: segments.length > 0 ? segments : null
+        text: transcript.text,
+        segments: segments,
+        chapters: transcript.chapters,
+        topics: transcript.iab_categories_result,
+        contentSafety: transcript.content_safety_labels,
+        summary: transcript.summary
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
+    )
   } catch (error) {
-    console.error('Function error:', error);
+    console.error('Error in transcribe-video function:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message || 'An unknown error occurred' 
+      }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
       }
-    );
+    )
   }
-});
+})
