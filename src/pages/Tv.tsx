@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
