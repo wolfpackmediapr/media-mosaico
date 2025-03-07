@@ -12,13 +12,10 @@ import ChaptersSection from "../analysis/ChaptersSection";
 import ContentSafetySection from "../analysis/ContentSafetySection";
 import TopicsSection from "../analysis/TopicsSection";
 import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
-import NewsSegmentGrid from "./NewsSegmentGrid";
-import { NewsSegment } from "@/hooks/use-video-processor";
 
 interface TranscriptionSlotProps {
   isProcessing: boolean;
   transcriptionText: string;
-  newsSegments?: NewsSegment[];
   metadata?: {
     channel?: string;
     program?: string;
@@ -28,17 +25,14 @@ interface TranscriptionSlotProps {
   };
   analysis?: TranscriptionAnalysisType;
   onTranscriptionChange: (text: string) => void;
-  onSegmentChange?: (index: number, text: string) => void;
 }
 
 const TranscriptionSlot = ({
   isProcessing,
   transcriptionText,
-  newsSegments = [],
   metadata,
   analysis,
   onTranscriptionChange,
-  onSegmentChange,
 }: TranscriptionSlotProps) => {
   const handleGenerateReport = async () => {
     try {
@@ -69,32 +63,16 @@ const TranscriptionSlot = ({
     console.log('Seeking to timestamp:', timestamp);
   };
 
-  const handleSegmentTextUpdate = (index: number, updatedText: string) => {
-    if (onSegmentChange) {
-      onSegmentChange(index, updatedText);
-    }
-  };
-
-  const useSegmentView = newsSegments && newsSegments.length > 0;
-
   return (
     <div className="space-y-6">
       <Card>
         <TranscriptionMetadata metadata={metadata} />
         <CardContent className="space-y-4">
-          {useSegmentView ? (
-            <NewsSegmentGrid 
-              segments={newsSegments}
-              isProcessing={isProcessing}
-              onSegmentChange={handleSegmentTextUpdate}
-            />
-          ) : (
-            <TranscriptionEditor
-              transcriptionText={transcriptionText}
-              isProcessing={isProcessing}
-              onTranscriptionChange={onTranscriptionChange}
-            />
-          )}
+          <TranscriptionEditor
+            transcriptionText={transcriptionText}
+            isProcessing={isProcessing}
+            onTranscriptionChange={onTranscriptionChange}
+          />
           <div className="flex justify-between items-center">
             <TranscriptionActions
               transcriptionText={transcriptionText}

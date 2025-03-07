@@ -11,21 +11,11 @@ interface TranscriptionMetadata {
   keywords?: string[];
 }
 
-export interface NewsSegment {
-  title: string;
-  text: string;
-  startTime: number;
-  endTime: number;
-  keywords?: string[];
-  category?: string;
-}
-
 export const useVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
-  const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);
@@ -55,58 +45,40 @@ export const useVideoProcessor = () => {
 
         setProgress(50);
 
-        // Process the converted audio file with segment identification
+        // Process the converted audio file
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
-            body: { 
-              videoPath: conversionData.audioPath,
-              identifySegments: true 
-            }
+            body: { videoPath: conversionData.audioPath }
           });
 
         if (processError) throw processError;
-        setProgress(80);
+        setProgress(90);
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
-          
-          // Handle segments if available
-          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
-            setNewsSegments(transcriptionResult.segments);
-          }
-          
           setProgress(100);
           
           toast({
             title: "Transcripción completada",
-            description: "El video ha sido transcrito y segmentado exitosamente.",
+            description: "El video ha sido transcrito exitosamente.",
           });
         }
       } else {
-        // For smaller files, process directly with segment identification
+        // For smaller files, process directly
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
-            body: { 
-              videoPath: file.name,
-              identifySegments: true 
-            }
+            body: { videoPath: file.name }
           });
 
         if (processError) throw processError;
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
-          
-          // Handle segments if available
-          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
-            setNewsSegments(transcriptionResult.segments);
-          }
-          
           setProgress(100);
           
           toast({
             title: "Transcripción completada",
-            description: "El video ha sido transcrito y segmentado exitosamente.",
+            description: "El video ha sido transcrito exitosamente.",
           });
         }
       }
@@ -127,9 +99,7 @@ export const useVideoProcessor = () => {
     progress,
     transcriptionText,
     transcriptionMetadata,
-    newsSegments,
     processVideo,
     setTranscriptionText,
-    setNewsSegments,
   };
 };
