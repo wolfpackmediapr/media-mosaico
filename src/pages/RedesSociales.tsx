@@ -60,6 +60,7 @@ const RedesSociales = () => {
             platforms={platforms}
             selectedPlatforms={selectedPlatforms}
             onSelectPlatforms={handlePlatformSelect}
+            isLoading={isPlatformsLoading}
           />
         </div>
 

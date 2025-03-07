@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getPlatformIcon } from "@/lib/platform-icons";
+import { platformIcons } from "@/lib/platform-icons";
 import type { SocialPlatform } from "@/types/social";
 
 interface PlatformFiltersProps {
@@ -83,7 +83,7 @@ const PlatformFilters = ({
         
         <div className="space-y-3">
           {platforms.map((platform) => {
-            const PlatformIcon = getPlatformIcon(platform.name);
+            const PlatformIcon = platformIcons[platform.id];
             
             return (
               <div key={platform.id} className="flex items-center space-x-2">
@@ -103,7 +103,7 @@ const PlatformFilters = ({
                   )}
                   {platform.name}
                   <span className="ml-1 text-muted-foreground text-xs">
-                    ({platform.postCount || 0})
+                    ({platform.count || 0})
                   </span>
                 </label>
               </div>

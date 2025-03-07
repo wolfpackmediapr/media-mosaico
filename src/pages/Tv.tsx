@@ -74,13 +74,11 @@ const Tv = () => {
   };
 
   const handleSegmentChange = (index: number, updatedText: string) => {
-    setNewsSegments((prev: NewsSegment[]) => {
-      const updated = [...prev];
-      if (updated[index]) {
-        updated[index] = { ...updated[index], text: updatedText };
-      }
-      return updated;
-    });
+    const updatedSegments = [...newsSegments];
+    if (updatedSegments[index]) {
+      updatedSegments[index] = { ...updatedSegments[index], text: updatedText };
+    }
+    setNewsSegments(updatedSegments);
   };
 
   // Adding console logs to debug the news segments
