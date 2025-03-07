@@ -40,6 +40,27 @@ export const useVideoProcessor = () => {
 
       setProgress(10);
 
+      // Get the actual file path from the latest transcription record
+      const { data: transcriptionData, error: transcriptionError } = await supabase
+        .from('transcriptions')
+        .select('original_file_path')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (transcriptionError) {
+        console.error('Error getting transcription record:', transcriptionError);
+        throw new Error('Could not find the file in our system');
+      }
+      
+      const filePath = transcriptionData?.original_file_path;
+      if (!filePath) {
+        throw new Error('No file path found in database');
+      }
+      
+      console.log('Using file path from database:', filePath);
+
       // Updated size limit to 20MB
       if (file.size > 20 * 1024 * 1024) {
         console.log("File is larger than 20MB, converting to audio first");
@@ -47,7 +68,7 @@ export const useVideoProcessor = () => {
 
         const { data: conversionData, error: conversionError } = await supabase.functions
           .invoke('convert-to-audio', {
-            body: { videoPath: file.name }
+            body: { videoPath: filePath }
           });
 
         if (conversionError) throw conversionError;
@@ -88,7 +109,7 @@ export const useVideoProcessor = () => {
         // For smaller files, process directly
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
-            body: { videoPath: file.name }
+            body: { videoPath: filePath }
           });
 
         if (processError) throw processError;
