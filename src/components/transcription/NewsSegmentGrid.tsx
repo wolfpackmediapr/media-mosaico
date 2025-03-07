@@ -19,6 +19,9 @@ const NewsSegmentGrid = ({
 }: NewsSegmentGridProps) => {
   const [currentSegment, setCurrentSegment] = useState(0);
 
+  // Add console log to see segments
+  console.log("Segments in NewsSegmentGrid:", segments);
+
   const handleNext = () => {
     if (currentSegment < segments.length - 1) {
       setCurrentSegment(currentSegment + 1);

@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface TranscriptionMetadata {
   channel?: string;
@@ -67,14 +67,18 @@ export const useVideoProcessor = () => {
         if (processError) throw processError;
         setProgress(80);
 
+        console.log("Transcription result:", transcriptionResult);
+
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
           
           // Handle segments if available
           if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
+            console.log("Received segments:", transcriptionResult.segments);
             setNewsSegments(transcriptionResult.segments);
           } else {
             // Default to a single segment if no segments were identified
+            console.log("No segments received, creating default segment");
             setNewsSegments([{
               title: "Transcripción completa",
               text: transcriptionResult.text,
@@ -85,10 +89,7 @@ export const useVideoProcessor = () => {
           
           setProgress(100);
           
-          toast({
-            title: "Transcripción completada",
-            description: "El video ha sido transcrito y segmentado exitosamente.",
-          });
+          toast.success("Transcripción completada. El video ha sido transcrito y segmentado exitosamente.");
         }
       } else {
         // For smaller files, process directly with segment identification
@@ -101,15 +102,19 @@ export const useVideoProcessor = () => {
           });
 
         if (processError) throw processError;
+        
+        console.log("Transcription result for small file:", transcriptionResult);
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
           
           // Handle segments if available
           if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
+            console.log("Received segments for small file:", transcriptionResult.segments);
             setNewsSegments(transcriptionResult.segments);
           } else {
             // Default to a single segment if no segments were identified
+            console.log("No segments received for small file, creating default segment");
             setNewsSegments([{
               title: "Transcripción completa",
               text: transcriptionResult.text,
@@ -120,19 +125,12 @@ export const useVideoProcessor = () => {
           
           setProgress(100);
           
-          toast({
-            title: "Transcripción completada",
-            description: "El video ha sido transcrito y segmentado exitosamente.",
-          });
+          toast.success("Transcripción completada. El video ha sido transcrito y segmentado exitosamente.");
         }
       }
     } catch (error: any) {
       console.error('Error processing file:', error);
-      toast({
-        title: "Error al procesar",
-        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
-        variant: "destructive",
-      });
+      toast.error(error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.");
     } finally {
       setIsProcessing(false);
     }

@@ -75,7 +75,10 @@ const TranscriptionSlot = ({
     }
   };
 
+  // Adding console logs to debug the news segments
+  console.log("News Segments in TranscriptionSlot:", newsSegments);
   const useSegmentView = newsSegments && newsSegments.length > 0;
+  console.log("Using segment view:", useSegmentView);
 
   return (
     <div className="space-y-6">

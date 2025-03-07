@@ -83,6 +83,9 @@ const Tv = () => {
     });
   };
 
+  // Adding console logs to debug the news segments
+  console.log("News Segments in Tv component:", newsSegments);
+
   return (
     <div className="space-y-6">
       <TvHeader />
