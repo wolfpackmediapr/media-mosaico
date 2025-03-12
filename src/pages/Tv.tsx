@@ -1,11 +1,10 @@
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
-import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -16,7 +15,6 @@ const Tv = () => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState([50]);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
   const {
@@ -160,17 +158,9 @@ const Tv = () => {
         />
       </div>
 
-      {/* News Segments Container */}
-      <NewsSegmentsContainer
-        segments={newsSegments}
-        onSegmentsChange={setNewsSegments}
-        onSeek={handleSeekToTimestamp}
-        isProcessing={isProcessing}
-      />
-
       <TranscriptionSlot
         isProcessing={isProcessing}
-        transcriptionText={transcriptionText || "Transcripción de ejemplo para probar el análisis de contenido..."}
+        transcriptionText={transcriptionText || ""}
         metadata={transcriptionMetadata || {
           channel: "WIPR",
           program: "Noticias Puerto Rico",
@@ -181,6 +171,7 @@ const Tv = () => {
         onTranscriptionChange={setTranscriptionText}
         newsSegments={newsSegments}
         onNewsSegmentsChange={setNewsSegments}
+        onSeekVideo={handleSeekToTimestamp}
       />
 
       <div className="mt-8 p-6 bg-muted rounded-lg">

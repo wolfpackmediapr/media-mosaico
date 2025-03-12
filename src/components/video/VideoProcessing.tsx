@@ -42,62 +42,88 @@ export const processVideoFile = async (
 
     console.log("Processing file:", filePath);
     
-    // Updated size limit to 20MB
-    if (file.size > 20 * 1024 * 1024) {
-      console.log("File is larger than 20MB, converting to audio first");
-      
-      toast({
-        title: "Procesando video",
-        description: "El archivo es grande, se está convirtiendo a audio primero...",
-      });
-      
-      const { data, error } = await supabase.functions.invoke('convert-to-audio', {
-        body: { videoPath: filePath }
-      });
-
-      if (error) {
-        console.error('Conversion error:', error);
-        throw error;
-      }
-
-      if (data?.audioPath) {
+    try {
+      // Updated size limit to 20MB
+      if (file.size > 20 * 1024 * 1024) {
+        console.log("File is larger than 20MB, converting to audio first");
+        
         toast({
-          title: "Conversión completada",
-          description: "Iniciando transcripción del audio...",
+          title: "Procesando video",
+          description: "El archivo es grande, se está convirtiendo a audio primero...",
+        });
+        
+        const { data, error } = await supabase.functions.invoke('convert-to-audio', {
+          body: { videoPath: filePath }
         });
 
-        const { data: transcriptionData, error: transcriptionError } = await supabase.functions.invoke('transcribe-video', {
-          body: { videoPath: data.audioPath }
-        });
-
-        if (transcriptionError) {
-          console.error('Transcription error:', transcriptionError);
-          throw transcriptionError;
+        if (error) {
+          console.error('Conversion error:', error);
+          throw error;
         }
 
-        if (transcriptionData?.text) {
-          onTranscriptionComplete?.(transcriptionData.text);
+        if (data?.audioPath) {
+          toast({
+            title: "Conversión completada",
+            description: "Iniciando transcripción del audio...",
+          });
+
+          const { data: transcriptionData, error: transcriptionError } = await supabase.functions.invoke('transcribe-video', {
+            body: { videoPath: data.audioPath }
+          });
+
+          if (transcriptionError) {
+            console.error('Transcription error:', transcriptionError);
+            throw transcriptionError;
+          }
+
+          if (transcriptionData?.text) {
+            onTranscriptionComplete?.(transcriptionData.text);
+            toast({
+              title: "Transcripción completada",
+              description: "El archivo ha sido procesado exitosamente",
+            });
+          }
+        }
+      } else {
+        const { data, error } = await supabase.functions.invoke('transcribe-video', {
+          body: { videoPath: filePath }
+        });
+
+        if (error) {
+          console.error('Transcription error:', error);
+          throw error;
+        }
+
+        if (data?.text) {
+          onTranscriptionComplete?.(data.text);
           toast({
             title: "Transcripción completada",
             description: "El archivo ha sido procesado exitosamente",
           });
         }
       }
-    } else {
-      const { data, error } = await supabase.functions.invoke('transcribe-video', {
-        body: { videoPath: filePath }
+    } catch (apiError) {
+      console.error('API Error:', apiError);
+      // Try the secure-transcribe endpoint as a fallback
+      toast({
+        title: "Retrying transcription",
+        description: "Intentando método alternativo de transcripción...",
       });
-
-      if (error) {
-        console.error('Transcription error:', error);
-        throw error;
+      
+      const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('secure-transcribe', {
+        body: { filePath }
+      });
+      
+      if (fallbackError) {
+        console.error('Fallback transcription error:', fallbackError);
+        throw fallbackError;
       }
-
-      if (data?.text) {
-        onTranscriptionComplete?.(data.text);
+      
+      if (fallbackData?.text) {
+        onTranscriptionComplete?.(fallbackData.text);
         toast({
           title: "Transcripción completada",
-          description: "El archivo ha sido procesado exitosamente",
+          description: "El archivo ha sido procesado exitosamente mediante método alternativo",
         });
       }
     }
@@ -108,5 +134,6 @@ export const processVideoFile = async (
       description: "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
       variant: "destructive",
     });
+    throw error; // Re-throw to let the caller handle it
   }
 };

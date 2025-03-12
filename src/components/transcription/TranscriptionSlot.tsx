@@ -13,6 +13,7 @@ import ContentSafetySection from "../analysis/ContentSafetySection";
 import TopicsSection from "../analysis/TopicsSection";
 import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
 import { NewsSegment } from "@/hooks/use-video-processor";
+import NewsSegmentsContainer from "./NewsSegmentsContainer";
 
 interface TranscriptionSlotProps {
   isProcessing: boolean;
@@ -99,6 +100,14 @@ const TranscriptionSlot = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Display News Segments Container inside TranscriptionSlot for better organization */}
+      <NewsSegmentsContainer
+        segments={newsSegments}
+        onSegmentsChange={onNewsSegmentsChange}
+        onSeek={onSeekVideo}
+        isProcessing={isProcessing}
+      />
 
       <TranscriptionAnalysis transcriptionText={transcriptionText} />
 

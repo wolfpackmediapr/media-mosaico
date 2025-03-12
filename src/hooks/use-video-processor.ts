@@ -69,27 +69,79 @@ const processLargeFile = async (filePath: string, setProgress: (progress: number
   setProgress(20);
   console.log("File is larger than 20MB, converting to audio first");
 
-  const { data: conversionData, error: conversionError } = await supabase.functions
-    .invoke('convert-to-audio', {
-      body: { videoPath: filePath }
+  try {
+    const { data: conversionData, error: conversionError } = await supabase.functions
+      .invoke('convert-to-audio', {
+        body: { videoPath: filePath }
+      });
+
+    if (conversionError) throw conversionError;
+    console.log("Conversion response:", conversionData);
+
+    setProgress(50);
+    return conversionData.audioPath;
+  } catch (error) {
+    console.error("Error in audio conversion:", error);
+    // Fallback to direct transcription
+    toast({
+      title: "Conversion failed",
+      description: "Intentando transcripción directa...",
     });
-
-  if (conversionError) throw conversionError;
-  console.log("Conversion response:", conversionData);
-
-  setProgress(50);
-  return conversionData.audioPath;
+    return filePath;
+  }
 };
 
 // Function to invoke transcription
 const invokeTranscription = async (videoPath: string) => {
-  const { data: transcriptionResult, error: processError } = await supabase.functions
-    .invoke('transcribe-video', {
-      body: { videoPath }
-    });
+  try {
+    const { data: transcriptionResult, error: processError } = await supabase.functions
+      .invoke('transcribe-video', {
+        body: { videoPath }
+      });
 
-  if (processError) throw processError;
-  return transcriptionResult;
+    if (processError) throw processError;
+    return transcriptionResult;
+  } catch (mainError) {
+    console.error('Primary transcription error:', mainError);
+    
+    // Try fallback endpoint
+    const { data: fallbackResult, error: fallbackError } = await supabase.functions
+      .invoke('secure-transcribe', {
+        body: { filePath: videoPath }
+      });
+      
+    if (fallbackError) throw fallbackError;
+    return fallbackResult;
+  }
+};
+
+// Function to create dummy data for development/fallback
+const createDummyTranscriptionData = () => {
+  return {
+    text: "Esta es una transcripción de ejemplo para mostrar cuando la transcripción real falla. Estamos trabajando para solucionar el problema con el servicio de transcripción.",
+    segments: [
+      {
+        headline: "Segmento 1",
+        text: "Este es el primer segmento de la transcripción de ejemplo.",
+        start: 0,
+        end: 30000,
+        segment_number: 1,
+        segment_title: "Introducción",
+        timestamp_start: "00:00",
+        timestamp_end: "00:30"
+      },
+      {
+        headline: "Segmento 2",
+        text: "Este es el segundo segmento de la transcripción de ejemplo.",
+        start: 30000,
+        end: 60000,
+        segment_number: 2,
+        segment_title: "Desarrollo",
+        timestamp_start: "00:30",
+        timestamp_end: "01:00"
+      }
+    ]
+  };
 };
 
 // Function to handle transcription results
@@ -154,21 +206,47 @@ export const useVideoProcessor = () => {
       // Updated size limit to 20MB
       let transcribeFilePath = filePath;
       if (file.size > 20 * 1024 * 1024) {
-        transcribeFilePath = await processLargeFile(filePath, setProgress);
+        try {
+          transcribeFilePath = await processLargeFile(filePath, setProgress);
+        } catch (convError) {
+          console.error("Conversion error, using original path:", convError);
+          // Continue with original path if conversion fails
+        }
       }
 
-      // Process the file with transcription service
-      const transcriptionResult = await invokeTranscription(transcribeFilePath);
-      
-      // Handle the transcription results
-      handleTranscriptionResults(
-        transcriptionResult, 
-        setTranscriptionText, 
-        setNewsSegments, 
-        setAssemblyId, 
-        setAnalysis,
-        setProgress
-      );
+      try {
+        // Process the file with transcription service
+        const transcriptionResult = await invokeTranscription(transcribeFilePath);
+        
+        // Handle the transcription results
+        handleTranscriptionResults(
+          transcriptionResult, 
+          setTranscriptionText, 
+          setNewsSegments, 
+          setAssemblyId, 
+          setAnalysis,
+          setProgress
+        );
+      } catch (transcriptionError) {
+        console.error("All transcription attempts failed:", transcriptionError);
+        
+        // Use dummy data for development/fallback
+        const dummyData = createDummyTranscriptionData();
+        handleTranscriptionResults(
+          dummyData,
+          setTranscriptionText,
+          setNewsSegments,
+          setAssemblyId,
+          setAnalysis,
+          setProgress
+        );
+        
+        toast({
+          title: "Usando datos de ejemplo",
+          description: "No se pudo transcribir el video. Mostrando datos de ejemplo.",
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       console.error('Error processing file:', error);
       toast({
