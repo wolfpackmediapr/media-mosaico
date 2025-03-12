@@ -12,6 +12,7 @@ import ChaptersSection from "../analysis/ChaptersSection";
 import ContentSafetySection from "../analysis/ContentSafetySection";
 import TopicsSection from "../analysis/TopicsSection";
 import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
+import { NewsSegment } from "@/hooks/use-video-processor";
 
 interface TranscriptionSlotProps {
   isProcessing: boolean;
@@ -25,6 +26,7 @@ interface TranscriptionSlotProps {
   };
   analysis?: TranscriptionAnalysisType;
   onTranscriptionChange: (text: string) => void;
+  onSegmentsReceived?: (segments: NewsSegment[]) => void;
 }
 
 const TranscriptionSlot = ({
@@ -33,6 +35,7 @@ const TranscriptionSlot = ({
   metadata,
   analysis,
   onTranscriptionChange,
+  onSegmentsReceived,
 }: TranscriptionSlotProps) => {
   const handleGenerateReport = async () => {
     try {
@@ -91,7 +94,10 @@ const TranscriptionSlot = ({
         </CardContent>
       </Card>
 
-      <TranscriptionAnalysis transcriptionText={transcriptionText} />
+      <TranscriptionAnalysis 
+        transcriptionText={transcriptionText} 
+        onSegmentsReceived={onSegmentsReceived}
+      />
 
       {analysis && (
         <>

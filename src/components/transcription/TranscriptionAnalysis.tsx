@@ -5,23 +5,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+import { NewsSegment } from "@/hooks/use-video-processor";
 
 interface TranscriptionAnalysisProps {
   transcriptionText?: string;
+  onSegmentsReceived?: (segments: NewsSegment[]) => void;
 }
 
-const TranscriptionAnalysis = ({ transcriptionText }: TranscriptionAnalysisProps) => {
+const TranscriptionAnalysis = ({ 
+  transcriptionText,
+  onSegmentsReceived
+}: TranscriptionAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState("");
 
   const analyzeContent = async () => {
     if (!transcriptionText) {
-      toast({
-        title: "Error",
-        description: "No hay texto para analizar",
-        variant: "destructive",
-      });
+      toast.error("No hay texto para analizar");
       return;
     }
 
@@ -35,20 +36,45 @@ const TranscriptionAnalysis = ({ transcriptionText }: TranscriptionAnalysisProps
 
       if (data?.analysis) {
         setAnalysis(data.analysis);
-        toast({
-          title: "Análisis completado",
-          description: "El contenido ha sido analizado exitosamente.",
-        });
+        toast.success("El contenido ha sido analizado exitosamente.");
+        
+        // Handle segments if they exist
+        if (data.segments && Array.isArray(data.segments) && onSegmentsReceived) {
+          // Convert to NewsSegment format
+          const newsSegments = data.segments.map((segment: any) => ({
+            headline: segment.segment_title,
+            text: segment.transcript,
+            start: convertTimestampToMs(segment.timestamp_start),
+            end: convertTimestampToMs(segment.timestamp_end)
+          }));
+          
+          onSegmentsReceived(newsSegments);
+        }
       }
     } catch (error) {
       console.error('Error analyzing content:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo analizar el contenido. Por favor, intenta nuevamente.",
-        variant: "destructive",
-      });
+      toast.error("No se pudo analizar el contenido. Por favor, intenta nuevamente.");
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  // Helper function to convert timestamp format "00:00:00" to milliseconds
+  const convertTimestampToMs = (timestamp: string): number => {
+    if (!timestamp || typeof timestamp !== 'string') return 0;
+    
+    const parts = timestamp.split(':');
+    if (parts.length !== 3) return 0;
+    
+    try {
+      const hours = parseInt(parts[0]) || 0;
+      const minutes = parseInt(parts[1]) || 0;
+      const seconds = parseInt(parts[2]) || 0;
+      
+      return (hours * 3600 + minutes * 60 + seconds) * 1000;
+    } catch (e) {
+      console.error('Error converting timestamp:', e);
+      return 0;
     }
   };
 

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
@@ -111,10 +110,8 @@ const Tv = () => {
   };
 
   const handleSeekToTimestamp = (timestamp: number) => {
-    // Convert milliseconds to seconds for video element
     const timeInSeconds = timestamp / 1000;
     
-    // Find the current video element and seek to the timestamp
     const videoElements = document.querySelectorAll('video');
     if (videoElements.length > 0) {
       const videoElement = videoElements[0];
@@ -122,6 +119,12 @@ const Tv = () => {
       videoElement.play();
     } else {
       console.warn('No video element found to seek');
+    }
+  };
+
+  const handleSegmentsReceived = (segments: any[]) => {
+    if (segments && segments.length > 0) {
+      setNewsSegments(segments);
     }
   };
 
@@ -159,7 +162,6 @@ const Tv = () => {
         />
       </div>
 
-      {/* News Segments Container */}
       <NewsSegmentsContainer
         segments={newsSegments}
         onSegmentsChange={setNewsSegments}
@@ -178,6 +180,7 @@ const Tv = () => {
         }}
         analysis={testAnalysis}
         onTranscriptionChange={setTranscriptionText}
+        onSegmentsReceived={handleSegmentsReceived}
       />
 
       <div className="mt-8 p-6 bg-muted rounded-lg">
