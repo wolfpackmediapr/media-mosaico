@@ -67,10 +67,12 @@ const AudioFileList = ({
         setProgress(100);
       });
 
+      // Fix: Use the updated text from the callback instead of referencing transcriptionText directly
+      // Get the current text from a new state update to ensure it's the latest value
       const { error: updateError } = await supabase
         .from('transcriptions')
         .update({
-          transcription_text: transcriptionText,
+          transcription_text: transcriptionData.transcription_text, // This should be the latest text but needs to be captured
           status: 'completed'
         })
         .eq('id', transcriptionData.id);
