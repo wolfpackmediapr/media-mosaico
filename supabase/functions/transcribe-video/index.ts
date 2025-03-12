@@ -7,6 +7,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Function to format milliseconds into HH:MM:SS format
+const formatTimestamp = (milliseconds: number): string => {
+  if (!milliseconds && milliseconds !== 0) return "00:00:00";
+  
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
+// Function to calculate segment timestamps based on video duration
+const calculateSegmentTimestamps = (duration: number, segmentIndex: number, totalSegments: number): { start: number, end: number } => {
+  if (!duration) return { start: 0, end: 0 };
+  
+  const segmentDuration = duration / totalSegments;
+  const start = Math.round(segmentIndex * segmentDuration);
+  const end = Math.round((segmentIndex + 1) * segmentDuration);
+  
+  return { start, end };
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -101,10 +124,9 @@ serve(async (req) => {
     const whisperResult = await whisperResponse.json();
     console.log('Transcription completed successfully');
 
-    // Now, use AssemblyAI to identify news segments within the transcript
-    console.log('Processing transcript with AssemblyAI for news segments');
+    // Create AssemblyAI transcript using the audio file and Nano model for Spanish
+    console.log('Processing transcript with AssemblyAI Nano model for Spanish');
     
-    // Create AssemblyAI transcript using the audio file
     const assemblyResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
@@ -113,13 +135,15 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         audio_url: signedUrlData.signedUrl,
-        auto_chapters: true,
+        language_code: 'es',  // Spanish language code
         speaker_labels: true,
+        auto_chapters: true,
         entity_detection: true,
         auto_highlights: true,
         summarization: true,
         summary_type: 'paragraph',
-        summary_model: 'conversational'
+        summary_model: 'conversational',
+        model: 'nano'  // Using Nano model which works well with Spanish
       })
     });
 
@@ -136,6 +160,8 @@ serve(async (req) => {
 
     // Poll until the transcript is ready (only if we got a valid job)
     let transcriptResult = null;
+    let videoDuration = 0;
+    
     if (assemblyJob?.id) {
       let attempts = 0;
       const maxAttempts = 60; // 5 minutes max (5s * 60)
@@ -158,6 +184,11 @@ serve(async (req) => {
         
         if (transcriptResult.status === 'completed') {
           console.log('AssemblyAI processing completed');
+          // Store the video duration if available
+          if (transcriptResult.audio_duration) {
+            videoDuration = transcriptResult.audio_duration * 1000; // Convert to milliseconds
+            console.log('Video duration detected:', videoDuration, 'ms');
+          }
           break;
         } else if (transcriptResult.status === 'error') {
           console.error('AssemblyAI processing error:', transcriptResult.error);
@@ -181,6 +212,7 @@ serve(async (req) => {
           text: chapter.summary || chapter.gist,
           start: chapter.start,
           end: chapter.end,
+          keywords: [] // Will be filled by GPT-4 later
         })));
       } 
       // If no chapters but we have speakers, use speaker transitions as segment boundaries
@@ -191,6 +223,7 @@ serve(async (req) => {
           text: utterance.text,
           start: utterance.start,
           end: utterance.end,
+          keywords: []
         })));
       }
       
@@ -213,34 +246,32 @@ serve(async (req) => {
       }
     }
 
-    // If no segments were identified yet, or very few, use GPT-4 to analyze the transcript
-    if (newsSegments.length < 4) {
-      console.log('Using GPT-4 to identify news segments');
+    // If no segments were identified or fewer than 6, use GPT-4 to analyze the transcript
+    // and now ensure we use accurate timestamps based on video duration
+    let gptGeneratedSegments = [];
+    
+    if (newsSegments.length < 6) {
+      console.log('Using GPT-4 to identify news segments in Spanish');
       
-      // Updated system prompt to specifically instruct GPT-4 to respond in Spanish
       const systemPrompt = `Eres un experto en analizar transmisiones de noticias e identificar segmentos distintos en una transcripción.
-        Tu tarea es dividir esta transcripción de noticias en exactamente 6 segmentos significativos.
+        Tu tarea es dividir esta transcripción de noticias en español en exactamente 6 segmentos significativos.
         
         IMPORTANTE: DEBES RESPONDER EN ESPAÑOL. Todo el análisis y los segmentos deben estar escritos en español.
         
         Para cada segmento debes identificar:
         1. Un titular periodístico conciso para el segmento (5-8 palabras)
         2. El contenido principal de ese segmento (resumido de la transcripción)
-        3. Marcas de tiempo aproximadas para cuando este segmento podría comenzar y terminar
-        4. 3-5 palabras clave que representen los principales temas del segmento
+        3. 3-5 palabras clave que representen los principales temas del segmento
         
         Formatea cada segmento así:
         {
           "headline": "Titular Conciso Aquí",
           "text": "Resumen del contenido del segmento...",
-          "start": 0, (tiempo estimado de inicio en milisegundos)
-          "end": 0, (tiempo estimado de finalización en milisegundos)
           "keywords": ["palabraclave1", "palabraclave2", "palabraclave3"]
         }
         
         Devuelve EXACTAMENTE SEIS segmentos en un array de objetos JSON.
         Asegúrate de que los segmentos cubran diferentes temas o aspectos de la transmisión de noticias.
-        Para las marcas de tiempo, haz estimaciones razonables basadas en la longitud y posición de cada segmento en la transcripción.
         
         Importante: NO incluyas explicaciones o notas. Responde SOLO con el array JSON de segmentos en ESPAÑOL.`;
       
@@ -270,8 +301,8 @@ serve(async (req) => {
             try {
               const parsedContent = JSON.parse(gptResult.choices[0].message.content);
               if (parsedContent.segments && Array.isArray(parsedContent.segments)) {
-                newsSegments = parsedContent.segments;
-                console.log(`Generated ${newsSegments.length} news segments with GPT-4`);
+                gptGeneratedSegments = parsedContent.segments;
+                console.log(`Generated ${gptGeneratedSegments.length} news segments with GPT-4`);
               }
             } catch (e) {
               console.error('Error parsing GPT-4 response:', e);
@@ -285,46 +316,72 @@ serve(async (req) => {
       }
     }
 
-    // If we still don't have segments, create a default one
-    if (newsSegments.length === 0) {
-      console.log('No segments identified, using full transcript as single segment');
-      newsSegments.push({
-        headline: 'Transcripción completa',
-        text: whisperResult.text,
-        start: 0,
-        end: 0,
-        keywords: []
+    // Create the final list of exactly 6 segments with proper timestamps
+    // If we have both AssemblyAI and GPT segments, merge them smartly
+    let finalSegments = [];
+    
+    if (newsSegments.length >= 6) {
+      // Use AssemblyAI segments (up to 6)
+      finalSegments = newsSegments.slice(0, 6);
+    } else if (gptGeneratedSegments.length > 0) {
+      // If we have GPT segments, use them but add timestamps based on video duration
+      finalSegments = gptGeneratedSegments.map((segment, index) => {
+        const { start, end } = calculateSegmentTimestamps(videoDuration, index, 6);
+        return {
+          ...segment,
+          start,
+          end
+        };
       });
-    }
-
-    // Make sure we have exactly 6 segments
-    if (newsSegments.length < 6) {
-      // Fill up to 6 segments with empty placeholders
-      console.log(`Adding ${6 - newsSegments.length} placeholder segments`);
-      const transcriptLength = newsSegments.reduce((acc, segment) => acc + segment.text.length, 0);
-      const avgSegmentLength = transcriptLength / 6;
-      
-      for (let i = newsSegments.length; i < 6; i++) {
-        newsSegments.push({
+    } else {
+      // If no segments from either source, create 6 evenly distributed segments
+      for (let i = 0; i < 6; i++) {
+        const { start, end } = calculateSegmentTimestamps(videoDuration, i, 6);
+        finalSegments.push({
           headline: `Segmento ${i + 1}`,
-          text: "",
-          start: 0,
-          end: 0,
+          text: i === 0 ? whisperResult.text : "",
+          start,
+          end,
           keywords: []
         });
       }
-    } else if (newsSegments.length > 6) {
-      // Keep only the first 6 segments
-      console.log(`Trimming down to first 6 segments from ${newsSegments.length}`);
-      newsSegments = newsSegments.slice(0, 6);
     }
 
-    console.log(`Returning ${newsSegments.length} news segments`);
+    // Make sure we have exactly 6 segments with formatted HH:MM:SS timestamps
+    if (finalSegments.length < 6) {
+      // Fill up to 6 segments with placeholder segments if needed
+      const segmentDuration = videoDuration > 0 ? videoDuration / 6 : 0;
+      
+      for (let i = finalSegments.length; i < 6; i++) {
+        const start = Math.round(i * segmentDuration);
+        const end = Math.round((i + 1) * segmentDuration);
+        
+        finalSegments.push({
+          headline: `Segmento ${i + 1}`,
+          text: "",
+          start,
+          end,
+          keywords: []
+        });
+      }
+    } else if (finalSegments.length > 6) {
+      // Keep only the first 6 segments
+      finalSegments = finalSegments.slice(0, 6);
+    }
+
+    // Format the start/end times in HH:MM:SS for each segment
+    finalSegments = finalSegments.map(segment => ({
+      ...segment,
+      timestamp_start: formatTimestamp(segment.start),
+      timestamp_end: formatTimestamp(segment.end)
+    }));
+
+    console.log(`Returning ${finalSegments.length} news segments with accurate timestamps`);
     
     return new Response(
       JSON.stringify({ 
         text: whisperResult.text,
-        segments: newsSegments,
+        segments: finalSegments,
         assemblyId: assemblyJob?.id
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -19,9 +19,9 @@ serve(async (req) => {
       throw new Error('No transcription text provided')
     }
 
-    const systemPrompt = `Eres un asistente especializado en analizar transcripciones de noticias de televisión.
+    const systemPrompt = `Eres un asistente especializado en analizar transcripciones de noticias de televisión en español.
       
-      Analiza el texto proporcionado y extrae la información en este formato exacto:
+      Analiza el texto proporcionado y extrae SOLO la siguiente información en este formato específico:
 
       * Canal: [nombre del canal]
       * Programa/horario: [nombre del programa] / [horario]
@@ -32,36 +32,32 @@ serve(async (req) => {
       Mantén el formato exacto y asegúrate de incluir todos los campos.
       Si no puedes determinar algún dato con certeza, usa "No especificado".
 
-      NO incluyas ninguna línea o sección con "---SEGMENTOS---" en tu respuesta.
+      IMPORTANTE: Tu respuesta debe dividirse en DOS SECCIONES completamente separadas:
 
-      Adicionalmente, genera EXACTAMENTE 6 segmentos distintos basados en:
-      1. Cambios de tema (identificando donde empieza una nueva noticia o tema)
-      2. Estructura natural del contenido periodístico (presentación, desarrollo, entrevistas, conclusiones)
-      3. Posibles transiciones entre reporteros o presentadores
-       
-      Es CRUCIAL que identifiques 6 segmentos distintos, cada uno representando un bloque conceptual independiente.
+      SECCIÓN 1: La información de análisis general con EXACTAMENTE el formato de puntos especificado arriba.
       
-      Para cada segmento, proporciona:
+      SECCIÓN 2: Un array JSON con 6 objetos de segmentos, con la siguiente estructura:
+      [
+        {
+          "segment_number": 1,
+          "segment_title": "Título del segmento 1",
+          "transcript": "Resumen analítico del segmento",
+          "timestamp_start": "00:00:00",
+          "timestamp_end": "00:00:00",
+          "keywords": ["palabra1", "palabra2", "palabra3"]
+        },
+        ... y así sucesivamente para los 6 segmentos
+      ]
+
+      Para cada segmento, debes identificar:
       1. Un título analítico y periodístico (no descriptivo)
       2. Un resumen conciso del contenido específico de ese segmento
-      3. Aproximaciones de timestamps (no tienes que ser exacto, puedes estimarlos)
+      3. Timestamps aproximados (inicio y fin)
       4. Lista de 3 a 5 palabras clave específicas para cada segmento
-       
-      Cada segmento debe seguir este formato JSON exacto dentro de una array:
-      {
-        "segment_number": [número de 1 a 6],
-        "segment_title": [título analítico breve del segmento],
-        "transcript": [resumen analítico del segmento, NO el texto literal],
-        "timestamp_start": "00:00:00",
-        "timestamp_end": "00:00:00",
-        "keywords": ["palabra1", "palabra2", "palabra3"]
-      }
-      
-      La respuesta completa tendrá dos partes:
-      1. El análisis general (Canal, Programa, etc.)
-      2. Un array JSON con 6 objetos de segmentos
 
-      No incluyas la palabra "---SEGMENTOS---" ni ningún otro separador en tu respuesta.`
+      NO mezcles estas dos secciones. Deben estar claramente separadas.
+      La primera sección debe ser SOLAMENTE texto plano con el formato de lista.
+      La segunda sección debe ser SOLAMENTE un array JSON válido.`
 
     // Call OpenAI or similar service to analyze the text
     const apiKey = Deno.env.get("OPENAI_API_KEY")
@@ -92,36 +88,45 @@ serve(async (req) => {
     }
 
     const data = await response.json()
-    let analysis = data.choices[0].message.content
+    let analysisText = data.choices[0].message.content
 
-    // Extract segments from analysis by finding JSON array
+    // This improved regex finds any JSON array pattern (with any content inside)
+    // It looks for a pattern starting with [ followed by { and ending with } ]
+    // The [\s\S]*? means "any character including newlines, as few as possible"
+    const jsonArrayRegex = /\[\s*\{[\s\S]*?\}\s*\]/g
+    
+    // Extract segments JSON array from the analysis text
     let segments = []
-    try {
-      // Look for array of JSON objects - any properly formatted JSON array
-      const jsonMatch = analysis.match(/\[\s*\{[\s\S]*\}\s*\]/g)
-      if (jsonMatch && jsonMatch[0]) {
-        segments = JSON.parse(jsonMatch[0])
+    const jsonMatches = analysisText.match(jsonArrayRegex)
+    
+    if (jsonMatches && jsonMatches.length > 0) {
+      try {
+        // Parse the first JSON array found in the text
+        segments = JSON.parse(jsonMatches[0])
         
-        // Remove the JSON array from the analysis text to clean up the output
-        analysis = analysis.replace(jsonMatch[0], "").trim()
-      } else {
-        // Fallback: try to extract individual JSON objects
-        const jsonObjects = analysis.match(/\{[^{}]*\}/g)
-        if (jsonObjects) {
-          segments = jsonObjects.map(obj => JSON.parse(obj))
-        }
+        // Remove all JSON arrays from the analysis text
+        analysisText = analysisText.replace(jsonArrayRegex, "")
+      } catch (e) {
+        console.error('Error parsing segments JSON:', e)
       }
-    } catch (e) {
-      console.error('Error parsing segments:', e)
     }
-
-    // Remove any "---SEGMENTOS---" text if it still appears
-    analysis = analysis.replace(/---SEGMENTOS---/g, "").trim()
+    
+    // Clean up the analysis text - remove any remaining JSON object snippets
+    // This regex matches any standalone JSON object pattern
+    const jsonObjectRegex = /\{[^{}]*\}/g
+    analysisText = analysisText.replace(jsonObjectRegex, "")
+    
+    // Remove any extraneous markers or separators that might have been added
+    analysisText = analysisText
+      .replace(/---[A-Za-z0-9_-]+---/g, "") // Remove any markdown-style separators
+      .replace(/SECCIÓN [0-9]+:/gi, "")     // Remove section markers
+      .replace(/```(?:json)?[\s\S]*?```/g, "") // Remove any code blocks
+      .trim()
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        analysis, 
+        analysis: analysisText, 
         segments
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
