@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, useRef } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
 import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
-import { useRef } from "react";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -66,17 +66,17 @@ const Tv = () => {
     };
   }, []);
 
-  export function handleDragOver(e: React.DragEvent) {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
   };
 
-  export function handleDragLeave(e: React.DragEvent) {
+  const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
   };
 
-  export function handleFiles(files: FileList) {
+  const handleFiles = (files: FileList) => {
     for (const file of Array.from(files)) {
       uploadFile(file).then(result => {
         if (result) {
@@ -87,31 +87,31 @@ const Tv = () => {
     }
   };
 
-  export function handleDrop(e: React.DragEvent) {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     handleFiles(e.dataTransfer.files);
   };
 
-  export function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       handleFiles(e.target.files);
     }
   };
 
-  export function togglePlayback() {
+  const togglePlayback = () => {
     setIsPlaying(!isPlaying);
   };
 
-  export function handleTranscriptionComplete(text: string) {
+  const handleTranscriptionComplete = (text: string) => {
     setTranscriptionText(text);
   };
 
-  export function handleRemoveFile(index: number) {
+  const handleRemoveFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  export function handleSeekToTimestamp(timestamp: number) {
+  const handleSeekToTimestamp = (timestamp: number) => {
     // Convert milliseconds to seconds for video element
     const timeInSeconds = timestamp / 1000;
     
