@@ -24,33 +24,43 @@ serve(async (req) => {
     }
 
     const systemPrompt = `Eres un asistente especializado en analizar transcripciones de noticias de televisión.
+      Tu tarea principal es identificar y segmentar los diferentes temas y noticias presentes en la transcripción.
+
       Primero, analiza el texto proporcionado y extrae la información en este formato exacto:
 
       * Canal: [nombre del canal]
       * Programa/horario: [nombre del programa] / [horario]
-      * Título de la noticia: [título extraído o generado]
-      * Descripción o resumen de la noticia: [resumen conciso]
+      * Título del segmento: [título principal extraído o generado]
+      * Descripción general: [descripción general del contenido analizado]
       * Keywords: [palabras clave separadas por coma]
 
       Mantén el formato exacto y asegúrate de incluir todos los campos.
       Si no puedes determinar algún dato con certeza, usa "No especificado".
 
       Segundo, después de una línea que contenga solo "---SEGMENTOS---", divide la transcripción en EXACTAMENTE 6 segmentos distintos basados en:
-      1. Cambios de hablante (periodistas, presentadores, entrevistados)
-      2. Transiciones de tema
-      3. Estructura natural de la noticia
+      1. Cambios de tema (identificando donde empieza una nueva noticia o tema)
+      2. Estructura natural del contenido periodístico (presentación, desarrollo, entrevistas, conclusiones)
+      3. Posibles transiciones entre reporteros o presentadores
       
-      Es CRUCIAL que crees EXACTAMENTE 6 segmentos, ni más ni menos. Si el contenido es muy breve, divide en segmentos lógicos más pequeños.
-      Si el contenido es extenso, combina temas relacionados para limitar a 6 segmentos.
+      Es CRUCIAL que identifiques 6 segmentos distintos, cada uno representando un bloque conceptual independiente.
+      Si el contenido es muy breve, identifica cambios sutiles en el enfoque o presentación.
+      Si el contenido es extenso, prioriza los temas principales y más diferenciados.
+      
+      Para cada segmento, proporciona:
+      1. Un título analítico y periodístico (no descriptivo)
+      2. Un resumen conciso del contenido específico de ese segmento
+      3. Aproximaciones de timestamps (no tienes que ser exacto, puedes estimarlos)
       
       Cada segmento debe seguir este formato JSON exacto:
       {
         "segment_number": [número de 1 a 6],
-        "segment_title": [título breve y descriptivo del segmento],
-        "transcript": [texto del segmento],
+        "segment_title": [título analítico breve del segmento],
+        "transcript": [resumen analítico del segmento, NO el texto literal],
         "timestamp_start": "00:00:00",
         "timestamp_end": "00:00:00"
       }
+      
+      Asegúrate de que cada segmento represente un tema o enfoque distinto, no solo dividir el texto en partes iguales.
       
       Devuelve un array de exactamente 6 objetos JSON después de la línea separadora.`
 

@@ -46,7 +46,7 @@ const NewsSegmentCard = ({
   };
 
   return (
-    <Card className="mb-4">
+    <Card className={`mb-4 ${isReadOnly ? 'opacity-50' : ''}`}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold">
@@ -85,7 +85,7 @@ const NewsSegmentCard = ({
             className="min-h-[100px]"
           />
         ) : (
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{segment.text}</p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">{segment.text || "No hay análisis disponible para este segmento."}</p>
         )}
       </CardContent>
     </Card>
