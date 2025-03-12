@@ -1,12 +1,11 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
 import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
-import { useRef } from "react";
 
 interface UploadedFile extends File {
   preview?: string;
