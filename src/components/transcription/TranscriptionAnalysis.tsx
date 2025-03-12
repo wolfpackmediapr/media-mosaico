@@ -35,7 +35,12 @@ const TranscriptionAnalysis = ({
       if (error) throw error;
 
       if (data?.analysis) {
-        setAnalysis(data.analysis);
+        // Remove any JSON code that might be in the analysis text
+        const cleanedAnalysis = data.analysis.replace(/```json[\s\S]*?```/g, '')
+          .replace(/\[[\s\S]*?\]/g, '') // Remove arrays
+          .replace(/{[\s\S]*?}/g, '');  // Remove objects
+          
+        setAnalysis(cleanedAnalysis);
         toast.success("El contenido ha sido analizado exitosamente.");
         
         // Handle segments if they exist
@@ -44,8 +49,8 @@ const TranscriptionAnalysis = ({
           const newsSegments = data.segments.map((segment: any) => ({
             headline: segment.segment_title || `Segmento ${segment.segment_number}`,
             text: segment.transcript || "",
-            start: convertTimestampToMs(segment.timestamp_start) || 0,
-            end: convertTimestampToMs(segment.timestamp_end) || 0,
+            start: segment.timestamp_start ? convertTimestampToMs(segment.timestamp_start) : 0,
+            end: segment.timestamp_end ? convertTimestampToMs(segment.timestamp_end) : 0,
             keywords: segment.keywords || []
           }));
           
