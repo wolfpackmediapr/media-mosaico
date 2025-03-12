@@ -1,10 +1,9 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NewsSegment } from "@/hooks/use-video-processor";
 import NewsSegmentCard from "./NewsSegmentCard";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp, Plus, Filter, Sorting } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Filter, SortAsc } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface NewsSegmentsContainerProps {
@@ -34,7 +33,6 @@ const NewsSegmentsContainer = ({
   };
 
   const addEmptySegment = () => {
-    // Get the highest segment number and increment by 1
     const maxSegmentNumber = segments.length > 0 
       ? Math.max(...segments.map(s => s.segment_number || 0)) + 1 
       : 1;
@@ -64,7 +62,6 @@ const NewsSegmentsContainer = ({
     setFilterEmpty(!filterEmpty);
   };
 
-  // Always show at least 6 segment cards (filled or empty)
   const displaySegments = [...segments];
   while (displaySegments.length < 6) {
     const segmentNumber = displaySegments.length + 1;
@@ -80,26 +77,21 @@ const NewsSegmentsContainer = ({
     });
   }
 
-  // Sort the segments based on selected sort order
   const sortedSegments = [...displaySegments].sort((a, b) => {
     if (sortOrder === 'chronological') {
       return a.start - b.start;
     } else if (sortOrder === 'reverse') {
       return b.start - a.start;
     } else if (sortOrder === 'importance') {
-      // For importance, we'll use the segment number as a proxy for importance
       return a.segment_number - b.segment_number;
     }
     return 0;
   });
 
-  // Filter empty segments if filter is enabled
   const filteredSegments = filterEmpty 
     ? sortedSegments.filter(segment => segment.text.trim() !== "")
     : sortedSegments;
 
-  // For expanded view, show all segments
-  // For collapsed view, show filled segments and empty ones up to 6 total
   const visibleSegments = expandedView 
     ? filteredSegments 
     : filteredSegments.slice(0, Math.max(6, segments.filter(s => s.text.trim() !== "").length));
@@ -135,7 +127,7 @@ const NewsSegmentsContainer = ({
                   variant="outline" 
                   size="sm"
                 >
-                  <Sorting className="h-4 w-4 mr-1" />
+                  <SortAsc className="h-4 w-4 mr-1" />
                   Ordenar
                 </Button>
               </DropdownMenuTrigger>

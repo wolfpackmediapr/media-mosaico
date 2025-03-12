@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
@@ -26,6 +25,7 @@ const Tv = () => {
     transcriptionText,
     transcriptionMetadata,
     newsSegments,
+    analysis,
     processVideo,
     setTranscriptionText,
     setNewsSegments
@@ -66,51 +66,52 @@ const Tv = () => {
     };
   }, []);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  export function handleDragOver(e: React.DragEvent) {
     e.preventDefault();
     setIsDragging(true);
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  export function handleDragLeave(e: React.DragEvent) {
     e.preventDefault();
     setIsDragging(false);
   };
 
-  const handleFiles = async (files: FileList) => {
+  export function handleFiles(files: FileList) {
     for (const file of Array.from(files)) {
-      const result = await uploadFile(file);
-      if (result) {
-        const uploadedFile = Object.assign(file, { preview: result.preview });
-        setUploadedFiles(prev => [...prev, uploadedFile]);
-      }
+      uploadFile(file).then(result => {
+        if (result) {
+          const uploadedFile = Object.assign(file, { preview: result.preview });
+          setUploadedFiles(prev => [...prev, uploadedFile]);
+        }
+      });
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  export function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setIsDragging(false);
     handleFiles(e.dataTransfer.files);
   };
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  export function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files) {
       handleFiles(e.target.files);
     }
   };
 
-  const togglePlayback = () => {
+  export function togglePlayback() {
     setIsPlaying(!isPlaying);
   };
 
-  const handleTranscriptionComplete = (text: string) => {
+  export function handleTranscriptionComplete(text: string) {
     setTranscriptionText(text);
   };
 
-  const handleRemoveFile = (index: number) => {
+  export function handleRemoveFile(index: number) {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSeekToTimestamp = (timestamp: number) => {
+  export function handleSeekToTimestamp(timestamp: number) {
     // Convert milliseconds to seconds for video element
     const timeInSeconds = timestamp / 1000;
     
@@ -178,6 +179,8 @@ const Tv = () => {
         }}
         analysis={testAnalysis}
         onTranscriptionChange={setTranscriptionText}
+        newsSegments={newsSegments}
+        onNewsSegmentsChange={setNewsSegments}
       />
 
       <div className="mt-8 p-6 bg-muted rounded-lg">
