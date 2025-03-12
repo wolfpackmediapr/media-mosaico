@@ -217,29 +217,32 @@ serve(async (req) => {
     if (newsSegments.length < 4) {
       console.log('Using GPT-4 to identify news segments');
       
-      const systemPrompt = `You are an expert in analyzing news broadcasts and identifying distinct segments in a transcript.
-        Your task is to divide this news transcript into exactly 6 meaningful segments.
+      // Updated system prompt to specifically instruct GPT-4 to respond in Spanish
+      const systemPrompt = `Eres un experto en analizar transmisiones de noticias e identificar segmentos distintos en una transcripción.
+        Tu tarea es dividir esta transcripción de noticias en exactamente 6 segmentos significativos.
         
-        For each segment you must identify:
-        1. A concise, journalistic headline for the segment (5-8 words)
-        2. The main text content of that segment (summarized from the transcript)
-        3. Approximate timestamps for when this segment might start and end
-        4. 3-5 keywords that represent the main topics in the segment
+        IMPORTANTE: DEBES RESPONDER EN ESPAÑOL. Todo el análisis y los segmentos deben estar escritos en español.
         
-        Format each segment as:
+        Para cada segmento debes identificar:
+        1. Un titular periodístico conciso para el segmento (5-8 palabras)
+        2. El contenido principal de ese segmento (resumido de la transcripción)
+        3. Marcas de tiempo aproximadas para cuando este segmento podría comenzar y terminar
+        4. 3-5 palabras clave que representen los principales temas del segmento
+        
+        Formatea cada segmento así:
         {
-          "headline": "Concise Headline Here",
-          "text": "Summary of the segment content...",
-          "start": 0, (estimated start time in milliseconds)
-          "end": 0, (estimated end time in milliseconds)
-          "keywords": ["keyword1", "keyword2", "keyword3"]
+          "headline": "Titular Conciso Aquí",
+          "text": "Resumen del contenido del segmento...",
+          "start": 0, (tiempo estimado de inicio en milisegundos)
+          "end": 0, (tiempo estimado de finalización en milisegundos)
+          "keywords": ["palabraclave1", "palabraclave2", "palabraclave3"]
         }
         
-        Return EXACTLY SIX segments in an array of JSON objects.
-        Make sure the segments cover different topics or aspects of the news broadcast.
-        For timestamps, make reasonable estimates based on the length and position of each segment in the transcript.
+        Devuelve EXACTAMENTE SEIS segmentos en un array de objetos JSON.
+        Asegúrate de que los segmentos cubran diferentes temas o aspectos de la transmisión de noticias.
+        Para las marcas de tiempo, haz estimaciones razonables basadas en la longitud y posición de cada segmento en la transcripción.
         
-        Important: DO NOT include any explanations or notes. Respond ONLY with the JSON array of segments.`;
+        Importante: NO incluyas explicaciones o notas. Responde SOLO con el array JSON de segmentos en ESPAÑOL.`;
       
       try {
         const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
