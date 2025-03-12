@@ -62,7 +62,7 @@ interface TopicResult {
   timestamp: TimeRange;
 }
 
-export interface ChapterResult {
+interface ChapterResult {
   gist: string;
   headline: string;
   summary: string;

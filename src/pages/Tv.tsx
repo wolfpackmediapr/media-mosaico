@@ -5,6 +5,8 @@ import VideoPreview from "@/components/video/VideoPreview";
 import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
+import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
+import { useRef } from "react";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -15,6 +17,7 @@ const Tv = () => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState([50]);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
   const {
@@ -23,7 +26,6 @@ const Tv = () => {
     transcriptionText,
     transcriptionMetadata,
     newsSegments,
-    analysis,
     processVideo,
     setTranscriptionText,
     setNewsSegments
@@ -74,14 +76,13 @@ const Tv = () => {
     setIsDragging(false);
   };
 
-  const handleFiles = (files: FileList) => {
+  const handleFiles = async (files: FileList) => {
     for (const file of Array.from(files)) {
-      uploadFile(file).then(result => {
-        if (result) {
-          const uploadedFile = Object.assign(file, { preview: result.preview });
-          setUploadedFiles(prev => [...prev, uploadedFile]);
-        }
-      });
+      const result = await uploadFile(file);
+      if (result) {
+        const uploadedFile = Object.assign(file, { preview: result.preview });
+        setUploadedFiles(prev => [...prev, uploadedFile]);
+      }
     }
   };
 
@@ -158,9 +159,17 @@ const Tv = () => {
         />
       </div>
 
+      {/* News Segments Container */}
+      <NewsSegmentsContainer
+        segments={newsSegments}
+        onSegmentsChange={setNewsSegments}
+        onSeek={handleSeekToTimestamp}
+        isProcessing={isProcessing}
+      />
+
       <TranscriptionSlot
         isProcessing={isProcessing}
-        transcriptionText={transcriptionText || ""}
+        transcriptionText={transcriptionText || "Transcripción de ejemplo para probar el análisis de contenido..."}
         metadata={transcriptionMetadata || {
           channel: "WIPR",
           program: "Noticias Puerto Rico",
@@ -169,9 +178,6 @@ const Tv = () => {
         }}
         analysis={testAnalysis}
         onTranscriptionChange={setTranscriptionText}
-        newsSegments={newsSegments}
-        onNewsSegmentsChange={setNewsSegments}
-        onSeekVideo={handleSeekToTimestamp}
       />
 
       <div className="mt-8 p-6 bg-muted rounded-lg">
