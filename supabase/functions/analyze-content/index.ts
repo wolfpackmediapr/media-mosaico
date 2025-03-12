@@ -20,9 +20,8 @@ serve(async (req) => {
     }
 
     const systemPrompt = `Eres un asistente especializado en analizar transcripciones de noticias de televisión.
-      Tu tarea principal es identificar y segmentar los diferentes temas y noticias presentes en la transcripción.
-
-      Primero, analiza el texto proporcionado y extrae la información en este formato exacto:
+      
+      Analiza el texto proporcionado y extrae la información en este formato exacto:
 
       * Canal: [nombre del canal]
       * Programa/horario: [nombre del programa] / [horario]
@@ -33,14 +32,14 @@ serve(async (req) => {
       Mantén el formato exacto y asegúrate de incluir todos los campos.
       Si no puedes determinar algún dato con certeza, usa "No especificado".
 
-      Segundo, después de una línea que contenga solo "---SEGMENTOS---", divide la transcripción en EXACTAMENTE 6 segmentos distintos basados en:
+      NO incluyas ninguna línea o sección con "---SEGMENTOS---" en tu respuesta.
+
+      Adicionalmente, genera EXACTAMENTE 6 segmentos distintos basados en:
       1. Cambios de tema (identificando donde empieza una nueva noticia o tema)
       2. Estructura natural del contenido periodístico (presentación, desarrollo, entrevistas, conclusiones)
       3. Posibles transiciones entre reporteros o presentadores
        
       Es CRUCIAL que identifiques 6 segmentos distintos, cada uno representando un bloque conceptual independiente.
-      Si el contenido es muy breve, identifica cambios sutiles en el enfoque o presentación.
-      Si el contenido es extenso, prioriza los temas principales y más diferenciados.
       
       Para cada segmento, proporciona:
       1. Un título analítico y periodístico (no descriptivo)
@@ -48,7 +47,7 @@ serve(async (req) => {
       3. Aproximaciones de timestamps (no tienes que ser exacto, puedes estimarlos)
       4. Lista de 3 a 5 palabras clave específicas para cada segmento
        
-      Cada segmento debe seguir este formato JSON exacto:
+      Cada segmento debe seguir este formato JSON exacto dentro de una array:
       {
         "segment_number": [número de 1 a 6],
         "segment_title": [título analítico breve del segmento],
@@ -58,9 +57,11 @@ serve(async (req) => {
         "keywords": ["palabra1", "palabra2", "palabra3"]
       }
       
-      Asegúrate de que cada segmento represente un tema o enfoque distinto, no solo dividir el texto en partes iguales.
-       
-      Devuelve un array de exactamente 6 objetos JSON después de la línea separadora.`
+      La respuesta completa tendrá dos partes:
+      1. El análisis general (Canal, Programa, etc.)
+      2. Un array JSON con 6 objetos de segmentos
+
+      No incluyas la palabra "---SEGMENTOS---" ni ningún otro separador en tu respuesta.`
 
     // Call OpenAI or similar service to analyze the text
     const apiKey = Deno.env.get("OPENAI_API_KEY")
@@ -91,29 +92,31 @@ serve(async (req) => {
     }
 
     const data = await response.json()
-    const analysis = data.choices[0].message.content
+    let analysis = data.choices[0].message.content
 
-    // Extract segments from analysis
-    const segmentsPart = analysis.split('---SEGMENTOS---')[1]
+    // Extract segments from analysis by finding JSON array
     let segments = []
-
-    if (segmentsPart) {
-      try {
-        // Look for array of JSON objects
-        const jsonMatch = segmentsPart.match(/\[\s*\{.*\}\s*\]/s)
-        if (jsonMatch) {
-          segments = JSON.parse(jsonMatch[0])
-        } else {
-          // Fallback: try to extract individual JSON objects
-          const jsonObjects = segmentsPart.match(/\{[^{}]*\}/g)
-          if (jsonObjects) {
-            segments = jsonObjects.map(obj => JSON.parse(obj))
-          }
+    try {
+      // Look for array of JSON objects - any properly formatted JSON array
+      const jsonMatch = analysis.match(/\[\s*\{[\s\S]*\}\s*\]/g)
+      if (jsonMatch && jsonMatch[0]) {
+        segments = JSON.parse(jsonMatch[0])
+        
+        // Remove the JSON array from the analysis text to clean up the output
+        analysis = analysis.replace(jsonMatch[0], "").trim()
+      } else {
+        // Fallback: try to extract individual JSON objects
+        const jsonObjects = analysis.match(/\{[^{}]*\}/g)
+        if (jsonObjects) {
+          segments = jsonObjects.map(obj => JSON.parse(obj))
         }
-      } catch (e) {
-        console.error('Error parsing segments:', e)
       }
+    } catch (e) {
+      console.error('Error parsing segments:', e)
     }
+
+    // Remove any "---SEGMENTOS---" text if it still appears
+    analysis = analysis.replace(/---SEGMENTOS---/g, "").trim()
 
     return new Response(
       JSON.stringify({ 
