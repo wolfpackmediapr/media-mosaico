@@ -42,13 +42,17 @@ const TranscriptionAnalysis = ({
         if (data.segments && Array.isArray(data.segments) && onSegmentsReceived) {
           // Convert to NewsSegment format
           const newsSegments = data.segments.map((segment: any) => ({
-            headline: segment.segment_title,
-            text: segment.transcript,
-            start: convertTimestampToMs(segment.timestamp_start),
-            end: convertTimestampToMs(segment.timestamp_end)
+            headline: segment.segment_title || `Segmento ${segment.segment_number}`,
+            text: segment.transcript || "",
+            start: convertTimestampToMs(segment.timestamp_start) || 0,
+            end: convertTimestampToMs(segment.timestamp_end) || 0
           }));
           
-          onSegmentsReceived(newsSegments);
+          // Limit to 6 segments for initial display
+          const processedSegments = newsSegments.slice(0, Math.min(newsSegments.length, 6));
+          
+          console.log("Processed segments:", processedSegments);
+          onSegmentsReceived(processedSegments);
         }
       }
     } catch (error) {
