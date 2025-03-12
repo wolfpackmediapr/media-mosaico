@@ -35,21 +35,24 @@ serve(async (req) => {
       Mantén el formato exacto y asegúrate de incluir todos los campos.
       Si no puedes determinar algún dato con certeza, usa "No especificado".
 
-      Segundo, después de una línea que contenga solo "---SEGMENTOS---", segmenta la transcripción en secciones distintas basadas en:
+      Segundo, después de una línea que contenga solo "---SEGMENTOS---", divide la transcripción en EXACTAMENTE 6 segmentos distintos basados en:
       1. Cambios de hablante (periodistas, presentadores, entrevistados)
       2. Transiciones de tema
       3. Estructura natural de la noticia
       
-      Cada segmento debe seguir este formato JSON:
+      Es CRUCIAL que crees EXACTAMENTE 6 segmentos, ni más ni menos. Si el contenido es muy breve, divide en segmentos lógicos más pequeños.
+      Si el contenido es extenso, combina temas relacionados para limitar a 6 segmentos.
+      
+      Cada segmento debe seguir este formato JSON exacto:
       {
-        "segment_number": [número],
+        "segment_number": [número de 1 a 6],
         "segment_title": [título breve y descriptivo del segmento],
         "transcript": [texto del segmento],
         "timestamp_start": "00:00:00",
         "timestamp_end": "00:00:00"
       }
       
-      Devuelve un array de estos objetos JSON después de la línea separadora.`
+      Devuelve un array de exactamente 6 objetos JSON después de la línea separadora.`
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -102,14 +105,51 @@ serve(async (req) => {
               return JSON.parse(jsonStr)
             } catch (e) {
               console.error('Error parsing segment JSON:', e)
-              return null
+              // If we can't parse a segment, create a placeholder
+              return {
+                segment_number: segments.length + 1,
+                segment_title: `Segmento ${segments.length + 1}`,
+                transcript: "No se pudo analizar este segmento correctamente.",
+                timestamp_start: "00:00:00",
+                timestamp_end: "00:00:00"
+              }
             }
           }).filter(segment => segment !== null)
         }
+        
+        // Make sure we have exactly 6 segments
+        while (segments.length < 6) {
+          segments.push({
+            segment_number: segments.length + 1,
+            segment_title: `Segmento ${segments.length + 1}`,
+            transcript: "",
+            timestamp_start: "00:00:00",
+            timestamp_end: "00:00:00"
+          });
+        }
+        
+        // Limit to exactly 6 segments
+        segments = segments.slice(0, 6);
       } catch (error) {
         console.error('Error extracting segments:', error)
-        // Continue with just the analysis part
+        // Create 6 empty segments if extraction fails
+        segments = Array(6).fill(null).map((_, i) => ({
+          segment_number: i + 1,
+          segment_title: `Segmento ${i + 1}`,
+          transcript: "",
+          timestamp_start: "00:00:00",
+          timestamp_end: "00:00:00"
+        }));
       }
+    } else {
+      // Create 6 empty segments if no segments part
+      segments = Array(6).fill(null).map((_, i) => ({
+        segment_number: i + 1,
+        segment_title: `Segmento ${i + 1}`,
+        transcript: "",
+        timestamp_start: "00:00:00",
+        timestamp_end: "00:00:00"
+      }));
     }
 
     console.log('Analysis completed successfully')

@@ -48,11 +48,8 @@ const TranscriptionAnalysis = ({
             end: convertTimestampToMs(segment.timestamp_end) || 0
           }));
           
-          // Limit to 6 segments for initial display
-          const processedSegments = newsSegments.slice(0, Math.min(newsSegments.length, 6));
-          
-          console.log("Processed segments:", processedSegments);
-          onSegmentsReceived(processedSegments);
+          console.log("Processed segments:", newsSegments);
+          onSegmentsReceived(newsSegments);
         }
       }
     } catch (error) {

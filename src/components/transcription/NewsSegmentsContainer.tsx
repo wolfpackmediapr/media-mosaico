@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NewsSegment } from "@/hooks/use-video-processor";
 import NewsSegmentCard from "./NewsSegmentCard";
@@ -43,13 +44,13 @@ const NewsSegmentsContainer = ({
     setExpandedView(!expandedView);
   };
 
-  // Create array of 6 fixed positions
+  // Create an array of exactly 6 segment slots
+  // For slots with actual segments, use the real segment data
+  // For empty slots, use placeholder data
   const displaySegments = Array(6).fill(null).map((_, i) => {
-    // If there's a real segment at this position, use it
     if (i < segments.length) {
       return segments[i];
     }
-    // Otherwise, return a placeholder
     return {
       headline: `Segmento ${i + 1}`,
       text: "",
@@ -58,14 +59,12 @@ const NewsSegmentsContainer = ({
     };
   });
 
-  // For expanded view, show all real segments plus the 6 fixed positions if needed
+  // For expanded view, show all real segments plus empty placeholders if needed
+  // For collapsed view, show exactly 6 slots (a mix of real and placeholder segments)
   const visibleSegments = expandedView 
-    ? [...segments, ...Array(Math.max(0, 6 - segments.length)).fill(null).map((_, i) => ({
-        headline: `Segmento ${segments.length + i + 1}`,
-        text: "",
-        start: 0,
-        end: 0
-      }))]
+    ? segments.length > 6 
+      ? segments 
+      : displaySegments
     : displaySegments;
 
   return (
