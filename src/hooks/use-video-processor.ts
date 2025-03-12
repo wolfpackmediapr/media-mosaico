@@ -91,6 +91,7 @@ export const useVideoProcessor = () => {
           
           // Handle news segments if available
           if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
+            console.log("Received segments:", transcriptionResult.segments);
             setNewsSegments(transcriptionResult.segments);
           }
           
@@ -120,6 +121,7 @@ export const useVideoProcessor = () => {
           
           // Handle news segments if available
           if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
+            console.log("Received segments:", transcriptionResult.segments);
             setNewsSegments(transcriptionResult.segments);
           }
           

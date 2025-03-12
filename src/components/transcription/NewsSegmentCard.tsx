@@ -92,7 +92,7 @@ const NewsSegmentCard = ({
                 <p className="text-xs text-gray-500 font-semibold">Palabras clave:</p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {segment.keywords.map((keyword, idx) => (
-                    <span key={idx} className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">
+                    <span key={idx} className="text-xs bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full">
                       {keyword}
                     </span>
                   ))}

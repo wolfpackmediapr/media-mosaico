@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
@@ -162,16 +163,18 @@ const Tv = () => {
         />
       </div>
 
-      <NewsSegmentsContainer
-        segments={newsSegments}
-        onSegmentsChange={setNewsSegments}
-        onSeek={handleSeekToTimestamp}
-        isProcessing={isProcessing}
-      />
+      {transcriptionText && (
+        <NewsSegmentsContainer
+          segments={newsSegments}
+          onSegmentsChange={setNewsSegments}
+          onSeek={handleSeekToTimestamp}
+          isProcessing={isProcessing}
+        />
+      )}
 
       <TranscriptionSlot
         isProcessing={isProcessing}
-        transcriptionText={transcriptionText || "Transcripción de ejemplo para probar el análisis de contenido..."}
+        transcriptionText={transcriptionText}
         metadata={transcriptionMetadata || {
           channel: "WIPR",
           program: "Noticias Puerto Rico",

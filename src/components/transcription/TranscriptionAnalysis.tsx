@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, ScrollText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { NewsSegment } from "@/hooks/use-video-processor";
@@ -83,11 +83,20 @@ const TranscriptionAnalysis = ({
   return (
     <Card className="mt-6">
       <CardHeader className="bg-gradient-to-r from-primary-50 to-transparent">
-        <CardTitle className="text-2xl font-bold text-primary-900">
-          Análisis de Contenido
+        <CardTitle className="text-2xl font-bold text-primary-900 flex items-center gap-2">
+          <ScrollText className="w-6 h-6" />
+          Análisis Detallado de Contenido
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 pt-4">
+        <div className="bg-muted/50 p-4 rounded-md">
+          <p className="text-sm text-muted-foreground">
+            Este análisis profundo es un paso adicional opcional que proporciona una evaluación 
+            detallada del contenido de la transcripción. El análisis incluye identificación de temas clave, 
+            estructura del contenido y contexto periodístico.
+          </p>
+        </div>
+        
         <div className="flex justify-end">
           <Button
             onClick={analyzeContent}
@@ -97,19 +106,30 @@ const TranscriptionAnalysis = ({
             {isAnalyzing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analizando...
+                Analizando contenido detalladamente...
               </>
             ) : (
-              'Analizar Contenido'
+              <>
+                <ScrollText className="mr-2 h-4 w-4" />
+                Analizar Contenido Detalladamente
+              </>
             )}
           </Button>
         </div>
-        <Textarea
-          value={analysis}
-          readOnly
-          className="min-h-[200px] font-mono text-sm"
-          placeholder="El análisis del contenido aparecerá aquí..."
-        />
+        
+        {analysis ? (
+          <Textarea
+            value={analysis}
+            readOnly
+            className="min-h-[200px] font-mono text-sm"
+          />
+        ) : (
+          <div className="min-h-[200px] border rounded-md p-4 bg-muted/20 flex items-center justify-center">
+            <p className="text-center text-muted-foreground">
+              El análisis detallado del contenido aparecerá aquí después de hacer clic en el botón "Analizar Contenido Detalladamente".
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
