@@ -16,6 +16,20 @@ export interface NewsSegment {
   text: string;
   start: number;
   end: number;
+  segment_number: number;
+  segment_title: string;
+  timestamp_start: string;
+  timestamp_end: string;
+}
+
+export interface TranscriptionAnalysis {
+  summary?: string;
+  content_safety_labels?: any;
+  sentiment_analysis_results?: any[];
+  entities?: any[];
+  iab_categories_result?: any;
+  chapters?: any[];
+  auto_highlights_result?: any;
 }
 
 export const useVideoProcessor = () => {
@@ -25,6 +39,7 @@ export const useVideoProcessor = () => {
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
   const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
   const [assemblyId, setAssemblyId] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<TranscriptionAnalysis | null>(null);
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);
@@ -98,6 +113,11 @@ export const useVideoProcessor = () => {
             setAssemblyId(transcriptionResult.assemblyId);
           }
           
+          // Store analysis data if available
+          if (transcriptionResult.analysis) {
+            setAnalysis(transcriptionResult.analysis);
+          }
+          
           setProgress(100);
           
           toast({
@@ -127,6 +147,11 @@ export const useVideoProcessor = () => {
             setAssemblyId(transcriptionResult.assemblyId);
           }
           
+          // Store analysis data if available
+          if (transcriptionResult.analysis) {
+            setAnalysis(transcriptionResult.analysis);
+          }
+          
           setProgress(100);
           
           toast({
@@ -154,6 +179,7 @@ export const useVideoProcessor = () => {
     transcriptionMetadata,
     newsSegments,
     assemblyId,
+    analysis,
     processVideo,
     setTranscriptionText,
     setNewsSegments

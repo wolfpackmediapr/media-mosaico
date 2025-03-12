@@ -4,7 +4,8 @@ import { NewsSegment } from "@/hooks/use-video-processor";
 import NewsSegmentCard from "./NewsSegmentCard";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Filter, Sorting } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface NewsSegmentsContainerProps {
   segments: NewsSegment[];
@@ -20,6 +21,8 @@ const NewsSegmentsContainer = ({
   isProcessing
 }: NewsSegmentsContainerProps) => {
   const [expandedView, setExpandedView] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'chronological' | 'reverse' | 'importance'>('chronological');
+  const [filterEmpty, setFilterEmpty] = useState(false);
 
   const handleSegmentEdit = (index: number, text: string) => {
     const updatedSegments = [...segments];
@@ -31,11 +34,20 @@ const NewsSegmentsContainer = ({
   };
 
   const addEmptySegment = () => {
+    // Get the highest segment number and increment by 1
+    const maxSegmentNumber = segments.length > 0 
+      ? Math.max(...segments.map(s => s.segment_number || 0)) + 1 
+      : 1;
+      
     const newSegment: NewsSegment = {
-      headline: `Segmento ${segments.length + 1}`,
+      headline: `Segmento ${maxSegmentNumber}`,
       text: "",
       start: 0,
-      end: 0
+      end: 0,
+      segment_number: maxSegmentNumber,
+      segment_title: `Segmento ${maxSegmentNumber}`,
+      timestamp_start: "00:00:00",
+      timestamp_end: "00:00:00"
     };
     onSegmentsChange([...segments, newSegment]);
   };
@@ -43,39 +55,121 @@ const NewsSegmentsContainer = ({
   const toggleView = () => {
     setExpandedView(!expandedView);
   };
+  
+  const handleSort = (order: 'chronological' | 'reverse' | 'importance') => {
+    setSortOrder(order);
+  };
+
+  const toggleFilterEmpty = () => {
+    setFilterEmpty(!filterEmpty);
+  };
 
   // Always show at least 6 segment cards (filled or empty)
   const displaySegments = [...segments];
   while (displaySegments.length < 6) {
+    const segmentNumber = displaySegments.length + 1;
     displaySegments.push({
-      headline: `Segmento ${displaySegments.length + 1}`,
+      headline: `Segmento ${segmentNumber}`,
       text: "",
       start: 0,
-      end: 0
+      end: 0,
+      segment_number: segmentNumber,
+      segment_title: `Segmento ${segmentNumber}`,
+      timestamp_start: "00:00:00",
+      timestamp_end: "00:00:00"
     });
   }
+
+  // Sort the segments based on selected sort order
+  const sortedSegments = [...displaySegments].sort((a, b) => {
+    if (sortOrder === 'chronological') {
+      return a.start - b.start;
+    } else if (sortOrder === 'reverse') {
+      return b.start - a.start;
+    } else if (sortOrder === 'importance') {
+      // For importance, we'll use the segment number as a proxy for importance
+      return a.segment_number - b.segment_number;
+    }
+    return 0;
+  });
+
+  // Filter empty segments if filter is enabled
+  const filteredSegments = filterEmpty 
+    ? sortedSegments.filter(segment => segment.text.trim() !== "")
+    : sortedSegments;
 
   // For expanded view, show all segments
   // For collapsed view, show filled segments and empty ones up to 6 total
   const visibleSegments = expandedView 
-    ? displaySegments 
-    : displaySegments.slice(0, Math.max(6, segments.length));
+    ? filteredSegments 
+    : filteredSegments.slice(0, Math.max(6, segments.filter(s => s.text.trim() !== "").length));
 
   return (
     <Card className="my-6">
       <CardHeader className="bg-gradient-to-r from-primary-50 to-transparent">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <CardTitle className="text-2xl font-bold text-primary-900">
             Segmentos de Noticias
           </CardTitle>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                >
+                  <Filter className="h-4 w-4 mr-1" />
+                  Filtrar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={toggleFilterEmpty}>
+                  {filterEmpty ? "Mostrar todos" : "Ocultar vacíos"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                >
+                  <Sorting className="h-4 w-4 mr-1" />
+                  Ordenar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => handleSort('chronological')}>
+                  Cronológico
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSort('reverse')}>
+                  Inverso
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSort('importance')}>
+                  Por importancia
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
             <Button 
               variant="outline" 
               size="sm"
               onClick={toggleView}
             >
-              {expandedView ? "Ver menos" : "Ver todos"}
+              {expandedView ? (
+                <>
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                  Ver menos
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  Ver todos
+                </>
+              )}
             </Button>
+            
             <Button 
               variant="outline" 
               size="sm"

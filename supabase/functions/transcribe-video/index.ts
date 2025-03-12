@@ -120,7 +120,13 @@ serve(async (req) => {
         auto_highlights: true,
         summarization: true,
         summary_type: 'paragraph',
-        summary_model: 'conversational'
+        summary_model: 'conversational',
+        topic_detection: true,      // Enable topic detection
+        iab_categories: true,       // Enable IAB category detection
+        sentiment_analysis: true,   // Enable sentiment analysis
+        language_detection: true,   // Auto-detect language
+        content_safety: true,       // Flag potentially unsafe content
+        filter_profanity: false     // Don't filter profanity to keep original content
       })
     });
 
@@ -172,31 +178,10 @@ serve(async (req) => {
       await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between checks
     }
 
-    // Extract news segments from chapters or create segments based on speakers
+    // Create news segments with enhanced structure
     const newsSegments = [];
     
     if (transcriptResult?.status === 'completed') {
-      // If chapters are available, use them as segments
-      if (transcriptResult.chapters && transcriptResult.chapters.length > 0) {
-        console.log(`Using ${transcriptResult.chapters.length} chapters as news segments`);
-        newsSegments.push(...transcriptResult.chapters.map(chapter => ({
-          headline: chapter.headline || chapter.gist,
-          text: chapter.summary || chapter.gist,
-          start: chapter.start,
-          end: chapter.end,
-        })));
-      } 
-      // If no chapters but we have speakers, use speaker transitions as segment boundaries
-      else if (transcriptResult.utterances && transcriptResult.utterances.length > 0) {
-        console.log(`Using ${transcriptResult.utterances.length} speaker utterances`);
-        newsSegments.push(...transcriptResult.utterances.map(utterance => ({
-          headline: `Speaker ${utterance.speaker}`,
-          text: utterance.text,
-          start: utterance.start,
-          end: utterance.end,
-        })));
-      }
-      
       // Store the full AssemblyAI analysis in the database
       const { error: updateError } = await supabase
         .from('transcriptions')
@@ -206,6 +191,7 @@ serve(async (req) => {
           assembly_entities: transcriptResult.entities || null,
           assembly_key_phrases: transcriptResult.auto_highlights_result || null,
           assembly_summary: transcriptResult.summary || null,
+          assembly_topics: transcriptResult.iab_categories_result?.results || null,
           status: 'completed',
           progress: 100
         })
@@ -213,6 +199,141 @@ serve(async (req) => {
 
       if (updateError) {
         console.error('Error updating transcription record:', updateError);
+      }
+      
+      // Process segments by priority order
+      
+      // Priority 1: Use chapters as primary segments if available
+      if (transcriptResult.chapters && transcriptResult.chapters.length > 0) {
+        console.log(`Using ${transcriptResult.chapters.length} chapters as primary news segments`);
+        newsSegments.push(...transcriptResult.chapters.map((chapter, index) => ({
+          headline: chapter.headline || chapter.gist,
+          text: chapter.summary || chapter.gist,
+          start: chapter.start,
+          end: chapter.end,
+          segment_number: index + 1,
+          segment_title: chapter.headline || chapter.gist || `Segmento ${index + 1}`,
+          timestamp_start: formatMilliseconds(chapter.start),
+          timestamp_end: formatMilliseconds(chapter.end)
+        })));
+      } 
+      // Priority 2: If no chapters, use topic transitions
+      else if (transcriptResult.iab_categories_result?.results && transcriptResult.iab_categories_result.results.length > 0) {
+        console.log(`Using ${transcriptResult.iab_categories_result.results.length} topic transitions`);
+        
+        // Group by topic - find segments where the top category changes
+        const topicSegments = [];
+        let currentTopic = null;
+        let startTime = 0;
+        let currentText = "";
+        
+        transcriptResult.iab_categories_result.results.forEach((item, index) => {
+          // Get top category for this segment
+          const topCategory = item.labels && item.labels.length > 0 ? 
+            item.labels.sort((a, b) => b.relevance - a.relevance)[0].label : null;
+            
+          if (topCategory !== currentTopic || index === 0) {
+            // Start new segment if topic changes
+            if (index > 0) {
+              topicSegments.push({
+                topic: currentTopic,
+                text: currentText,
+                start: startTime,
+                end: item.timestamp.start
+              });
+            }
+            
+            currentTopic = topCategory;
+            startTime = item.timestamp.start;
+            currentText = item.text;
+          } else {
+            // Continue current segment
+            currentText += " " + item.text;
+          }
+          
+          // Add final segment
+          if (index === transcriptResult.iab_categories_result.results.length - 1) {
+            topicSegments.push({
+              topic: currentTopic,
+              text: currentText,
+              start: startTime,
+              end: item.timestamp.end
+            });
+          }
+        });
+        
+        // Convert topic segments to news segments
+        newsSegments.push(...topicSegments.map((segment, index) => ({
+          headline: segment.topic || `Segmento ${index + 1}`,
+          text: segment.text,
+          start: segment.start,
+          end: segment.end,
+          segment_number: index + 1,
+          segment_title: segment.topic || `Segmento ${index + 1}`,
+          timestamp_start: formatMilliseconds(segment.start),
+          timestamp_end: formatMilliseconds(segment.end)
+        })));
+      }
+      // Priority 3: If no topics, use speaker changes
+      else if (transcriptResult.utterances && transcriptResult.utterances.length > 0) {
+        console.log(`Using ${transcriptResult.utterances.length} speaker transitions`);
+        newsSegments.push(...transcriptResult.utterances.map((utterance, index) => {
+          // Try to identify questions and answers for interview segments
+          const isQuestion = utterance.text.trim().endsWith('?');
+          const segmentTitle = isQuestion 
+            ? `Pregunta: ${utterance.text.substring(0, 30)}...` 
+            : `Locutor ${utterance.speaker}`;
+            
+          return {
+            headline: segmentTitle,
+            text: utterance.text,
+            start: utterance.start,
+            end: utterance.end,
+            segment_number: index + 1,
+            segment_title: segmentTitle,
+            timestamp_start: formatMilliseconds(utterance.start),
+            timestamp_end: formatMilliseconds(utterance.end)
+          };
+        }));
+      }
+      
+      // If we have entities, we can enhance segment titles
+      if (transcriptResult.entities && transcriptResult.entities.length > 0 && newsSegments.length > 0) {
+        // Group entities by segment
+        newsSegments.forEach(segment => {
+          const segmentEntities = transcriptResult.entities.filter(entity => 
+            entity.start >= segment.start && entity.end <= segment.end
+          );
+          
+          // Use entities to enhance segment titles if available
+          if (segmentEntities.length > 0) {
+            // Group by entity type and count occurrences
+            const entityCounts = {};
+            segmentEntities.forEach(entity => {
+              if (!entityCounts[entity.text]) {
+                entityCounts[entity.text] = {
+                  count: 0,
+                  type: entity.entity_type
+                };
+              }
+              entityCounts[entity.text].count++;
+            });
+            
+            // Find most frequently mentioned entity
+            const topEntities = Object.entries(entityCounts)
+              .sort((a, b) => b[1].count - a[1].count)
+              .slice(0, 2)
+              .map(entry => entry[0]);
+              
+            if (topEntities.length > 0) {
+              // Only update if current title is generic
+              if (segment.segment_title.startsWith('Segmento') || segment.segment_title.startsWith('Locutor')) {
+                segment.segment_title = topEntities.join(', ');
+                segment.headline = topEntities.join(', ');
+              }
+            }
+          }
+        });
       }
     }
 
@@ -224,6 +345,10 @@ serve(async (req) => {
         text: whisperResult.text,
         start: 0,
         end: 0,
+        segment_number: 1,
+        segment_title: 'Transcripción completa',
+        timestamp_start: '00:00:00',
+        timestamp_end: '00:00:00'
       });
     }
 
@@ -233,7 +358,16 @@ serve(async (req) => {
       JSON.stringify({ 
         text: whisperResult.text,
         segments: newsSegments,
-        assemblyId: assemblyJob.id
+        assemblyId: assemblyJob.id,
+        analysis: {
+          chapters: transcriptResult?.chapters || [],
+          content_safety_labels: transcriptResult?.content_safety_labels || null,
+          sentiment_analysis_results: transcriptResult?.sentiment_analysis_results || null,
+          entities: transcriptResult?.entities || null,
+          iab_categories_result: transcriptResult?.iab_categories_result || null,
+          auto_highlights_result: transcriptResult?.auto_highlights_result || null,
+          summary: transcriptResult?.summary || null
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -249,3 +383,12 @@ serve(async (req) => {
     );
   }
 });
+
+// Helper function to format milliseconds into MM:SS format
+function formatMilliseconds(ms) {
+  if (!ms) return "00:00";
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}

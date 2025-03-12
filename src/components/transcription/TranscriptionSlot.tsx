@@ -12,10 +12,13 @@ import ChaptersSection from "../analysis/ChaptersSection";
 import ContentSafetySection from "../analysis/ContentSafetySection";
 import TopicsSection from "../analysis/TopicsSection";
 import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
+import { NewsSegment } from "@/hooks/use-video-processor";
 
 interface TranscriptionSlotProps {
   isProcessing: boolean;
   transcriptionText: string;
+  newsSegments: NewsSegment[];
+  onNewsSegmentsChange: (segments: NewsSegment[]) => void;
   metadata?: {
     channel?: string;
     program?: string;
@@ -25,14 +28,18 @@ interface TranscriptionSlotProps {
   };
   analysis?: TranscriptionAnalysisType;
   onTranscriptionChange: (text: string) => void;
+  onSeekVideo?: (timestamp: number) => void;
 }
 
 const TranscriptionSlot = ({
   isProcessing,
   transcriptionText,
+  newsSegments,
+  onNewsSegmentsChange,
   metadata,
   analysis,
   onTranscriptionChange,
+  onSeekVideo,
 }: TranscriptionSlotProps) => {
   const handleGenerateReport = async () => {
     try {
@@ -60,7 +67,9 @@ const TranscriptionSlot = ({
   };
 
   const handleChapterClick = (timestamp: number) => {
-    console.log('Seeking to timestamp:', timestamp);
+    if (onSeekVideo) {
+      onSeekVideo(timestamp);
+    }
   };
 
   return (
