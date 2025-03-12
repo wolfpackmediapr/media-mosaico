@@ -53,8 +53,8 @@ const RadioTranscriptionSlot = ({
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 h-full">
-      <Card className="overflow-hidden">
+    <div className="space-y-4 md:space-y-6 h-full w-full">
+      <Card className="overflow-hidden w-full">
         <RadioTranscriptionMetadata metadata={metadata} />
         <CardContent className="p-4 space-y-4">
           <RadioTranscriptionEditor

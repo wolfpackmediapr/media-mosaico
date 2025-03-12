@@ -129,7 +129,7 @@ const Tv = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">MONITOREO TV</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-2">
@@ -137,7 +137,7 @@ const Tv = () => {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 w-full">
         <FileUploadZone
           isDragging={isDragging}
           onDragOver={handleDragOver}
@@ -185,9 +185,9 @@ const Tv = () => {
         onSegmentsReceived={handleSegmentsReceived}
       />
 
-      <div className="mt-8 p-6 bg-muted rounded-lg">
+      <div className="mt-8 p-6 bg-muted rounded-lg w-full">
         <h2 className="text-2xl font-bold mb-4">Alerta TV</h2>
-        <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK"></div>
+        <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK" className="h-[500px] md:h-[600px]"></div>
       </div>
     </div>
   );

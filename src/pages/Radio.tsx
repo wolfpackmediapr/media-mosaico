@@ -133,9 +133,9 @@ const Radio = () => {
   }, []);
 
   return (
-    <div className="container mx-auto p-4 space-y-6 max-w-7xl">
+    <div className="w-full space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-4">
+        <div className="space-y-4 w-full">
           <FileUploadZone
             isDragging={false}
             onDragOver={(e) => e.preventDefault()}
@@ -153,8 +153,8 @@ const Radio = () => {
             message="Arrastra y suelta archivos de audio o haz clic para seleccionarlos"
           />
           {files.length > 0 && (
-            <div className="space-y-4">
-              <div className="bg-muted rounded-lg p-4">
+            <div className="space-y-4 w-full">
+              <div className="bg-muted rounded-lg p-4 w-full">
                 <div className="flex items-center justify-between mb-4">
                   <Button
                     variant="outline"
@@ -193,7 +193,7 @@ const Radio = () => {
             </div>
           )}
         </div>
-        <div>
+        <div className="w-full">
           <RadioTranscriptionSlot
             isProcessing={isProcessing}
             transcriptionText={transcriptionText}
@@ -205,7 +205,7 @@ const Radio = () => {
       </div>
 
       {/* Typeform Embed for Radio */}
-      <div className="mt-8 p-6 bg-muted rounded-lg">
+      <div className="mt-8 p-6 bg-muted rounded-lg w-full">
         <h2 className="text-2xl font-bold mb-4">Alerta Radio</h2>
         <div data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG" className="h-[500px] md:h-[600px]"></div>
       </div>

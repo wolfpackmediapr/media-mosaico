@@ -46,14 +46,14 @@ const SocialFeedList = ({
   };
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSearch} className="relative">
+    <div className="space-y-6 w-full">
+      <form onSubmit={handleSearch} className="relative w-full">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
         <Input
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           placeholder="Buscar por título, descripción o contenido..."
-          className="pl-10 pr-10"
+          className="pl-10 pr-10 w-full"
         />
         {inputValue && (
           <Button
@@ -70,7 +70,7 @@ const SocialFeedList = ({
       </form>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i} className="overflow-hidden">
               <Skeleton className="h-48 w-full" />
@@ -90,14 +90,14 @@ const SocialFeedList = ({
         />
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
             {posts.map((post) => (
               <SocialPostCard key={post.id} post={post} />
             ))}
           </div>
           
           {totalPages > 1 && (
-            <div className="flex justify-center mt-6">
+            <div className="flex justify-center mt-6 w-full">
               <div className="join">
                 <Button
                   variant="outline"

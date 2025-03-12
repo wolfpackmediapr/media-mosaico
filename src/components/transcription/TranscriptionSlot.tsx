@@ -67,8 +67,8 @@ const TranscriptionSlot = ({
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="space-y-6 w-full">
+      <Card className="w-full">
         <TranscriptionMetadata metadata={metadata} />
         <CardContent className="space-y-4">
           <TranscriptionEditor
@@ -76,7 +76,7 @@ const TranscriptionSlot = ({
             isProcessing={isProcessing}
             onTranscriptionChange={onTranscriptionChange}
           />
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
             <TranscriptionActions
               transcriptionText={transcriptionText}
               metadata={metadata}
@@ -86,6 +86,7 @@ const TranscriptionSlot = ({
               variant="outline"
               onClick={handleGenerateReport}
               disabled={isProcessing || !transcriptionText}
+              className="w-full sm:w-auto"
             >
               <FileBarChart className="mr-2 h-4 w-4" />
               Generate Report

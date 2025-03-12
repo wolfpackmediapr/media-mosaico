@@ -49,7 +49,7 @@ const RedesSociales = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
+    <div className="w-full space-y-6">
       <SocialHeader onRefresh={refreshFeeds} isRefreshing={isRefreshing} />
       
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
