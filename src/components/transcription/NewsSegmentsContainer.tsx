@@ -23,11 +23,13 @@ const NewsSegmentsContainer = ({
 
   const handleSegmentEdit = (index: number, text: string) => {
     const updatedSegments = [...segments];
-    updatedSegments[index] = {
-      ...updatedSegments[index],
-      text
-    };
-    onSegmentsChange(updatedSegments);
+    if (index < updatedSegments.length) {
+      updatedSegments[index] = {
+        ...updatedSegments[index],
+        text
+      };
+      onSegmentsChange(updatedSegments);
+    }
   };
 
   const addEmptySegment = () => {
@@ -44,28 +46,21 @@ const NewsSegmentsContainer = ({
     setExpandedView(!expandedView);
   };
 
-  // Create an array of exactly 6 segment slots
-  // For slots with actual segments, use the real segment data
-  // For empty slots, use placeholder data
-  const displaySegments = Array(6).fill(null).map((_, i) => {
-    if (i < segments.length) {
-      return segments[i];
-    }
-    return {
-      headline: `Segmento ${i + 1}`,
+  // Create placeholder segments to fill up to 6 slots total
+  const placeholderSegments = Array(Math.max(0, 6 - segments.length))
+    .fill(null)
+    .map((_, i) => ({
+      headline: `Segmento ${segments.length + i + 1}`,
       text: "",
       start: 0,
       end: 0
-    };
-  });
+    }));
 
-  // For expanded view, show all real segments plus empty placeholders if needed
-  // For collapsed view, show exactly 6 slots (a mix of real and placeholder segments)
-  const visibleSegments = expandedView 
-    ? segments.length > 6 
-      ? segments 
-      : displaySegments
-    : displaySegments;
+  // For expanded view, show all real segments
+  // For collapsed view, show only up to 6 segments (real + placeholders if needed)
+  const visibleSegments = expandedView && segments.length > 6
+    ? segments
+    : [...segments, ...placeholderSegments].slice(0, 6);
 
   return (
     <Card className="my-6">
@@ -79,6 +74,7 @@ const NewsSegmentsContainer = ({
               variant="outline" 
               size="sm"
               onClick={toggleView}
+              disabled={segments.length <= 6}
             >
               {expandedView ? "Ver menos" : "Ver todos"}
             </Button>
