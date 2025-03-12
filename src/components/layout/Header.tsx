@@ -1,4 +1,5 @@
-import { Bell, User } from "lucide-react";
+
+import { Bell, User, Menu } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,11 +12,11 @@ import { Button } from "@/components/ui/button";
 
 const Header = () => {
   return (
-    <header className="h-16 bg-background border-b border-border flex items-center justify-between px-6">
-      <div className="flex items-center space-x-4">
-        <h2 className="text-xl font-semibold text-foreground">Dashboard de Monitoreo</h2>
+    <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 md:px-6 sticky top-0 z-10">
+      <div className="flex items-center">
+        <h2 className="text-lg md:text-xl font-semibold text-foreground truncate">Dashboard de Monitoreo</h2>
       </div>
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-2 md:space-x-4">
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full" />

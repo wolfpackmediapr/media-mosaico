@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileItem from "@/components/radio/AudioFileItem";
@@ -31,7 +32,7 @@ const Radio = () => {
     const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
     
     if (audioFiles.length < newFiles.length) {
-      console.warn('Some files were skipped because they were not audio files');
+      toast.warning('Se omitieron algunos archivos que no son de audio');
     }
 
     const uploadedFiles = audioFiles.map((file) => {
@@ -40,7 +41,6 @@ const Radio = () => {
         value: URL.createObjectURL(file),
         writable: true
       });
-      console.log('Added audio file:', uploadedFile);
       return uploadedFile as UploadedFile;
     });
     setFiles((prevFiles) => [...prevFiles, ...uploadedFiles]);
@@ -133,8 +133,8 @@ const Radio = () => {
   }, []);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="container mx-auto p-4 space-y-6 max-w-7xl">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
           <FileUploadZone
             isDragging={false}
@@ -207,7 +207,7 @@ const Radio = () => {
       {/* Typeform Embed for Radio */}
       <div className="mt-8 p-6 bg-muted rounded-lg">
         <h2 className="text-2xl font-bold mb-4">Alerta Radio</h2>
-        <div data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG"></div>
+        <div data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG" className="h-[500px] md:h-[600px]"></div>
       </div>
     </div>
   );

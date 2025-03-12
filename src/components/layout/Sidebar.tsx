@@ -1,7 +1,10 @@
 
-import { Home, Tv, Radio, Newspaper, Bell, BarChart2, Settings, HelpCircle, Send, Rss } from "lucide-react";
+import { Home, Tv, Radio, Newspaper, Bell, BarChart2, Settings, HelpCircle, Send, Rss, Menu } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Image } from "@/components/ui/image";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const mainMenuItems = [
   { icon: Home, label: "Inicio", path: "/" },
@@ -21,6 +24,11 @@ const bottomMenuItems = [
 
 const Sidebar = () => {
   const location = useLocation();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed);
+  };
 
   const MenuItem = ({ item }: { item: typeof mainMenuItems[0] }) => {
     const Icon = item.icon;
@@ -28,29 +36,47 @@ const Sidebar = () => {
     return (
       <Link
         to={item.path}
-        className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors ${
+        className={cn(
+          "flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors",
           isActive
             ? "bg-primary-50 text-primary-800"
-            : "text-gray-600 hover:bg-gray-50"
-        }`}
+            : "text-gray-600 hover:bg-gray-50",
+          isCollapsed && "justify-center px-2"
+        )}
+        title={isCollapsed ? item.label : undefined}
       >
-        <Icon className="w-5 h-5" />
-        <span className="font-medium">{item.label}</span>
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        {!isCollapsed && <span className="font-medium truncate">{item.label}</span>}
       </Link>
     );
   };
 
   return (
-    <div className="h-screen w-64 bg-white border-r border-gray-200 flex flex-col">
-      <div className="p-6 border-b border-gray-200 flex justify-center items-center">
-        <Image
-          src="/lovable-uploads/da0f30a7-c379-42a2-95ed-ce8b4c40abd4.png"
-          alt="Publimedia"
-          className="h-8 w-auto"
-        />
+    <div 
+      className={cn(
+        "bg-white border-r border-gray-200 flex flex-col z-10 transition-all duration-300",
+        isCollapsed ? "w-16" : "w-64"
+      )}
+    >
+      <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+        {!isCollapsed && (
+          <Image
+            src="/lovable-uploads/da0f30a7-c379-42a2-95ed-ce8b4c40abd4.png"
+            alt="Publimedia"
+            className="h-8 w-auto"
+          />
+        )}
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={toggleSidebar}
+          className={cn("p-1", isCollapsed && "mx-auto")}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
       </div>
-      <nav className="flex-1 overflow-y-auto p-4">
-        <ul className="space-y-2">
+      <nav className="flex-1 overflow-y-auto py-4 px-2">
+        <ul className="space-y-1">
           {mainMenuItems.map((item) => (
             <li key={item.path}>
               <MenuItem item={item} />
@@ -59,7 +85,7 @@ const Sidebar = () => {
         </ul>
       </nav>
       <div className="p-4 border-t border-gray-200">
-        <ul className="space-y-2">
+        <ul className="space-y-1">
           {bottomMenuItems.map((item) => (
             <li key={item.path}>
               <MenuItem item={item} />

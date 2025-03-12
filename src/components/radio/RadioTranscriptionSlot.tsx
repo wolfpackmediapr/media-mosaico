@@ -30,6 +30,8 @@ const RadioTranscriptionSlot = ({
 }: RadioTranscriptionSlotProps) => {
   const handleGenerateReport = async () => {
     try {
+      toast.loading('Generando reporte...');
+      
       const { data, error } = await supabase.functions.invoke('generate-radio-report', {
         body: {
           transcriptionText,
@@ -40,18 +42,21 @@ const RadioTranscriptionSlot = ({
       });
 
       if (error) throw error;
+      
+      toast.dismiss();
       toast.success('Reporte generado exitosamente');
     } catch (error) {
       console.error('Error generating report:', error);
+      toast.dismiss();
       toast.error('Error al generar el reporte');
     }
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="space-y-4 md:space-y-6 h-full">
+      <Card className="overflow-hidden">
         <RadioTranscriptionMetadata metadata={metadata} />
-        <CardContent className="space-y-4">
+        <CardContent className="p-4 space-y-4">
           <RadioTranscriptionEditor
             transcriptionText={transcriptionText}
             isProcessing={isProcessing}
@@ -63,6 +68,7 @@ const RadioTranscriptionSlot = ({
               variant="outline"
               onClick={handleGenerateReport}
               disabled={isProcessing || !transcriptionText}
+              className="w-full sm:w-auto"
             >
               <FileBarChart className="mr-2 h-4 w-4" />
               Generar Reporte
