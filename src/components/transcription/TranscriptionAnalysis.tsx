@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface TranscriptionAnalysisProps {
   transcriptionText?: string;
@@ -17,11 +17,7 @@ const TranscriptionAnalysis = ({ transcriptionText }: TranscriptionAnalysisProps
 
   const analyzeContent = async () => {
     if (!transcriptionText) {
-      toast({
-        title: "Error",
-        description: "No hay texto para analizar",
-        variant: "destructive",
-      });
+      toast.error("No hay texto para analizar");
       return;
     }
 
@@ -35,18 +31,11 @@ const TranscriptionAnalysis = ({ transcriptionText }: TranscriptionAnalysisProps
 
       if (data?.analysis) {
         setAnalysis(data.analysis);
-        toast({
-          title: "Análisis completado",
-          description: "El contenido ha sido analizado exitosamente.",
-        });
+        toast.success("El contenido ha sido analizado exitosamente");
       }
     } catch (error) {
       console.error('Error analyzing content:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo analizar el contenido. Por favor, intenta nuevamente.",
-        variant: "destructive",
-      });
+      toast.error("No se pudo analizar el contenido. Por favor, intenta nuevamente.");
     } finally {
       setIsAnalyzing(false);
     }
