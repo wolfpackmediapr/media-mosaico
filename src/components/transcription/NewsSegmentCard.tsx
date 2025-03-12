@@ -85,7 +85,21 @@ const NewsSegmentCard = ({
             className="min-h-[100px]"
           />
         ) : (
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{segment.text || "No hay análisis disponible para este segmento."}</p>
+          <div>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{segment.text || "No hay análisis disponible para este segmento."}</p>
+            {segment.keywords && segment.keywords.length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-500 font-semibold">Palabras clave:</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {segment.keywords.map((keyword, idx) => (
+                    <span key={idx} className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

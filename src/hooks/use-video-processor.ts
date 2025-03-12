@@ -16,6 +16,7 @@ export interface NewsSegment {
   text: string;
   start: number;
   end: number;
+  keywords?: string[];
 }
 
 export const useVideoProcessor = () => {

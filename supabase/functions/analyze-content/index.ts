@@ -1,7 +1,11 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { corsHeaders } from "../_shared/cors.ts"
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,16 +15,8 @@ serve(async (req) => {
   try {
     const { transcriptionText } = await req.json()
     
-    // Validate input
-    if (!transcriptionText || typeof transcriptionText !== 'string' || transcriptionText.trim().length === 0) {
-      throw new Error('Invalid or empty transcription text provided')
-    }
-    
-    console.log('Analyzing content:', transcriptionText.substring(0, 100) + '...')
-
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY')
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured')
+    if (!transcriptionText) {
+      throw new Error('No transcription text provided')
     }
 
     const systemPrompt = `Eres un asistente especializado en analizar transcripciones de noticias de televisión.
@@ -41,7 +37,7 @@ serve(async (req) => {
       1. Cambios de tema (identificando donde empieza una nueva noticia o tema)
       2. Estructura natural del contenido periodístico (presentación, desarrollo, entrevistas, conclusiones)
       3. Posibles transiciones entre reporteros o presentadores
-      
+       
       Es CRUCIAL que identifiques 6 segmentos distintos, cada uno representando un bloque conceptual independiente.
       Si el contenido es muy breve, identifica cambios sutiles en el enfoque o presentación.
       Si el contenido es extenso, prioriza los temas principales y más diferenciados.
@@ -50,132 +46,93 @@ serve(async (req) => {
       1. Un título analítico y periodístico (no descriptivo)
       2. Un resumen conciso del contenido específico de ese segmento
       3. Aproximaciones de timestamps (no tienes que ser exacto, puedes estimarlos)
-      
+      4. Lista de 3 a 5 palabras clave específicas para cada segmento
+       
       Cada segmento debe seguir este formato JSON exacto:
       {
         "segment_number": [número de 1 a 6],
         "segment_title": [título analítico breve del segmento],
         "transcript": [resumen analítico del segmento, NO el texto literal],
         "timestamp_start": "00:00:00",
-        "timestamp_end": "00:00:00"
+        "timestamp_end": "00:00:00",
+        "keywords": ["palabra1", "palabra2", "palabra3"]
       }
       
       Asegúrate de que cada segmento represente un tema o enfoque distinto, no solo dividir el texto en partes iguales.
-      
+       
       Devuelve un array de exactamente 6 objetos JSON después de la línea separadora.`
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
+    // Call OpenAI or similar service to analyze the text
+    const apiKey = Deno.env.get("OPENAI_API_KEY")
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY environment variable not set")
+    }
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: "gpt-4o",
         messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: transcriptionText
-          }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: transcriptionText }
         ],
         temperature: 0.7,
-        max_tokens: 2000
-      }),
+        max_tokens: 2500
+      })
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`Failed to analyze content: ${response.status} ${response.statusText}`);
+      const error = await response.text()
+      throw new Error(`OpenAI API error: ${error}`)
     }
 
-    const result = await response.json()
-    const fullAnalysis = result.choices[0].message.content
+    const data = await response.json()
+    const analysis = data.choices[0].message.content
 
-    // Split the response into analysis and segments parts
-    const parts = fullAnalysis.split('---SEGMENTOS---')
-    
-    let analysis = parts[0].trim()
+    // Extract segments from analysis
+    const segmentsPart = analysis.split('---SEGMENTOS---')[1]
     let segments = []
-    
-    // Parse segments if they exist
-    if (parts.length > 1 && parts[1].trim()) {
-      try {
-        // Find all JSON objects in the text
-        const jsonPattern = /\{[\s\S]*?\}/g
-        const jsonMatches = parts[1].match(jsonPattern)
-        
-        if (jsonMatches && jsonMatches.length > 0) {
-          segments = jsonMatches.map(jsonStr => {
-            try {
-              return JSON.parse(jsonStr)
-            } catch (e) {
-              console.error('Error parsing segment JSON:', e)
-              // If we can't parse a segment, create a placeholder
-              return {
-                segment_number: segments.length + 1,
-                segment_title: `Segmento ${segments.length + 1}`,
-                transcript: "No se pudo analizar este segmento correctamente.",
-                timestamp_start: "00:00:00",
-                timestamp_end: "00:00:00"
-              }
-            }
-          }).filter(segment => segment !== null)
-        }
-        
-        // Make sure we have exactly 6 segments
-        while (segments.length < 6) {
-          segments.push({
-            segment_number: segments.length + 1,
-            segment_title: `Segmento ${segments.length + 1}`,
-            transcript: "",
-            timestamp_start: "00:00:00",
-            timestamp_end: "00:00:00"
-          });
-        }
-        
-        // Limit to exactly 6 segments
-        segments = segments.slice(0, 6);
-      } catch (error) {
-        console.error('Error extracting segments:', error)
-        // Create 6 empty segments if extraction fails
-        segments = Array(6).fill(null).map((_, i) => ({
-          segment_number: i + 1,
-          segment_title: `Segmento ${i + 1}`,
-          transcript: "",
-          timestamp_start: "00:00:00",
-          timestamp_end: "00:00:00"
-        }));
-      }
-    } else {
-      // Create 6 empty segments if no segments part
-      segments = Array(6).fill(null).map((_, i) => ({
-        segment_number: i + 1,
-        segment_title: `Segmento ${i + 1}`,
-        transcript: "",
-        timestamp_start: "00:00:00",
-        timestamp_end: "00:00:00"
-      }));
-    }
 
-    console.log('Analysis completed successfully')
-    console.log('Number of segments extracted:', segments.length)
+    if (segmentsPart) {
+      try {
+        // Look for array of JSON objects
+        const jsonMatch = segmentsPart.match(/\[\s*\{.*\}\s*\]/s)
+        if (jsonMatch) {
+          segments = JSON.parse(jsonMatch[0])
+        } else {
+          // Fallback: try to extract individual JSON objects
+          const jsonObjects = segmentsPart.match(/\{[^{}]*\}/g)
+          if (jsonObjects) {
+            segments = jsonObjects.map(obj => JSON.parse(obj))
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing segments:', e)
+      }
+    }
 
     return new Response(
-      JSON.stringify({ analysis, segments }),
+      JSON.stringify({ 
+        success: true, 
+        analysis, 
+        segments
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Analysis error:', error)
+    console.error('Error:', error.message)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        success: false, 
+        error: error.message 
+      }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     )
   }

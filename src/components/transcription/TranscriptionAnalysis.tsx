@@ -40,15 +40,16 @@ const TranscriptionAnalysis = ({
         
         // Handle segments if they exist
         if (data.segments && Array.isArray(data.segments) && onSegmentsReceived) {
-          // Convert to NewsSegment format
+          // Convert to NewsSegment format with keywords
           const newsSegments = data.segments.map((segment: any) => ({
             headline: segment.segment_title || `Segmento ${segment.segment_number}`,
             text: segment.transcript || "",
             start: convertTimestampToMs(segment.timestamp_start) || 0,
-            end: convertTimestampToMs(segment.timestamp_end) || 0
+            end: convertTimestampToMs(segment.timestamp_end) || 0,
+            keywords: segment.keywords || []
           }));
           
-          console.log("Processed segments:", newsSegments);
+          console.log("Processed analytical segments:", newsSegments);
           onSegmentsReceived(newsSegments);
         }
       }

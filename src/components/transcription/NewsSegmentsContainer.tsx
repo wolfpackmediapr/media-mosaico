@@ -34,10 +34,11 @@ const NewsSegmentsContainer = ({
 
   const addEmptySegment = () => {
     const newSegment: NewsSegment = {
-      headline: `Segmento ${segments.length + 1}`,
+      headline: `Nuevo Análisis ${segments.length + 1}`,
       text: "",
       start: 0,
-      end: 0
+      end: 0,
+      keywords: []
     };
     onSegmentsChange([...segments, newSegment]);
   };
@@ -53,7 +54,8 @@ const NewsSegmentsContainer = ({
       headline: `Segmento ${segments.length + i + 1}`,
       text: "",
       start: 0,
-      end: 0
+      end: 0,
+      keywords: []
     }));
 
   // For expanded view, show all real segments
