@@ -1,10 +1,9 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
 // Import PDF.js in a way that works reliably in Deno
-import { getDocument } from "https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.min.mjs";
+import { getDocument } from "https://cdn.jsdelivr.net/npm/pdfjs-dist@2.14.305/build/pdf.min.js";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -627,3 +626,4 @@ serve(async (req) => {
     );
   }
 });
+
