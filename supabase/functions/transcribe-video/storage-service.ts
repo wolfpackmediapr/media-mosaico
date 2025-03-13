@@ -69,31 +69,15 @@ export const downloadFile = async (url: string): Promise<Blob> => {
 
 /**
  * Update transcription record in database
- * Returns the transcription ID
  */
 export const updateTranscriptionRecord = async (
   supabase: any, 
   videoPath: string, 
   transcriptResult: any,
   transcriptionText: string
-): Promise<string | null> => {
-  if (!transcriptResult) return null;
+): Promise<void> => {
+  if (!transcriptResult) return;
 
-  // First, query to get the transcription ID
-  const { data: transcription, error: queryError } = await supabase
-    .from('transcriptions')
-    .select('id')
-    .eq('original_file_path', videoPath)
-    .single();
-    
-  if (queryError) {
-    console.error('Error querying transcription record:', queryError);
-    return null;
-  }
-  
-  const transcriptionId = transcription?.id;
-  
-  // Now update the record
   const { error: updateError } = await supabase
     .from('transcriptions')
     .update({ 
@@ -105,14 +89,11 @@ export const updateTranscriptionRecord = async (
       status: 'completed',
       progress: 100
     })
-    .eq('id', transcriptionId);
+    .eq('original_file_path', videoPath);
 
   if (updateError) {
     console.error('Error updating transcription record:', updateError);
-    return null;
   }
-  
-  return transcriptionId;
 };
 
 /**

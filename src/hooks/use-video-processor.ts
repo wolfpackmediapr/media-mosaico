@@ -17,7 +17,6 @@ export interface NewsSegment {
   start: number;
   end: number;
   keywords?: string[];
-  similarity?: number;
 }
 
 export const useVideoProcessor = () => {

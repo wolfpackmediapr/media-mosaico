@@ -1,133 +1,115 @@
 
-import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import TranscriptionEditor from "./TranscriptionEditor";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { FileBarChart } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import TranscriptionMetadata from "./TranscriptionMetadata";
+import TranscriptionEditor from "./TranscriptionEditor";
+import TranscriptionActions from "./TranscriptionActions";
 import TranscriptionAnalysis from "./TranscriptionAnalysis";
-import SimilarNewsSearch from "./SimilarNewsSearch";
+import ChaptersSection from "../analysis/ChaptersSection";
+import ContentSafetySection from "../analysis/ContentSafetySection";
+import TopicsSection from "../analysis/TopicsSection";
+import { TranscriptionAnalysis as TranscriptionAnalysisType } from "@/types/assemblyai";
 import { NewsSegment } from "@/hooks/use-video-processor";
 
-interface TranscriptionMetadataType {
-  channel?: string;
-  program?: string;
-  category?: string;
-  broadcastTime?: string;
-  keywords?: string[];
-}
-
-interface FiveWAnalysisType {
-  quien?: string;
-  que?: string;
-  cuando?: string;
-  donde?: string;
-  porque?: string;
-  summary?: string;
-  alerts?: string[];
-  keywords?: string[];
-}
-
 interface TranscriptionSlotProps {
-  isProcessing?: boolean;
-  transcriptionText?: string;
-  metadata?: TranscriptionMetadataType;
-  analysis?: FiveWAnalysisType;
-  onTranscriptionChange?: (text: string) => void;
+  isProcessing: boolean;
+  transcriptionText: string;
+  metadata?: {
+    channel?: string;
+    program?: string;
+    category?: string;
+    broadcastTime?: string;
+    keywords?: string[];
+  };
+  analysis?: TranscriptionAnalysisType;
+  onTranscriptionChange: (text: string) => void;
   onSegmentsReceived?: (segments: NewsSegment[]) => void;
 }
 
 const TranscriptionSlot = ({
-  isProcessing = false,
-  transcriptionText = "",
+  isProcessing,
+  transcriptionText,
   metadata,
   analysis,
   onTranscriptionChange,
-  onSegmentsReceived
+  onSegmentsReceived,
 }: TranscriptionSlotProps) => {
-  const [similarSegments, setSimilarSegments] = useState<NewsSegment[]>([]);
+  const handleGenerateReport = async () => {
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 7);
 
-  const handleSimilarSegmentsFound = (segments: NewsSegment[]) => {
-    setSimilarSegments(segments);
-    
-    if (onSegmentsReceived) {
-      // Optionally, pass to parent component
-      onSegmentsReceived(segments);
+      const { data, error } = await supabase.functions.invoke('generate-report', {
+        body: {
+          dateRange: {
+            start: startDate.toISOString(),
+            end: endDate.toISOString(),
+          },
+          type: 'transcription',
+          format: 'pdf',
+        },
+      });
+
+      if (error) throw error;
+      toast.success('Report generated successfully');
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast.error('Failed to generate report');
     }
   };
 
+  const handleChapterClick = (timestamp: number) => {
+    console.log('Seeking to timestamp:', timestamp);
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow-sm border">
-      <Tabs defaultValue="transcription">
-        <TabsList className="flex w-full rounded-t-lg border-b">
-          <TabsTrigger className="flex-1 rounded-none" value="transcription">
-            Transcripción
-          </TabsTrigger>
-          <TabsTrigger className="flex-1 rounded-none" value="metadata">
-            Metadata
-          </TabsTrigger>
-          <TabsTrigger className="flex-1 rounded-none" value="analysis">
-            Análisis
-          </TabsTrigger>
-          <TabsTrigger className="flex-1 rounded-none" value="search">
-            Búsqueda
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="transcription" className="p-4">
+    <div className="space-y-6 w-full">
+      <Card className="w-full">
+        <TranscriptionMetadata metadata={metadata} />
+        <CardContent className="space-y-4">
           <TranscriptionEditor
             transcriptionText={transcriptionText}
             isProcessing={isProcessing}
-            onTranscriptionChange={onTranscriptionChange || (() => {})}
+            onTranscriptionChange={onTranscriptionChange}
           />
-        </TabsContent>
-        
-        <TabsContent value="metadata" className="p-4">
-          <TranscriptionMetadata metadata={metadata} />
-        </TabsContent>
-        
-        <TabsContent value="analysis" className="p-4">
-          <TranscriptionAnalysis 
-            transcriptionText={transcriptionText} 
-            onSegmentsReceived={onSegmentsReceived}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
+            <TranscriptionActions
+              transcriptionText={transcriptionText}
+              metadata={metadata}
+              isProcessing={isProcessing}
+            />
+            <Button
+              variant="outline"
+              onClick={handleGenerateReport}
+              disabled={isProcessing || !transcriptionText}
+              className="w-full sm:w-auto"
+            >
+              <FileBarChart className="mr-2 h-4 w-4" />
+              Generate Report
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <TranscriptionAnalysis 
+        transcriptionText={transcriptionText} 
+        onSegmentsReceived={onSegmentsReceived}
+      />
+
+      {analysis && (
+        <>
+          <ChaptersSection 
+            chapters={analysis.chapters}
+            onChapterClick={handleChapterClick}
           />
-        </TabsContent>
-        
-        <TabsContent value="search" className="p-4">
-          <SimilarNewsSearch onSimilarSegmentsFound={handleSimilarSegmentsFound} />
-          
-          {similarSegments.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold mb-3">Segmentos similares encontrados:</h3>
-              <div className="space-y-4">
-                {similarSegments.map((segment, index) => (
-                  <div key={index} className="border p-4 rounded-lg">
-                    <div className="flex justify-between">
-                      <h4 className="font-medium">{segment.headline}</h4>
-                      {segment.similarity !== undefined && (
-                        <span className="text-sm bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">
-                          Similitud: {segment.similarity.toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600 mt-2">{segment.text}</p>
-                    {segment.keywords && segment.keywords.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {segment.keywords.map((keyword, kidx) => (
-                          <span 
-                            key={kidx}
-                            className="text-xs bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full"
-                          >
-                            {keyword}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+          <ContentSafetySection contentSafety={analysis.content_safety_labels} />
+          <TopicsSection topics={analysis.iab_categories_result} />
+        </>
+      )}
     </div>
   );
 };

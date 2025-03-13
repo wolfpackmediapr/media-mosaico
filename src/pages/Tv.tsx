@@ -6,9 +6,6 @@ import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
 import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
-import { Button } from "@/components/ui/button";
-import { Database, Search } from "lucide-react";
-import { toast } from "sonner";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -19,7 +16,6 @@ const Tv = () => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState([50]);
-  const [activeTab, setActiveTab] = useState<string>("upload");
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
@@ -129,7 +125,6 @@ const Tv = () => {
   const handleSegmentsReceived = (segments: any[]) => {
     if (segments && segments.length > 0) {
       setNewsSegments(segments);
-      toast.success(`Se han recibido ${segments.length} segmentos.`);
     }
   };
 
@@ -142,69 +137,29 @@ const Tv = () => {
         </p>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
-        <div className="flex bg-muted">
-          <button 
-            className={`px-4 py-2 font-medium text-sm ${activeTab === "upload" ? "bg-white" : "hover:bg-gray-100"}`}
-            onClick={() => setActiveTab("upload")}
-          >
-            Subir Video
-          </button>
-          <button 
-            className={`px-4 py-2 font-medium text-sm ${activeTab === "search" ? "bg-white" : "hover:bg-gray-100"}`}
-            onClick={() => setActiveTab("search")}
-          >
-            Búsqueda Semántica
-          </button>
-        </div>
-        
-        <div className="p-4 bg-white">
-          {activeTab === "upload" ? (
-            <div className="grid gap-6 md:grid-cols-2 w-full">
-              <FileUploadZone
-                isDragging={isDragging}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onFileInput={handleFileInput}
-                isUploading={isUploading}
-                uploadProgress={uploadProgress}
-              />
+      <div className="grid gap-6 md:grid-cols-2 w-full">
+        <FileUploadZone
+          isDragging={isDragging}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onFileInput={handleFileInput}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
+        />
 
-              <VideoPreview
-                uploadedFiles={uploadedFiles}
-                isPlaying={isPlaying}
-                volume={volume}
-                isProcessing={isProcessing}
-                progress={progress}
-                onTogglePlayback={togglePlayback}
-                onVolumeChange={setVolume}
-                onProcess={processVideo}
-                onTranscriptionComplete={handleTranscriptionComplete}
-                onRemoveFile={handleRemoveFile}
-              />
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-10 text-center">
-              <Search className="h-10 w-10 text-primary mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Búsqueda Semántica de Contenido</h2>
-              <p className="text-gray-500 mb-6 max-w-lg">
-                Seleccione la pestaña de "Búsqueda" en el panel de transcripción para buscar contenido similar en su base de conocimiento.
-              </p>
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  document.querySelector('[value="search"]')?.dispatchEvent(
-                    new MouseEvent('click', { bubbles: true })
-                  );
-                }}
-              >
-                <Search className="h-4 w-4 mr-2" />
-                Ir a Búsqueda
-              </Button>
-            </div>
-          )}
-        </div>
+        <VideoPreview
+          uploadedFiles={uploadedFiles}
+          isPlaying={isPlaying}
+          volume={volume}
+          isProcessing={isProcessing}
+          progress={progress}
+          onTogglePlayback={togglePlayback}
+          onVolumeChange={setVolume}
+          onProcess={processVideo}
+          onTranscriptionComplete={handleTranscriptionComplete}
+          onRemoveFile={handleRemoveFile}
+        />
       </div>
 
       {transcriptionText && (

@@ -79,65 +79,12 @@ serve(async (req) => {
     console.log(`Returning ${finalSegments.length} news segments with accurate timestamps`);
 
     // Update the transcription record in the database
-    const transcriptionId = await storageService.updateTranscriptionRecord(
+    await storageService.updateTranscriptionRecord(
       supabase, 
       videoPath, 
       transcriptResult,
       whisperResult.text
     );
-    
-    // Save segments to the news_segments table
-    if (transcriptionId) {
-      for (const segment of finalSegments) {
-        const { error } = await supabase.from('news_segments').insert({
-          transcription_id: transcriptionId,
-          segment_number: segment.segment_number || 0,
-          segment_title: segment.headline || `Segmento ${segment.segment_number || 0}`,
-          transcript: segment.text || "",
-          timestamp_start: segment.timestamp_start || "",
-          timestamp_end: segment.timestamp_end || "",
-          start_ms: segment.start || 0,
-          end_ms: segment.end || 0,
-          keywords: segment.keywords || []
-        });
-        
-        if (error) {
-          console.error('Error saving segment to database:', error);
-        } else {
-          // Get the ID of the inserted segment
-          const { data: segmentData } = await supabase
-            .from('news_segments')
-            .select('id')
-            .eq('transcription_id', transcriptionId)
-            .eq('segment_number', segment.segment_number || 0)
-            .limit(1)
-            .single();
-            
-          if (segmentData?.id) {
-            // Call the generate-embeddings function
-            try {
-              const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-embeddings`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-                },
-                body: JSON.stringify({
-                  segment_id: segmentData.id,
-                  text: segment.text || ""
-                })
-              });
-              
-              if (!response.ok) {
-                console.error('Failed to generate embedding:', await response.text());
-              }
-            } catch (e) {
-              console.error('Error calling generate-embeddings function:', e);
-            }
-          }
-        }
-      }
-    }
     
     return new Response(
       JSON.stringify({ 
