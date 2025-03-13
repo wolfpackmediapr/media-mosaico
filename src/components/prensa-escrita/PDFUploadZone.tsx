@@ -2,10 +2,11 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface PDFUploadZoneProps {
   onFileSelect: (file: File, publicationName: string) => void;
@@ -51,6 +52,16 @@ const PDFUploadZone = ({
       return;
     }
     
+    if (droppedFile.size > 10 * 1024 * 1024) { // 10MB
+      setError("El archivo es demasiado grande. El tamaño máximo permitido es 10MB.");
+      toast({
+        title: "Archivo demasiado grande",
+        description: "El tamaño máximo permitido es 10MB",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setFile(droppedFile);
     setError("");
     toast({
@@ -68,6 +79,16 @@ const PDFUploadZone = ({
         toast({
           title: "Tipo de archivo inválido",
           description: "Solo se permiten archivos PDF",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (selectedFile.size > 10 * 1024 * 1024) { // 10MB
+        setError("El archivo es demasiado grande. El tamaño máximo permitido es 10MB.");
+        toast({
+          title: "Archivo demasiado grande",
+          description: "El tamaño máximo permitido es 10MB",
           variant: "destructive"
         });
         return;
@@ -108,7 +129,13 @@ const PDFUploadZone = ({
       description: "Este proceso puede tomar unos minutos, por favor espera...",
     });
     
+    setError("");
     onFileSelect(file, publicationName);
+  };
+
+  const clearSelection = () => {
+    setFile(null);
+    setError("");
   };
 
   return (
@@ -126,9 +153,10 @@ const PDFUploadZone = ({
           </div>
           
           {error && (
-            <div className="bg-destructive/10 text-destructive text-sm p-2 rounded">
-              {error}
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
           
           <div
@@ -170,9 +198,19 @@ const PDFUploadZone = ({
                   onChange={handleFileInput}
                 />
                 {file && (
-                  <p className="text-sm font-medium text-primary">
-                    Archivo seleccionado: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
+                  <div>
+                    <p className="text-sm font-medium text-primary">
+                      Archivo seleccionado: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={clearSelection}
+                      className="mt-1"
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
                 )}
               </>
             )}
