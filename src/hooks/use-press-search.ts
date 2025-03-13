@@ -6,6 +6,7 @@ import { PressClipping } from "@/types/pdf-processing";
 
 interface SearchResult extends PressClipping {
   similarity: number;
+  publication_name: string; // Added this property explicitly
 }
 
 export const usePressSearch = () => {
@@ -61,13 +62,13 @@ export const usePressSearch = () => {
         page_number: clip.page_number,
         publication_name: clip.publication_name || "",
         similarity: clip.similarity || 0,
-        summary_who: "",
-        summary_what: "",
-        summary_when: "",
-        summary_where: "",
-        summary_why: "",
-        keywords: [],
-        client_relevance: []
+        summary_who: clip.summary_who || "",
+        summary_what: clip.summary_what || "",
+        summary_when: clip.summary_when || "",
+        summary_where: clip.summary_where || "",
+        summary_why: clip.summary_why || "",
+        keywords: clip.keywords || [],
+        client_relevance: clip.client_relevance || []
       }));
 
       setSearchResults(typedResults);
