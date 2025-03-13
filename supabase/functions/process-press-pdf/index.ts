@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
+import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/+esm";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,16 +40,40 @@ const publimediaClients = {
  */
 async function extractTextFromPdf(buffer: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
   try {
-    // Note: In a real implementation, we'd use PDF.js or a similar library
-    // For this demo, we'll simulate PDF text extraction with a placeholder
-    console.log("Extracting text from PDF buffer of size:", buffer.byteLength);
+    // Initialize PDF.js
+    await pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
     
-    // Simulate extraction of 3 pages
-    return [
-      { pageNumber: 1, text: "Sample extracted text from page 1..." },
-      { pageNumber: 2, text: "Sample extracted text from page 2..." },
-      { pageNumber: 3, text: "Sample extracted text from page 3..." }
-    ];
+    // Load the PDF document
+    const pdf = await pdfjs.getDocument({ data: buffer }).promise;
+    const numPages = pdf.numPages;
+    
+    console.log(`PDF loaded with ${numPages} pages`);
+    
+    // Extract text from each page
+    const pages = [];
+    for (let i = 1; i <= numPages; i++) {
+      try {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const textItems = textContent.items.map((item: any) => item.str).join(' ');
+        
+        pages.push({
+          pageNumber: i,
+          text: textItems
+        });
+        
+        console.log(`Extracted text from page ${i}: ${textItems.substring(0, 100)}...`);
+      } catch (pageError) {
+        console.error(`Error extracting page ${i}:`, pageError);
+        // Continue with other pages even if one fails
+        pages.push({
+          pageNumber: i,
+          text: `[Error extracting text from page ${i}]`
+        });
+      }
+    }
+    
+    return pages;
   } catch (error) {
     console.error("Error extracting PDF text:", error);
     throw new Error("Failed to extract text from PDF");
@@ -73,7 +98,7 @@ async function analyzePressClippings(pageText: string, pageNumber: number): Prom
       - summary_why: Razones o causas
       - keywords: Un array de palabras relevantes para la categoría
 
-      Formato la respuesta como un array JSON de objetos con las propiedades anteriores.
+      Formato la respuesta como un array JSON, con una clave "clippings" que contiene un array de objetos con las propiedades anteriores.
       Texto: ${pageText}
     `;
 
@@ -301,9 +326,15 @@ serve(async (req) => {
         processedClippings.push({
           id: data.id,
           title: clipping.title,
-          content: clipping.content.substring(0, 100) + '...',
+          content: clipping.content,
           page_number: clipping.page_number,
           category: clipping.category,
+          summary_who: clipping.summary_who,
+          summary_what: clipping.summary_what,
+          summary_when: clipping.summary_when,
+          summary_where: clipping.summary_where,
+          summary_why: clipping.summary_why,
+          keywords: clipping.keywords,
           client_relevance: clientRelevance
         });
       } catch (error) {

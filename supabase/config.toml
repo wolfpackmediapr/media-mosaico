@@ -30,3 +30,9 @@ verify_jwt = true
 
 [functions.process-social-feeds]
 verify_jwt = true
+
+[functions.process-press-pdf]
+verify_jwt = true
+
+[functions.search-press-clippings]
+verify_jwt = true

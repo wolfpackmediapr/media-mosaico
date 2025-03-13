@@ -12,7 +12,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 /**
- * Generates embedding for search query using OpenAI
+ * Generates embedding for text content using OpenAI
  */
 async function generateEmbedding(text: string): Promise<number[]> {
   try {
@@ -47,7 +47,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-  
+
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
@@ -69,52 +69,69 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
+
+    const { query, filters, limit = 10, threshold = 0.5 } = await req.json();
     
-    const { query, matchThreshold = 0.7, matchCount = 5 } = await req.json();
-    
-    if (!query || typeof query !== 'string') {
-      return new Response(JSON.stringify({ error: 'Invalid query' }), { 
+    if (!query || query.trim() === '') {
+      return new Response(JSON.stringify({ error: 'Search query is required' }), { 
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
-    
-    // Generate embedding for search query
+
+    // Generate embedding for the search query
     const queryEmbedding = await generateEmbedding(query);
     
-    // Search for similar clippings
-    const { data: similarClippings, error: searchError } = await supabase.rpc(
+    // Search for similar press clippings using the match_press_clippings function
+    let { data: clippings, error } = await supabase.rpc(
       'match_press_clippings',
-      {
+      { 
         query_embedding: queryEmbedding,
-        match_threshold: matchThreshold,
-        match_count: matchCount
+        match_threshold: threshold,
+        match_count: limit
       }
     );
     
-    if (searchError) {
-      console.error("Error searching clippings:", searchError);
-      return new Response(JSON.stringify({ error: 'Error searching clippings' }), { 
+    if (error) {
+      console.error('Error searching press clippings:', error);
+      return new Response(JSON.stringify({ error: error.message }), { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
     
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        similarClippings
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    // Apply additional filters if provided
+    if (filters) {
+      if (filters.category) {
+        clippings = clippings.filter(clip => clip.category === filters.category);
+      }
+      
+      if (filters.publicationName) {
+        clippings = clippings.filter(clip => clip.publication_name === filters.publicationName);
+      }
+      
+      if (filters.dateRange && filters.dateRange.from && filters.dateRange.to) {
+        const from = new Date(filters.dateRange.from);
+        const to = new Date(filters.dateRange.to);
+        
+        clippings = clippings.filter(clip => {
+          const clipDate = new Date(clip.publication_date);
+          return clipDate >= from && clipDate <= to;
+        });
+      }
+    }
+    
+    return new Response(JSON.stringify({ 
+      success: true,
+      clippings
+    }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
   } catch (error) {
     console.error('Error searching press clippings:', error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Unknown error occurred' }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message || 'Unknown error occurred' }), { 
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

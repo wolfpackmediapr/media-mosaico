@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
 
 interface PDFUploadZoneProps {
   onFileSelect: (file: File, publicationName: string) => void;
@@ -17,6 +18,7 @@ const PDFUploadZone = ({
   isUploading,
   uploadProgress
 }: PDFUploadZoneProps) => {
+  const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [publicationName, setPublicationName] = useState("");
@@ -41,11 +43,20 @@ const PDFUploadZone = ({
     
     if (droppedFile.type !== 'application/pdf') {
       setError("Por favor, selecciona un archivo PDF");
+      toast({
+        title: "Tipo de archivo inválido",
+        description: "Solo se permiten archivos PDF",
+        variant: "destructive"
+      });
       return;
     }
     
     setFile(droppedFile);
     setError("");
+    toast({
+      title: "Archivo seleccionado",
+      description: `${droppedFile.name} (${(droppedFile.size / 1024 / 1024).toFixed(2)} MB)`,
+    });
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,24 +65,48 @@ const PDFUploadZone = ({
       
       if (selectedFile.type !== 'application/pdf') {
         setError("Por favor, selecciona un archivo PDF");
+        toast({
+          title: "Tipo de archivo inválido",
+          description: "Solo se permiten archivos PDF",
+          variant: "destructive"
+        });
         return;
       }
       
       setFile(selectedFile);
       setError("");
+      toast({
+        title: "Archivo seleccionado",
+        description: `${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`,
+      });
     }
   };
 
   const handleSubmit = () => {
     if (!file) {
       setError("Por favor, selecciona un archivo PDF");
+      toast({
+        title: "Error",
+        description: "Por favor, selecciona un archivo PDF",
+        variant: "destructive"
+      });
       return;
     }
     
     if (!publicationName.trim()) {
       setError("Por favor, ingresa el nombre de la publicación");
+      toast({
+        title: "Error",
+        description: "Por favor, ingresa el nombre de la publicación",
+        variant: "destructive"
+      });
       return;
     }
+    
+    toast({
+      title: "Procesando PDF",
+      description: "Este proceso puede tomar unos minutos, por favor espera...",
+    });
     
     onFileSelect(file, publicationName);
   };
@@ -111,6 +146,9 @@ const PDFUploadZone = ({
                 <p className="text-sm text-gray-500">Procesando archivo...</p>
                 <Progress value={uploadProgress} className="w-full h-2" />
                 <p className="text-xs text-gray-500">{uploadProgress.toFixed(0)}% completado</p>
+                <p className="text-xs text-muted-foreground">
+                  Este proceso puede tomar varios minutos dependiendo del tamaño del PDF
+                </p>
               </div>
             ) : (
               <>
@@ -133,7 +171,7 @@ const PDFUploadZone = ({
                 />
                 {file && (
                   <p className="text-sm font-medium text-primary">
-                    Archivo seleccionado: {file.name}
+                    Archivo seleccionado: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
                   </p>
                 )}
               </>
