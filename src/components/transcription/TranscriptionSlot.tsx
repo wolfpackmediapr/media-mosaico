@@ -74,9 +74,9 @@ const TranscriptionSlot = ({
         
         <TabsContent value="transcription" className="p-4">
           <TranscriptionEditor
-            text={transcriptionText}
-            isLoading={isProcessing}
-            onChange={onTranscriptionChange}
+            transcriptionText={transcriptionText}
+            isProcessing={isProcessing}
+            onTranscriptionChange={onTranscriptionChange || (() => {})}
           />
         </TabsContent>
         
