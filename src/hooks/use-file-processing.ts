@@ -9,7 +9,9 @@ export const useFileProcessing = () => {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadFile = async (file: File, publicationName: string) => {
+    setIsUploading(true);
     setUploadError(null);
+    
     try {
       console.log(`Starting upload of file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
       
@@ -85,6 +87,9 @@ export const useFileProcessing = () => {
       console.error("Error in uploadFile:", error);
       setUploadError(error instanceof Error ? error.message : "Error desconocido");
       throw error;
+    } finally {
+      // Don't set isUploading to false here - let the calling component manage this
+      // based on the overall process flow
     }
   };
 

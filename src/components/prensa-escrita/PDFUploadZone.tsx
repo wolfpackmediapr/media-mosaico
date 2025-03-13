@@ -36,10 +36,10 @@ const PDFUploadZone = ({
     setError("");
   };
 
-  const clearSelection = () => {
+  const clearSelection = useCallback(() => {
     setFile(null);
     setError("");
-  };
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     if (!file) {
@@ -62,6 +62,7 @@ const PDFUploadZone = ({
       return;
     }
     
+    // Good user feedback
     toast({
       title: "Procesando PDF",
       description: "Este proceso puede tomar varios minutos, por favor espera...",
@@ -82,9 +83,10 @@ const PDFUploadZone = ({
         description: "Error al procesar el archivo. Por favor, intenta nuevamente.",
         variant: "destructive"
       });
-    } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Allow retry on error
     }
+    // Don't set isSubmitting to false on success - the parent component will handle this
+    // based on the status of the overall process
   }, [file, publicationName, onFileSelect, toast]);
 
   return (
@@ -144,16 +146,16 @@ const PDFUploadZone = ({
           
           <Button 
             className="w-full" 
-            disabled={isUploading || !file || !publicationName.trim() || isSubmitting}
+            disabled={isUploading || isSubmitting || !file || !publicationName.trim()}
             onClick={handleSubmit}
             type="button"
             aria-label="Procesar PDF"
           >
             {isSubmitting ? (
-              <>
-                <Upload className="h-4 w-4 animate-spin" />
+              <span className="flex items-center">
+                <Upload className="h-4 w-4 mr-2 animate-spin" />
                 Enviando...
-              </>
+              </span>
             ) : isUploading ? (
               "Procesando..."
             ) : (
