@@ -104,7 +104,7 @@ async function analyzePressClippings(pageText: string, pageNumber: number): Prom
 /**
  * Use OpenAI Vision API to extract text from image-based PDFs
  */
-async function extractTextWithVisionAPI(pageImage: string, pageNumber: number): Promise<{pageNumber: number, text: string}> {
+async function extractTextWithVisionAPI(pageImageUrl: string, pageNumber: number): Promise<{pageNumber: number, text: string}> {
   try {
     console.log(`Processing page ${pageNumber} with OpenAI Vision API...`);
     
@@ -127,7 +127,7 @@ async function extractTextWithVisionAPI(pageImage: string, pageNumber: number): 
               {
                 type: 'image_url',
                 image_url: {
-                  url: pageImage
+                  url: pageImageUrl
                 }
               }
             ]
@@ -159,83 +159,37 @@ async function extractTextWithVisionAPI(pageImage: string, pageNumber: number): 
 }
 
 /**
- * Convert PDF page to data URL image for Vision API
- * This version doesn't use OffscreenCanvas which isn't available in Deno
+ * Creates a data URL from a PDF page for Vision API
  */
-async function convertPdfPageToImage(pdfData: ArrayBuffer, pageNumber: number): Promise<string> {
+async function generatePdfPageDataUrl(pdfData: ArrayBuffer, pageNumber: number): Promise<string> {
   try {
-    console.log(`Converting page ${pageNumber} to image...`);
+    console.log(`Creating data URL for page ${pageNumber}...`);
     
-    // Properly initialize PDF.js for Deno environment
+    // Initialize PDF.js for Deno environment
     if (!globalThis.pdfjsLib) {
-      // @ts-ignore: Globally assign pdfjs for use in Deno
+      // @ts-ignore: Set global pdfjsLib for Deno environment
       globalThis.pdfjsLib = pdfjs;
     }
     
-    // Ensure GlobalWorkerOptions is properly set
-    if (!pdfjs.GlobalWorkerOptions) {
+    // Disable worker for Deno environment (critical fix)
+    // @ts-ignore: Setting globalThis.pdfjsLib.GlobalWorkerOptions
+    if (!globalThis.pdfjsLib.GlobalWorkerOptions) {
       // @ts-ignore: Create GlobalWorkerOptions if it doesn't exist
-      pdfjs.GlobalWorkerOptions = {};
+      globalThis.pdfjsLib.GlobalWorkerOptions = {};
     }
     
-    // Disable worker for Deno environment - critical for proper functioning
     // @ts-ignore: Setting workerSrc to null for Deno
-    pdfjs.GlobalWorkerOptions.workerSrc = null;
+    globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = null;
     
-    // Load the PDF document
-    const loadingTask = pdfjs.getDocument({data: pdfData});
-    const pdfDocument = await loadingTask.promise;
-    
-    // Get the page
-    const page = await pdfDocument.getPage(pageNumber);
-    
-    // Set viewport dimensions for rendering
-    const viewport = page.getViewport({ scale: 2.0 });
-    const width = viewport.width;
-    const height = viewport.height;
-    
-    // Instead of using OffscreenCanvas (not available in Deno),
-    // we'll create a base64 encoded PNG representation directly from the PDF data
-    // This approach uses PDF.js internals to get the raw image data
-    
-    // Generate a data URL for the page using PDF.js's utility
-    const renderContext = {
-      canvasFactory: {
-        create: function(width: number, height: number) {
-          return {
-            width,
-            height,
-            ctx: {
-              // These are the minimum functions needed
-              drawImage: () => {},
-              setTransform: () => {},
-              scale: () => {},
-              save: () => {},
-              restore: () => {},
-              translate: () => {}
-            }
-          };
-        },
-        reset: function(canvasAndContext: any, width: number, height: number) {
-          // Reset function is required but not used in this context
-        }
-      },
-      viewport
-    };
-    
-    // Render the page to get the operators
-    await page.render(renderContext).promise;
-    
-    // Since we can't render directly to an image in Deno without DOM,
-    // serialize the PDF page to base64 for API transmission
-    // Use a simplified approach that's compatible with Deno
+    // Generate and return a data URL pointing to a specific page of the PDF
+    // This avoids the need for OffscreenCanvas which is not available in Deno
     const pdfBytes = new Uint8Array(pdfData);
-    const base64Pdf = btoa(String.fromCharCode.apply(null, pdfBytes));
-    const dataUrl = `data:image/pdf;base64,${base64Pdf}#page=${pageNumber}`;
+    const base64Pdf = btoa(String.fromCharCode.apply(null, Array.from(pdfBytes)));
+    const dataUrl = `data:application/pdf;base64,${base64Pdf}#page=${pageNumber}`;
     
     return dataUrl;
   } catch (error) {
-    console.error(`Error converting page ${pageNumber} to image:`, error);
+    console.error(`Error creating data URL for page ${pageNumber}:`, error);
     throw error;
   }
 }
@@ -322,84 +276,30 @@ async function updateProcessingJob(supabase: any, jobId: string, updates: any) {
 }
 
 /**
- * Process text from PDF pages in batches, with Vision API fallback
- */
-async function processTextPages(supabase: any, jobId: string, pages: {pageNumber: number, text: string}[], pdfData: ArrayBuffer): Promise<any[]> {
-  const allClippings = [];
-  const totalPages = pages.length;
-  
-  console.log(`Processing ${totalPages} pages of text`);
-  
-  for (let i = 0; i < totalPages; i++) {
-    const page = pages[i];
-    console.log(`Analyzing page ${page.pageNumber} (${page.text.length} characters)`);
-    
-    try {
-      // Update progress
-      const progress = Math.floor((i / totalPages) * 90) + 5; // 5-95% range for processing
-      await updateProcessingJob(supabase, jobId, { progress });
-      
-      // For pages with very little text, try Vision API as a fallback
-      if (page.text.length < 200) {
-        console.log(`Page ${page.pageNumber} has limited text (${page.text.length} chars), trying Vision API...`);
-        try {
-          const pageImage = await convertPdfPageToImage(pdfData, page.pageNumber);
-          const visionResult = await extractTextWithVisionAPI(pageImage, page.pageNumber);
-          
-          // If Vision API returned more text, use it instead
-          if (visionResult.text.length > page.text.length) {
-            console.log(`Vision API extracted more text (${visionResult.text.length} chars vs ${page.text.length}), using Vision results`);
-            page.text = visionResult.text;
-          }
-        } catch (visionError) {
-          console.error(`Vision API fallback failed for page ${page.pageNumber}:`, visionError);
-          // Continue with original text if Vision API fails
-        }
-      }
-      
-      // Check if we have enough text to analyze
-      if (page.text.length < 50) {
-        console.warn(`Page ${page.pageNumber} has insufficient text (${page.text.length} chars), skipping analysis`);
-        continue;
-      }
-      
-      // Process the page text (either original or enhanced by Vision API)
-      const clippings = await analyzePressClippings(page.text, page.pageNumber);
-      console.log(`Found ${clippings.length} clippings on page ${page.pageNumber}`);
-      allClippings.push(...clippings);
-    } catch (error) {
-      console.error(`Error processing page ${page.pageNumber}:`, error);
-    }
-  }
-  
-  return allClippings;
-}
-
-/**
- * Extract text from a PDF file using PDF.js
- * Completely revised to work reliably in Deno
+ * Extract text from a PDF file using PDF.js - completely rewritten for Deno reliability
  */
 async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
   try {
     console.log("Starting PDF text extraction with PDF.js...");
     
-    // Initialize PDF.js for Deno environment
+    // Initialize PDF.js properly for Deno environment
     if (!globalThis.pdfjsLib) {
       // @ts-ignore: Set global pdfjsLib for Deno environment
       globalThis.pdfjsLib = pdfjs;
     }
     
     // Set up GlobalWorkerOptions properly for Deno
-    if (!pdfjs.GlobalWorkerOptions) {
+    // @ts-ignore: Setting globalThis.pdfjsLib.GlobalWorkerOptions
+    if (!globalThis.pdfjsLib.GlobalWorkerOptions) {
       // @ts-ignore: Create GlobalWorkerOptions if it doesn't exist
-      pdfjs.GlobalWorkerOptions = {};
+      globalThis.pdfjsLib.GlobalWorkerOptions = {};
     }
     
-    // Disable worker for Deno environment
+    // Disable worker for Deno environment - critical fix
     // @ts-ignore: Setting workerSrc to null for Deno
-    pdfjs.GlobalWorkerOptions.workerSrc = null;
+    globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = null;
     
-    console.log("PDF.js initialization completed");
+    console.log("PDF.js initialization completed with worker disabled");
     
     // Load the PDF document
     const loadingTask = pdfjs.getDocument({data: pdfData});
@@ -421,13 +321,18 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
         const textContent = await page.getTextContent();
         
         // Combine all text items into a single string
-        const pageText = textContent.items
+        let pageText = textContent.items
           .map((item: any) => item.str)
           .join(' ')
           .replace(/\s+/g, ' ')
           .trim();
         
         console.log(`Extracted ${pageText.length} characters from page ${i}`);
+        
+        // If very little text was extracted (possibly a scan), log this
+        if (pageText.length < 100) {
+          console.log(`Page ${i} appears to be mostly image-based (only ${pageText.length} chars extracted)`);
+        }
         
         textPages.push({
           pageNumber: i,
@@ -444,13 +349,70 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
     }
     
     console.log(`Successfully processed ${textPages.length} pages`);
-    
-    // Even if some pages have no text, we'll handle that with Vision API later
     return textPages;
   } catch (error) {
     console.error("Error extracting text from PDF:", error);
     throw new Error(`Failed to extract text from PDF: ${error.message}`);
   }
+}
+
+/**
+ * Process text from PDF pages with Vision API fallback for low-text pages
+ */
+async function processTextPages(supabase: any, jobId: string, pages: {pageNumber: number, text: string}[], pdfData: ArrayBuffer): Promise<any[]> {
+  const allClippings = [];
+  const totalPages = pages.length;
+  
+  console.log(`Processing ${totalPages} pages of text`);
+  
+  for (let i = 0; i < totalPages; i++) {
+    const page = pages[i];
+    console.log(`Processing page ${page.pageNumber} (${page.text.length} characters)`);
+    
+    try {
+      // Update progress
+      const progress = Math.floor((i / totalPages) * 90) + 5; // 5-95% range for processing
+      await updateProcessingJob(supabase, jobId, { progress });
+      
+      // For pages with very little text, try Vision API
+      let textToAnalyze = page.text;
+      
+      if (page.text.length < 200) {
+        console.log(`Page ${page.pageNumber} has limited text (${page.text.length} chars), trying Vision API...`);
+        try {
+          // Create a data URL for this PDF page
+          const pageImageUrl = await generatePdfPageDataUrl(pdfData, page.pageNumber);
+          
+          // Use Vision API to extract text
+          const visionResult = await extractTextWithVisionAPI(pageImageUrl, page.pageNumber);
+          
+          // If Vision API returned text, use it
+          if (visionResult.text && visionResult.text.length > page.text.length) {
+            console.log(`Vision API extracted ${visionResult.text.length} chars (vs ${page.text.length} from PDF.js)`);
+            textToAnalyze = visionResult.text;
+          }
+        } catch (visionError) {
+          console.error(`Vision API fallback failed for page ${page.pageNumber}:`, visionError);
+          // Continue with original text if Vision API fails
+        }
+      }
+      
+      // Check if we have enough text to analyze
+      if (textToAnalyze.length < 50) {
+        console.warn(`Page ${page.pageNumber} has insufficient text (${textToAnalyze.length} chars), skipping analysis`);
+        continue;
+      }
+      
+      // Process the page text (either original or enhanced by Vision API)
+      const clippings = await analyzePressClippings(textToAnalyze, page.pageNumber);
+      console.log(`Found ${clippings.length} clippings on page ${page.pageNumber}`);
+      allClippings.push(...clippings);
+    } catch (error) {
+      console.error(`Error processing page ${page.pageNumber}:`, error);
+    }
+  }
+  
+  return allClippings;
 }
 
 /**
@@ -549,25 +511,25 @@ serve(async (req) => {
     
     // Extract text from PDF
     let textPages;
-    let isVisionRequired = false;
     try {
       textPages = await extractTextFromPdf(pdfData);
-      await updateProcessingJob(supabase, jobId, { progress: 10 });
+      await updateProcessingJob(supabase, jobId, { progress: 15 });
+      
+      // Log total text extraction results
+      const totalCharacters = textPages.reduce((sum, page) => sum + page.text.length, 0);
+      const avgCharPerPage = Math.round(totalCharacters / textPages.length);
+      console.log(`Total extracted text: ${totalCharacters} characters, avg ${avgCharPerPage} per page`);
       
       // Check if we got meaningful text
-      const hasText = textPages.some(page => page.text.length > 200);
-      if (!hasText) {
+      const hasSubstantialText = textPages.some(page => page.text.length > 200);
+      if (!hasSubstantialText) {
         console.log("PDF appears to have limited text, Vision API will be used extensively");
-        isVisionRequired = true;
       }
     } catch (error) {
       console.error("Error extracting text from PDF:", error);
-      
-      // Handle case of image-only PDF
-      isVisionRequired = true;
-      
-      // Create an array of empty text pages to be processed with Vision API
+      // Create an empty array if text extraction fails completely
       textPages = [];
+      // Try to get page count for processing with Vision API
       try {
         // Initialize PDF.js to get page count
         if (!globalThis.pdfjsLib) {
@@ -575,18 +537,20 @@ serve(async (req) => {
           globalThis.pdfjsLib = pdfjs;
         }
         
-        if (!pdfjs.GlobalWorkerOptions) {
+        // @ts-ignore: Setting globalThis.pdfjsLib.GlobalWorkerOptions
+        if (!globalThis.pdfjsLib.GlobalWorkerOptions) {
           // @ts-ignore: Create GlobalWorkerOptions if it doesn't exist
-          pdfjs.GlobalWorkerOptions = {};
+          globalThis.pdfjsLib.GlobalWorkerOptions = {};
         }
         
-        // Disable worker for Deno environment
         // @ts-ignore: Setting workerSrc to null for Deno
-        pdfjs.GlobalWorkerOptions.workerSrc = null;
+        globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = null;
         
         const loadingTask = pdfjs.getDocument({data: pdfData});
         const pdfDocument = await loadingTask.promise;
         const pageCount = pdfDocument.numPages;
+        
+        console.log(`Text extraction failed, but found ${pageCount} pages for Vision API processing`);
         
         for (let i = 1; i <= pageCount; i++) {
           textPages.push({
@@ -594,12 +558,6 @@ serve(async (req) => {
             text: "" // Empty text to be filled by Vision API
           });
         }
-        
-        await updateProcessingJob(supabase, jobId, { 
-          progress: 10,
-          status: 'processing',
-          error: null
-        });
       } catch (countError) {
         console.error("Error getting page count:", countError);
         // If we can't get page count, use fallback of 1 page
@@ -607,9 +565,7 @@ serve(async (req) => {
       }
     }
     
-    console.log(`Successfully prepared ${textPages.length} pages for processing`);
-    
-    // Process the text pages with regular or Vision API
+    // Process the text pages with Vision API fallback
     const allClippings = await processTextPages(supabase, jobId, textPages, pdfData);
     
     // Handle case where no clippings were found
@@ -643,22 +599,22 @@ serve(async (req) => {
         const clientRelevance = identifyClientRelevance(clipping);
         
         // Generate embedding
-        const embedding = await generateEmbedding(clipping.content);
+        const embedding = await generateEmbedding(clipping.content || "");
         
         // Store in database
         const { data, error: insertError } = await supabase
           .from('press_clippings')
           .insert({
-            title: clipping.title,
-            content: clipping.content,
+            title: clipping.title || "Sin título",
+            content: clipping.content || "",
             publication_name: job.publication_name,
             page_number: clipping.page_number,
-            category: clipping.category,
-            summary_who: clipping.summary_who,
-            summary_what: clipping.summary_what,
-            summary_when: clipping.summary_when,
-            summary_where: clipping.summary_where,
-            summary_why: clipping.summary_why,
+            category: clipping.category || "OTRAS",
+            summary_who: clipping.summary_who || "",
+            summary_what: clipping.summary_what || "",
+            summary_when: clipping.summary_when || "",
+            summary_where: clipping.summary_where || "",
+            summary_why: clipping.summary_why || "",
             keywords: clipping.keywords || [],
             client_relevance: clientRelevance,
             embedding,
@@ -674,8 +630,8 @@ serve(async (req) => {
         
         // Create alert for relevant clients
         if (clientRelevance.length > 0) {
-          const alertTitle = `Noticia relevante: ${clipping.title}`;
-          const alertDescription = `Se encontró una noticia relevante en la categoría ${clipping.category} en la página ${clipping.page_number} de ${job.publication_name}`;
+          const alertTitle = `Noticia relevante: ${clipping.title || "Sin título"}`;
+          const alertDescription = `Se encontró una noticia relevante en la categoría ${clipping.category || "OTRAS"} en la página ${clipping.page_number} de ${job.publication_name}`;
           
           await supabase
             .from('client_alerts')
@@ -689,16 +645,16 @@ serve(async (req) => {
         
         processedClippings.push({
           id: data?.id || `temp-${Date.now()}`,
-          title: clipping.title,
-          content: clipping.content,
+          title: clipping.title || "Sin título",
+          content: clipping.content || "",
           page_number: clipping.page_number,
-          category: clipping.category,
-          summary_who: clipping.summary_who,
-          summary_what: clipping.summary_what,
-          summary_when: clipping.summary_when,
-          summary_where: clipping.summary_where,
-          summary_why: clipping.summary_why,
-          keywords: clipping.keywords,
+          category: clipping.category || "OTRAS",
+          summary_who: clipping.summary_who || "",
+          summary_what: clipping.summary_what || "",
+          summary_when: clipping.summary_when || "",
+          summary_where: clipping.summary_where || "",
+          summary_why: clipping.summary_why || "",
+          keywords: clipping.keywords || [],
           client_relevance: clientRelevance
         });
       } catch (error) {
