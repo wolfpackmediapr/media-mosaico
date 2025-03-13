@@ -311,6 +311,125 @@ export type Database = {
           },
         ]
       }
+      news_segments: {
+        Row: {
+          created_at: string | null
+          embedding: string | null
+          end_ms: number | null
+          id: string
+          keywords: string[] | null
+          segment_number: number
+          segment_title: string
+          start_ms: number | null
+          timestamp_end: string | null
+          timestamp_start: string | null
+          transcript: string
+          transcription_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          embedding?: string | null
+          end_ms?: number | null
+          id?: string
+          keywords?: string[] | null
+          segment_number: number
+          segment_title: string
+          start_ms?: number | null
+          timestamp_end?: string | null
+          timestamp_start?: string | null
+          transcript: string
+          transcription_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          embedding?: string | null
+          end_ms?: number | null
+          id?: string
+          keywords?: string[] | null
+          segment_number?: number
+          segment_title?: string
+          start_ms?: number | null
+          timestamp_end?: string | null
+          timestamp_start?: string | null
+          transcript?: string
+          transcription_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "news_segments_transcription_id_fkey"
+            columns: ["transcription_id"]
+            isOneToOne: false
+            referencedRelation: "transcriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      press_clippings: {
+        Row: {
+          category: string
+          client_relevance: string[] | null
+          content: string
+          created_at: string | null
+          embedding: string | null
+          id: string
+          keywords: string[] | null
+          page_number: number
+          publication_date: string | null
+          publication_name: string
+          summary_what: string | null
+          summary_when: string | null
+          summary_where: string | null
+          summary_who: string | null
+          summary_why: string | null
+          title: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          category: string
+          client_relevance?: string[] | null
+          content: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          keywords?: string[] | null
+          page_number: number
+          publication_date?: string | null
+          publication_name: string
+          summary_what?: string | null
+          summary_when?: string | null
+          summary_where?: string | null
+          summary_who?: string | null
+          summary_why?: string | null
+          title: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          client_relevance?: string[] | null
+          content?: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          keywords?: string[] | null
+          page_number?: number
+          publication_date?: string | null
+          publication_name?: string
+          summary_what?: string | null
+          summary_when?: string | null
+          summary_where?: string | null
+          summary_who?: string | null
+          summary_why?: string | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       processing_errors: {
         Row: {
           article_info: Json | null
@@ -619,9 +738,216 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      binary_quantize:
+        | {
+            Args: {
+              "": string
+            }
+            Returns: unknown
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: unknown
+          }
       create_processing_errors_if_not_exists: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      halfvec_avg: {
+        Args: {
+          "": number[]
+        }
+        Returns: unknown
+      }
+      halfvec_out: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      halfvec_send: {
+        Args: {
+          "": unknown
+        }
+        Returns: string
+      }
+      halfvec_typmod_in: {
+        Args: {
+          "": unknown[]
+        }
+        Returns: number
+      }
+      hnsw_bit_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      hnsw_halfvec_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      hnsw_sparsevec_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      hnswhandler: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      ivfflat_bit_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      ivfflat_halfvec_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      ivfflathandler: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      l2_norm:
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: number
+          }
+      l2_normalize:
+        | {
+            Args: {
+              "": string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: unknown
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: unknown
+          }
+      match_news_segments: {
+        Args: {
+          query_embedding: string
+          match_threshold: number
+          match_count: number
+        }
+        Returns: {
+          id: string
+          segment_number: number
+          segment_title: string
+          transcript: string
+          timestamp_start: string
+          timestamp_end: string
+          start_ms: number
+          end_ms: number
+          keywords: string[]
+          similarity: number
+        }[]
+      }
+      match_press_clippings: {
+        Args: {
+          query_embedding: string
+          match_threshold: number
+          match_count: number
+        }
+        Returns: {
+          id: string
+          title: string
+          content: string
+          page_number: number
+          publication_name: string
+          category: string
+          similarity: number
+        }[]
+      }
+      sparsevec_out: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      sparsevec_send: {
+        Args: {
+          "": unknown
+        }
+        Returns: string
+      }
+      sparsevec_typmod_in: {
+        Args: {
+          "": unknown[]
+        }
+        Returns: number
+      }
+      vector_avg: {
+        Args: {
+          "": number[]
+        }
+        Returns: string
+      }
+      vector_dims:
+        | {
+            Args: {
+              "": string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: number
+          }
+      vector_norm: {
+        Args: {
+          "": string
+        }
+        Returns: number
+      }
+      vector_out: {
+        Args: {
+          "": string
+        }
+        Returns: unknown
+      }
+      vector_send: {
+        Args: {
+          "": string
+        }
+        Returns: string
+      }
+      vector_typmod_in: {
+        Args: {
+          "": unknown[]
+        }
+        Returns: number
       }
     }
     Enums: {

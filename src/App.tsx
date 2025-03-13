@@ -17,6 +17,7 @@ import Ajustes from "./pages/Ajustes";
 import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
+import PrensaEscrita from "./pages/PrensaEscrita";
 import { useEffect, useState } from "react";
 import { supabase } from "./integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
@@ -66,6 +67,7 @@ function App() {
                 <Route path="/tv" element={<Tv />} />
                 <Route path="/radio" element={<Radio />} />
                 <Route path="/prensa" element={<Prensa />} />
+                <Route path="/prensa-escrita" element={<PrensaEscrita />} />
                 <Route path="/redes-sociales" element={<RedesSociales />} />
                 <Route path="/notificaciones" element={<Notificaciones />} />
                 <Route path="/envio-alertas" element={<EnvioAlertas />} />
