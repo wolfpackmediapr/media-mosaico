@@ -1,4 +1,3 @@
-
 import React from "react";
 import PrensaPageHeader from "@/components/prensa-escrita/PrensaPageHeader";
 import PressTabsContainer from "@/components/prensa-escrita/PressTabsContainer";
@@ -17,7 +16,6 @@ const PrensaEscrita = () => {
   
   const { activeTab, setActiveTab } = useTabState("upload");
 
-  // Effect to switch to results tab when clippings are available
   React.useEffect(() => {
     if (clippings.length > 0) {
       setActiveTab("results");
