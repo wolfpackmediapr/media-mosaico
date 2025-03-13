@@ -4,21 +4,7 @@ import { Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PressClippingCard from "@/components/prensa-escrita/PressClippingCard";
 import GenerateReportButton from "@/components/prensa-escrita/GenerateReportButton";
-
-interface PressClipping {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-  page_number: number;
-  summary_who?: string;
-  summary_what?: string;
-  summary_when?: string;
-  summary_where?: string;
-  summary_why?: string;
-  keywords?: string[];
-  client_relevance?: string[];
-}
+import { PressClipping } from "@/hooks/use-pdf-processing";
 
 interface ResultsContentTabProps {
   isUploading: boolean;
