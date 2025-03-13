@@ -32,7 +32,10 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.process-press-pdf]
-verify_jwt = true
+verify_jwt = false
 
 [functions.search-press-clippings]
 verify_jwt = true
+
+[functions.check-pdf-job-status]
+verify_jwt = false

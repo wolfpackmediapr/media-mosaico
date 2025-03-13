@@ -25,6 +25,8 @@ const PDFUploadZone = ({
   const [publicationName, setPublicationName] = useState("");
   const [error, setError] = useState("");
 
+  const maxFileSizeMB = 40; // 40MB max file size
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -35,6 +37,30 @@ const PDFUploadZone = ({
     setIsDragging(false);
   };
 
+  const validateFile = (fileToValidate: File): boolean => {
+    if (fileToValidate.type !== 'application/pdf') {
+      setError("Por favor, selecciona un archivo PDF");
+      toast({
+        title: "Tipo de archivo inválido",
+        description: "Solo se permiten archivos PDF",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (fileToValidate.size > maxFileSizeMB * 1024 * 1024) {
+      setError(`El archivo es demasiado grande. El tamaño máximo permitido es ${maxFileSizeMB}MB.`);
+      toast({
+        title: "Archivo demasiado grande",
+        description: `El tamaño máximo permitido es ${maxFileSizeMB}MB`,
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    return true;
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
@@ -42,23 +68,7 @@ const PDFUploadZone = ({
     const droppedFile = e.dataTransfer.files[0];
     if (!droppedFile) return;
     
-    if (droppedFile.type !== 'application/pdf') {
-      setError("Por favor, selecciona un archivo PDF");
-      toast({
-        title: "Tipo de archivo inválido",
-        description: "Solo se permiten archivos PDF",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (droppedFile.size > 10 * 1024 * 1024) { // 10MB
-      setError("El archivo es demasiado grande. El tamaño máximo permitido es 10MB.");
-      toast({
-        title: "Archivo demasiado grande",
-        description: "El tamaño máximo permitido es 10MB",
-        variant: "destructive"
-      });
+    if (!validateFile(droppedFile)) {
       return;
     }
     
@@ -74,23 +84,7 @@ const PDFUploadZone = ({
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       
-      if (selectedFile.type !== 'application/pdf') {
-        setError("Por favor, selecciona un archivo PDF");
-        toast({
-          title: "Tipo de archivo inválido",
-          description: "Solo se permiten archivos PDF",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      if (selectedFile.size > 10 * 1024 * 1024) { // 10MB
-        setError("El archivo es demasiado grande. El tamaño máximo permitido es 10MB.");
-        toast({
-          title: "Archivo demasiado grande",
-          description: "El tamaño máximo permitido es 10MB",
-          variant: "destructive"
-        });
+      if (!validateFile(selectedFile)) {
         return;
       }
       
@@ -126,7 +120,7 @@ const PDFUploadZone = ({
     
     toast({
       title: "Procesando PDF",
-      description: "Este proceso puede tomar unos minutos, por favor espera...",
+      description: "Este proceso puede tomar varios minutos, por favor espera...",
     });
     
     setError("");
@@ -136,6 +130,16 @@ const PDFUploadZone = ({
   const clearSelection = () => {
     setFile(null);
     setError("");
+  };
+
+  const getStatusMessage = () => {
+    if (uploadProgress < 50) {
+      return "Subiendo archivo...";
+    } else if (uploadProgress < 95) {
+      return "Procesando PDF...";
+    } else {
+      return "Finalizando...";
+    }
   };
 
   return (
@@ -171,7 +175,7 @@ const PDFUploadZone = ({
             
             {isUploading ? (
               <div className="space-y-4">
-                <p className="text-sm text-gray-500">Procesando archivo...</p>
+                <p className="text-sm text-gray-500">{getStatusMessage()}</p>
                 <Progress value={uploadProgress} className="w-full h-2" />
                 <p className="text-xs text-gray-500">{uploadProgress.toFixed(0)}% completado</p>
                 <p className="text-xs text-muted-foreground">
@@ -212,6 +216,9 @@ const PDFUploadZone = ({
                     </Button>
                   </div>
                 )}
+                <p className="text-xs text-gray-500 mt-4">
+                  Tamaño máximo permitido: {maxFileSizeMB}MB
+                </p>
               </>
             )}
           </div>

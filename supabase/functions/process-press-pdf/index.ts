@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/+esm";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -35,6 +36,8 @@ const publimediaClients = {
  */
 async function analyzePressClippings(pageText: string, pageNumber: number): Promise<any[]> {
   try {
+    console.log(`Analyzing page ${pageNumber} content with ${pageText.length} characters...`);
+    
     const prompt = `
       Analiza el siguiente texto de un periódico digital y extrae los recortes de prensa (press clippings).
       Para cada recorte, proporciona:
@@ -160,16 +163,41 @@ async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 /**
- * Process text from PDF pages
+ * Updates processing job status and progress
  */
-async function processTextPages(pages: {pageNumber: number, text: string}[]): Promise<any[]> {
+async function updateProcessingJob(supabase: any, jobId: string, updates: any) {
+  try {
+    const { error } = await supabase
+      .from('pdf_processing_jobs')
+      .update(updates)
+      .eq('id', jobId);
+    
+    if (error) {
+      console.error("Error updating processing job:", error);
+    }
+  } catch (err) {
+    console.error("Exception updating processing job:", err);
+  }
+}
+
+/**
+ * Process text from PDF pages in batches
+ */
+async function processTextPages(supabase: any, jobId: string, pages: {pageNumber: number, text: string}[]): Promise<any[]> {
   const allClippings = [];
+  const totalPages = pages.length;
   
-  console.log(`Processing ${pages.length} pages of text`);
+  console.log(`Processing ${totalPages} pages of text`);
   
-  for (const page of pages) {
+  for (let i = 0; i < totalPages; i++) {
+    const page = pages[i];
     console.log(`Analyzing page ${page.pageNumber} (${page.text.length} characters)`);
+    
     try {
+      // Update progress
+      const progress = Math.floor((i / totalPages) * 90) + 5; // 5-95% range for processing
+      await updateProcessingJob(supabase, jobId, { progress });
+      
       const clippings = await analyzePressClippings(page.text, page.pageNumber);
       console.log(`Found ${clippings.length} clippings on page ${page.pageNumber}`);
       allClippings.push(...clippings);
@@ -182,43 +210,71 @@ async function processTextPages(pages: {pageNumber: number, text: string}[]): Pr
 }
 
 /**
- * Parse PDF file
+ * Extract text from a PDF file downloaded from storage
  */
-async function parsePdfFile(base64Pdf: string): Promise<{pageNumber: number, text: string}[]> {
+async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
   try {
-    // Convert base64 to binary
-    const binaryString = atob(base64Pdf);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+    // Initialize PDF.js
+    const pdfDoc = await pdfjs.getDocument({ data: pdfData }).promise;
+    const numPages = pdfDoc.numPages;
+    console.log(`PDF document loaded with ${numPages} pages`);
+    
+    const textPages = [];
+    
+    // Extract text from each page
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const textContent = await page.getTextContent();
+      
+      // Combine all text items into a single string
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      textPages.push({
+        pageNumber: i,
+        text: pageText
+      });
     }
     
-    // Use the Supabase Edge Function to convert the PDF to text
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    return textPages;
+  } catch (error) {
+    console.error("Error extracting text from PDF:", error);
+    throw new Error("Failed to extract text from PDF");
+  }
+}
+
+/**
+ * Download a PDF file from Supabase Storage
+ */
+async function downloadPdfFromStorage(supabase: any, filePath: string): Promise<ArrayBuffer> {
+  console.log(`Downloading PDF from storage: ${filePath}`);
+  
+  try {
+    // Extract bucket and path from filePath (format: bucket_id/path/to/file.pdf)
+    const [bucketId, ...pathParts] = filePath.split('/');
+    const path = pathParts.join('/');
+    
     const { data, error } = await supabase
       .storage
-      .from('temp')
-      .upload(`temp-pdf-${Date.now()}.pdf`, bytes, {
-        contentType: 'application/pdf',
-        upsert: true
-      });
+      .from(bucketId)
+      .download(path);
     
     if (error) {
-      console.error("Error uploading PDF to storage:", error);
-      throw new Error("Failed to upload PDF for processing");
+      console.error("Error downloading PDF from storage:", error);
+      throw new Error("Failed to download PDF from storage");
     }
     
-    // Mock pages for testing - would be replaced with actual PDF extraction logic
-    const mockPages = [
-      { pageNumber: 1, text: "Este es un artículo sobre salud pública. El hospital First Medical realizó una campaña de vacunación contra la influenza." },
-      { pageNumber: 2, text: "AMBIENTE: El grupo Para la Naturaleza organizó una limpieza de playa en San Juan el sábado pasado." }
-    ];
+    if (!data) {
+      throw new Error("No data returned from storage download");
+    }
     
-    return mockPages;
-    
+    return await data.arrayBuffer();
   } catch (error) {
-    console.error("Error parsing PDF:", error);
-    throw new Error("Failed to parse PDF file");
+    console.error("Exception downloading PDF from storage:", error);
+    throw error;
   }
 }
 
@@ -232,63 +288,81 @@ serve(async (req) => {
     console.log("Received request to process PDF");
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    // Verify that we have an authenticated user
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), { 
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
+    // Parse the request JSON
+    const { jobId } = await req.json();
     
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
-    
-    // Extract formData from request
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
-    const publicationName = formData.get('publicationName') as string;
-    
-    if (!file) {
-      return new Response(JSON.stringify({ error: 'No file uploaded' }), { 
+    if (!jobId) {
+      return new Response(JSON.stringify({ error: 'Missing jobId parameter' }), { 
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
     
-    if (!publicationName) {
-      return new Response(JSON.stringify({ error: 'Publication name is required' }), { 
-        status: 400,
+    console.log(`Processing job ID: ${jobId}`);
+    
+    // Get the job details
+    const { data: job, error: jobError } = await supabase
+      .from('pdf_processing_jobs')
+      .select('*')
+      .eq('id', jobId)
+      .single();
+    
+    if (jobError || !job) {
+      console.error("Error fetching job:", jobError);
+      return new Response(JSON.stringify({ error: 'Job not found' }), { 
+        status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
     
-    // Process the PDF
-    console.log(`Processing PDF: ${file.name}`);
-    console.log(`Publication Name: ${publicationName}`);
+    // Update job status to processing
+    await updateProcessingJob(supabase, jobId, { 
+      status: 'processing',
+      progress: 5 // Start at 5%
+    });
     
-    // Read the file as an ArrayBuffer
-    const fileBytes = await file.arrayBuffer();
+    // Download the PDF from storage
+    let pdfData;
+    try {
+      pdfData = await downloadPdfFromStorage(supabase, job.file_path);
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      await updateProcessingJob(supabase, jobId, { 
+        status: 'error',
+        error: 'Failed to download PDF file'
+      });
+      
+      return new Response(JSON.stringify({ error: 'Failed to download PDF file' }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
     
-    // Since PDF.js directly in Deno is causing issues, we'll use a simplified approach
-    // For this demo, we'll just extract some sample text and process it
-    // In a production implementation, you would want to use a more robust PDF parsing approach
-    const mockPages = [
-      { pageNumber: 1, text: "Este es un artículo sobre salud pública en Puerto Rico. El hospital First Medical realizó una campaña de vacunación contra la influenza en San Juan." },
-      { pageNumber: 2, text: "AMBIENTE: El grupo Para la Naturaleza organizó una limpieza de playa en San Juan el sábado pasado para proteger los ecosistemas marinos." }
-    ];
+    // Extract text from PDF
+    let textPages;
+    try {
+      textPages = await extractTextFromPdf(pdfData);
+      await updateProcessingJob(supabase, jobId, { progress: 10 });
+    } catch (error) {
+      console.error("Error extracting text from PDF:", error);
+      await updateProcessingJob(supabase, jobId, { 
+        status: 'error',
+        error: 'Failed to extract text from PDF'
+      });
+      
+      return new Response(JSON.stringify({ error: 'Failed to extract text from PDF' }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
     
-    console.log(`Processing ${mockPages.length} pages of text`);
-    const allClippings = await processTextPages(mockPages);
+    console.log(`Extracted ${textPages.length} pages of text`);
+    
+    // Process the text pages
+    const allClippings = await processTextPages(supabase, jobId, textPages);
     
     console.log(`Found ${allClippings.length} press clippings in total`);
+    await updateProcessingJob(supabase, jobId, { progress: 95 });
     
     // Process each clipping
     const processedClippings = [];
@@ -306,7 +380,7 @@ serve(async (req) => {
           .insert({
             title: clipping.title,
             content: clipping.content,
-            publication_name: publicationName,
+            publication_name: job.publication_name,
             page_number: clipping.page_number,
             category: clipping.category,
             summary_who: clipping.summary_who,
@@ -317,7 +391,7 @@ serve(async (req) => {
             keywords: clipping.keywords || [],
             client_relevance: clientRelevance,
             embedding,
-            user_id: user.id
+            user_id: job.user_id
           })
           .select()
           .single();
@@ -330,7 +404,7 @@ serve(async (req) => {
         // Create alert for relevant clients
         if (clientRelevance.length > 0) {
           const alertTitle = `Noticia relevante: ${clipping.title}`;
-          const alertDescription = `Se encontró una noticia relevante en la categoría ${clipping.category} en la página ${clipping.page_number} de ${publicationName}`;
+          const alertDescription = `Se encontró una noticia relevante en la categoría ${clipping.category} en la página ${clipping.page_number} de ${job.publication_name}`;
           
           await supabase
             .from('client_alerts')
@@ -361,16 +435,38 @@ serve(async (req) => {
       }
     }
     
+    // Update job status to completed
+    await updateProcessingJob(supabase, jobId, { 
+      status: 'completed',
+      progress: 100
+    });
+    
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: `Processed ${processedClippings.length} press clippings`,
-        clippings: processedClippings
+        clippings: processedClippings,
+        jobId
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error('Error processing press PDF:', error);
+    
+    // Try to update job status if possible
+    try {
+      const { jobId } = await req.json();
+      if (jobId) {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        await updateProcessingJob(supabase, jobId, { 
+          status: 'error',
+          error: error.message || 'Unknown error occurred'
+        });
+      }
+    } catch (e) {
+      // Ignore errors here
+    }
+    
     return new Response(
       JSON.stringify({ error: error.message || 'Unknown error occurred' }),
       { 

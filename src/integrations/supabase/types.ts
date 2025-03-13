@@ -367,6 +367,42 @@ export type Database = {
           },
         ]
       }
+      pdf_processing_jobs: {
+        Row: {
+          created_at: string | null
+          error: string | null
+          file_path: string
+          id: string
+          progress: number | null
+          publication_name: string
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          error?: string | null
+          file_path: string
+          id?: string
+          progress?: number | null
+          publication_name: string
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          error?: string | null
+          file_path?: string
+          id?: string
+          progress?: number | null
+          publication_name?: string
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       press_clippings: {
         Row: {
           category: string
