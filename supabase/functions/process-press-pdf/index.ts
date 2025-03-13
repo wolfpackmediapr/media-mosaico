@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
 // Import PDF.js in a way that works reliably in Deno
-import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/+esm";
+import { getDocument } from "https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.min.mjs";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -251,9 +251,8 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
   try {
     console.log("Starting PDF text extraction with PDF.js...");
     
-    // IMPORTANT: PDF.js initialization without modifying global objects
-    // Create a new worker-less task directly
-    const loadingTask = pdfjs.getDocument({ data: pdfData });
+    // IMPORTANT: PDF.js initialization - using the imported getDocument directly
+    const loadingTask = getDocument({ data: pdfData });
     
     console.log("PDF document loading task created");
     
