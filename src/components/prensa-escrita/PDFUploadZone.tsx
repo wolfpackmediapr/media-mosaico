@@ -1,8 +1,8 @@
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, AlertCircle } from "lucide-react";
+import { FileText, AlertCircle, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -26,6 +26,7 @@ const PDFUploadZone = ({
   const [file, setFile] = useState<File | null>(null);
   const [publicationName, setPublicationName] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { thumbnailUrl } = usePdfThumbnail(file);
 
   const maxFileSizeMB = 40; // 40MB max file size
@@ -40,7 +41,7 @@ const PDFUploadZone = ({
     setError("");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(async () => {
     if (!file) {
       setError("Por favor, selecciona un archivo PDF");
       toast({
@@ -67,17 +68,24 @@ const PDFUploadZone = ({
     });
     
     setError("");
+    setIsSubmitting(true);
+    
     try {
-      onFileSelect(file, publicationName);
+      console.log("Submitting file for processing:", file.name);
+      await onFileSelect(file, publicationName);
+      console.log("File submitted successfully");
     } catch (error) {
       console.error("Error processing file:", error);
+      setError(error instanceof Error ? error.message : "Error al procesar el archivo");
       toast({
         title: "Error",
         description: "Error al procesar el archivo. Por favor, intenta nuevamente.",
         variant: "destructive"
       });
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  }, [file, publicationName, onFileSelect, toast]);
 
   return (
     <Card>
@@ -136,10 +144,21 @@ const PDFUploadZone = ({
           
           <Button 
             className="w-full" 
-            disabled={isUploading || !file || !publicationName.trim()}
+            disabled={isUploading || !file || !publicationName.trim() || isSubmitting}
             onClick={handleSubmit}
+            type="button"
+            aria-label="Procesar PDF"
           >
-            {isUploading ? "Procesando..." : "Procesar PDF"}
+            {isSubmitting ? (
+              <>
+                <Upload className="h-4 w-4 animate-spin" />
+                Enviando...
+              </>
+            ) : isUploading ? (
+              "Procesando..."
+            ) : (
+              "Procesar PDF"
+            )}
           </Button>
         </div>
       </CardContent>

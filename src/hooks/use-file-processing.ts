@@ -6,17 +6,29 @@ import { useToast } from "@/hooks/use-toast";
 export const useFileProcessing = () => {
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadFile = async (file: File, publicationName: string) => {
+    setUploadError(null);
     try {
+      console.log(`Starting upload of file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+      
       // Get the authenticated user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error("You must be logged in to upload files");
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        console.error("Authentication error:", authError);
+        throw new Error("Error de autenticación: " + authError.message);
+      }
+      
+      if (!authData?.user) {
+        console.error("No authenticated user found");
+        throw new Error("Debes iniciar sesión para subir archivos");
       }
 
-      // Create a file name
-      const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+      // Create a file name with timestamp to avoid collisions
+      const timestamp = Date.now();
+      const sanitizedFileName = file.name.replace(/\s+/g, '_');
+      const fileName = `${timestamp}_${sanitizedFileName}`;
       const filePath = `${fileName}`;
 
       console.log("Creating new processing job...");
@@ -27,7 +39,7 @@ export const useFileProcessing = () => {
         .insert({
           file_path: `pdf_uploads/${filePath}`,
           publication_name: publicationName,
-          user_id: user.id,
+          user_id: authData.user.id,
           status: 'pending',
           progress: 0
         })
@@ -36,17 +48,18 @@ export const useFileProcessing = () => {
 
       if (jobError) {
         console.error("Error creating job:", jobError);
-        throw new Error("Error creating processing job: " + jobError.message);
+        throw new Error("Error al crear el trabajo de procesamiento: " + jobError.message);
       }
       
       if (!jobData) {
-        throw new Error("No job data returned from database");
+        console.error("No job data returned from database");
+        throw new Error("No se recibieron datos del trabajo de procesamiento");
       }
       
-      console.log("Job created:", jobData);
+      console.log("Job created successfully:", jobData);
       console.log("Uploading file to storage...");
       
-      // Upload the file
+      // Upload the file to storage
       const { error: uploadError } = await supabase.storage
         .from('pdf_uploads')
         .upload(filePath, file, {
@@ -63,13 +76,14 @@ export const useFileProcessing = () => {
           .delete()
           .eq('id', jobData.id);
           
-        throw new Error("Error uploading file: " + uploadError.message);
+        throw new Error("Error al subir el archivo: " + uploadError.message);
       }
       
       console.log("File uploaded successfully");
       return jobData;
     } catch (error) {
       console.error("Error in uploadFile:", error);
+      setUploadError(error instanceof Error ? error.message : "Error desconocido");
       throw error;
     }
   };
@@ -84,13 +98,20 @@ export const useFileProcessing = () => {
 
       if (error) {
         console.error("Error invoking process-press-pdf function:", error);
-        throw new Error("Error triggering processing: " + error.message);
+        // Update job status to error
+        await supabase
+          .from('pdf_processing_jobs')
+          .update({ status: 'error', error: error.message || "Error al procesar el PDF" })
+          .eq('id', jobId);
+          
+        throw new Error("Error al iniciar el procesamiento: " + error.message);
       }
       
       console.log("Processing triggered successfully:", data);
       return data;
     } catch (error) {
       console.error("Error in triggerProcessing:", error);
+      setUploadError(error instanceof Error ? error.message : "Error desconocido");
       throw error;
     }
   };
@@ -98,6 +119,7 @@ export const useFileProcessing = () => {
   return {
     isUploading,
     setIsUploading,
+    uploadError,
     uploadFile,
     triggerProcessing
   };
