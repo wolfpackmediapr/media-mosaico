@@ -67,7 +67,16 @@ const PDFUploadZone = ({
     });
     
     setError("");
-    onFileSelect(file, publicationName);
+    try {
+      onFileSelect(file, publicationName);
+    } catch (error) {
+      console.error("Error processing file:", error);
+      toast({
+        title: "Error",
+        description: "Error al procesar el archivo. Por favor, intenta nuevamente.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (

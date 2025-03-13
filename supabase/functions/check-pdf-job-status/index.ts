@@ -13,10 +13,14 @@ serve(async (req) => {
   }
   
   try {
+    console.log("Received request to check PDF job status");
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     // Parse the request JSON
-    const { jobId } = await req.json();
+    const requestData = await req.json();
+    const { jobId } = requestData;
+    
+    console.log("Checking status for job:", jobId);
     
     if (!jobId) {
       return new Response(JSON.stringify({ error: 'Missing jobId parameter' }), { 
@@ -33,15 +37,19 @@ serve(async (req) => {
       .single();
     
     if (jobError || !job) {
+      console.error("Error fetching job:", jobError);
       return new Response(JSON.stringify({ error: 'Job not found' }), { 
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
     
+    console.log("Found job with status:", job.status);
+    
     // If job is completed, get the clippings
     let clippings = [];
     if (job.status === 'completed') {
+      console.log("Job is completed, fetching clippings");
       const { data: clippingsData, error: clippingsError } = await supabase
         .from('press_clippings')
         .select('*')
@@ -49,7 +57,10 @@ serve(async (req) => {
         .order('page_number', { ascending: true });
       
       if (!clippingsError && clippingsData) {
+        console.log(`Found ${clippingsData.length} clippings`);
         clippings = clippingsData;
+      } else if (clippingsError) {
+        console.error("Error fetching clippings:", clippingsError);
       }
     }
     

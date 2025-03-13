@@ -30,13 +30,23 @@ export const usePdfProcessing = () => {
     if (currentJob?.status === 'completed') {
       // This will be triggered when the job status changes to completed
       (async () => {
-        const data = await checkJobStatus();
-        if (data?.clippings?.length > 0) {
-          setClippings(data.clippings);
+        try {
+          const data = await checkJobStatus();
+          if (data?.clippings?.length > 0) {
+            setClippings(data.clippings);
+            setIsUploading(false);
+            toast({
+              title: "PDF procesado exitosamente",
+              description: `Se encontraron ${data.clippings.length} recortes de prensa`,
+            });
+          }
+        } catch (error) {
+          console.error("Error checking job status:", error);
           setIsUploading(false);
           toast({
-            title: "PDF procesado exitosamente",
-            description: `Se encontraron ${data.clippings.length} recortes de prensa`,
+            title: "Error al procesar el PDF",
+            description: "Ocurrió un error al verificar el estado del procesamiento",
+            variant: "destructive"
           });
         }
       })();
@@ -48,15 +58,15 @@ export const usePdfProcessing = () => {
         variant: "destructive"
       });
     }
-  }, [currentJob?.status]);
+  }, [currentJob?.status, checkJobStatus, setIsUploading, toast]);
 
   const processFile = async (file: File, newPublicationName: string) => {
-    setIsUploading(true);
-    setUploadProgress(0);
-    setPublicationName(newPublicationName);
-    setClippings([]);
-
     try {
+      setIsUploading(true);
+      setUploadProgress(0);
+      setPublicationName(newPublicationName);
+      setClippings([]);
+
       // Simulate upload progress
       const uploadProgressInterval = setInterval(() => {
         setUploadProgress(prev => {
@@ -71,6 +81,10 @@ export const usePdfProcessing = () => {
       // Upload file and create job
       const jobData = await uploadFile(file, newPublicationName);
       clearInterval(uploadProgressInterval);
+      
+      if (!jobData) {
+        throw new Error("No se pudo crear el trabajo de procesamiento");
+      }
       
       // Create a properly typed job object
       const typedJob: ProcessingJob = {
