@@ -104,9 +104,13 @@ async function analyzePressClippings(pageText: string, pageNumber: number): Prom
 /**
  * Use OpenAI Vision API to extract text from image-based PDFs
  */
-async function extractTextWithVisionAPI(pageImageUrl: string, pageNumber: number): Promise<{pageNumber: number, text: string}> {
+async function extractTextWithVisionAPI(pdfBytes: Uint8Array, pageNumber: number): Promise<{pageNumber: number, text: string}> {
   try {
     console.log(`Processing page ${pageNumber} with OpenAI Vision API...`);
+    
+    // Convert PDF to base64
+    const base64Pdf = btoa(String.fromCharCode.apply(null, Array.from(pdfBytes)));
+    const dataUrl = `data:application/pdf;base64,${base64Pdf}#page=${pageNumber}`;
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -127,7 +131,7 @@ async function extractTextWithVisionAPI(pageImageUrl: string, pageNumber: number
               {
                 type: 'image_url',
                 image_url: {
-                  url: pageImageUrl
+                  url: dataUrl
                 }
               }
             ]
@@ -154,42 +158,6 @@ async function extractTextWithVisionAPI(pageImageUrl: string, pageNumber: number
     };
   } catch (error) {
     console.error("Error using Vision API for text extraction:", error);
-    throw error;
-  }
-}
-
-/**
- * Creates a data URL from a PDF page for Vision API
- */
-async function generatePdfPageDataUrl(pdfData: ArrayBuffer, pageNumber: number): Promise<string> {
-  try {
-    console.log(`Creating data URL for page ${pageNumber}...`);
-    
-    // Initialize PDF.js for Deno environment
-    if (!globalThis.pdfjsLib) {
-      // @ts-ignore: Set global pdfjsLib for Deno environment
-      globalThis.pdfjsLib = pdfjs;
-    }
-    
-    // Disable worker for Deno environment (critical fix)
-    // @ts-ignore: Setting globalThis.pdfjsLib.GlobalWorkerOptions
-    if (!globalThis.pdfjsLib.GlobalWorkerOptions) {
-      // @ts-ignore: Create GlobalWorkerOptions if it doesn't exist
-      globalThis.pdfjsLib.GlobalWorkerOptions = {};
-    }
-    
-    // @ts-ignore: Setting workerSrc to null for Deno
-    globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = null;
-    
-    // Generate and return a data URL pointing to a specific page of the PDF
-    // This avoids the need for OffscreenCanvas which is not available in Deno
-    const pdfBytes = new Uint8Array(pdfData);
-    const base64Pdf = btoa(String.fromCharCode.apply(null, Array.from(pdfBytes)));
-    const dataUrl = `data:application/pdf;base64,${base64Pdf}#page=${pageNumber}`;
-    
-    return dataUrl;
-  } catch (error) {
-    console.error(`Error creating data URL for page ${pageNumber}:`, error);
     throw error;
   }
 }
@@ -276,28 +244,19 @@ async function updateProcessingJob(supabase: any, jobId: string, updates: any) {
 }
 
 /**
- * Extract text from a PDF file using PDF.js - completely rewritten for Deno reliability
+ * Extract text from a PDF file using PDF.js
  */
 async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
   try {
     console.log("Starting PDF text extraction with PDF.js...");
     
     // Initialize PDF.js properly for Deno environment
-    if (!globalThis.pdfjsLib) {
-      // @ts-ignore: Set global pdfjsLib for Deno environment
-      globalThis.pdfjsLib = pdfjs;
-    }
-    
-    // Set up GlobalWorkerOptions properly for Deno
-    // @ts-ignore: Setting globalThis.pdfjsLib.GlobalWorkerOptions
-    if (!globalThis.pdfjsLib.GlobalWorkerOptions) {
-      // @ts-ignore: Create GlobalWorkerOptions if it doesn't exist
-      globalThis.pdfjsLib.GlobalWorkerOptions = {};
-    }
+    // @ts-ignore: Setting globalThis properties for PDF.js
+    globalThis.pdfjsLib = pdfjs;
     
     // Disable worker for Deno environment - critical fix
-    // @ts-ignore: Setting workerSrc to null for Deno
-    globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = null;
+    // @ts-ignore: Setting worker options
+    globalThis.pdfjsLib.GlobalWorkerOptions = { workerPort: null };
     
     console.log("PDF.js initialization completed with worker disabled");
     
@@ -365,6 +324,9 @@ async function processTextPages(supabase: any, jobId: string, pages: {pageNumber
   
   console.log(`Processing ${totalPages} pages of text`);
   
+  // Convert ArrayBuffer to Uint8Array for Vision API
+  const pdfBytes = new Uint8Array(pdfData);
+  
   for (let i = 0; i < totalPages; i++) {
     const page = pages[i];
     console.log(`Processing page ${page.pageNumber} (${page.text.length} characters)`);
@@ -380,11 +342,8 @@ async function processTextPages(supabase: any, jobId: string, pages: {pageNumber
       if (page.text.length < 200) {
         console.log(`Page ${page.pageNumber} has limited text (${page.text.length} chars), trying Vision API...`);
         try {
-          // Create a data URL for this PDF page
-          const pageImageUrl = await generatePdfPageDataUrl(pdfData, page.pageNumber);
-          
           // Use Vision API to extract text
-          const visionResult = await extractTextWithVisionAPI(pageImageUrl, page.pageNumber);
+          const visionResult = await extractTextWithVisionAPI(pdfBytes, page.pageNumber);
           
           // If Vision API returned text, use it
           if (visionResult.text && visionResult.text.length > page.text.length) {
@@ -527,42 +486,15 @@ serve(async (req) => {
       }
     } catch (error) {
       console.error("Error extracting text from PDF:", error);
-      // Create an empty array if text extraction fails completely
-      textPages = [];
-      // Try to get page count for processing with Vision API
-      try {
-        // Initialize PDF.js to get page count
-        if (!globalThis.pdfjsLib) {
-          // @ts-ignore: Set global pdfjsLib for Deno environment
-          globalThis.pdfjsLib = pdfjs;
-        }
-        
-        // @ts-ignore: Setting globalThis.pdfjsLib.GlobalWorkerOptions
-        if (!globalThis.pdfjsLib.GlobalWorkerOptions) {
-          // @ts-ignore: Create GlobalWorkerOptions if it doesn't exist
-          globalThis.pdfjsLib.GlobalWorkerOptions = {};
-        }
-        
-        // @ts-ignore: Setting workerSrc to null for Deno
-        globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = null;
-        
-        const loadingTask = pdfjs.getDocument({data: pdfData});
-        const pdfDocument = await loadingTask.promise;
-        const pageCount = pdfDocument.numPages;
-        
-        console.log(`Text extraction failed, but found ${pageCount} pages for Vision API processing`);
-        
-        for (let i = 1; i <= pageCount; i++) {
-          textPages.push({
-            pageNumber: i,
-            text: "" // Empty text to be filled by Vision API
-          });
-        }
-      } catch (countError) {
-        console.error("Error getting page count:", countError);
-        // If we can't get page count, use fallback of 1 page
-        textPages = [{ pageNumber: 1, text: "" }];
-      }
+      await updateProcessingJob(supabase, jobId, { 
+        status: 'error',
+        error: 'Error extracting text from PDF'
+      });
+      
+      return new Response(JSON.stringify({ error: 'Error extracting text from PDF' }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
     
     // Process the text pages with Vision API fallback
