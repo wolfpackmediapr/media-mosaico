@@ -1,8 +1,9 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useJobManagement } from "@/hooks/use-job-management";
 import { useFileProcessing } from "@/hooks/use-file-processing";
-import { PressClipping } from "@/types/pdf-processing";
+import { PressClipping, ProcessingJob } from "@/types/pdf-processing";
 
 export const usePdfProcessing = () => {
   const { toast } = useToast();
@@ -71,7 +72,16 @@ export const usePdfProcessing = () => {
       const jobData = await uploadFile(file, newPublicationName);
       clearInterval(uploadProgressInterval);
       
-      setCurrentJob(jobData);
+      // Create a properly typed job object
+      const typedJob: ProcessingJob = {
+        id: jobData.id,
+        status: jobData.status as "pending" | "processing" | "completed" | "error",
+        progress: jobData.progress,
+        error: jobData.error,
+        publication_name: jobData.publication_name
+      };
+      
+      setCurrentJob(typedJob);
       setUploadProgress(50);
       
       // Trigger processing

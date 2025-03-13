@@ -36,8 +36,18 @@ export const useJobManagement = () => {
       }
       
       if (data.job) {
-        setCurrentJob(data.job as ProcessingJob);
-        setUploadProgress(data.job.progress || 0);
+        // Ensure the status is properly typed
+        const jobData = data.job as any;
+        const typedJob: ProcessingJob = {
+          id: jobData.id,
+          status: jobData.status as "pending" | "processing" | "completed" | "error",
+          progress: jobData.progress,
+          error: jobData.error,
+          publication_name: jobData.publication_name
+        };
+        
+        setCurrentJob(typedJob);
+        setUploadProgress(jobData.progress || 0);
         return data;
       }
     } catch (error) {
