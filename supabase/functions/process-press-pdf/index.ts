@@ -3,8 +3,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-// Import pdfjs from npm directly via esm.sh instead of cdn.jsdelivr.net
-import * as pdfjs from "https://esm.sh/pdfjs-dist@3.11.174";
+// Modified PDF.js import approach for Deno
+import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/+esm";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -213,42 +213,69 @@ async function processTextPages(supabase: any, jobId: string, pages: {pageNumber
 
 /**
  * Extract text from a PDF file downloaded from storage
+ * This function has been updated to better handle Deno environment
  */
 async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
   try {
-    // Initialize PDF.js with workerSrc
-    const workerSrc = `https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.mjs`;
+    console.log("Starting PDF text extraction...");
+    
+    // Initialize PDF.js (modified for Deno environment)
     if (!globalThis.pdfjsLib) {
-      // @ts-ignore: We need to set this for PDF.js to work in Deno environment
+      // @ts-ignore: Set global pdfjsLib for Deno environment
       globalThis.pdfjsLib = pdfjs;
     }
-    // @ts-ignore: Set worker source for PDF.js
-    pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
     
-    const pdfDoc = await pdfjs.getDocument({ data: pdfData }).promise;
-    const numPages = pdfDoc.numPages;
+    // Handle globalThis.pdfjsLib.GlobalWorkerOptions for Deno
+    if (!globalThis.pdfjsLib.GlobalWorkerOptions) {
+      // @ts-ignore: Create GlobalWorkerOptions if it doesn't exist
+      globalThis.pdfjsLib.GlobalWorkerOptions = {};
+    }
+    
+    // Set workerSrc to null since we're in Deno and don't need a separate worker
+    // @ts-ignore: Setting workerSrc to null for Deno
+    globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = null;
+    
+    console.log("PDF.js initialization completed");
+    
+    // Load the PDF document
+    const loadingTask = pdfjs.getDocument({data: pdfData});
+    console.log("PDF document loading task created");
+    
+    const pdfDocument = await loadingTask.promise;
+    const numPages = pdfDocument.numPages;
     console.log(`PDF document loaded with ${numPages} pages`);
     
     const textPages = [];
     
     // Extract text from each page
     for (let i = 1; i <= numPages; i++) {
-      const page = await pdfDoc.getPage(i);
-      const textContent = await page.getTextContent();
-      
-      // Combine all text items into a single string
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      textPages.push({
-        pageNumber: i,
-        text: pageText
-      });
+      try {
+        console.log(`Getting page ${i}...`);
+        const page = await pdfDocument.getPage(i);
+        
+        console.log(`Getting text content for page ${i}...`);
+        const textContent = await page.getTextContent();
+        
+        // Combine all text items into a single string
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        console.log(`Extracted ${pageText.length} characters from page ${i}`);
+        
+        textPages.push({
+          pageNumber: i,
+          text: pageText
+        });
+      } catch (pageError) {
+        console.error(`Error extracting text from page ${i}:`, pageError);
+        // Continue with next page if one fails
+      }
     }
     
+    console.log(`Successfully extracted text from ${textPages.length} pages`);
     return textPages;
   } catch (error) {
     console.error("Error extracting text from PDF:", error);
