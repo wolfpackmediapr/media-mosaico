@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -102,6 +101,125 @@ async function analyzePressClippings(pageText: string, pageNumber: number): Prom
 }
 
 /**
+ * Use OpenAI Vision API to extract text from image-based PDFs
+ */
+async function extractTextWithVisionAPI(pageImage: string, pageNumber: number): Promise<{pageNumber: number, text: string}> {
+  try {
+    console.log(`Processing page ${pageNumber} with OpenAI Vision API...`);
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { 
+                type: 'text', 
+                text: 'Extract ALL text content from this page of a newspaper or magazine. Return ONLY the extracted text, with paragraph breaks preserved. Do not include any commentary, analysis, or description of images.' 
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: pageImage
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 4000
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("OpenAI Vision API error:", error);
+      throw new Error(`OpenAI Vision API error: ${error}`);
+    }
+
+    const data = await response.json();
+    const extractedText = data.choices[0].message.content;
+    
+    console.log(`Vision API extracted ${extractedText.length} characters from page ${pageNumber}`);
+    
+    return {
+      pageNumber,
+      text: extractedText
+    };
+  } catch (error) {
+    console.error("Error using Vision API for text extraction:", error);
+    throw error;
+  }
+}
+
+/**
+ * Convert PDF page to base64 encoded image for Vision API
+ */
+async function convertPdfPageToImage(pdfData: ArrayBuffer, pageNumber: number): Promise<string> {
+  try {
+    console.log(`Converting page ${pageNumber} to image...`);
+    
+    // Initialize PDF.js for Deno environment
+    if (!globalThis.pdfjsLib) {
+      // @ts-ignore: Set global pdfjsLib for Deno environment
+      globalThis.pdfjsLib = pdfjs;
+    }
+    
+    // Set up GlobalWorkerOptions properly for Deno
+    if (!globalThis.pdfjsLib.GlobalWorkerOptions) {
+      // @ts-ignore: Create GlobalWorkerOptions if it doesn't exist
+      globalThis.pdfjsLib.GlobalWorkerOptions = {};
+    }
+    
+    // Disable worker for Deno environment
+    // @ts-ignore: Setting workerSrc to null for Deno
+    globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = null;
+    
+    // Load the PDF document
+    const loadingTask = pdfjs.getDocument({data: pdfData});
+    const pdfDocument = await loadingTask.promise;
+    
+    // Get the page
+    const page = await pdfDocument.getPage(pageNumber);
+    
+    // Set the desired scale - higher number = higher resolution
+    const scale = 2.0;
+    const viewport = page.getViewport({ scale });
+    
+    // Create a canvas element
+    // @ts-ignore: Deno doesn't have built-in Canvas, we need to adapt the code
+    const canvas = new OffscreenCanvas(viewport.width, viewport.height);
+    const context = canvas.getContext('2d');
+    
+    // Render PDF page to canvas
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport
+    };
+    
+    await page.render(renderContext).promise;
+    
+    // Convert canvas to blob
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    
+    // Convert blob to base64
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const base64String = btoa(String.fromCharCode.apply(null, uint8Array));
+    
+    return `data:image/png;base64,${base64String}`;
+  } catch (error) {
+    console.error(`Error converting page ${pageNumber} to image:`, error);
+    throw error;
+  }
+}
+
+/**
  * Identifies relevant clients for a clipping based on category and keywords
  */
 function identifyClientRelevance(clipping: any): string[] {
@@ -183,9 +301,9 @@ async function updateProcessingJob(supabase: any, jobId: string, updates: any) {
 }
 
 /**
- * Process text from PDF pages in batches
+ * Process text from PDF pages in batches, with Vision API fallback
  */
-async function processTextPages(supabase: any, jobId: string, pages: {pageNumber: number, text: string}[]): Promise<any[]> {
+async function processTextPages(supabase: any, jobId: string, pages: {pageNumber: number, text: string}[], pdfData: ArrayBuffer): Promise<any[]> {
   const allClippings = [];
   const totalPages = pages.length;
   
@@ -200,6 +318,25 @@ async function processTextPages(supabase: any, jobId: string, pages: {pageNumber
       const progress = Math.floor((i / totalPages) * 90) + 5; // 5-95% range for processing
       await updateProcessingJob(supabase, jobId, { progress });
       
+      // For pages with very little text, try Vision API as a fallback
+      if (page.text.length < 100) {
+        console.log(`Page ${page.pageNumber} has limited text (${page.text.length} chars), trying Vision API...`);
+        try {
+          const pageImage = await convertPdfPageToImage(pdfData, page.pageNumber);
+          const visionResult = await extractTextWithVisionAPI(pageImage, page.pageNumber);
+          
+          // If Vision API returned a substantial amount of text, use it instead
+          if (visionResult.text.length > page.text.length) {
+            console.log(`Vision API extracted more text (${visionResult.text.length} chars vs ${page.text.length}), using Vision results`);
+            page.text = visionResult.text;
+          }
+        } catch (visionError) {
+          console.error(`Vision API fallback failed for page ${page.pageNumber}:`, visionError);
+          // Continue with original text if Vision API fails
+        }
+      }
+      
+      // Process the page text (either original or enhanced by Vision API)
       const clippings = await analyzePressClippings(page.text, page.pageNumber);
       console.log(`Found ${clippings.length} clippings on page ${page.pageNumber}`);
       allClippings.push(...clippings);
@@ -388,26 +525,89 @@ serve(async (req) => {
     
     // Extract text from PDF
     let textPages;
+    let isVisionRequired = false;
     try {
       textPages = await extractTextFromPdf(pdfData);
       await updateProcessingJob(supabase, jobId, { progress: 10 });
     } catch (error) {
       console.error("Error extracting text from PDF:", error);
-      await updateProcessingJob(supabase, jobId, { 
-        status: 'error',
-        error: error.message || 'Failed to extract text from PDF'
-      });
       
-      return new Response(JSON.stringify({ error: error.message || 'Failed to extract text from PDF' }), { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      // If the error suggests this is a scan-based or image-only PDF, try Vision API
+      if (error.message && error.message.includes("scan-based or image-only")) {
+        console.log("PDF appears to be scan-based or image-only, switching to Vision API");
+        isVisionRequired = true;
+        
+        // Create an empty text pages array so we can process with Vision API
+        textPages = [];
+        for (let i = 1; i <= 10; i++) { // Assume max 10 pages for safety
+          try {
+            // Try to get page count from PDF
+            const loadingTask = pdfjs.getDocument({data: pdfData});
+            const pdfDocument = await loadingTask.promise;
+            const pageCount = pdfDocument.numPages;
+            
+            textPages = [];
+            for (let i = 1; i <= pageCount; i++) {
+              textPages.push({
+                pageNumber: i,
+                text: "" // Empty text to be filled by Vision API
+              });
+            }
+            break;
+          } catch (countError) {
+            console.error("Error getting page count:", countError);
+            // If we can't get page count, use 1 page as fallback
+            textPages = [{ pageNumber: 1, text: "" }];
+            break;
+          }
+        }
+      } else {
+        // For other errors, return error response
+        await updateProcessingJob(supabase, jobId, { 
+          status: 'error',
+          error: error.message || 'Failed to extract text from PDF'
+        });
+        
+        return new Response(JSON.stringify({ error: error.message || 'Failed to extract text from PDF' }), { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
     }
     
     console.log(`Extracted ${textPages.length} pages of text`);
     
-    // Process the text pages
-    const allClippings = await processTextPages(supabase, jobId, textPages);
+    // If Vision API is required or text extraction produced empty results
+    if (isVisionRequired || textPages.every(page => page.text.length < 100)) {
+      console.log("Using Vision API for text extraction");
+      await updateProcessingJob(supabase, jobId, { 
+        progress: 15,
+        status: 'processing',
+        error: null
+      });
+      
+      const visionPages = [];
+      for (const page of textPages) {
+        try {
+          const pageImage = await convertPdfPageToImage(pdfData, page.pageNumber);
+          const visionResult = await extractTextWithVisionAPI(pageImage, page.pageNumber);
+          visionPages.push(visionResult);
+        } catch (visionError) {
+          console.error(`Vision API failed for page ${page.pageNumber}:`, visionError);
+          // Keep the original page even if Vision failed
+          visionPages.push(page);
+        }
+      }
+      
+      // Replace text pages with Vision API results if we got any
+      if (visionPages.length > 0) {
+        textPages = visionPages;
+        console.log(`Replaced with ${visionPages.length} pages of Vision API extracted text`);
+      }
+    }
+    
+    // Process the text pages with regular text or Vision API extracted text
+    const allClippings = await processTextPages(supabase, jobId, textPages, pdfData);
     
     console.log(`Found ${allClippings.length} press clippings in total`);
     await updateProcessingJob(supabase, jobId, { progress: 95 });
