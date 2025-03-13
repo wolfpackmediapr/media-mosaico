@@ -41,7 +41,8 @@ const publimediaClients = {
 async function extractTextFromPdf(buffer: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
   try {
     // Initialize PDF.js
-    await pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+    // Fix: Remove the incorrect await in the assignment
+    pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
     
     // Load the PDF document
     const pdf = await pdfjs.getDocument({ data: buffer }).promise;
