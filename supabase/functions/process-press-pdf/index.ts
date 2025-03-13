@@ -2,7 +2,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
-import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/+esm";
+
+// Import pdfjs from npm directly via esm.sh instead of cdn.jsdelivr.net
+import * as pdfjs from "https://esm.sh/pdfjs-dist@3.11.174";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -214,7 +216,15 @@ async function processTextPages(supabase: any, jobId: string, pages: {pageNumber
  */
 async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
   try {
-    // Initialize PDF.js
+    // Initialize PDF.js with workerSrc
+    const workerSrc = `https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.mjs`;
+    if (!globalThis.pdfjsLib) {
+      // @ts-ignore: We need to set this for PDF.js to work in Deno environment
+      globalThis.pdfjsLib = pdfjs;
+    }
+    // @ts-ignore: Set worker source for PDF.js
+    pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+    
     const pdfDoc = await pdfjs.getDocument({ data: pdfData }).promise;
     const numPages = pdfDoc.numPages;
     console.log(`PDF document loaded with ${numPages} pages`);
