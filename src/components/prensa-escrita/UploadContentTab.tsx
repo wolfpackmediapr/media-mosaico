@@ -5,12 +5,14 @@ import SearchClippingsSection from "@/components/prensa-escrita/SearchClippingsS
 
 interface UploadContentTabProps {
   onFileSelect: (file: File, publicationName: string) => void;
+  onCancelProcessing?: () => void;
   isUploading: boolean;
   uploadProgress: number;
 }
 
 const UploadContentTab = ({
   onFileSelect,
+  onCancelProcessing,
   isUploading,
   uploadProgress
 }: UploadContentTabProps) => {
@@ -18,6 +20,7 @@ const UploadContentTab = ({
     <div className="space-y-6">
       <PDFUploadZone 
         onFileSelect={onFileSelect}
+        onCancelProcessing={onCancelProcessing}
         isUploading={isUploading}
         uploadProgress={uploadProgress}
       />

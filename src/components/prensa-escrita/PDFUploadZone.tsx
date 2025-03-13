@@ -2,7 +2,7 @@
 import React, { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, AlertCircle, Upload } from "lucide-react";
+import { FileText, AlertCircle, Upload, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,12 +13,14 @@ import { usePdfThumbnail } from "@/hooks/use-pdf-thumbnail";
 
 interface PDFUploadZoneProps {
   onFileSelect: (file: File, publicationName: string) => void;
+  onCancelProcessing?: () => void;
   isUploading: boolean;
   uploadProgress: number;
 }
 
 const PDFUploadZone = ({
   onFileSelect,
+  onCancelProcessing,
   isUploading,
   uploadProgress
 }: PDFUploadZoneProps) => {
@@ -34,6 +36,12 @@ const PDFUploadZone = ({
   const handleFileSelected = (selectedFile: File) => {
     setFile(selectedFile);
     setError("");
+    
+    // Try to guess a publication name from the file name
+    const fileName = selectedFile.name.replace('.pdf', '').trim();
+    if (fileName && !publicationName) {
+      setPublicationName(fileName);
+    }
   };
 
   const clearSelection = useCallback(() => {
@@ -111,7 +119,20 @@ const PDFUploadZone = ({
           )}
           
           {isUploading ? (
-            <PDFUploadProgress progress={uploadProgress} />
+            <div className="space-y-4">
+              <PDFUploadProgress progress={uploadProgress} />
+              
+              {onCancelProcessing && (
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-4"
+                  onClick={onCancelProcessing}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancelar procesamiento
+                </Button>
+              )}
+            </div>
           ) : (
             <>
               {file ? (
@@ -131,37 +152,41 @@ const PDFUploadZone = ({
             </>
           )}
           
-          <div className="space-y-2">
-            <label htmlFor="publicationName" className="text-sm font-medium">
-              Nombre de la Publicación
-            </label>
-            <Input
-              id="publicationName"
-              value={publicationName}
-              onChange={(e) => setPublicationName(e.target.value)}
-              placeholder="Ej: El Nuevo Día, 25 de Agosto 2023"
-              disabled={isUploading}
-            />
-          </div>
+          {!isUploading && (
+            <div className="space-y-2">
+              <label htmlFor="publicationName" className="text-sm font-medium">
+                Nombre de la Publicación
+              </label>
+              <Input
+                id="publicationName"
+                value={publicationName}
+                onChange={(e) => setPublicationName(e.target.value)}
+                placeholder="Ej: El Nuevo Día, 25 de Agosto 2023"
+                disabled={isUploading}
+              />
+            </div>
+          )}
           
-          <Button 
-            className="w-full" 
-            disabled={isUploading || isSubmitting || !file || !publicationName.trim()}
-            onClick={handleSubmit}
-            type="button"
-            aria-label="Procesar PDF"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center">
-                <Upload className="h-4 w-4 mr-2 animate-spin" />
-                Enviando...
-              </span>
-            ) : isUploading ? (
-              "Procesando..."
-            ) : (
-              "Procesar PDF"
-            )}
-          </Button>
+          {!isUploading && (
+            <Button 
+              className="w-full" 
+              disabled={isUploading || isSubmitting || !file || !publicationName.trim()}
+              onClick={handleSubmit}
+              type="button"
+              aria-label="Procesar PDF"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center">
+                  <Upload className="h-4 w-4 mr-2 animate-spin" />
+                  Enviando...
+                </span>
+              ) : isUploading ? (
+                "Procesando..."
+              ) : (
+                "Procesar PDF"
+              )}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

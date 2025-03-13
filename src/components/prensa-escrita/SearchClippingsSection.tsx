@@ -3,27 +3,22 @@ import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Search, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PressClippingCard from "@/components/prensa-escrita/PressClippingCard";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface SearchResultClipping {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-  page_number: number;
-  publication_name?: string;
-  similarity: number;
-}
+import { usePressSearch } from "@/hooks/use-press-search";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const SearchClippingsSection = () => {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<SearchResultClipping[]>([]);
+  const { 
+    searchClippings,
+    isSearching,
+    searchResults,
+    searchError
+  } = usePressSearch();
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -35,33 +30,13 @@ const SearchClippingsSection = () => {
       return;
     }
 
-    setIsSearching(true);
-    setSearchResults([]);
+    await searchClippings(searchQuery);
 
-    try {
-      const { data, error } = await supabase.functions.invoke("search-press-clippings", {
-        body: { query: searchQuery, limit: 5, threshold: 0.7 }
-      });
-
-      if (error) throw error;
-      
-      setSearchResults(data.clippings || []);
-
-      if (data.clippings?.length === 0) {
-        toast({
-          title: "Sin resultados",
-          description: "No se encontraron recortes de prensa que coincidan con tu búsqueda",
-        });
-      }
-    } catch (error) {
-      console.error("Error searching press clippings:", error);
+    if (searchResults.length === 0 && !searchError) {
       toast({
-        title: "Error de búsqueda",
-        description: "No se pudo completar la búsqueda. Por favor, intenta nuevamente.",
-        variant: "destructive"
+        title: "Sin resultados",
+        description: "No se encontraron recortes de prensa que coincidan con tu búsqueda",
       });
-    } finally {
-      setIsSearching(false);
     }
   };
 
@@ -89,6 +64,13 @@ const SearchClippingsSection = () => {
             {isSearching ? "Buscando..." : "Buscar"}
           </Button>
         </div>
+
+        {searchError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{searchError}</AlertDescription>
+          </Alert>
+        )}
 
         {isSearching && (
           <div className="space-y-4">
@@ -119,7 +101,7 @@ const SearchClippingsSection = () => {
           </div>
         )}
 
-        {!isSearching && searchResults.length === 0 && searchQuery.trim() !== "" && (
+        {!isSearching && searchResults.length === 0 && searchQuery.trim() !== "" && !searchError && (
           <div className="text-center py-6">
             <p className="text-muted-foreground">
               No se encontraron recortes de prensa que coincidan con tu búsqueda.

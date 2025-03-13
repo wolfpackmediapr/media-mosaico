@@ -1,3 +1,4 @@
+
 import React from "react";
 import PrensaPageHeader from "@/components/prensa-escrita/PrensaPageHeader";
 import PressTabsContainer from "@/components/prensa-escrita/PressTabsContainer";
@@ -11,7 +12,8 @@ const PrensaEscrita = () => {
     clippings, 
     publicationName, 
     processFile,
-    setClippings
+    setClippings,
+    cancelProcessing
   } = usePdfProcessing();
   
   const { activeTab, setActiveTab } = useTabState("upload");
@@ -34,6 +36,7 @@ const PrensaEscrita = () => {
         uploadProgress={uploadProgress}
         publicationName={publicationName}
         onFileSelect={processFile}
+        onCancelProcessing={cancelProcessing}
       />
     </div>
   );

@@ -9,14 +9,30 @@ interface PDFUploadProgressProps {
 
 const PDFUploadProgress = ({ progress }: PDFUploadProgressProps) => {
   const getStatusMessage = () => {
-    if (progress < 50) {
+    if (progress < 25) {
       return "Subiendo archivo...";
-    } else if (progress < 80) {
+    } else if (progress < 50) {
       return "Procesando PDF...";
-    } else if (progress < 95) {
+    } else if (progress < 75) {
       return "Analizando contenido...";
+    } else if (progress < 95) {
+      return "Extrayendo recortes...";
     } else {
       return "Finalizando...";
+    }
+  };
+
+  const getStageLabel = () => {
+    if (progress < 25) {
+      return "Subida";
+    } else if (progress < 50) {
+      return "Procesamiento";
+    } else if (progress < 75) {
+      return "Análisis";
+    } else if (progress < 95) {
+      return "Extracción";
+    } else {
+      return "Finalización";
     }
   };
 
@@ -31,13 +47,19 @@ const PDFUploadProgress = ({ progress }: PDFUploadProgressProps) => {
       
       <div className="flex justify-between text-xs text-gray-500">
         <span>{progress.toFixed(0)}% completado</span>
-        <span>{progress < 50 ? "Subida" : progress < 95 ? "Procesamiento" : "Finalización"}</span>
+        <span>{getStageLabel()}</span>
       </div>
       
       <p className="text-xs text-muted-foreground mt-4 italic">
         Este proceso puede tomar varios minutos dependiendo del tamaño del PDF.<br />
         Por favor, no cierres esta página.
       </p>
+
+      {progress >= 95 && (
+        <p className="text-xs text-primary mt-2">
+          ¡Casi listo! Preparando los resultados...
+        </p>
+      )}
     </div>
   );
 };
