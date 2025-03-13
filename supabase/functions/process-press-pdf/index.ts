@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-// Modified PDF.js import approach for Deno
+// Using CDN import for PDF.js that works in Deno
 import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/+esm";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -212,26 +212,26 @@ async function processTextPages(supabase: any, jobId: string, pages: {pageNumber
 }
 
 /**
- * Extract text from a PDF file downloaded from storage
- * This function has been updated to better handle Deno environment
+ * Extract text from a PDF file
+ * This implementation has been completely revised to work reliably in Deno
  */
 async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
   try {
-    console.log("Starting PDF text extraction...");
+    console.log("Starting PDF text extraction with PDF.js...");
     
-    // Initialize PDF.js (modified for Deno environment)
+    // Initialize PDF.js for Deno environment
     if (!globalThis.pdfjsLib) {
       // @ts-ignore: Set global pdfjsLib for Deno environment
       globalThis.pdfjsLib = pdfjs;
     }
     
-    // Handle globalThis.pdfjsLib.GlobalWorkerOptions for Deno
+    // Set up GlobalWorkerOptions properly for Deno
     if (!globalThis.pdfjsLib.GlobalWorkerOptions) {
       // @ts-ignore: Create GlobalWorkerOptions if it doesn't exist
       globalThis.pdfjsLib.GlobalWorkerOptions = {};
     }
     
-    // Set workerSrc to null since we're in Deno and don't need a separate worker
+    // Disable worker for Deno environment
     // @ts-ignore: Setting workerSrc to null for Deno
     globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = null;
     
@@ -265,10 +265,14 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
         
         console.log(`Extracted ${pageText.length} characters from page ${i}`);
         
-        textPages.push({
-          pageNumber: i,
-          text: pageText
-        });
+        if (pageText.length > 0) {
+          textPages.push({
+            pageNumber: i,
+            text: pageText
+          });
+        } else {
+          console.warn(`Page ${i} contains no extractable text`);
+        }
       } catch (pageError) {
         console.error(`Error extracting text from page ${i}:`, pageError);
         // Continue with next page if one fails
@@ -276,10 +280,16 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
     }
     
     console.log(`Successfully extracted text from ${textPages.length} pages`);
+    
+    if (textPages.length === 0) {
+      console.error("No text could be extracted from any page in the PDF");
+      throw new Error("Failed to extract text from PDF: The document may be scan-based or image-only");
+    }
+    
     return textPages;
   } catch (error) {
     console.error("Error extracting text from PDF:", error);
-    throw new Error("Failed to extract text from PDF");
+    throw new Error(`Failed to extract text from PDF: ${error.message}`);
   }
 }
 
@@ -362,6 +372,7 @@ serve(async (req) => {
     let pdfData;
     try {
       pdfData = await downloadPdfFromStorage(supabase, job.file_path);
+      console.log(`Successfully downloaded PDF with size: ${pdfData.byteLength} bytes`);
     } catch (error) {
       console.error("Error downloading PDF:", error);
       await updateProcessingJob(supabase, jobId, { 
@@ -384,10 +395,10 @@ serve(async (req) => {
       console.error("Error extracting text from PDF:", error);
       await updateProcessingJob(supabase, jobId, { 
         status: 'error',
-        error: 'Failed to extract text from PDF'
+        error: error.message || 'Failed to extract text from PDF'
       });
       
-      return new Response(JSON.stringify({ error: 'Failed to extract text from PDF' }), { 
+      return new Response(JSON.stringify({ error: error.message || 'Failed to extract text from PDF' }), { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
