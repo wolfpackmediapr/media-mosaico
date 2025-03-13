@@ -1,5 +1,5 @@
 
-import { Home, Tv, Radio, Newspaper, Bell, BarChart2, Settings, HelpCircle, Send, Rss, Menu } from "lucide-react";
+import { Home, Tv, Radio, Newspaper, Bell, BarChart2, Settings, HelpCircle, Send, Rss, Menu, Tablet, FileText } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Image } from "@/components/ui/image";
 import { useState } from "react";
@@ -10,7 +10,8 @@ const mainMenuItems = [
   { icon: Home, label: "Inicio", path: "/" },
   { icon: Tv, label: "TV", path: "/tv" },
   { icon: Radio, label: "Radio", path: "/radio" },
-  { icon: Newspaper, label: "Prensa", path: "/prensa" },
+  { icon: Tablet, label: "Prensa Digital", path: "/prensa" },
+  { icon: FileText, label: "Prensa Escrita", path: "/prensa-escrita" },
   { icon: Rss, label: "Redes Sociales", path: "/redes-sociales" },
   { icon: Bell, label: "Notificaciones", path: "/notificaciones" },
   { icon: Send, label: "Envío de Alertas", path: "/envio-alertas" },

@@ -47,6 +47,13 @@ const Prensa = () => {
 
   return (
     <div className="w-full space-y-6">
+      <div className="flex flex-col space-y-1.5">
+        <h2 className="text-3xl font-bold tracking-tight">Prensa Digital</h2>
+        <p className="text-muted-foreground">
+          Monitoreo de noticias de medios digitales
+        </p>
+      </div>
+      
       <PrensaHeader onRefresh={refreshFeed} isRefreshing={isRefreshing} />
       
       <FeedStatus feedSources={feedSources} />
