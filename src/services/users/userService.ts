@@ -8,7 +8,7 @@ export interface UserProfile {
   role: "administrator" | "data_entry";
   created_at: string;
   updated_at: string;
-  email?: string; // We'll join this from auth.users
+  email?: string; // Added as optional since it comes from a join
 }
 
 export async function fetchUsers(): Promise<{ data: UserProfile[] | null; error: PostgrestError | null }> {
@@ -46,6 +46,7 @@ export async function fetchUsers(): Promise<{ data: UserProfile[] | null; error:
       
       // Add emails to user profiles
       data.forEach(user => {
+        // Fix: Initialize the email property
         user.email = emailMap.get(user.id) || '';
       });
     }
