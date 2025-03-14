@@ -4,8 +4,9 @@ import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { FileDown } from "lucide-react";
 
-// Import our new components
+// Import our components
 import { MediaOutletForm } from "@/components/settings/media/MediaOutletForm";
 import { MediaOutletsTable } from "@/components/settings/media/MediaOutletsTable";
 import { MediaFilter } from "@/components/settings/media/MediaFilter";
@@ -18,7 +19,9 @@ import {
   fetchMediaOutlets,
   addMediaOutlet,
   updateMediaOutlet,
-  deleteMediaOutlet
+  deleteMediaOutlet,
+  exportMediaOutletsToCSV,
+  downloadCSV
 } from "@/services/media/mediaService";
 
 export default function MediaSettings() {
@@ -138,6 +141,19 @@ export default function MediaSettings() {
     }
   };
 
+  // Export media outlets to CSV
+  const handleExportCSV = () => {
+    try {
+      const csvContent = exportMediaOutletsToCSV(mediaOutlets);
+      const filename = `medios_${new Date().toISOString().split('T')[0]}.csv`;
+      downloadCSV(csvContent, filename);
+      toast.success('Datos exportados correctamente');
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      toast.error('Error al exportar los datos');
+    }
+  };
+
   return (
     <SettingsLayout
       title="Medios"
@@ -153,6 +169,15 @@ export default function MediaSettings() {
               showFilter={showFilter}
               onToggleFilter={toggleFilter}
             />
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleExportCSV}
+              disabled={mediaOutlets.length === 0 || loading}
+            >
+              <FileDown className="h-4 w-4 mr-1" />
+              Exportar
+            </Button>
             <Button 
               size="sm"
               onClick={toggleAddForm}

@@ -89,3 +89,47 @@ export async function deleteMediaOutlet(id: string): Promise<void> {
     throw error;
   }
 }
+
+// New function for exporting media outlets to CSV
+export function exportMediaOutletsToCSV(mediaOutlets: MediaOutlet[]): string {
+  // Define headers
+  const headers = ['ID', 'Tipo', 'Nombre', 'Carpeta', 'Fecha de Creación'];
+  
+  // Start with headers
+  let csvContent = headers.join(',') + '\n';
+  
+  // Add each media outlet as a row
+  mediaOutlets.forEach(outlet => {
+    const row = [
+      outlet.id,
+      outlet.type,
+      // Escape quotes in name to prevent CSV issues
+      `"${outlet.name.replace(/"/g, '""')}"`,
+      // Handle null folder values and escape quotes
+      outlet.folder ? `"${outlet.folder.replace(/"/g, '""')}"` : '',
+      outlet.created_at
+    ];
+    
+    csvContent += row.join(',') + '\n';
+  });
+  
+  return csvContent;
+}
+
+// Helper function to download CSV
+export function downloadCSV(csvContent: string, filename: string): void {
+  // Create a blob with the CSV content
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  
+  // Create a download link and trigger the download
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
