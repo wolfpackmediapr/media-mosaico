@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { FileBarChart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
 import RadioAnalysis from "./RadioAnalysis";
@@ -32,6 +32,9 @@ const RadioTranscriptionSlot = ({
   onTranscriptionChange,
   onSegmentsReceived,
 }: RadioTranscriptionSlotProps) => {
+  // Use a ref to track if we've already generated segments to prevent infinite loops
+  const segmentsGeneratedRef = useRef(false);
+
   const handleGenerateReport = async () => {
     try {
       toast.loading('Generando reporte...');
@@ -58,8 +61,13 @@ const RadioTranscriptionSlot = ({
 
   // Use useEffect to generate segments when transcription text changes
   useEffect(() => {
-    if (transcriptionText && transcriptionText.length > 100 && onSegmentsReceived) {
+    // Only generate segments if we have text and haven't already done so
+    if (transcriptionText && 
+        transcriptionText.length > 100 && 
+        onSegmentsReceived && 
+        !segmentsGeneratedRef.current) {
       generateRadioSegments(transcriptionText);
+      segmentsGeneratedRef.current = true;
     }
   }, [transcriptionText, onSegmentsReceived]);
 
