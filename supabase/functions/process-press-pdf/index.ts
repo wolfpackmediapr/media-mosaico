@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-// Import PDF.js using a Deno-compatible CDN with a stable version
+// Import PDF.js using a Deno-compatible CDN with a stable version - explicitly referencing ES5 build
 import * as pdfjs from "https://cdn.skypack.dev/pdfjs-dist@2.14.305/es5/build/pdf.js";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -32,6 +32,24 @@ const publimediaClients = {
   'COMIDA RAPIDA': ['McDonald\'s'],
   'CARRETERAS': ['Metropistas']
 };
+
+/**
+ * Updates processing job status and progress
+ */
+async function updateProcessingJob(supabase: any, jobId: string, updates: any) {
+  try {
+    const { error } = await supabase
+      .from('pdf_processing_jobs')
+      .update(updates)
+      .eq('id', jobId);
+    
+    if (error) {
+      console.error("Error updating processing job:", error);
+    }
+  } catch (err) {
+    console.error("Exception updating processing job:", err);
+  }
+}
 
 /**
  * Uses OpenAI to analyze text and identify press clippings
@@ -227,89 +245,7 @@ async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 /**
- * Updates processing job status and progress
- */
-async function updateProcessingJob(supabase: any, jobId: string, updates: any) {
-  try {
-    const { error } = await supabase
-      .from('pdf_processing_jobs')
-      .update(updates)
-      .eq('id', jobId);
-    
-    if (error) {
-      console.error("Error updating processing job:", error);
-    }
-  } catch (err) {
-    console.error("Exception updating processing job:", err);
-  }
-}
-
-/**
- * Extract text from a PDF file using PDF.js
- */
-async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
-  try {
-    console.log("Starting PDF text extraction with PDF.js...");
-    
-    // IMPORTANT: PDF.js initialization - using the imported library
-    console.log("PDF.js version:", pdfjs.version);
-    const loadingTask = pdfjs.getDocument({ data: pdfData });
-    
-    console.log("PDF document loading task created");
-    
-    const pdfDocument = await loadingTask.promise;
-    const numPages = pdfDocument.numPages;
-    console.log(`PDF document loaded with ${numPages} pages`);
-    
-    const textPages = [];
-    
-    // Extract text from each page
-    for (let i = 1; i <= numPages; i++) {
-      try {
-        console.log(`Getting page ${i}...`);
-        const page = await pdfDocument.getPage(i);
-        
-        console.log(`Getting text content for page ${i}...`);
-        const textContent = await page.getTextContent();
-        
-        // Combine all text items into a single string
-        let pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        console.log(`Extracted ${pageText.length} characters from page ${i}`);
-        
-        // If very little text was extracted (possibly a scan), log this
-        if (pageText.length < 100) {
-          console.log(`Page ${i} appears to be mostly image-based (only ${pageText.length} chars extracted)`);
-        }
-        
-        textPages.push({
-          pageNumber: i,
-          text: pageText
-        });
-      } catch (pageError) {
-        console.error(`Error extracting text from page ${i}:`, pageError);
-        // Continue with next page if one fails
-        textPages.push({
-          pageNumber: i,
-          text: ""  // Empty text will be handled by Vision API later
-        });
-      }
-    }
-    
-    console.log(`Successfully processed ${textPages.length} pages`);
-    return textPages;
-  } catch (error) {
-    console.error("Error extracting text from PDF:", error);
-    throw new Error(`Failed to extract text from PDF: ${error.message}`);
-  }
-}
-
-/**
- * Process text from PDF pages with Vision API fallback for low-text pages
+ * Extract text from PDF pages with Vision API fallback for low-text pages
  */
 async function processTextPages(supabase: any, jobId: string, pages: {pageNumber: number, text: string}[], pdfData: ArrayBuffer): Promise<any[]> {
   const allClippings = [];
@@ -399,8 +335,71 @@ async function downloadPdfFromStorage(supabase: any, filePath: string): Promise<
   }
 }
 
+/**
+ * Extract text from a PDF file using PDF.js
+ */
+async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
+  try {
+    console.log("Starting PDF text extraction with PDF.js...");
+    
+    // Create a PDF.js loading task
+    const loadingTask = pdfjs.getDocument({ data: pdfData });
+    
+    console.log("PDF document loading task created");
+    
+    const pdfDocument = await loadingTask.promise;
+    const numPages = pdfDocument.numPages;
+    console.log(`PDF document loaded with ${numPages} pages`);
+    
+    const textPages = [];
+    
+    // Extract text from each page
+    for (let i = 1; i <= numPages; i++) {
+      try {
+        console.log(`Getting page ${i}...`);
+        const page = await pdfDocument.getPage(i);
+        
+        console.log(`Getting text content for page ${i}...`);
+        const textContent = await page.getTextContent();
+        
+        // Combine all text items into a single string
+        let pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        console.log(`Extracted ${pageText.length} characters from page ${i}`);
+        
+        // If very little text was extracted (possibly a scan), log this
+        if (pageText.length < 100) {
+          console.log(`Page ${i} appears to be mostly image-based (only ${pageText.length} chars extracted)`);
+        }
+        
+        textPages.push({
+          pageNumber: i,
+          text: pageText
+        });
+      } catch (pageError) {
+        console.error(`Error extracting text from page ${i}:`, pageError);
+        // Continue with next page if one fails
+        textPages.push({
+          pageNumber: i,
+          text: ""  // Empty text will be handled by Vision API later
+        });
+      }
+    }
+    
+    console.log(`Successfully processed ${textPages.length} pages`);
+    return textPages;
+  } catch (error) {
+    console.error("Error extracting text from PDF:", error);
+    throw new Error(`Failed to extract text from PDF: ${error.message}`);
+  }
+}
+
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // Handle CORS preflight requests - IMMEDIATELY to avoid function failing before handling OPTIONS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
