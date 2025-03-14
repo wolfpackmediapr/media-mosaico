@@ -3,35 +3,23 @@ import { useState, useEffect } from "react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { Pencil, Trash2, Filter, X, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
-// Define types for media outlets
-interface MediaOutlet {
-  id: string;
-  type: string;
-  name: string;
-  folder: string | null;
-  created_at: string;
-}
+// Import our new components
+import { MediaOutletForm } from "@/components/settings/media/MediaOutletForm";
+import { MediaOutletsTable } from "@/components/settings/media/MediaOutletsTable";
+import { MediaFilter } from "@/components/settings/media/MediaFilter";
+import { MediaLoadingState } from "@/components/settings/media/MediaLoadingState";
+import { MediaEmptyState } from "@/components/settings/media/MediaEmptyState";
+
+// Import the service
+import { 
+  MediaOutlet, 
+  fetchMediaOutlets,
+  addMediaOutlet,
+  updateMediaOutlet,
+  deleteMediaOutlet
+} from "@/services/media/mediaService";
 
 export default function MediaSettings() {
   const [mediaOutlets, setMediaOutlets] = useState<MediaOutlet[]>([]);
@@ -41,63 +29,62 @@ export default function MediaSettings() {
   const [filterType, setFilterType] = useState<string>('');
   const [showFilter, setShowFilter] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  
-  // Form data states
-  const [addFormData, setAddFormData] = useState({
-    type: "tv",
-    name: "",
-    folder: ""
-  });
-  
   const [editFormData, setEditFormData] = useState<MediaOutlet | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // Fetch media outlets from Supabase
-  const fetchMediaOutlets = async () => {
+  // Load data on component mount
+  useEffect(() => {
+    loadMediaOutlets();
+  }, [sortField, sortOrder, filterType]);
+
+  const loadMediaOutlets = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('media_outlets')
-        .select('*')
-        .order(sortField, { ascending: sortOrder === 'asc' });
-      
-      // Apply filter if any
-      if (filterType) {
-        query = query.eq('type', filterType);
-      }
-      
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setMediaOutlets(data || []);
+      const outlets = await fetchMediaOutlets(sortField, sortOrder, filterType);
+      setMediaOutlets(outlets);
     } catch (error) {
-      console.error('Error fetching media outlets:', error);
+      console.error('Error loading media outlets:', error);
       toast.error('Error al cargar los medios');
     } finally {
       setLoading(false);
     }
   };
 
-  // Add a new media outlet
-  const addMediaOutlet = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const { data, error } = await supabase
-        .from('media_outlets')
-        .insert([
-          {
-            type: addFormData.type,
-            name: addFormData.name,
-            folder: addFormData.folder || null
-          }
-        ])
-        .select();
+  // Handle column sort
+  const handleSort = (field: keyof MediaOutlet) => {
+    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    setSortField(field);
+  };
 
-      if (error) throw error;
+  // Toggle filter visibility
+  const toggleFilter = () => {
+    setShowFilter(!showFilter);
+    if (showFilter) {
+      setFilterType('');
+    }
+  };
+
+  // Handle filter change
+  const handleFilterChange = (type: string) => {
+    setFilterType(type);
+  };
+
+  // Toggle add form visibility
+  const toggleAddForm = () => {
+    setShowAddForm(!showAddForm);
+  };
+
+  // Add new media outlet
+  const handleAddMediaOutlet = async (formData: { type: string; name: string; folder: string }) => {
+    try {
+      await addMediaOutlet({
+        type: formData.type,
+        name: formData.name,
+        folder: formData.folder || null
+      });
       toast.success('Medio añadido correctamente');
-      resetAddForm();
       setShowAddForm(false);
-      fetchMediaOutlets();
+      loadMediaOutlets();
     } catch (error) {
       console.error('Error adding media outlet:', error);
       toast.error('Error al añadir el medio');
@@ -108,6 +95,11 @@ export default function MediaSettings() {
   const handleEditClick = (outlet: MediaOutlet) => {
     setEditingId(outlet.id);
     setEditFormData(outlet);
+  };
+
+  // Update edit form data
+  const handleEditFormChange = (updatedOutlet: MediaOutlet) => {
+    setEditFormData(updatedOutlet);
   };
 
   // Cancel editing
@@ -121,20 +113,11 @@ export default function MediaSettings() {
     if (!editFormData) return;
 
     try {
-      const { error } = await supabase
-        .from('media_outlets')
-        .update({
-          type: editFormData.type,
-          name: editFormData.name,
-          folder: editFormData.folder
-        })
-        .eq('id', editFormData.id);
-
-      if (error) throw error;
+      await updateMediaOutlet(editFormData);
       toast.success('Medio actualizado correctamente');
       setEditingId(null);
       setEditFormData(null);
-      fetchMediaOutlets();
+      loadMediaOutlets();
     } catch (error) {
       console.error('Error updating media outlet:', error);
       toast.error('Error al actualizar el medio');
@@ -142,71 +125,18 @@ export default function MediaSettings() {
   };
 
   // Delete a media outlet
-  const deleteMediaOutlet = async (id: string) => {
+  const handleDeleteMediaOutlet = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este medio?')) return;
 
     try {
-      const { error } = await supabase
-        .from('media_outlets')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await deleteMediaOutlet(id);
       toast.success('Medio eliminado correctamente');
-      fetchMediaOutlets();
+      loadMediaOutlets();
     } catch (error) {
       console.error('Error deleting media outlet:', error);
       toast.error('Error al eliminar el medio');
     }
   };
-
-  // Reset add form
-  const resetAddForm = () => {
-    setAddFormData({
-      type: "tv",
-      name: "",
-      folder: ""
-    });
-  };
-
-  // Handle column sort
-  const handleSort = (field: keyof MediaOutlet) => {
-    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    setSortField(field);
-  };
-
-  // Toggle filter visibility
-  const toggleFilter = () => {
-    setShowFilter(!showFilter);
-    if (!showFilter) {
-      setFilterType('');
-    }
-  };
-
-  // Toggle add form visibility
-  const toggleAddForm = () => {
-    setShowAddForm(!showAddForm);
-    if (!showAddForm) {
-      resetAddForm();
-    }
-  };
-
-  // Helper function to get type label
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'tv': return 'Televisión';
-      case 'radio': return 'Radio';
-      case 'prensa': return 'Prensa Digital';
-      case 'prensa_escrita': return 'Prensa Escrita';
-      case 'redes_sociales': return 'Redes Sociales';
-      default: return type;
-    }
-  };
-
-  // Load data on component mount
-  useEffect(() => {
-    fetchMediaOutlets();
-  }, [sortField, sortOrder, filterType]);
 
   return (
     <SettingsLayout
@@ -217,15 +147,12 @@ export default function MediaSettings() {
         <CardTitle className="flex justify-between items-center">
           <span>Medios de Comunicación</span>
           <div className="flex gap-2">
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={toggleFilter} 
-              className="flex items-center gap-1"
-            >
-              {showFilter ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
-              <span>{showFilter ? 'Limpiar filtro' : 'Filtrar'}</span>
-            </Button>
+            <MediaFilter 
+              filterType={filterType}
+              onFilterChange={handleFilterChange}
+              showFilter={showFilter}
+              onToggleFilter={toggleFilter}
+            />
             <Button 
               size="sm"
               onClick={toggleAddForm}
@@ -240,243 +167,41 @@ export default function MediaSettings() {
       </CardHeader>
 
       <CardContent>
-        {/* Filter controls */}
-        {showFilter && (
-          <div className="mb-6 p-4 bg-muted/40 rounded-md">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="filter-type" className="text-right">
-                  Tipo de medio
-                </Label>
-                <Select 
-                  value={filterType} 
-                  onValueChange={setFilterType}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Seleccionar tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
-                    <SelectItem value="tv">Televisión</SelectItem>
-                    <SelectItem value="radio">Radio</SelectItem>
-                    <SelectItem value="prensa">Prensa Digital</SelectItem>
-                    <SelectItem value="prensa_escrita">Prensa Escrita</SelectItem>
-                    <SelectItem value="redes_sociales">Redes Sociales</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Add new media form (dialog style) */}
+        {/* Add new media form */}
         {showAddForm && (
-          <div className="mb-6 p-4 border rounded-md bg-slate-100">
-            <div className="mb-4 bg-slate-400 text-white py-2 px-3">
-              <h3 className="text-lg font-bold">MEDIOS</h3>
-            </div>
-            
-            <form onSubmit={addMediaOutlet} className="space-y-4">
-              <div className="grid grid-cols-[150px_1fr] items-center">
-                <div className="bg-slate-300 py-2 px-4 font-medium">
-                  NOMBRE
-                </div>
-                <div className="px-4">
-                  <Input
-                    id="name"
-                    value={addFormData.name}
-                    onChange={(e) => setAddFormData({...addFormData, name: e.target.value})}
-                    placeholder="Nombre del medio"
-                    required
-                    className="w-full"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-[150px_1fr] items-center">
-                <div className="bg-slate-300 py-2 px-4 font-medium">
-                  TIPO
-                </div>
-                <div className="px-4">
-                  <Select 
-                    value={addFormData.type} 
-                    onValueChange={(value) => setAddFormData({...addFormData, type: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Por favor Seleccione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tv">TV</SelectItem>
-                      <SelectItem value="radio">Radio</SelectItem>
-                      <SelectItem value="prensa">Prensa</SelectItem>
-                      <SelectItem value="prensa_escrita">Prensa Escrita</SelectItem>
-                      <SelectItem value="redes_sociales">Redes Sociales</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-[150px_1fr] items-center">
-                <div className="bg-slate-300 py-2 px-4 font-medium">
-                  NOMBRE CARPETA
-                </div>
-                <div className="px-4">
-                  <Input
-                    id="folder"
-                    value={addFormData.folder}
-                    onChange={(e) => setAddFormData({...addFormData, folder: e.target.value})}
-                    placeholder="Nombre de la carpeta (opcional)"
-                    className="w-full"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-2 mt-4">
-                <Button type="submit" variant="default" className="bg-green-600 hover:bg-green-700">
-                  <Check className="h-4 w-4 mr-1" /> Aceptar
-                </Button>
-                <Button type="button" variant="destructive" onClick={toggleAddForm}>
-                  <X className="h-4 w-4 mr-1" /> Cancelar
-                </Button>
-              </div>
-            </form>
-          </div>
+          <MediaOutletForm 
+            onSubmit={handleAddMediaOutlet}
+            onCancel={toggleAddForm}
+          />
         )}
 
-        {/* Media outlets table */}
+        {/* Media outlets table with loading and empty states */}
         {loading ? (
-          <div className="text-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary" />
-            <p>Cargando medios...</p>
-          </div>
+          <MediaLoadingState />
         ) : mediaOutlets.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            {filterType ? 'No hay medios que coincidan con el filtro aplicado.' : 'No hay medios de comunicación configurados.'}
-          </div>
+          <MediaEmptyState hasFilter={!!filterType} />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort('type')}
-                >
-                  Tipo {sortField === 'type' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort('name')}
-                >
-                  Nombre {sortField === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort('folder')}
-                >
-                  Carpeta {sortField === 'folder' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead className="w-[100px]">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mediaOutlets.map((outlet) => (
-                <TableRow key={outlet.id}>
-                  <TableCell>
-                    {editingId === outlet.id ? (
-                      <Select 
-                        value={editFormData?.type || outlet.type} 
-                        onValueChange={(value) => setEditFormData({...editFormData!, type: value})}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="tv">Televisión</SelectItem>
-                          <SelectItem value="radio">Radio</SelectItem>
-                          <SelectItem value="prensa">Prensa Digital</SelectItem>
-                          <SelectItem value="prensa_escrita">Prensa Escrita</SelectItem>
-                          <SelectItem value="redes_sociales">Redes Sociales</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      getTypeLabel(outlet.type)
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {editingId === outlet.id ? (
-                      <Input 
-                        value={editFormData?.name || ''} 
-                        onChange={(e) => setEditFormData({...editFormData!, name: e.target.value})}
-                        className="h-8"
-                      />
-                    ) : (
-                      outlet.name
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {editingId === outlet.id ? (
-                      <Input 
-                        value={editFormData?.folder || ''} 
-                        onChange={(e) => setEditFormData({...editFormData!, folder: e.target.value})}
-                        className="h-8"
-                      />
-                    ) : (
-                      outlet.folder || '-'
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      {editingId === outlet.id ? (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={saveEditedOutlet}
-                            title="Guardar"
-                          >
-                            <Check className="h-4 w-4 text-green-500" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleCancelEdit}
-                            title="Cancelar"
-                          >
-                            <X className="h-4 w-4 text-gray-500" />
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditClick(outlet)}
-                          title="Editar"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteMediaOutlet(outlet.id)}
-                        title="Eliminar"
-                        disabled={editingId === outlet.id}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <MediaOutletsTable 
+            mediaOutlets={mediaOutlets}
+            sortField={sortField}
+            sortOrder={sortOrder}
+            onSort={handleSort}
+            onEdit={handleEditClick}
+            onDelete={handleDeleteMediaOutlet}
+            editingId={editingId}
+            editFormData={editFormData}
+            onEditFormChange={handleEditFormChange}
+            onSaveEdit={saveEditedOutlet}
+            onCancelEdit={handleCancelEdit}
+            loading={loading}
+          />
         )}
       </CardContent>
       <CardFooter className="flex justify-between border-t pt-6">
         <p className="text-xs text-muted-foreground">
           Los cambios en los medios pueden afectar a todo el sistema
         </p>
-        <Button variant="outline" onClick={fetchMediaOutlets}>
+        <Button variant="outline" onClick={loadMediaOutlets}>
           Refrescar
         </Button>
       </CardFooter>
