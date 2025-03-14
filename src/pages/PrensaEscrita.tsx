@@ -1,9 +1,10 @@
+
 import React from "react";
 import PrensaPageHeader from "@/components/prensa-escrita/PrensaPageHeader";
 import PressTabsContainer from "@/components/prensa-escrita/PressTabsContainer";
 import { usePdfProcessing } from "@/hooks/use-pdf-processing";
 import { useTabState } from "@/hooks/use-tab-state";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 const PrensaEscrita = () => {
   const { 
@@ -18,6 +19,7 @@ const PrensaEscrita = () => {
   } = usePdfProcessing();
   
   const { activeTab, setActiveTab } = useTabState("upload");
+  const { toast } = useToast();
 
   // Switch to results tab when clippings are available
   React.useEffect(() => {

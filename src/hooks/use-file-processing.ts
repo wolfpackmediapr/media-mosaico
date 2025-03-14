@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { ProcessingJob } from "@/types/pdf-processing";
 
 export const useFileProcessing = () => {
   const { toast } = useToast();
@@ -87,9 +88,6 @@ export const useFileProcessing = () => {
       console.error("Error in uploadFile:", error);
       setUploadError(error instanceof Error ? error.message : "Error desconocido");
       throw error;
-    } finally {
-      // Don't set isUploading to false here - let the calling component manage this
-      // based on the overall process flow
     }
   };
 
