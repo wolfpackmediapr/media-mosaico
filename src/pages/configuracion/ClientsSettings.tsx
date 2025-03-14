@@ -18,7 +18,7 @@ export default function ClientsSettings() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortField, setSortField] = useState<string>("name");
+  const [sortField, setSortField] = useState<keyof Client>("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   const queryClient = useQueryClient();
@@ -67,11 +67,11 @@ export default function ClientsSettings() {
   });
 
   // Handlers
-  const handleAddClient = (client: any) => {
+  const handleAddClient = (client: Client) => {
     addMutation.mutate(client);
   };
 
-  const handleUpdateClient = (client: any) => {
+  const handleUpdateClient = (client: Client) => {
     updateMutation.mutate(client);
   };
 
@@ -84,7 +84,7 @@ export default function ClientsSettings() {
     setShowForm(true);
   };
 
-  const handleSort = (field: string) => {
+  const handleSort = (field: keyof Client) => {
     if (sortField === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
@@ -116,8 +116,8 @@ export default function ClientsSettings() {
         })
         .sort((a, b) => {
           // Ensure the properties exist on the object
-          const fieldA = a[sortField as keyof Client]?.toString().toLowerCase() || "";
-          const fieldB = b[sortField as keyof Client]?.toString().toLowerCase() || "";
+          const fieldA = a[sortField]?.toString().toLowerCase() || "";
+          const fieldB = b[sortField]?.toString().toLowerCase() || "";
           
           if (sortOrder === "asc") {
             return fieldA.localeCompare(fieldB);

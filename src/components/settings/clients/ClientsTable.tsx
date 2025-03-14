@@ -9,9 +9,9 @@ interface ClientsTableProps {
   clients: Client[];
   onEdit: (client: Client) => void;
   onDelete: (id: string | undefined) => void;
-  sortField?: string;
+  sortField?: keyof Client;
   sortOrder?: 'asc' | 'desc';
-  onSort?: (field: string) => void;
+  onSort?: (field: keyof Client) => void;
 }
 
 export function ClientsTable({
@@ -37,7 +37,7 @@ export function ClientsTable({
   };
 
   // Helper for sort button
-  const SortButton = ({ field }: { field: string }) => (
+  const SortButton = ({ field }: { field: keyof Client }) => (
     <Button
       variant="ghost"
       size="sm"

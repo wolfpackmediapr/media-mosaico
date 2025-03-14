@@ -41,14 +41,14 @@ export function ClientFilter({
       </div>
       
       <Select
-        value={selectedCategory || ""}
-        onValueChange={(value) => onCategoryChange(value || null)}
+        value={selectedCategory || "all"}
+        onValueChange={(value) => onCategoryChange(value === "all" ? null : value)}
       >
         <SelectTrigger className="w-full sm:w-[180px]">
           <SelectValue placeholder="Todas las categorías" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Todas las categorías</SelectItem>
+          <SelectItem value="all">Todas las categorías</SelectItem>
           <SelectGroup>
             <SelectLabel>Categorías</SelectLabel>
             {categories.map((category) => (
