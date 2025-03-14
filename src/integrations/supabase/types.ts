@@ -207,6 +207,33 @@ export type Database = {
         }
         Relationships: []
       }
+      media_outlets: {
+        Row: {
+          created_at: string | null
+          folder: string | null
+          id: string
+          name: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          folder?: string | null
+          id?: string
+          name: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          folder?: string | null
+          id?: string
+          name?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       media_posts: {
         Row: {
           caption: string | null
