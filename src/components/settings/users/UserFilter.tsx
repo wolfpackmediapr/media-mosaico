@@ -43,7 +43,7 @@ export function UserFilter({
             <SelectValue placeholder="Filtrar por rol" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos los roles</SelectItem>
+            <SelectItem value="all">Todos los roles</SelectItem>
             {roles.map((role) => (
               <SelectItem key={role} value={role}>
                 {role === "administrator" ? "Administrador" : "Entrada de datos"}
