@@ -45,8 +45,8 @@ export async function fetchUsers(): Promise<{ data: UserProfile[] | null; error:
       });
       
       // Add emails to user profiles
-      data.forEach(user => {
-        // Fix: Initialize the email property
+      const typedData = data as UserProfile[];
+      typedData.forEach(user => {
         user.email = emailMap.get(user.id) || '';
       });
     }
