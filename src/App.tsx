@@ -1,4 +1,3 @@
-
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -30,6 +29,7 @@ import { Link } from "react-router-dom";
 
 // Import settings pages
 import { GeneralSettings, MediaSettings, ClientsSettings } from "./pages/configuracion";
+import { UsersSettings } from "./pages/configuracion";
 
 const queryClient = new QueryClient();
 
@@ -88,9 +88,9 @@ function App() {
                 <Route path="/ajustes/general/medios" element={<ComingSoon title="Configuración de Medios" />} />
                 <Route path="/ajustes/general/categorias" element={<ComingSoon title="Configuración de Categorías" />} />
                 
-                <Route path="/ajustes/usuarios" element={<ComingSoon title="Usuarios de Administración" />} />
-                <Route path="/ajustes/usuarios/administradores" element={<ComingSoon title="Administradores" />} />
-                <Route path="/ajustes/usuarios/permisos" element={<ComingSoon title="Permisos de Usuarios" />} />
+                <Route path="/ajustes/usuarios" element={<UsersSettings />} />
+                <Route path="/ajustes/usuarios/administradores" element={<UsersSettings />} />
+                <Route path="/ajustes/usuarios/permisos" element={<UsersSettings />} />
                 
                 <Route path="/ajustes/clientes" element={<ClientsSettings />} />
                 <Route path="/ajustes/clientes/gestion" element={<ComingSoon title="Gestión de Clientes" />} />
@@ -131,7 +131,6 @@ function App() {
   );
 }
 
-// Placeholder component for routes that are not yet implemented
 function ComingSoon({ title }: { title: string }) {
   return (
     <SettingsLayout title={title}>
@@ -156,3 +155,4 @@ function ComingSoon({ title }: { title: string }) {
 }
 
 export default App;
+
