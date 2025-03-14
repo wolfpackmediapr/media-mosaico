@@ -1,16 +1,26 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useJobManagement } from "@/hooks/use-job-management";
 import { useFileProcessing } from "@/hooks/use-file-processing";
+import { usePdfClippings } from "@/hooks/use-pdf-clippings";
 import { PressClipping, ProcessingJob } from "@/types/pdf-processing";
 
 export const usePdfProcessing = () => {
   const { toast } = useToast();
-  const [clippings, setClippings] = useState<PressClipping[]>([]);
-  const [publicationName, setPublicationName] = useState("");
-  const [processingError, setProcessingError] = useState<string | null>(null);
-  const [processingComplete, setProcessingComplete] = useState(false);
+  const {
+    clippings,
+    setClippings,
+    publicationName,
+    setPublicationName,
+    processingError,
+    setProcessingError,
+    processingComplete,
+    setProcessingComplete,
+    resetClippings,
+    handleProcessingSuccess,
+    handleProcessingError
+  } = usePdfClippings();
 
   const {
     currentJob,
@@ -42,60 +52,40 @@ export const usePdfProcessing = () => {
           
           if (data?.clippings?.length > 0) {
             console.log(`Found ${data.clippings.length} clippings from completed job`);
-            setClippings(data.clippings);
-            setProcessingComplete(true);
+            handleProcessingSuccess(data.clippings, currentJob.publication_name);
             setIsUploading(false);
-            setProcessingError(null);
-            
-            toast({
-              title: "PDF procesado exitosamente",
-              description: `Se encontraron ${data.clippings.length} recortes de prensa`,
-            });
           } else {
             console.log("No clippings found in completed job");
+            handleProcessingError("No se encontraron recortes en el PDF");
             setIsUploading(false);
-            setProcessingError("No se encontraron recortes en el PDF");
-            setProcessingComplete(true);
-            
-            toast({
-              title: "Proceso completado",
-              description: "No se encontraron recortes en el PDF proporcionado",
-              variant: "destructive"
-            });
           }
         } catch (error) {
           console.error("Error checking job status:", error);
+          handleProcessingError("Error al verificar el estado del procesamiento");
           setIsUploading(false);
-          setProcessingError("Error al verificar el estado del procesamiento");
-          
-          toast({
-            title: "Error al procesar el PDF",
-            description: "Ocurrió un error al verificar el estado del procesamiento",
-            variant: "destructive"
-          });
         }
       })();
     } else if (currentJob.status === 'error') {
       console.error("Job error:", currentJob.error);
+      handleProcessingError(currentJob.error || "Error desconocido");
       setIsUploading(false);
-      setProcessingError(currentJob.error || "Error desconocido");
-      
-      toast({
-        title: "Error al procesar el PDF",
-        description: currentJob.error || "No se pudo procesar el archivo PDF",
-        variant: "destructive"
-      });
     }
-  }, [currentJob?.status, checkJobStatus, setIsUploading, toast, processingComplete]);
+  }, [
+    currentJob?.status, 
+    checkJobStatus, 
+    setIsUploading, 
+    processingComplete, 
+    handleProcessingSuccess, 
+    handleProcessingError, 
+    currentJob?.publication_name
+  ]);
 
   const processFile = useCallback(async (file: File, newPublicationName: string) => {
     try {
       setIsUploading(true);
       setUploadProgress(0);
       setPublicationName(newPublicationName);
-      setClippings([]);
-      setProcessingError(null);
-      setProcessingComplete(false);
+      resetClippings();
 
       // Show initial progress quickly to give feedback
       const uploadProgressInterval = setInterval(() => {
@@ -139,8 +129,7 @@ export const usePdfProcessing = () => {
       if (processingResult?.clippings?.length > 0) {
         console.log(`Processing returned ${processingResult.clippings.length} clippings immediately`);
         // If the function returns clippings immediately, use them
-        setClippings(processingResult.clippings);
-        setProcessingComplete(true);
+        handleProcessingSuccess(processingResult.clippings, newPublicationName);
         setIsUploading(false);
         
         // Update job to completed
@@ -148,11 +137,6 @@ export const usePdfProcessing = () => {
           ...typedJob,
           status: 'completed',
           progress: 100
-        });
-        
-        toast({
-          title: "PDF procesado exitosamente",
-          description: `Se encontraron ${processingResult.clippings.length} recortes de prensa`,
         });
       } else {
         // Normal case - the job is running in the background
@@ -165,28 +149,28 @@ export const usePdfProcessing = () => {
       // Remain in uploading state - will be updated by the job status effect
     } catch (error) {
       console.error("Error processing PDF:", error);
-      setProcessingError(error instanceof Error ? error.message : "Error desconocido");
-      
-      toast({
-        title: "Error al procesar el PDF",
-        description: error instanceof Error ? error.message : "No se pudo procesar el archivo PDF",
-        variant: "destructive"
-      });
-      
+      handleProcessingError(error instanceof Error ? error.message : "Error desconocido");
       setIsUploading(false);
       setCurrentJob(null);
     }
-  }, [uploadFile, triggerProcessing, setCurrentJob, setUploadProgress, toast]);
+  }, [
+    uploadFile, 
+    triggerProcessing, 
+    setCurrentJob, 
+    setUploadProgress, 
+    toast, 
+    setPublicationName, 
+    resetClippings, 
+    handleProcessingSuccess, 
+    handleProcessingError
+  ]);
 
   const resetProcessing = useCallback(() => {
-    setClippings([]);
-    setPublicationName("");
-    setProcessingError(null);
-    setProcessingComplete(false);
+    resetClippings();
     setCurrentJob(null);
     setUploadProgress(0);
     setIsUploading(false);
-  }, [setCurrentJob, setIsUploading]);
+  }, [resetClippings, setCurrentJob, setIsUploading]);
 
   const cancelProcessing = useCallback(() => {
     cancelCurrentJob();
@@ -198,7 +182,7 @@ export const usePdfProcessing = () => {
       description: "El procesamiento del PDF ha sido cancelado",
       variant: "default"
     });
-  }, [cancelCurrentJob, toast]);
+  }, [cancelCurrentJob, setProcessingError, toast]);
 
   return {
     isUploading,

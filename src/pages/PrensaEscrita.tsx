@@ -1,4 +1,3 @@
-
 import React from "react";
 import PrensaPageHeader from "@/components/prensa-escrita/PrensaPageHeader";
 import PressTabsContainer from "@/components/prensa-escrita/PressTabsContainer";
