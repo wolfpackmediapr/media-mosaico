@@ -766,6 +766,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_profiles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       videos: {
         Row: {
           created_at: string | null
@@ -1033,6 +1057,7 @@ export type Database = {
         | "RELIGION"
         | "SALUD"
         | "TRIBUNALES"
+      user_role: "administrator" | "data_entry"
     }
     CompositeTypes: {
       [_ in never]: never
