@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Button } from "@/components/ui/button";
@@ -35,7 +34,6 @@ export default function MediaSettings() {
   const [editFormData, setEditFormData] = useState<MediaOutlet | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // Load data on component mount
   useEffect(() => {
     loadMediaOutlets();
   }, [sortField, sortOrder, filterType]);
@@ -53,13 +51,11 @@ export default function MediaSettings() {
     }
   };
 
-  // Handle column sort
   const handleSort = (field: keyof MediaOutlet) => {
     setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     setSortField(field);
   };
 
-  // Toggle filter visibility
   const toggleFilter = () => {
     setShowFilter(!showFilter);
     if (showFilter) {
@@ -67,17 +63,14 @@ export default function MediaSettings() {
     }
   };
 
-  // Handle filter change
   const handleFilterChange = (type: string) => {
     setFilterType(type);
   };
 
-  // Toggle add form visibility
   const toggleAddForm = () => {
     setShowAddForm(!showAddForm);
   };
 
-  // Add new media outlet
   const handleAddMediaOutlet = async (formData: { type: string; name: string; folder: string }) => {
     try {
       await addMediaOutlet({
@@ -94,24 +87,20 @@ export default function MediaSettings() {
     }
   };
 
-  // Start editing a media outlet
   const handleEditClick = (outlet: MediaOutlet) => {
     setEditingId(outlet.id);
     setEditFormData(outlet);
   };
 
-  // Update edit form data
   const handleEditFormChange = (updatedOutlet: MediaOutlet) => {
     setEditFormData(updatedOutlet);
   };
 
-  // Cancel editing
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditFormData(null);
   };
 
-  // Save edited media outlet
   const saveEditedOutlet = async () => {
     if (!editFormData) return;
 
@@ -127,7 +116,6 @@ export default function MediaSettings() {
     }
   };
 
-  // Delete a media outlet
   const handleDeleteMediaOutlet = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este medio?')) return;
 
@@ -141,12 +129,29 @@ export default function MediaSettings() {
     }
   };
 
-  // Export media outlets to CSV
   const handleExportCSV = () => {
     try {
+      let filenameParts = ['medios'];
+      
+      if (filterType) {
+        const typeLabels: Record<string, string> = {
+          'tv': 'television',
+          'radio': 'radio',
+          'prensa': 'prensa-digital',
+          'prensa_escrita': 'prensa-escrita',
+          'redes_sociales': 'redes-sociales'
+        };
+        filenameParts.push(typeLabels[filterType] || filterType);
+      }
+      
+      const dateStr = new Date().toISOString().split('T')[0];
+      filenameParts.push(dateStr);
+      
+      const filename = `${filenameParts.join('_')}.csv`;
+      
       const csvContent = exportMediaOutletsToCSV(mediaOutlets);
-      const filename = `medios_${new Date().toISOString().split('T')[0]}.csv`;
       downloadCSV(csvContent, filename);
+      
       toast.success('Datos exportados correctamente');
     } catch (error) {
       console.error('Error exporting to CSV:', error);
@@ -174,9 +179,10 @@ export default function MediaSettings() {
               size="sm" 
               onClick={handleExportCSV}
               disabled={mediaOutlets.length === 0 || loading}
+              title="Exportar medios a CSV"
             >
               <FileDown className="h-4 w-4 mr-1" />
-              Exportar
+              Exportar CSV
             </Button>
             <Button 
               size="sm"
@@ -192,7 +198,6 @@ export default function MediaSettings() {
       </CardHeader>
 
       <CardContent>
-        {/* Add new media form */}
         {showAddForm && (
           <MediaOutletForm 
             onSubmit={handleAddMediaOutlet}
@@ -200,7 +205,6 @@ export default function MediaSettings() {
           />
         )}
 
-        {/* Media outlets table with loading and empty states */}
         {loading ? (
           <MediaLoadingState />
         ) : mediaOutlets.length === 0 ? (

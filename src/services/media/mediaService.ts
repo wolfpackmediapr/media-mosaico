@@ -90,7 +90,49 @@ export async function deleteMediaOutlet(id: string): Promise<void> {
   }
 }
 
-// New function for exporting media outlets to CSV
+// Format date for better readability in CSV
+function formatDate(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return dateString;
+  }
+}
+
+// Map type codes to readable names
+function getTypeDisplayName(type: string): string {
+  const typeMap: Record<string, string> = {
+    'tv': 'Televisión',
+    'radio': 'Radio',
+    'prensa': 'Prensa Digital',
+    'prensa_escrita': 'Prensa Escrita',
+    'redes_sociales': 'Redes Sociales'
+  };
+  
+  return typeMap[type] || type;
+}
+
+// Escape CSV field to handle special characters
+function escapeCSVField(field: string | null): string {
+  if (field === null || field === undefined) return '';
+  
+  // If the field contains commas, quotes, or newlines, wrap it in quotes
+  const needsQuotes = /[",\n\r]/.test(field);
+  
+  // Replace double quotes with two double quotes (CSV escape format)
+  const escaped = String(field).replace(/"/g, '""');
+  
+  return needsQuotes ? `"${escaped}"` : escaped;
+}
+
+// New function for exporting media outlets to CSV with better formatting
 export function exportMediaOutletsToCSV(mediaOutlets: MediaOutlet[]): string {
   // Define headers
   const headers = ['ID', 'Tipo', 'Nombre', 'Carpeta', 'Fecha de Creación'];
@@ -98,16 +140,17 @@ export function exportMediaOutletsToCSV(mediaOutlets: MediaOutlet[]): string {
   // Start with headers
   let csvContent = headers.join(',') + '\n';
   
+  // Sort the outlets by name for better readability (unless they're already sorted)
+  const sortedOutlets = [...mediaOutlets].sort((a, b) => a.name.localeCompare(b.name));
+  
   // Add each media outlet as a row
-  mediaOutlets.forEach(outlet => {
+  sortedOutlets.forEach(outlet => {
     const row = [
-      outlet.id,
-      outlet.type,
-      // Escape quotes in name to prevent CSV issues
-      `"${outlet.name.replace(/"/g, '""')}"`,
-      // Handle null folder values and escape quotes
-      outlet.folder ? `"${outlet.folder.replace(/"/g, '""')}"` : '',
-      outlet.created_at
+      escapeCSVField(outlet.id),
+      escapeCSVField(getTypeDisplayName(outlet.type)),
+      escapeCSVField(outlet.name),
+      escapeCSVField(outlet.folder),
+      escapeCSVField(formatDate(outlet.created_at))
     ];
     
     csvContent += row.join(',') + '\n';
@@ -118,8 +161,12 @@ export function exportMediaOutletsToCSV(mediaOutlets: MediaOutlet[]): string {
 
 // Helper function to download CSV
 export function downloadCSV(csvContent: string, filename: string): void {
+  // Add BOM for proper Excel UTF-8 encoding
+  const BOM = '\uFEFF';
+  const csvWithBOM = BOM + csvContent;
+  
   // Create a blob with the CSV content
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
   
   // Create a download link and trigger the download
   const link = document.createElement('a');
@@ -132,4 +179,10 @@ export function downloadCSV(csvContent: string, filename: string): void {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  
+  // Clean up
+  setTimeout(() => {
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, 100);
 }
