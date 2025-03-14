@@ -1,13 +1,13 @@
 
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { UserProfile } from "@/services/users/userService";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { UsersTable } from "./UsersTable";
 import { UserForm } from "./UserForm";
+import { UsersTable } from "./UsersTable";
 import { UserFilter } from "./UserFilter";
-import { UserEmptyState } from "./UserEmptyState";
 import { UserLoadingState } from "./UserLoadingState";
-import { UserProfile } from "@/services/users/userService";
+import { UserEmptyState } from "./UserEmptyState";
 
 interface UsersListProps {
   users: UserProfile[];
@@ -25,9 +25,9 @@ interface UsersListProps {
   sortField: keyof UserProfile;
   sortOrder: "asc" | "desc";
   hasFilters: boolean;
-  onAddUser: (user: any) => void;
-  onUpdateUser: (user: UserProfile) => void;
-  onDeleteUser: (id: string) => void;
+  onAddUser: (user: any) => Promise<void>;
+  onUpdateUser: (user: UserProfile) => Promise<void>;
+  onDeleteUser: (id: string) => Promise<void>;
   onEditUser: (user: UserProfile) => void;
   onSort: (field: keyof UserProfile) => void;
   onCancelForm: () => void;
@@ -54,81 +54,90 @@ export function UsersList({
   onDeleteUser,
   onEditUser,
   onSort,
-  onCancelForm
+  onCancelForm,
 }: UsersListProps) {
+  const toggleForm = () => {
+    setShowForm(!showForm);
+  };
+
+  const handleFormSubmit = async (user: any) => {
+    if (editingUser) {
+      await onUpdateUser(user);
+    } else {
+      await onAddUser(user);
+    }
+  };
+
+  const clearFilters = () => {
+    setFilterRole(null);
+    setSearchTerm("");
+  };
+
+  // If there's an error, show it
+  if (error) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-destructive mb-2">Error al cargar usuarios</p>
+        <p className="text-muted-foreground">{error.message}</p>
+        <Button onClick={() => window.location.reload()} className="mt-4">
+          Intentar de nuevo
+        </Button>
+      </div>
+    );
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return <UserLoadingState />;
+  }
+
   return (
-    <>
-      <CardHeader>
-        <CardTitle>Gestión de Usuarios</CardTitle>
-        <CardDescription>
-          Administra los usuarios del sistema y sus roles
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent className="space-y-6">
-        {/* Controls */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <UserFilter 
-            roles={roles} 
-            selectedRole={filterRole} 
+    <div className="p-6">
+      {!showForm && (
+        <div className="flex flex-col space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Usuarios del sistema</h2>
+            <Button onClick={toggleForm}>
+              <Plus className="h-4 w-4 mr-2" />
+              Agregar usuario
+            </Button>
+          </div>
+
+          <UserFilter
+            roles={roles}
+            selectedRole={filterRole}
             onRoleChange={setFilterRole}
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
+            onClearFilters={clearFilters}
           />
-          
-          <Button 
-            onClick={() => setShowForm(true)} 
-            className="sm:w-auto"
-            disabled={showForm}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Usuario
-          </Button>
-        </div>
-        
-        {/* Form */}
-        {showForm && (
-          <UserForm 
-            user={editingUser} 
-            onSubmit={editingUser ? onUpdateUser : onAddUser} 
-            onCancel={onCancelForm}
-            isEditing={!!editingUser}
-          />
-        )}
-        
-        {/* Table */}
-        {isLoading ? (
-          <UserLoadingState />
-        ) : error ? (
-          <div className="text-center py-8 text-red-500">
-            Error al cargar usuarios: {error.message}
-          </div>
-        ) : users.length > 0 ? (
-          <UsersTable 
-            users={users} 
-            onEdit={onEditUser} 
-            onDelete={onDeleteUser}
-            sortField={sortField}
-            sortOrder={sortOrder}
-            onSort={onSort}
-          />
-        ) : allUsers.length > 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No se encontraron usuarios con los filtros actuales.
-          </div>
-        ) : (
-          <UserEmptyState 
-            hasFilter={hasFilters}
-            onAddUser={() => setShowForm(true)} 
-          />
-        )}
-      </CardContent>
 
-      <CardFooter>
-        <p className="text-xs text-muted-foreground">
-          Los usuarios con rol Administrador pueden modificar toda la información del sistema.
-        </p>
-      </CardFooter>
-    </>
+          {users.length === 0 ? (
+            <UserEmptyState 
+              hasFilter={hasFilters} 
+              onAddUser={toggleForm} 
+            />
+          ) : (
+            <UsersTable
+              users={users}
+              onDelete={onDeleteUser}
+              onEdit={onEditUser}
+              sortField={sortField}
+              sortOrder={sortOrder}
+              onSort={onSort}
+            />
+          )}
+        </div>
+      )}
+
+      {showForm && (
+        <UserForm
+          onSubmit={handleFormSubmit}
+          onCancel={onCancelForm}
+          editingUser={editingUser}
+          roles={roles}
+        />
+      )}
+    </div>
   );
 }

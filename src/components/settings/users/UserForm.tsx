@@ -1,105 +1,96 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 import { UserProfile } from "@/services/users/userService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useForm } from "react-hook-form";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-
-// Define form schemas
-const userFormSchema = z.object({
-  username: z.string().min(3, "El nombre de usuario debe tener al menos 3 caracteres"),
-  role: z.enum(["administrator", "data_entry"], {
-    required_error: "Debes seleccionar un rol",
-  }),
-});
-
-const newUserFormSchema = userFormSchema.extend({
-  email: z.string().email("Correo electrónico inválido"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
-  confirmPassword: z.string(),
-}).refine(data => data.password === data.confirmPassword, {
-  message: "Las contraseñas no coinciden",
-  path: ["confirmPassword"],
-});
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 
 interface UserFormProps {
-  user: UserProfile | null;
-  onSubmit: (data: any) => void;
+  onSubmit: (user: any) => Promise<void>;
   onCancel: () => void;
-  isEditing: boolean;
+  editingUser: UserProfile | null;
+  roles: string[];
 }
 
-export function UserForm({ user, onSubmit, onCancel, isEditing }: UserFormProps) {
-  const [error, setError] = useState<string | null>(null);
+const userSchema = z.object({
+  username: z.string().min(3, "El nombre de usuario debe tener al menos 3 caracteres."),
+  role: z.enum(["administrator", "data_entry"], {
+    errorMap: () => ({ message: "Rol no válido" }),
+  }),
+  email: z.string().email("Correo electrónico inválido").optional(),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres.").optional(),
+});
 
-  const form = useForm<any>({
-    resolver: zodResolver(isEditing ? userFormSchema : newUserFormSchema),
-    defaultValues: isEditing
-      ? {
-          username: user?.username || "",
-          role: user?.role || "data_entry",
-        }
-      : {
-          username: "",
-          email: "",
-          password: "",
-          confirmPassword: "",
-          role: "data_entry",
-        },
+export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormProps) {
+  const [loading, setLoading] = useState(false);
+  
+  const defaultValues = {
+    username: editingUser?.username || "",
+    role: editingUser?.role || "data_entry" as const,
+    email: editingUser?.email || "",
+    password: "",
+  };
+
+  const form = useForm<z.infer<typeof userSchema>>({
+    resolver: zodResolver(userSchema),
+    defaultValues,
   });
 
-  const handleSubmit = (data: any) => {
+  useEffect(() => {
+    if (editingUser) {
+      form.reset({
+        username: editingUser.username,
+        role: editingUser.role,
+        email: editingUser.email || "",
+        password: "", // Don't populate password when editing
+      });
+    } else {
+      form.reset(defaultValues);
+    }
+  }, [editingUser, form]);
+
+  const handleSubmit = async (values: z.infer<typeof userSchema>) => {
+    setLoading(true);
     try {
-      setError(null);
-      if (isEditing && user) {
-        // Update existing user
-        onSubmit({
-          ...user,
-          ...data,
+      // If editing, we don't need password or email
+      if (editingUser) {
+        const { password, email, ...updateData } = values;
+        await onSubmit({
+          id: editingUser.id,
+          ...updateData,
         });
       } else {
-        // Create new user
-        onSubmit(data);
+        // Creating new user requires email and password
+        if (!values.email || !values.password) {
+          toast.error("El correo y la contraseña son requeridos para crear un usuario.");
+          setLoading(false);
+          return;
+        }
+        await onSubmit(values);
       }
-    } catch (error: any) {
-      setError(error.message);
+      
+      form.reset(defaultValues);
+    } catch (error) {
+      console.error("Error submitting form:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="p-4 bg-muted/50 rounded-lg border mb-6">
-      <h3 className="text-lg font-medium mb-4">
-        {isEditing ? "Editar Usuario" : "Agregar Nuevo Usuario"}
-      </h3>
-
-      {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
+    <Card>
+      <CardHeader>
+        <CardTitle>{editingUser ? "Editar Usuario" : "Crear Usuario"}</CardTitle>
+      </CardHeader>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={form.handleSubmit(handleSubmit)}>
+          <CardContent className="space-y-4">
             <FormField
               control={form.control}
               name="username"
@@ -107,12 +98,44 @@ export function UserForm({ user, onSubmit, onCancel, isEditing }: UserFormProps)
                 <FormItem>
                   <FormLabel>Nombre de usuario</FormLabel>
                   <FormControl>
-                    <Input placeholder="usuario123" {...field} />
+                    <Input placeholder="Nombre de usuario" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            {!editingUser && (
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Correo electrónico</FormLabel>
+                    <FormControl>
+                      <Input placeholder="correo@ejemplo.com" type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {!editingUser && (
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contraseña</FormLabel>
+                    <FormControl>
+                      <Input placeholder="******" type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -123,6 +146,7 @@ export function UserForm({ user, onSubmit, onCancel, isEditing }: UserFormProps)
                   <Select 
                     onValueChange={field.onChange} 
                     defaultValue={field.value}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -130,74 +154,28 @@ export function UserForm({ user, onSubmit, onCancel, isEditing }: UserFormProps)
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="administrator">Administrador</SelectItem>
-                      <SelectItem value="data_entry">Entrada de datos</SelectItem>
+                      {roles.map(role => (
+                        <SelectItem key={role} value={role}>
+                          {role === "administrator" ? "Administrador" : "Entrada de datos"}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            {!isEditing && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="correo@ejemplo.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="space-y-4 md:col-span-2">
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Contraseña</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="******" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Confirmar Contraseña</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="******" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onCancel}>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" onClick={onCancel} type="button">
               Cancelar
             </Button>
-            <Button type="submit">
-              {isEditing ? "Actualizar" : "Crear Usuario"}
+            <Button type="submit" disabled={loading}>
+              {loading ? "Procesando..." : (editingUser ? "Actualizar" : "Crear")}
             </Button>
-          </div>
+          </CardFooter>
         </form>
       </Form>
-    </div>
+    </Card>
   );
 }

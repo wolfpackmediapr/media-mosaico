@@ -32,12 +32,17 @@ export async function fetchUsers(): Promise<{ data: UserProfile[] | null; error:
   // Get emails from auth.users using the user IDs
   if (data && data.length > 0) {
     const userIds = data.map(user => user.id);
+    
+    // Use a custom RPC function to get emails securely
     const { data: authUsers, error: authError } = await supabase
       .rpc('get_users_email', { user_ids: userIds });
 
     if (!authError && authUsers) {
       // Create a map of user_id to email
-      const emailMap = new Map(authUsers.map((user: any) => [user.id, user.email]));
+      const emailMap = new Map();
+      authUsers.forEach((user: { id: string, email: string }) => {
+        emailMap.set(user.id, user.email);
+      });
       
       // Add emails to user profiles
       data.forEach(user => {
@@ -91,8 +96,7 @@ export async function updateUserProfile(
 export async function deleteUser(
   userId: string
 ): Promise<{ success: boolean; error: any | null }> {
-  // Supabase provides an admin function to delete users
-  // This requires admin rights and proper RLS policies
+  // Use our secure RPC function to delete the user
   const { error } = await supabase
     .rpc('delete_user', { user_id: userId });
 

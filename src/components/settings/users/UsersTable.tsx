@@ -1,6 +1,6 @@
 
-import { UserProfile } from "@/services/users/userService";
 import { Button } from "@/components/ui/button";
+import { UserProfile } from "@/services/users/userService";
 import {
   Table,
   TableBody,
@@ -9,82 +9,87 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Edit, Trash2, ArrowUpDown } from "lucide-react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Edit, MoreHorizontal, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 interface UsersTableProps {
   users: UserProfile[];
-  onEdit: (user: UserProfile) => void;
   onDelete: (id: string) => void;
+  onEdit: (user: UserProfile) => void;
   sortField: keyof UserProfile;
   sortOrder: "asc" | "desc";
   onSort: (field: keyof UserProfile) => void;
 }
 
-export function UsersTable({ 
-  users, 
-  onEdit, 
+export function UsersTable({
+  users,
   onDelete,
+  onEdit,
   sortField,
   sortOrder,
-  onSort
+  onSort,
 }: UsersTableProps) {
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), "dd/MM/yyyy HH:mm");
-    } catch (error) {
-      return "Fecha inválida";
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+
+  const handleDeleteClick = (user: UserProfile) => {
+    setUserToDelete(user);
+  };
+
+  const confirmDelete = () => {
+    if (userToDelete) {
+      onDelete(userToDelete.id);
+      setUserToDelete(null);
     }
   };
 
+  const cancelDelete = () => {
+    setUserToDelete(null);
+  };
+
   const getSortIcon = (field: keyof UserProfile) => {
-    if (sortField !== field) return <ArrowUpDown className="ml-2 h-4 w-4" />;
-    return sortOrder === "asc" ? 
-      <ArrowUpDown className="ml-2 h-4 w-4 text-primary" /> : 
-      <ArrowUpDown className="ml-2 h-4 w-4 text-primary" />;
+    if (field !== sortField) return null;
+    return sortOrder === "asc" ? "↑" : "↓";
+  };
+
+  const handleSortClick = (field: keyof UserProfile) => {
+    onSort(field);
   };
 
   return (
-    <div className="rounded-md border">
+    <>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead 
               className="cursor-pointer"
-              onClick={() => onSort("username")}
+              onClick={() => handleSortClick("username")}
             >
-              <div className="flex items-center">
-                Usuario {getSortIcon("username")}
-              </div>
+              Nombre {getSortIcon("username")}
             </TableHead>
-            <TableHead>Email</TableHead>
             <TableHead 
               className="cursor-pointer"
-              onClick={() => onSort("role")}
+              onClick={() => handleSortClick("email")}
             >
-              <div className="flex items-center">
-                Rol {getSortIcon("role")}
-              </div>
+              Correo {getSortIcon("email")}
             </TableHead>
-            <TableHead
+            <TableHead 
               className="cursor-pointer"
-              onClick={() => onSort("created_at")}
+              onClick={() => handleSortClick("role")}
             >
-              <div className="flex items-center">
-                Creado {getSortIcon("created_at")}
-              </div>
+              Rol {getSortIcon("role")}
+            </TableHead>
+            <TableHead 
+              className="cursor-pointer"
+              onClick={() => handleSortClick("created_at")}
+            >
+              Creado {getSortIcon("created_at")}
             </TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -92,62 +97,62 @@ export function UsersTable({
         <TableBody>
           {users.map((user) => (
             <TableRow key={user.id}>
-              <TableCell className="font-medium">{user.username}</TableCell>
+              <TableCell>{user.username}</TableCell>
               <TableCell>{user.email}</TableCell>
               <TableCell>
-                <Badge variant={user.role === "administrator" ? "default" : "secondary"}>
-                  {user.role === "administrator" ? "Administrador" : "Entrada de datos"}
-                </Badge>
+                {user.role === "administrator" ? "Administrador" : "Entrada de datos"}
               </TableCell>
-              <TableCell>{formatDate(user.created_at)}</TableCell>
+              <TableCell>
+                {new Date(user.created_at).toLocaleDateString()}
+              </TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEdit(user)}
-                  >
-                    <Edit className="h-4 w-4" />
-                    <span className="sr-only">Editar</span>
-                  </Button>
-                  
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-100"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Eliminar</span>
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          ¿Estás seguro de eliminar este usuario?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta acción no se puede deshacer. El usuario {user.username} ({user.email}) será eliminado permanentemente.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-red-500 hover:bg-red-700"
-                          onClick={() => onDelete(user.id)}
-                        >
-                          Eliminar
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreHorizontal className="h-4 w-4" />
+                      <span className="sr-only">Abrir menú</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onEdit(user)}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => handleDeleteClick(user)}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Eliminar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-    </div>
+
+      <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && cancelDelete()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Esto eliminará permanentemente
+              al usuario <strong>{userToDelete?.username}</strong> y todos sus datos asociados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

@@ -842,6 +842,21 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      delete_user: {
+        Args: {
+          user_id: string
+        }
+        Returns: undefined
+      }
+      get_users_email: {
+        Args: {
+          user_ids: string[]
+        }
+        Returns: {
+          id: string
+          email: string
+        }[]
+      }
       halfvec_avg: {
         Args: {
           "": number[]
