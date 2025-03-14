@@ -19,7 +19,7 @@ const mainMenuItems = [
 ];
 
 const bottomMenuItems = [
-  { icon: Settings, label: "Ajustes", path: "/ajustes" },
+  { icon: Settings, label: "Configuración", path: "/ajustes" },
   { icon: HelpCircle, label: "Ayuda", path: "/ayuda" },
 ];
 
@@ -33,7 +33,8 @@ const Sidebar = () => {
 
   const MenuItem = ({ item }: { item: typeof mainMenuItems[0] }) => {
     const Icon = item.icon;
-    const isActive = location.pathname === item.path;
+    const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+    
     return (
       <Link
         to={item.path}

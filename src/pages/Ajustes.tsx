@@ -1,10 +1,12 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Settings2, Bell, User, Shield } from "lucide-react";
+import { Settings2, Bell, User, Shield, Tv, Radio, Newspaper, Users, Building2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Link } from "react-router-dom";
 
 const Ajustes = () => {
   const { toast } = useToast();
@@ -16,28 +18,99 @@ const Ajustes = () => {
     });
   };
 
+  const configSections = [
+    {
+      title: "General",
+      description: "Administrar medios y categorías",
+      icon: Settings2,
+      path: "/ajustes/general"
+    },
+    {
+      title: "Usuarios de Administración",
+      description: "Gestionar usuarios y permisos",
+      icon: Users,
+      path: "/ajustes/usuarios"
+    },
+    {
+      title: "Clientes",
+      description: "Gestionar clientes y sus niveles de acceso",
+      icon: User,
+      path: "/ajustes/clientes"
+    },
+    {
+      title: "Prensa",
+      description: "Configurar géneros, fuentes, secciones y tarifas",
+      icon: Newspaper,
+      path: "/ajustes/prensa"
+    },
+    {
+      title: "Radio",
+      description: "Administrar programas y tarifas de radio",
+      icon: Radio,
+      path: "/ajustes/radio"
+    },
+    {
+      title: "TV",
+      description: "Administrar programas y tarifas de TV",
+      icon: Tv,
+      path: "/ajustes/tv"
+    },
+    {
+      title: "Participantes de la Noticia",
+      description: "Gestionar participantes y sus categorías",
+      icon: Users,
+      path: "/ajustes/participantes"
+    },
+    {
+      title: "Instituciones y Agencias",
+      description: "Administrar instituciones, categorías y agencias",
+      icon: Building2,
+      path: "/ajustes/instituciones"
+    }
+  ];
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
           <Settings2 className="h-8 w-8" />
-          Ajustes
+          Configuración
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-2">
-          Administra tus preferencias y configuración de la cuenta
+          Administra las configuraciones globales del sistema
         </p>
       </div>
 
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {configSections.map((section) => (
+          <Card key={section.title} className="overflow-hidden hover:shadow-md transition-all">
+            <Link to={section.path} className="block h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <section.icon className="h-5 w-5" />
+                  {section.title}
+                </CardTitle>
+                <CardDescription>
+                  {section.description}
+                </CardDescription>
+              </CardHeader>
+            </Link>
+          </Card>
+        ))}
+      </div>
+
+      <Separator className="my-8" />
+
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Cuenta */}
+        {/* Sistema */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Cuenta
+              <Settings2 className="h-5 w-5" />
+              Sistema
             </CardTitle>
             <CardDescription>
-              Gestiona tu información personal y preferencias de cuenta
+              Configuraciones básicas del sistema
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -113,55 +186,6 @@ const Ajustes = () => {
                   }
                 />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Privacidad */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Privacidad y Seguridad
-            </CardTitle>
-            <CardDescription>
-              Controla tu privacidad y configura las opciones de seguridad
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="activity-log">Registro de actividad</Label>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  Mantén un registro de la actividad de tu cuenta
-                </span>
-                <Switch
-                  id="activity-log"
-                  onCheckedChange={(checked) => 
-                    handleSettingChange("Registro de actividad", checked)
-                  }
-                />
-              </div>
-            </div>
-            <Separator />
-            <div className="space-y-2">
-              <Label htmlFor="data-sharing">Compartir datos de uso</Label>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  Ayúdanos a mejorar compartiendo datos de uso anónimos
-                </span>
-                <Switch
-                  id="data-sharing"
-                  onCheckedChange={(checked) => 
-                    handleSettingChange("Compartir datos de uso", checked)
-                  }
-                />
-              </div>
-            </div>
-            <div className="pt-4">
-              <Button variant="destructive">
-                Eliminar cuenta
-              </Button>
             </div>
           </CardContent>
         </Card>
