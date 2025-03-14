@@ -1,201 +1,208 @@
 
 import { useState, useEffect } from "react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
-import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "sonner";
-import { FileDown, Users } from "lucide-react";
-
-// Import our components
-import { ClientForm } from "@/components/settings/clients/ClientForm";
 import { ClientsTable } from "@/components/settings/clients/ClientsTable";
+import { ClientForm } from "@/components/settings/clients/ClientForm";
 import { ClientFilter } from "@/components/settings/clients/ClientFilter";
-import { ClientLoadingState } from "@/components/settings/clients/ClientLoadingState";
 import { ClientEmptyState } from "@/components/settings/clients/ClientEmptyState";
-
-// Import the service
-import { 
-  Client, 
-  fetchClients,
-  addClient,
-  updateClient,
-  deleteClient
-} from "@/services/clients/clientService";
+import { ClientLoadingState } from "@/components/settings/clients/ClientLoadingState";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchClients, addClient, updateClient, deleteClient } from "@/services/clients/clientService";
 
 export default function ClientsSettings() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sortField, setSortField] = useState<keyof Client>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [filterCategory, setFilterCategory] = useState<string>('');
-  const [showFilter, setShowFilter] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editFormData, setEditFormData] = useState<Client | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingClient, setEditingClient] = useState<any>(null);
+  const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string>("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  useEffect(() => {
-    loadClients();
-  }, [sortField, sortOrder, filterCategory]);
+  const queryClient = useQueryClient();
 
-  const loadClients = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchClients(sortField, sortOrder, filterCategory);
-      setClients(data);
-    } catch (error) {
-      console.error('Error loading clients:', error);
-      toast.error('Error al cargar los clientes');
-    } finally {
-      setLoading(false);
+  // Fetch clients
+  const { data: clients, isLoading, error } = useQuery({
+    queryKey: ["clients"],
+    queryFn: fetchClients
+  });
+
+  // Mutations
+  const addMutation = useMutation({
+    mutationFn: addClient,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      toast.success("Cliente agregado correctamente");
+      setShowForm(false);
+    },
+    onError: (error) => {
+      toast.error(`Error al agregar cliente: ${error.message}`);
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateClient,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      toast.success("Cliente actualizado correctamente");
+      setShowForm(false);
+      setEditingClient(null);
+    },
+    onError: (error) => {
+      toast.error(`Error al actualizar cliente: ${error.message}`);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteClient,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      toast.success("Cliente eliminado correctamente");
+    },
+    onError: (error) => {
+      toast.error(`Error al eliminar cliente: ${error.message}`);
+    }
+  });
+
+  // Handlers
+  const handleAddClient = (client: any) => {
+    addMutation.mutate(client);
+  };
+
+  const handleUpdateClient = (client: any) => {
+    updateMutation.mutate(client);
+  };
+
+  const handleDeleteClient = (id: string) => {
+    deleteMutation.mutate(id);
+  };
+
+  const handleEdit = (client: any) => {
+    setEditingClient(client);
+    setShowForm(true);
+  };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
     }
   };
 
-  const handleSort = (field: keyof Client) => {
-    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    setSortField(field);
+  const cancelForm = () => {
+    setShowForm(false);
+    setEditingClient(null);
   };
 
-  const toggleFilter = () => {
-    setShowFilter(!showFilter);
-    if (showFilter) {
-      setFilterCategory('');
-    }
-  };
+  // Filter and sort clients
+  const filteredClients = clients
+    ? clients
+        .filter(client => {
+          // Category filter
+          if (filterCategory && client.category !== filterCategory) {
+            return false;
+          }
+          
+          // Search filter
+          if (searchTerm && !client.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+            return false;
+          }
+          
+          return true;
+        })
+        .sort((a, b) => {
+          // Sorting
+          const fieldA = a[sortField]?.toLowerCase?.() || "";
+          const fieldB = b[sortField]?.toLowerCase?.() || "";
+          
+          if (sortOrder === "asc") {
+            return fieldA.localeCompare(fieldB);
+          } else {
+            return fieldB.localeCompare(fieldA);
+          }
+        })
+    : [];
 
-  const handleFilterChange = (category: string) => {
-    setFilterCategory(category);
-  };
-
-  const toggleAddForm = () => {
-    setShowAddForm(!showAddForm);
-  };
-
-  const handleAddClient = async (formData: { name: string; category: string; subcategory: string; keywords: string[] }) => {
-    try {
-      await addClient({
-        name: formData.name,
-        category: formData.category,
-        subcategory: formData.subcategory || null,
-        keywords: formData.keywords || null
-      });
-      toast.success('Cliente añadido correctamente');
-      setShowAddForm(false);
-      loadClients();
-    } catch (error) {
-      console.error('Error adding client:', error);
-      toast.error('Error al añadir el cliente');
-    }
-  };
-
-  const handleEditClick = (client: Client) => {
-    setEditingId(client.id);
-    setEditFormData(client);
-  };
-
-  const handleEditFormChange = (updatedClient: Client) => {
-    setEditFormData(updatedClient);
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditFormData(null);
-  };
-
-  const saveEditedClient = async () => {
-    if (!editFormData) return;
-
-    try {
-      await updateClient(editFormData);
-      toast.success('Cliente actualizado correctamente');
-      setEditingId(null);
-      setEditFormData(null);
-      loadClients();
-    } catch (error) {
-      console.error('Error updating client:', error);
-      toast.error('Error al actualizar el cliente');
-    }
-  };
-
-  const handleDeleteClient = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este cliente?')) return;
-
-    try {
-      await deleteClient(id);
-      toast.success('Cliente eliminado correctamente');
-      loadClients();
-    } catch (error) {
-      console.error('Error deleting client:', error);
-      toast.error('Error al eliminar el cliente');
-    }
-  };
+  // Get unique categories for filter
+  const categories = clients
+    ? [...new Set(clients.map(client => client.category))]
+    : [];
 
   return (
     <SettingsLayout
       title="Clientes"
-      description="Administra los clientes disponibles en el sistema"
+      description="Administra los clientes del sistema"
     >
       <CardHeader>
-        <CardTitle className="flex justify-between items-center">
-          <span className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Clientes
-          </span>
-          <div className="flex gap-2">
-            <ClientFilter 
-              filterCategory={filterCategory}
-              onFilterChange={handleFilterChange}
-              showFilter={showFilter}
-              onToggleFilter={toggleFilter}
-            />
-            <Button 
-              size="sm"
-              onClick={toggleAddForm}
-            >
-              {showAddForm ? 'Cancelar' : 'Añadir Cliente'}
-            </Button>
-          </div>
-        </CardTitle>
+        <CardTitle>Gestión de Clientes</CardTitle>
         <CardDescription>
-          Lista de clientes disponibles en el sistema
+          Administra los clientes y sus palabras clave para el monitoreo de medios
         </CardDescription>
       </CardHeader>
-
-      <CardContent>
-        {showAddForm && (
+      
+      <CardContent className="space-y-6">
+        {/* Controls */}
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <ClientFilter 
+            categories={categories} 
+            selectedCategory={filterCategory} 
+            onCategoryChange={setFilterCategory}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+          />
+          
+          <Button 
+            onClick={() => setShowForm(true)} 
+            className="sm:w-auto"
+            disabled={showForm}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Cliente
+          </Button>
+        </div>
+        
+        {/* Form */}
+        {showForm && (
           <ClientForm 
-            onSubmit={handleAddClient}
-            onCancel={toggleAddForm}
+            client={editingClient} 
+            onSubmit={editingClient ? handleUpdateClient : handleAddClient} 
+            onCancel={cancelForm}
           />
         )}
-
-        {loading ? (
+        
+        {/* Table */}
+        {isLoading ? (
           <ClientLoadingState />
-        ) : clients.length === 0 ? (
-          <ClientEmptyState hasFilter={!!filterCategory} />
-        ) : (
+        ) : error ? (
+          <div className="text-center py-8 text-red-500">
+            Error al cargar clientes: {error.message}
+          </div>
+        ) : filteredClients.length > 0 ? (
           <ClientsTable 
-            clients={clients}
+            clients={filteredClients} 
+            onEdit={handleEdit} 
+            onDelete={handleDeleteClient}
             sortField={sortField}
             sortOrder={sortOrder}
             onSort={handleSort}
-            onEdit={handleEditClick}
-            onDelete={handleDeleteClient}
-            editingId={editingId}
-            editFormData={editFormData}
-            onEditFormChange={handleEditFormChange}
-            onSaveEdit={saveEditedClient}
-            onCancelEdit={handleCancelEdit}
-            loading={loading}
           />
+        ) : clients?.length > 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No se encontraron clientes con los filtros actuales.
+          </div>
+        ) : (
+          <ClientEmptyState onAddClient={() => setShowForm(true)} />
         )}
       </CardContent>
-      <CardFooter className="flex justify-between border-t pt-6">
+
+      <CardFooter>
         <p className="text-xs text-muted-foreground">
-          Los cambios en los clientes pueden afectar a las alertas y notificaciones del sistema
+          Los clientes se utilizan para categorizar el contenido y enviar alertas relevantes.
         </p>
-        <Button variant="outline" onClick={loadClients}>
-          Refrescar
-        </Button>
       </CardFooter>
     </SettingsLayout>
   );

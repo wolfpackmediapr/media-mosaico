@@ -29,7 +29,7 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 import { Link } from "react-router-dom";
 
 // Import settings pages
-import GeneralSettings from "./pages/configuracion/GeneralSettings";
+import { GeneralSettings, MediaSettings, ClientsSettings } from "./pages/configuracion";
 
 const queryClient = new QueryClient();
 
@@ -92,7 +92,7 @@ function App() {
                 <Route path="/ajustes/usuarios/administradores" element={<ComingSoon title="Administradores" />} />
                 <Route path="/ajustes/usuarios/permisos" element={<ComingSoon title="Permisos de Usuarios" />} />
                 
-                <Route path="/ajustes/clientes" element={<ComingSoon title="Clientes" />} />
+                <Route path="/ajustes/clientes" element={<ClientsSettings />} />
                 <Route path="/ajustes/clientes/gestion" element={<ComingSoon title="Gestión de Clientes" />} />
                 <Route path="/ajustes/clientes/permisos" element={<ComingSoon title="Permisos de Clientes" />} />
                 
