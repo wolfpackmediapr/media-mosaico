@@ -31,15 +31,15 @@ export function SettingsLayout({ children, title, description }: SettingsLayoutP
         <Breadcrumb className="mb-6">
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink as={Link} to="/">
+              <Link to="/" className="text-sm">
                 Inicio
-              </BreadcrumbLink>
+              </Link>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbLink as={Link} to="/ajustes">
+              <Link to="/ajustes" className="text-sm">
                 Ajustes
-              </BreadcrumbLink>
+              </Link>
             </BreadcrumbItem>
             {pathSegments.length > 1 && (
               <>
