@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 export interface Client {
   id?: string;
@@ -10,6 +11,16 @@ export interface Client {
   keywords?: string[] | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export function formatDate(dateString?: string): string {
+  if (!dateString) return '-';
+  try {
+    return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return dateString;
+  }
 }
 
 export async function fetchClients() {

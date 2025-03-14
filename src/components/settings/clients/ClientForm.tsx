@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Client } from "@/services/clients/clientService";
 
-interface ClientFormProps {
+export interface ClientFormProps {
+  client?: Client | null;
   onSubmit: (formData: { name: string; category: string; subcategory: string; keywords: string[] }) => void;
   onCancel: () => void;
   initialData?: {
@@ -18,12 +20,12 @@ interface ClientFormProps {
   isEditing?: boolean;
 }
 
-export function ClientForm({ onSubmit, onCancel, initialData, isEditing = false }: ClientFormProps) {
+export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing = false }: ClientFormProps) {
   const [formData, setFormData] = useState({
-    name: initialData?.name || '',
-    category: initialData?.category || '',
-    subcategory: initialData?.subcategory || '',
-    keywordsString: initialData?.keywords ? initialData.keywords.join(', ') : ''
+    name: client?.name || initialData?.name || '',
+    category: client?.category || initialData?.category || '',
+    subcategory: client?.subcategory || initialData?.subcategory || '',
+    keywordsString: client?.keywords ? client.keywords.join(', ') : initialData?.keywords ? initialData.keywords.join(', ') : ''
   });
 
   const handleChange = (field: string, value: string) => {

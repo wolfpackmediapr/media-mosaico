@@ -1,11 +1,13 @@
 
-import { Filter, Users } from "lucide-react";
+import { Plus, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-interface ClientEmptyStateProps {
-  hasFilter: boolean;
+export interface ClientEmptyStateProps {
+  hasFilter?: boolean;
+  onAddClient: () => void;
 }
 
-export function ClientEmptyState({ hasFilter }: ClientEmptyStateProps) {
+export function ClientEmptyState({ hasFilter = false, onAddClient }: ClientEmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-8 text-center">
       <div className="bg-primary-foreground p-4 rounded-full mb-4">
@@ -15,13 +17,14 @@ export function ClientEmptyState({ hasFilter }: ClientEmptyStateProps) {
       <p className="text-muted-foreground mt-2 max-w-md">
         {hasFilter 
           ? 'No se encontraron clientes con los filtros aplicados. Intente con otros criterios o elimine los filtros.'
-          : 'Aún no hay clientes registrados. Utilice el botón "Añadir Cliente" para crear el primero.'}
+          : 'Aún no hay clientes registrados. Utilice el botón "Nuevo Cliente" para crear el primero.'}
       </p>
-      {hasFilter && (
-        <div className="mt-4 flex items-center text-sm text-muted-foreground">
-          <Filter className="h-4 w-4 mr-1" />
-          <span>Filtro activo: intente con otros criterios</span>
-        </div>
+      
+      {!hasFilter && (
+        <Button onClick={onAddClient} className="mt-4">
+          <Plus className="h-4 w-4 mr-2" />
+          Nuevo Cliente
+        </Button>
       )}
     </div>
   );

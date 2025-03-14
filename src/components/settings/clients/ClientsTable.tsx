@@ -4,35 +4,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Client, formatDate } from "@/services/clients/clientService";
 import { Edit, Trash2, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { ClientForm } from "./ClientForm";
 
 interface ClientsTableProps {
   clients: Client[];
-  sortField: keyof Client;
-  sortOrder: 'asc' | 'desc';
-  onSort: (field: keyof Client) => void;
   onEdit: (client: Client) => void;
-  onDelete: (id: string) => void;
-  editingId: string | null;
-  editFormData: Client | null;
-  onEditFormChange: (client: Client) => void;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
-  loading: boolean;
+  onDelete: (id: string | undefined) => void;
+  sortField?: string;
+  sortOrder?: 'asc' | 'desc';
+  onSort?: (field: string) => void;
 }
 
 export function ClientsTable({
   clients,
-  sortField,
-  sortOrder,
-  onSort,
   onEdit,
   onDelete,
-  editingId,
-  editFormData,
-  onSaveEdit,
-  onCancelEdit,
-  loading
+  sortField = "name",
+  sortOrder = "asc",
+  onSort
 }: ClientsTableProps) {
   // Helper function to format category
   const formatCategory = (category: string): string => {
@@ -49,11 +37,11 @@ export function ClientsTable({
   };
 
   // Helper for sort button
-  const SortButton = ({ field }: { field: keyof Client }) => (
+  const SortButton = ({ field }: { field: string }) => (
     <Button
       variant="ghost"
       size="sm"
-      onClick={() => onSort(field)}
+      onClick={() => onSort && onSort(field)}
       className="ml-1 h-8 data-[state=active]:bg-accent"
       data-state={sortField === field ? 'active' : 'inactive'}
     >
@@ -85,13 +73,7 @@ export function ClientsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {loading ? (
-            <TableRow>
-              <TableCell colSpan={6} className="text-center py-8">
-                Cargando clientes...
-              </TableCell>
-            </TableRow>
-          ) : clients.length === 0 ? (
+          {clients.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="text-center py-8">
                 No se encontraron clientes
@@ -99,60 +81,47 @@ export function ClientsTable({
             </TableRow>
           ) : (
             clients.map((client) => (
-              editingId === client.id && editFormData ? (
-                <TableRow key={client.id}>
-                  <TableCell colSpan={6} className="p-0">
-                    <ClientForm
-                      onSubmit={() => onSaveEdit()}
-                      onCancel={onCancelEdit}
-                      initialData={editFormData}
-                      isEditing={true}
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                <TableRow key={client.id}>
-                  <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{formatCategory(client.category)}</Badge>
-                  </TableCell>
-                  <TableCell>{client.subcategory || '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1 max-w-[300px]">
-                      {client.keywords && client.keywords.length > 0 ? (
-                        client.keywords.map((keyword, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {keyword}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-muted-foreground text-sm">Sin palabras clave</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{formatDate(client.created_at)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEdit(client)}
-                      className="mr-1"
-                    >
-                      <Edit className="h-4 w-4" />
-                      <span className="sr-only">Editar</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDelete(client.id)}
-                      className="text-destructive hover:text-destructive/90"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Eliminar</span>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )
+              <TableRow key={client.id}>
+                <TableCell className="font-medium">{client.name}</TableCell>
+                <TableCell>
+                  <Badge variant="outline">{formatCategory(client.category)}</Badge>
+                </TableCell>
+                <TableCell>{client.subcategory || '-'}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1 max-w-[300px]">
+                    {client.keywords && client.keywords.length > 0 ? (
+                      client.keywords.map((keyword, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">
+                          {keyword}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Sin palabras clave</span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>{formatDate(client.created_at)}</TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEdit(client)}
+                    className="mr-1"
+                  >
+                    <Edit className="h-4 w-4" />
+                    <span className="sr-only">Editar</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => client.id && onDelete(client.id)}
+                    className="text-destructive hover:text-destructive/90"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Eliminar</span>
+                  </Button>
+                </TableCell>
+              </TableRow>
             ))
           )}
         </TableBody>

@@ -11,11 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchClients, addClient, updateClient, deleteClient } from "@/services/clients/clientService";
+import { Client, fetchClients, addClient, updateClient, deleteClient } from "@/services/clients/clientService";
 
 export default function ClientsSettings() {
   const [showForm, setShowForm] = useState(false);
-  const [editingClient, setEditingClient] = useState<any>(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string>("name");
@@ -79,7 +79,7 @@ export default function ClientsSettings() {
     deleteMutation.mutate(id);
   };
 
-  const handleEdit = (client: any) => {
+  const handleEdit = (client: Client) => {
     setEditingClient(client);
     setShowForm(true);
   };
@@ -115,9 +115,9 @@ export default function ClientsSettings() {
           return true;
         })
         .sort((a, b) => {
-          // Sorting
-          const fieldA = a[sortField]?.toLowerCase?.() || "";
-          const fieldB = b[sortField]?.toLowerCase?.() || "";
+          // Ensure the properties exist on the object
+          const fieldA = a[sortField as keyof Client]?.toString().toLowerCase() || "";
+          const fieldB = b[sortField as keyof Client]?.toString().toLowerCase() || "";
           
           if (sortOrder === "asc") {
             return fieldA.localeCompare(fieldB);
@@ -131,6 +131,9 @@ export default function ClientsSettings() {
   const categories = clients
     ? [...new Set(clients.map(client => client.category))]
     : [];
+
+  // Check if we have filters applied
+  const hasFilters = !!filterCategory || !!searchTerm;
 
   return (
     <SettingsLayout
@@ -171,6 +174,7 @@ export default function ClientsSettings() {
             client={editingClient} 
             onSubmit={editingClient ? handleUpdateClient : handleAddClient} 
             onCancel={cancelForm}
+            isEditing={!!editingClient}
           />
         )}
         
@@ -179,7 +183,7 @@ export default function ClientsSettings() {
           <ClientLoadingState />
         ) : error ? (
           <div className="text-center py-8 text-red-500">
-            Error al cargar clientes: {error.message}
+            Error al cargar clientes: {(error as Error).message}
           </div>
         ) : filteredClients.length > 0 ? (
           <ClientsTable 
@@ -195,7 +199,10 @@ export default function ClientsSettings() {
             No se encontraron clientes con los filtros actuales.
           </div>
         ) : (
-          <ClientEmptyState onAddClient={() => setShowForm(true)} />
+          <ClientEmptyState 
+            hasFilter={hasFilters}
+            onAddClient={() => setShowForm(true)} 
+          />
         )}
       </CardContent>
 
