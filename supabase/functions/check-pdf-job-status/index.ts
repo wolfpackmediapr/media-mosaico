@@ -7,7 +7,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // Handle CORS preflight requests - IMMEDIATELY to avoid function failing before handling OPTIONS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -17,10 +17,7 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     // Parse the request JSON
-    const requestData = await req.json();
-    const { jobId } = requestData;
-    
-    console.log("Checking status for job:", jobId);
+    const { jobId } = await req.json();
     
     if (!jobId) {
       return new Response(JSON.stringify({ error: 'Missing jobId parameter' }), { 
@@ -29,6 +26,8 @@ serve(async (req) => {
       });
     }
     
+    console.log(`Checking status for job ID: ${jobId}`);
+    
     // Get the job details
     const { data: job, error: jobError } = await supabase
       .from('pdf_processing_jobs')
@@ -36,7 +35,7 @@ serve(async (req) => {
       .eq('id', jobId)
       .single();
     
-    if (jobError || !job) {
+    if (jobError) {
       console.error("Error fetching job:", jobError);
       return new Response(JSON.stringify({ error: 'Job not found' }), { 
         status: 404,
@@ -44,23 +43,38 @@ serve(async (req) => {
       });
     }
     
-    console.log("Found job with status:", job.status);
-    
-    // If job is completed, get the clippings
+    // If job is completed, fetch the related clippings
     let clippings = [];
     if (job.status === 'completed') {
-      console.log("Job is completed, fetching clippings");
       const { data: clippingsData, error: clippingsError } = await supabase
         .from('press_clippings')
         .select('*')
-        .eq('publication_name', job.publication_name)
+        .eq('file_path', job.file_path)
         .order('page_number', { ascending: true });
       
       if (!clippingsError && clippingsData) {
-        console.log(`Found ${clippingsData.length} clippings`);
         clippings = clippingsData;
-      } else if (clippingsError) {
-        console.error("Error fetching clippings:", clippingsError);
+      }
+      
+      // If no clippings found but job is completed, fetch the most recent clippings for this user
+      if (clippings.length === 0) {
+        const { data: recentClippings, error: recentError } = await supabase
+          .from('press_clippings')
+          .select('*')
+          .eq('user_id', job.user_id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        
+        if (!recentError && recentClippings) {
+          // Filter clippings that match the publication name and were created recently
+          const maxAge = new Date();
+          maxAge.setMinutes(maxAge.getMinutes() - 15); // 15 minutes
+          
+          clippings = recentClippings.filter(clip => 
+            clip.publication_name === job.publication_name && 
+            new Date(clip.created_at) > maxAge
+          );
+        }
       }
     }
     
@@ -68,12 +82,13 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         job,
-        clippings: job.status === 'completed' ? clippings : []
+        clippings: clippings.length > 0 ? clippings : [],
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error checking job status:', error);
+    console.error('Error checking PDF job status:', error);
+    
     return new Response(
       JSON.stringify({ error: error.message || 'Unknown error occurred' }),
       { 
