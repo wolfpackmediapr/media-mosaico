@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { UserIcon, Plus } from "lucide-react";
+import { FilterX, UserPlus } from "lucide-react";
 
 interface UserEmptyStateProps {
   hasFilter: boolean;
@@ -9,26 +9,28 @@ interface UserEmptyStateProps {
 
 export function UserEmptyState({ hasFilter, onAddUser }: UserEmptyStateProps) {
   return (
-    <div className="text-center py-10 border rounded-lg bg-muted/10">
-      <div className="flex justify-center mb-4">
-        <UserIcon className="h-12 w-12 text-muted-foreground" />
-      </div>
-      <h3 className="text-lg font-medium">
-        {hasFilter
-          ? "No se encontraron usuarios con los filtros actuales"
-          : "No hay usuarios registrados"}
-      </h3>
-      <p className="text-muted-foreground mt-2">
-        {hasFilter
-          ? "Prueba cambiando los filtros o busca otro término"
-          : "Comienza agregando un nuevo usuario al sistema"}
-      </p>
-      <Button 
-        onClick={onAddUser} 
-        className="mt-4"
-      >
-        <Plus className="h-4 w-4 mr-2" />
-        {hasFilter ? "Agregar usuario" : "Agregar primer usuario"}
+    <div className="flex flex-col items-center justify-center p-8 text-center">
+      {hasFilter ? (
+        <>
+          <FilterX className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium">No se encontraron resultados</h3>
+          <p className="text-muted-foreground mt-2 mb-4">
+            No hay usuarios que coincidan con los filtros aplicados.
+          </p>
+        </>
+      ) : (
+        <>
+          <UserPlus className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium">No hay usuarios</h3>
+          <p className="text-muted-foreground mt-2 mb-4">
+            Comienza agregando tu primer usuario al sistema.
+          </p>
+        </>
+      )}
+      
+      <Button onClick={onAddUser}>
+        <UserPlus className="h-4 w-4 mr-2" />
+        {hasFilter ? "Limpiar filtros" : "Agregar usuario"}
       </Button>
     </div>
   );
