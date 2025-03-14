@@ -15,7 +15,8 @@ const PrensaEscrita = () => {
     processFile,
     setClippings,
     cancelProcessing,
-    processingError
+    processingError,
+    resetProcessing
   } = usePdfProcessing();
   
   const { activeTab, setActiveTab } = useTabState("upload");
@@ -36,8 +37,14 @@ const PrensaEscrita = () => {
         description: processingError,
         variant: "destructive",
       });
+      
+      // If we were in the middle of uploading, go back to upload tab
+      if (isUploading) {
+        resetProcessing();
+        setActiveTab("upload");
+      }
     }
-  }, [processingError, toast]);
+  }, [processingError, toast, isUploading, resetProcessing, setActiveTab]);
 
   return (
     <div className="container mx-auto p-4 space-y-6">
