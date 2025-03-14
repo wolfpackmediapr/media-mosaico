@@ -50,6 +50,7 @@ export default function MediaSettings() {
   });
   
   const [editFormData, setEditFormData] = useState<MediaOutlet | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   // Fetch media outlets from Supabase
   const fetchMediaOutlets = async () => {
@@ -95,6 +96,7 @@ export default function MediaSettings() {
       if (error) throw error;
       toast.success('Medio añadido correctamente');
       resetAddForm();
+      setShowAddForm(false);
       fetchMediaOutlets();
     } catch (error) {
       console.error('Error adding media outlet:', error);
@@ -181,6 +183,14 @@ export default function MediaSettings() {
     }
   };
 
+  // Toggle add form visibility
+  const toggleAddForm = () => {
+    setShowAddForm(!showAddForm);
+    if (!showAddForm) {
+      resetAddForm();
+    }
+  };
+
   // Helper function to get type label
   const getTypeLabel = (type: string) => {
     switch (type) {
@@ -206,15 +216,23 @@ export default function MediaSettings() {
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
           <span>Medios de Comunicación</span>
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={toggleFilter} 
-            className="flex items-center gap-1"
-          >
-            {showFilter ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
-            <span>{showFilter ? 'Limpiar filtro' : 'Filtrar'}</span>
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={toggleFilter} 
+              className="flex items-center gap-1"
+            >
+              {showFilter ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
+              <span>{showFilter ? 'Limpiar filtro' : 'Filtrar'}</span>
+            </Button>
+            <Button 
+              size="sm"
+              onClick={toggleAddForm}
+            >
+              {showAddForm ? 'Cancelar' : 'Añadir Medio'}
+            </Button>
+          </div>
         </CardTitle>
         <CardDescription>
           Lista de medios de comunicación disponibles en el sistema
@@ -251,57 +269,79 @@ export default function MediaSettings() {
           </div>
         )}
 
-        {/* Add new media form */}
-        <form onSubmit={addMediaOutlet} className="mb-6 p-4 border rounded-md">
-          <h3 className="text-lg font-medium mb-4">Añadir nuevo medio</h3>
-          <div className="grid gap-4 sm:grid-cols-4">
-            <div className="sm:col-span-1">
-              <Label htmlFor="type">Tipo</Label>
-              <Select 
-                value={addFormData.type} 
-                onValueChange={(value) => setAddFormData({...addFormData, type: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tv">Televisión</SelectItem>
-                  <SelectItem value="radio">Radio</SelectItem>
-                  <SelectItem value="prensa">Prensa Digital</SelectItem>
-                  <SelectItem value="prensa_escrita">Prensa Escrita</SelectItem>
-                  <SelectItem value="redes_sociales">Redes Sociales</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* Add new media form (dialog style) */}
+        {showAddForm && (
+          <div className="mb-6 p-4 border rounded-md bg-slate-100">
+            <div className="mb-4 bg-slate-400 text-white py-2 px-3">
+              <h3 className="text-lg font-bold">MEDIOS</h3>
             </div>
             
-            <div className="sm:col-span-1">
-              <Label htmlFor="name">Nombre</Label>
-              <Input
-                id="name"
-                value={addFormData.name}
-                onChange={(e) => setAddFormData({...addFormData, name: e.target.value})}
-                placeholder="Nombre del medio"
-                required
-              />
-            </div>
-            
-            <div className="sm:col-span-1">
-              <Label htmlFor="folder">Carpeta</Label>
-              <Input
-                id="folder"
-                value={addFormData.folder}
-                onChange={(e) => setAddFormData({...addFormData, folder: e.target.value})}
-                placeholder="Opcional"
-              />
-            </div>
-            
-            <div className="sm:col-span-1 flex items-end">
-              <Button type="submit" disabled={!addFormData.name} className="w-full">
-                Añadir medio
-              </Button>
-            </div>
+            <form onSubmit={addMediaOutlet} className="space-y-4">
+              <div className="grid grid-cols-[150px_1fr] items-center">
+                <div className="bg-slate-300 py-2 px-4 font-medium">
+                  NOMBRE
+                </div>
+                <div className="px-4">
+                  <Input
+                    id="name"
+                    value={addFormData.name}
+                    onChange={(e) => setAddFormData({...addFormData, name: e.target.value})}
+                    placeholder="Nombre del medio"
+                    required
+                    className="w-full"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-[150px_1fr] items-center">
+                <div className="bg-slate-300 py-2 px-4 font-medium">
+                  TIPO
+                </div>
+                <div className="px-4">
+                  <Select 
+                    value={addFormData.type} 
+                    onValueChange={(value) => setAddFormData({...addFormData, type: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Por favor Seleccione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tv">TV</SelectItem>
+                      <SelectItem value="radio">Radio</SelectItem>
+                      <SelectItem value="prensa">Prensa</SelectItem>
+                      <SelectItem value="prensa_escrita">Prensa Escrita</SelectItem>
+                      <SelectItem value="redes_sociales">Redes Sociales</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-[150px_1fr] items-center">
+                <div className="bg-slate-300 py-2 px-4 font-medium">
+                  NOMBRE CARPETA
+                </div>
+                <div className="px-4">
+                  <Input
+                    id="folder"
+                    value={addFormData.folder}
+                    onChange={(e) => setAddFormData({...addFormData, folder: e.target.value})}
+                    placeholder="Nombre de la carpeta (opcional)"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-2 mt-4">
+                <Button type="submit" variant="default" className="bg-green-600 hover:bg-green-700">
+                  <Check className="h-4 w-4 mr-1" /> Aceptar
+                </Button>
+                <Button type="button" variant="destructive" onClick={toggleAddForm}>
+                  <X className="h-4 w-4 mr-1" /> Cancelar
+                </Button>
+              </div>
+            </form>
           </div>
-        </form>
+        )}
 
         {/* Media outlets table */}
         {loading ? (
