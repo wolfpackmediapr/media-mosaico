@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileBarChart } from "lucide-react";
@@ -7,6 +6,7 @@ import { toast } from "sonner";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
 import RadioAnalysis from "./RadioAnalysis";
+import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 
 interface RadioTranscriptionSlotProps {
   isProcessing: boolean;
@@ -19,6 +19,7 @@ interface RadioTranscriptionSlotProps {
     categoria?: string;
   };
   onTranscriptionChange: (text: string) => void;
+  onSegmentsReceived?: (segments: RadioNewsSegment[]) => void;
 }
 
 const RadioTranscriptionSlot = ({
@@ -27,6 +28,7 @@ const RadioTranscriptionSlot = ({
   transcriptionId,
   metadata,
   onTranscriptionChange,
+  onSegmentsReceived,
 }: RadioTranscriptionSlotProps) => {
   const handleGenerateReport = async () => {
     try {

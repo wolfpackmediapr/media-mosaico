@@ -1,7 +1,7 @@
-
 import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
+import RadioNewsSegmentsContainer, { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -22,9 +22,27 @@ const RadioContainer = () => {
     horario?: string;
     categoria?: string;
   }>();
+  const [newsSegments, setNewsSegments] = useState<RadioNewsSegment[]>([]);
 
   const handleTranscriptionChange = (newText: string) => {
     setTranscriptionText(newText);
+  };
+
+  const handleSeekToTimestamp = (timestamp: number) => {
+    const audioElements = document.querySelectorAll('audio');
+    if (audioElements.length > 0) {
+      const audioElement = audioElements[0];
+      audioElement.currentTime = timestamp / 1000;
+      audioElement.play();
+    } else {
+      console.warn('No audio element found to seek');
+    }
+  };
+
+  const handleSegmentsReceived = (segments: RadioNewsSegment[]) => {
+    if (segments && segments.length > 0) {
+      setNewsSegments(segments);
+    }
   };
 
   useEffect(() => {
@@ -64,11 +82,20 @@ const RadioContainer = () => {
             transcriptionId={transcriptionId}
             metadata={metadata}
             onTranscriptionChange={handleTranscriptionChange}
+            onSegmentsReceived={handleSegmentsReceived}
           />
         </div>
       </div>
 
-      {/* Typeform Embed for Radio */}
+      {transcriptionText && (
+        <RadioNewsSegmentsContainer
+          segments={newsSegments}
+          onSegmentsChange={setNewsSegments}
+          onSeek={handleSeekToTimestamp}
+          isProcessing={isProcessing}
+        />
+      )}
+
       <div className="mt-8 p-6 bg-muted rounded-lg w-full">
         <h2 className="text-2xl font-bold mb-4">Alerta Radio</h2>
         <div data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG" className="h-[500px] md:h-[600px]"></div>
