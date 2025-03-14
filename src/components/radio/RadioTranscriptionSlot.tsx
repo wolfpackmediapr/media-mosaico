@@ -1,3 +1,4 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileBarChart } from "lucide-react";
@@ -54,6 +55,55 @@ const RadioTranscriptionSlot = ({
     }
   };
 
+  const generateRadioSegments = (text: string) => {
+    if (!text || text.length < 100 || !onSegmentsReceived) return;
+    
+    // Simple segmentation logic - split by paragraphs and create segments
+    const paragraphs = text.split(/\n\s*\n/);
+    const segments: RadioNewsSegment[] = paragraphs
+      .filter(p => p.trim().length > 50)
+      .map((paragraph, index) => {
+        // Determine a headline from the first sentence or first 50 chars
+        const firstSentence = paragraph.split(/[.!?]/, 1)[0];
+        const headline = firstSentence.length > 50 
+          ? firstSentence.substring(0, 47) + '...'
+          : firstSentence;
+          
+        // Extract potential keywords
+        const words = paragraph.toLowerCase()
+          .replace(/[^\w\s]/g, '')
+          .split(/\s+/)
+          .filter(word => word.length > 3);
+          
+        const wordFrequency: Record<string, number> = {};
+        words.forEach(word => {
+          wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+        });
+        
+        const keywords = Object.entries(wordFrequency)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([word]) => word);
+          
+        return {
+          headline: headline || `Segmento ${index + 1}`,
+          text: paragraph,
+          start: index * 60000, // Simulate different timestamps (60s apart)
+          end: (index + 1) * 60000,
+          keywords
+        };
+      });
+      
+    if (segments.length > 0) {
+      onSegmentsReceived(segments);
+    }
+  };
+
+  // Generate segments when transcription text changes and is not empty
+  if (transcriptionText && transcriptionText.length > 100 && onSegmentsReceived) {
+    generateRadioSegments(transcriptionText);
+  }
+
   return (
     <div className="space-y-4 md:space-y-6 h-full w-full">
       <Card className="overflow-hidden w-full">
@@ -79,7 +129,10 @@ const RadioTranscriptionSlot = ({
         </CardContent>
       </Card>
 
-      <RadioAnalysis transcriptionText={transcriptionText} />
+      <RadioAnalysis 
+        transcriptionText={transcriptionText} 
+        onSegmentsGenerated={onSegmentsReceived}
+      />
     </div>
   );
 };
