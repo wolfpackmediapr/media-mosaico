@@ -28,8 +28,7 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 import { Link } from "react-router-dom";
 
 // Import settings pages
-import { GeneralSettings, MediaSettings, ClientsSettings } from "./pages/configuracion";
-import { UsersSettings } from "./pages/configuracion";
+import { GeneralSettings, MediaSettings, ClientsSettings, UsersSettings } from "./pages/configuracion";
 
 const queryClient = new QueryClient();
 
@@ -119,7 +118,6 @@ function App() {
                 <Route path="/ajustes/instituciones/categorias" element={<ComingSoon title="Categorías de Instituciones" />} />
                 <Route path="/ajustes/instituciones/agencias" element={<ComingSoon title="Agencias" />} />
                 
-                {/* Add redirect from old route to new route */}
                 <Route path="/alertas" element={<Navigate to="/notificaciones" replace />} />
               </Route>
             </Routes>
@@ -155,4 +153,3 @@ function ComingSoon({ title }: { title: string }) {
 }
 
 export default App;
-

@@ -37,7 +37,7 @@ export function UserFilter({
       <div className="w-full md:w-1/4">
         <Select
           value={selectedRole || ""}
-          onValueChange={(value) => onRoleChange(value || null)}
+          onValueChange={(value) => onRoleChange(value === "" ? null : value)}
         >
           <SelectTrigger>
             <SelectValue placeholder="Filtrar por rol" />
