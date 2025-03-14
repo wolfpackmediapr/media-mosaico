@@ -41,9 +41,7 @@ const RadioContainer = () => {
   };
 
   const handleSegmentsReceived = (segments: RadioNewsSegment[]) => {
-    if (segments && segments.length > 0) {
-      setNewsSegments(segments);
-    }
+    setNewsSegments(segments);
   };
 
   useEffect(() => {
@@ -88,7 +86,7 @@ const RadioContainer = () => {
         </div>
       </div>
 
-      {transcriptionText && (
+      {newsSegments.length > 0 && (
         <RadioNewsSegmentsContainer
           segments={newsSegments}
           onSegmentsChange={setNewsSegments}

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { FileBarChart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useEffect } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
 import RadioAnalysis from "./RadioAnalysis";
@@ -55,6 +56,13 @@ const RadioTranscriptionSlot = ({
     }
   };
 
+  // Use useEffect to generate segments when transcription text changes
+  useEffect(() => {
+    if (transcriptionText && transcriptionText.length > 100 && onSegmentsReceived) {
+      generateRadioSegments(transcriptionText);
+    }
+  }, [transcriptionText, onSegmentsReceived]);
+
   const generateRadioSegments = (text: string) => {
     if (!text || text.length < 100 || !onSegmentsReceived) return;
     
@@ -98,11 +106,6 @@ const RadioTranscriptionSlot = ({
       onSegmentsReceived(segments);
     }
   };
-
-  // Generate segments when transcription text changes and is not empty
-  if (transcriptionText && transcriptionText.length > 100 && onSegmentsReceived) {
-    generateRadioSegments(transcriptionText);
-  }
 
   return (
     <div className="space-y-4 md:space-y-6 h-full w-full">
