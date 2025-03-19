@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { NewsArticle, FeedSource } from "@/types/prensa";
 import { 
@@ -21,6 +21,10 @@ export const useNewsFeed = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
+  
+  // Use refs to avoid unnecessary rerendering in callbacks
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
 
   const fetchFeedSources = useCallback(async () => {
     try {
@@ -28,9 +32,9 @@ export const useNewsFeed = () => {
       const typedSources = transformSourcesToFeedSources(sourcesData);
       setFeedSources(typedSources);
     } catch (error) {
-      handleNewsFeedError(error, "sources", toast);
+      handleNewsFeedError(error, "sources", toastRef.current);
     }
-  }, [toast]);
+  }, []);
 
   const fetchArticles = useCallback(async (page: number, searchTerm: string = '', sourceId: string = '') => {
     try {
@@ -52,13 +56,13 @@ export const useNewsFeed = () => {
       console.log('Processed articles:', convertedArticles);
       setArticles(convertedArticles);
     } catch (error) {
-      handleNewsFeedError(error, "articles", toast);
+      handleNewsFeedError(error, "articles", toastRef.current);
       // Set empty articles in case of error
       setArticles([]);
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   const refreshFeed = useCallback(async () => {
     setIsRefreshing(true);
@@ -73,16 +77,16 @@ export const useNewsFeed = () => {
         fetchFeedSources()
       ]);
 
-      toast({
+      toastRef.current({
         title: "¡Éxito!",
         description: "Feed de noticias actualizado correctamente",
       });
     } catch (error) {
-      handleNewsFeedError(error, "refresh", toast);
+      handleNewsFeedError(error, "refresh", toastRef.current);
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchArticles, fetchFeedSources, toast]);
+  }, [fetchArticles, fetchFeedSources]);
 
   return {
     articles,

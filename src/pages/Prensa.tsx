@@ -24,16 +24,25 @@ const Prensa = () => {
   const [selectedOutlet, setSelectedOutlet] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Single useEffect for initial data loading and filter changes
   useEffect(() => {
-    // Reset to first page when search term or outlet filter changes
-    setCurrentPage(1);
-    fetchArticles(1, searchTerm, selectedOutlet);
-    fetchFeedSources();
-  }, [searchTerm, selectedOutlet, fetchArticles, fetchFeedSources]);
+    const loadData = async () => {
+      // Load feed sources only once on component mount
+      if (feedSources.length === 0) {
+        await fetchFeedSources();
+      }
+      
+      // When filters or page changes, fetch articles
+      await fetchArticles(currentPage, searchTerm, selectedOutlet);
+    };
+    
+    loadData();
+  }, [currentPage, searchTerm, selectedOutlet, fetchArticles, fetchFeedSources, feedSources.length]);
 
+  // Reset to page 1 when search term or outlet filter changes
   useEffect(() => {
-    fetchArticles(currentPage, searchTerm, selectedOutlet);
-  }, [currentPage, searchTerm, selectedOutlet, fetchArticles]);
+    setCurrentPage(1);
+  }, [searchTerm, selectedOutlet]);
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
