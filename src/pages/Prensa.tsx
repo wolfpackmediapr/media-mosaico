@@ -21,23 +21,21 @@ const Prensa = () => {
   } = useNewsFeed();
   
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedOutlet, setSelectedOutlet] = useState("");
+  const [selectedOutlet, setSelectedOutlet] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Single useEffect for initial data loading and filter changes
+  // Load feed sources on mount
   useEffect(() => {
-    const loadData = async () => {
-      // Load feed sources only once on component mount
-      if (feedSources.length === 0) {
-        await fetchFeedSources();
-      }
-      
-      // When filters or page changes, fetch articles
-      await fetchArticles(currentPage, searchTerm, selectedOutlet);
-    };
-    
-    loadData();
-  }, [currentPage, searchTerm, selectedOutlet, fetchArticles, fetchFeedSources, feedSources.length]);
+    if (feedSources.length === 0) {
+      fetchFeedSources();
+    }
+  }, [feedSources.length, fetchFeedSources]);
+
+  // Fetch articles when filters or page changes
+  useEffect(() => {
+    const sourceId = selectedOutlet === "all" ? "" : selectedOutlet;
+    fetchArticles(currentPage, searchTerm, sourceId);
+  }, [currentPage, searchTerm, selectedOutlet, fetchArticles]);
 
   // Reset to page 1 when search term or outlet filter changes
   useEffect(() => {
@@ -94,7 +92,7 @@ const Prensa = () => {
         totalPages={totalPages}
         onClearSearch={() => {
           setSearchTerm("");
-          setSelectedOutlet("");
+          setSelectedOutlet("all");
         }}
         onPageChange={handlePageChange}
       />

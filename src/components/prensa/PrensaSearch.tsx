@@ -45,7 +45,7 @@ const PrensaSearch = ({
               <SelectValue placeholder="Todos los medios" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos los medios</SelectItem>
+              <SelectItem value="all">Todos los medios</SelectItem>
               {outlets.map((outlet) => (
                 <SelectItem key={outlet.id} value={outlet.id}>
                   {outlet.name}
