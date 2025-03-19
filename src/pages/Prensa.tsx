@@ -21,17 +21,18 @@ const Prensa = () => {
   } = useNewsFeed();
   
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedOutlet, setSelectedOutlet] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    // Reset to first page when search term changes
+    // Reset to first page when search term or outlet filter changes
     setCurrentPage(1);
-    fetchArticles(1, searchTerm);
+    fetchArticles(1, searchTerm, selectedOutlet);
     fetchFeedSources();
-  }, [searchTerm]);
+  }, [searchTerm, selectedOutlet]);
 
   useEffect(() => {
-    fetchArticles(currentPage, searchTerm);
+    fetchArticles(currentPage, searchTerm, selectedOutlet);
   }, [currentPage]);
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
@@ -44,6 +45,16 @@ const Prensa = () => {
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
   };
+  
+  const handleOutletChange = (value: string) => {
+    setSelectedOutlet(value);
+  };
+  
+  // Transform feedSources to the format required by the outlet filter
+  const outletOptions = feedSources.map(source => ({
+    id: source.id,
+    name: source.name
+  }));
 
   return (
     <div className="w-full space-y-6">
@@ -61,6 +72,9 @@ const Prensa = () => {
       <PrensaSearch 
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}
+        selectedOutlet={selectedOutlet}
+        onOutletChange={handleOutletChange}
+        outlets={outletOptions}
       />
 
       <NewsList
@@ -69,7 +83,10 @@ const Prensa = () => {
         searchTerm={searchTerm}
         currentPage={currentPage}
         totalPages={totalPages}
-        onClearSearch={() => setSearchTerm("")}
+        onClearSearch={() => {
+          setSearchTerm("");
+          setSelectedOutlet("");
+        }}
         onPageChange={handlePageChange}
       />
     </div>

@@ -32,12 +32,12 @@ export const useNewsFeed = () => {
     }
   };
 
-  const fetchArticles = async (page: number, searchTerm: string = '') => {
+  const fetchArticles = async (page: number, searchTerm: string = '', sourceId: string = '') => {
     try {
-      console.log('Fetching articles for page:', page, 'search:', searchTerm);
+      console.log('Fetching articles for page:', page, 'search:', searchTerm, 'sourceId:', sourceId);
       setIsLoading(true);
       
-      const { articlesData, count } = await fetchArticlesFromDatabase(page, searchTerm);
+      const { articlesData, count } = await fetchArticlesFromDatabase(page, searchTerm, sourceId);
       
       if (!articlesData || articlesData.length === 0) {
         console.log('No articles found, setting empty array');
