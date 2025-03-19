@@ -4,8 +4,8 @@ import SocialHeader from "@/components/social/SocialHeader";
 import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";
 import { useSocialFeeds } from "@/hooks/use-social-feeds";
-import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const RedesSociales = () => {
   const {
@@ -108,16 +108,7 @@ const RedesSociales = () => {
           <p className="text-sm text-muted-foreground">
             Última actualización: {lastRefreshTime.toLocaleString()}
           </p>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-1"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Actualizar ahora
-          </Button>
+          {/* Removed the duplicate "Actualizar ahora" button */}
         </div>
       )}
       
