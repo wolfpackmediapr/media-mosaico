@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { SocialPost, SocialPlatform } from "@/types/social";
 import { 
@@ -23,6 +23,7 @@ export const useSocialFeeds = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const { toast } = useToast();
   
   // Use refs to avoid unnecessary rerendering in callbacks
@@ -31,6 +32,7 @@ export const useSocialFeeds = () => {
 
   const fetchPlatforms = useCallback(async () => {
     try {
+      console.log('Fetching platforms...');
       // Fetch platform data
       const platformData = await fetchPlatformsData();
       
@@ -68,6 +70,13 @@ export const useSocialFeeds = () => {
         const sourcesFound = [...new Set(data.map(item => item.feed_source?.name))];
         console.log('Sources found in data:', sourcesFound);
         
+        // Check for Jay Fonseca specifically
+        const jayPosts = data.filter(item => item.feed_source?.name === 'Jay Fonseca');
+        console.log('Jay Fonseca posts count:', jayPosts.length);
+        if (jayPosts.length > 0) {
+          console.log('Latest Jay Fonseca post date:', new Date(jayPosts[0].pub_date).toLocaleString());
+        }
+        
         // Transform the data to include platform information
         const transformedPosts = transformArticlesToPosts(data);
         setPosts(transformedPosts);
@@ -94,6 +103,7 @@ export const useSocialFeeds = () => {
       const data = await refreshSocialFeeds();
       
       console.log('Social feed refresh response:', data);
+      setLastRefreshTime(new Date());
       
       // Reset to first page after refresh
       await fetchPosts(1);
@@ -109,6 +119,14 @@ export const useSocialFeeds = () => {
     }
   }, [fetchPosts]);
 
+  // Add an effect to check when the component was last refreshed
+  useEffect(() => {
+    // Log the last refresh time for debugging
+    if (lastRefreshTime) {
+      console.log('Last feed refresh:', lastRefreshTime.toLocaleString());
+    }
+  }, [lastRefreshTime]);
+
   return {
     posts,
     platforms,
@@ -118,5 +136,6 @@ export const useSocialFeeds = () => {
     fetchPosts,
     fetchPlatforms,
     refreshFeeds,
+    lastRefreshTime
   };
 };

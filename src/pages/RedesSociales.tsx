@@ -4,6 +4,8 @@ import SocialHeader from "@/components/social/SocialHeader";
 import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";
 import { useSocialFeeds } from "@/hooks/use-social-feeds";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 
 const RedesSociales = () => {
   const {
@@ -15,6 +17,7 @@ const RedesSociales = () => {
     fetchPosts,
     fetchPlatforms,
     refreshFeeds,
+    lastRefreshTime
   } = useSocialFeeds();
   
   const [searchTerm, setSearchTerm] = useState("");
@@ -25,11 +28,20 @@ const RedesSociales = () => {
   useEffect(() => {
     console.log('Initial load of RedesSociales component');
     
-    // First load platforms to populate the filter
-    fetchPlatforms();
+    // Force a refresh of feeds on initial load to ensure fresh data
+    const initialLoad = async () => {
+      try {
+        console.log('Performing initial refresh of social feeds');
+        await refreshFeeds();
+      } catch (error) {
+        console.error('Error during initial refresh:', error);
+        // If refresh fails, fall back to regular fetching
+        fetchPlatforms();
+        fetchPosts(1);
+      }
+    };
     
-    // Then fetch the initial posts with no filters
-    fetchPosts(1);
+    initialLoad();
   }, []); // Empty dependency array means this runs once when component mounts
 
   // When search term or selected platforms change, reset to first page and fetch
@@ -67,12 +79,47 @@ const RedesSociales = () => {
     // After refresh, reset filters and fetch all posts
     setSearchTerm("");
     setSelectedPlatforms([]);
-    fetchPosts(1);
+    setCurrentPage(1);
   };
+
+  // Log posts to help debug what's being displayed
+  useEffect(() => {
+    if (posts.length > 0) {
+      const sources = [...new Set(posts.map(post => post.source))];
+      console.log('Currently displayed sources:', sources);
+      
+      // Check specifically for Jay Fonseca posts
+      const jayPosts = posts.filter(post => post.source === 'Jay Fonseca');
+      if (jayPosts.length > 0) {
+        console.log('Jay Fonseca posts in current display:', jayPosts.length);
+        console.log('Latest Jay Fonseca post date:', new Date(jayPosts[0].pub_date).toLocaleString());
+      } else {
+        console.log('No Jay Fonseca posts in current display');
+      }
+    }
+  }, [posts]);
 
   return (
     <div className="w-full space-y-6">
       <SocialHeader onRefresh={handleRefresh} isRefreshing={isRefreshing} />
+      
+      {lastRefreshTime && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Última actualización: {lastRefreshTime.toLocaleString()}
+          </p>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Actualizar ahora
+          </Button>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">

@@ -160,6 +160,13 @@ export const fetchSocialPosts = async (
   }
   
   console.log(`Fetched ${data?.length || 0} social posts out of ${count} total`);
+  
+  // Debug the actual data fetched
+  if (data && data.length > 0) {
+    console.log('First post pub_date:', data[0].pub_date);
+    console.log('Sources in fetched data:', [...new Set(data.map(item => item.feed_source?.name))]);
+  }
+  
   return { data, count: count || 0 };
 };
 
@@ -179,7 +186,7 @@ export const refreshSocialFeeds = async () => {
   const { data, error } = await supabase.functions.invoke('process-social-feeds', {
     body: { 
       timestamp: new Date().toISOString(),
-      forceFetch: true // Add this flag to force fetching even if no changes
+      forceFetch: true // Force fetching regardless of last fetch time
     }
   });
 
