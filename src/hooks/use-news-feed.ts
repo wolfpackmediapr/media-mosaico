@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { NewsArticle, FeedSource } from "@/types/prensa";
 import { 
@@ -22,7 +22,7 @@ export const useNewsFeed = () => {
   const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
 
-  const fetchFeedSources = async () => {
+  const fetchFeedSources = useCallback(async () => {
     try {
       const sourcesData = await fetchNewsSourcesFromDatabase();
       const typedSources = transformSourcesToFeedSources(sourcesData);
@@ -30,9 +30,9 @@ export const useNewsFeed = () => {
     } catch (error) {
       handleNewsFeedError(error, "sources", toast);
     }
-  };
+  }, [toast]);
 
-  const fetchArticles = async (page: number, searchTerm: string = '', sourceId: string = '') => {
+  const fetchArticles = useCallback(async (page: number, searchTerm: string = '', sourceId: string = '') => {
     try {
       console.log('Fetching articles for page:', page, 'search:', searchTerm, 'sourceId:', sourceId);
       setIsLoading(true);
@@ -58,9 +58,9 @@ export const useNewsFeed = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
-  const refreshFeed = async () => {
+  const refreshFeed = useCallback(async () => {
     setIsRefreshing(true);
     try {
       console.log('Refreshing feed...');
@@ -82,7 +82,7 @@ export const useNewsFeed = () => {
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [fetchArticles, fetchFeedSources, toast]);
 
   return {
     articles,

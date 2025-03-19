@@ -29,11 +29,11 @@ const Prensa = () => {
     setCurrentPage(1);
     fetchArticles(1, searchTerm, selectedOutlet);
     fetchFeedSources();
-  }, [searchTerm, selectedOutlet]);
+  }, [searchTerm, selectedOutlet, fetchArticles, fetchFeedSources]);
 
   useEffect(() => {
     fetchArticles(currentPage, searchTerm, selectedOutlet);
-  }, [currentPage]);
+  }, [currentPage, searchTerm, selectedOutlet, fetchArticles]);
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
