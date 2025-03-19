@@ -37,7 +37,7 @@ const RadioAnalysis = ({ transcriptionText, onSegmentsGenerated }: RadioAnalysis
         
         // Generate radio segments based on analysis result
         if (onSegmentsGenerated) {
-          generateSegmentsFromAnalysis(data.analysis, transcriptionText);
+          generateImprovedSegments(data.analysis, transcriptionText);
         }
       }
     } catch (error) {
@@ -48,53 +48,116 @@ const RadioAnalysis = ({ transcriptionText, onSegmentsGenerated }: RadioAnalysis
     }
   };
 
-  const generateSegmentsFromAnalysis = (analysisText: string, fullTranscription: string) => {
+  const generateImprovedSegments = (analysisText: string, fullTranscription: string) => {
     if (!onSegmentsGenerated) return;
     
-    // Extract keywords from analysis
+    // Extract keywords and topics from analysis
     const keywordsMatch = analysisText.match(/Keywords: (.*)/i);
     const keywordsString = keywordsMatch ? keywordsMatch[1] : "";
     const keywords = keywordsString.split(',').map(k => k.trim()).filter(k => k.length > 0);
     
-    // Simple segmentation by paragraphs
-    const paragraphs = fullTranscription.split(/\n\s*\n/).filter(p => p.trim().length > 50);
+    // Find natural segmentation points in the transcription
+    // More sophisticated segmentation - look for topic changes or natural pauses
+    const segments: RadioNewsSegment[] = [];
     
-    if (paragraphs.length === 0) {
-      // If no clear paragraphs, create one segment with the full text
-      const segment: RadioNewsSegment = {
-        headline: "Análisis completo",
+    // Split by clear topic markers like questions or new speakers
+    const possibleSegments = fullTranscription
+      .split(/(?:\?|\.|!)\s+(?=[A-Z¿¡])|(?:[\r\n]{2,})/g)
+      .filter(text => text.trim().length > 50);
+      
+    // If we couldn't find natural segments, fall back to paragraph-based segmentation
+    if (possibleSegments.length <= 1) {
+      const paragraphs = fullTranscription
+        .split(/\n\s*\n/)
+        .filter(p => p.trim().length > 50);
+        
+      if (paragraphs.length > 1) {
+        createSegmentsFromTexts(paragraphs, keywords, segments);
+      } else {
+        // If still no clear paragraphs, divide text into roughly equal segments
+        const textLength = fullTranscription.length;
+        const segmentCount = Math.max(2, Math.min(5, Math.floor(textLength / 300)));
+        const segmentSize = Math.floor(textLength / segmentCount);
+        
+        for (let i = 0; i < segmentCount; i++) {
+          const start = i * segmentSize;
+          const end = (i === segmentCount - 1) ? textLength : (i + 1) * segmentSize;
+          
+          // Find a space to break at
+          let breakPoint = end;
+          while (breakPoint > start && fullTranscription[breakPoint] !== ' ' && breakPoint > start + 100) {
+            breakPoint--;
+          }
+          
+          const segmentText = fullTranscription.substring(start, breakPoint).trim();
+          if (segmentText.length > 50) {
+            const headline = extractHeadline(segmentText);
+            segments.push({
+              headline,
+              text: segmentText,
+              start: i * 60000,
+              end: (i + 1) * 60000,
+              keywords: assignKeywords(keywords, i, segmentCount)
+            });
+          }
+        }
+      }
+    } else {
+      createSegmentsFromTexts(possibleSegments, keywords, segments);
+    }
+    
+    if (segments.length > 0) {
+      console.log(`Generated ${segments.length} radio segments based on analysis`);
+      onSegmentsGenerated(segments);
+    } else {
+      // Fallback if no segments could be created
+      onSegmentsGenerated([{
+        headline: "Contenido completo",
         text: fullTranscription,
         start: 0,
         end: 60000,
         keywords: keywords.slice(0, 5)
-      };
-      onSegmentsGenerated([segment]);
-      return;
+      }]);
+    }
+  };
+  
+  const createSegmentsFromTexts = (texts: string[], keywords: string[], segments: RadioNewsSegment[]) => {
+    texts.forEach((text, index) => {
+      if (text.trim().length > 50) {
+        const headline = extractHeadline(text);
+        segments.push({
+          headline,
+          text,
+          start: index * 60000,
+          end: (index + 1) * 60000,
+          keywords: assignKeywords(keywords, index, texts.length)
+        });
+      }
+    });
+  };
+  
+  const extractHeadline = (text: string): string => {
+    // Try to get first sentence or meaningful phrase
+    const firstSentence = text.split(/[.!?]/, 1)[0];
+    return firstSentence.length > 50 
+      ? firstSentence.substring(0, 47) + '...'
+      : firstSentence;
+  };
+  
+  const assignKeywords = (allKeywords: string[], index: number, total: number): string[] => {
+    if (allKeywords.length === 0) return [];
+    
+    // Distribute keywords among segments, ensuring each gets some
+    const keywordsPerSegment = Math.max(2, Math.min(5, Math.ceil(allKeywords.length / total)));
+    const startIdx = (index * keywordsPerSegment) % allKeywords.length;
+    
+    const segmentKeywords: string[] = [];
+    for (let i = 0; i < keywordsPerSegment; i++) {
+      const keywordIdx = (startIdx + i) % allKeywords.length;
+      segmentKeywords.push(allKeywords[keywordIdx]);
     }
     
-    // Create segments from paragraphs
-    const segments: RadioNewsSegment[] = paragraphs.map((paragraph, index) => {
-      // Extract a headline from the first sentence
-      const firstSentence = paragraph.split(/[.!?]/, 1)[0];
-      const headline = firstSentence.length > 50 
-        ? firstSentence.substring(0, 47) + '...'
-        : firstSentence;
-      
-      // Assign some keywords to each segment
-      const segmentKeywords = keywords.length > 0 
-        ? keywords.slice(index % keywords.length, (index % keywords.length) + 3) 
-        : [];
-        
-      return {
-        headline: headline || `Segmento ${index + 1}`,
-        text: paragraph,
-        start: index * 60000, // Simple timestamps 60s apart
-        end: (index + 1) * 60000,
-        keywords: segmentKeywords
-      };
-    });
-    
-    onSegmentsGenerated(segments);
+    return segmentKeywords;
   };
 
   return (

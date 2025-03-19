@@ -41,8 +41,18 @@ const RadioContainer = () => {
   };
 
   const handleSegmentsReceived = (segments: RadioNewsSegment[]) => {
-    setNewsSegments(segments);
+    console.log("Received segments:", segments.length);
+    if (segments && segments.length > 0) {
+      setNewsSegments(segments);
+    }
   };
+
+  // Clear segments when transcription is cleared
+  useEffect(() => {
+    if (!transcriptionText || transcriptionText.length < 50) {
+      setNewsSegments([]);
+    }
+  }, [transcriptionText]);
 
   useEffect(() => {
     // Load Typeform embed script
