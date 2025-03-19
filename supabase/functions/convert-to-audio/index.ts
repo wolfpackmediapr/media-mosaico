@@ -14,13 +14,30 @@ serve(async (req) => {
   }
 
   try {
-    const { videoPath } = await req.json()
+    const { videoPath, transcriptionId } = await req.json()
     console.log('Converting video to audio:', videoPath)
+
+    if (!videoPath) {
+      throw new Error('Video path is required')
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+
+    // Update transcription status
+    if (transcriptionId) {
+      await supabase
+        .from('transcriptions')
+        .update({ 
+          status: 'converting',
+          progress: 10
+        })
+        .eq('id', transcriptionId)
+      
+      console.log(`Updated transcription ${transcriptionId} status to 'converting'`)
+    }
 
     // Get signed URL for video file
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
@@ -32,12 +49,22 @@ serve(async (req) => {
       throw new Error('Failed to get video file URL')
     }
 
+    // Update progress
+    if (transcriptionId) {
+      await supabase
+        .from('transcriptions')
+        .update({ progress: 20 })
+        .eq('id', transcriptionId)
+    }
+
     // Initialize CloudConvert
     const cloudConvertApiKey = Deno.env.get('CLOUDCONVERT_API_KEY')
     if (!cloudConvertApiKey) {
       throw new Error('CloudConvert API key not configured')
     }
 
+    const isMovFile = videoPath.toLowerCase().endsWith('.mov')
+    
     // Create conversion job
     const jobResponse = await fetch('https://api.cloudconvert.com/v2/jobs', {
       method: 'POST',
@@ -55,7 +82,15 @@ serve(async (req) => {
             operation: 'convert',
             input: ['import-file'],
             output_format: 'mp3',
-            engine: 'ffmpeg'
+            engine: 'ffmpeg',
+            audio_codec: 'mp3',
+            audio_bitrate: '128k',
+            audio_frequency: '44100',
+            // Add specific settings for MOV files if needed
+            ...(isMovFile ? {
+              input_format: 'mov',
+              video_codec: 'skip'  // Skip video encoding, extract audio only
+            } : {})
           },
           'export-file': {
             operation: 'export/url',
@@ -69,6 +104,14 @@ serve(async (req) => {
       const error = await jobResponse.text()
       console.error('CloudConvert job creation failed:', error)
       throw new Error('Failed to start conversion')
+    }
+
+    // Update progress
+    if (transcriptionId) {
+      await supabase
+        .from('transcriptions')
+        .update({ progress: 40 })
+        .eq('id', transcriptionId)
     }
 
     const job = await jobResponse.json()
@@ -88,8 +131,13 @@ serve(async (req) => {
       }
 
       jobStatus = await statusResponse.json()
+      console.log('Job status:', jobStatus.data.status)
+      
       if (jobStatus.data.status === 'error') {
-        throw new Error('Conversion failed: ' + jobStatus.data.message)
+        const taskWithError = jobStatus.data.tasks.find((task: any) => task.status === 'error')
+        const errorMessage = taskWithError?.message || 'Unknown conversion error'
+        console.error('Conversion error details:', errorMessage)
+        throw new Error(`Conversion failed: ${errorMessage}`)
       }
       
       if (jobStatus.data.status !== 'finished') {
@@ -97,14 +145,35 @@ serve(async (req) => {
       }
     } while (jobStatus.data.status !== 'finished')
 
+    // Update progress
+    if (transcriptionId) {
+      await supabase
+        .from('transcriptions')
+        .update({ progress: 60 })
+        .eq('id', transcriptionId)
+    }
+
     // Get the converted audio file URL
     const exportTask = jobStatus.data.tasks.find((task: any) => task.operation === 'export/url')
+    if (!exportTask?.result?.files?.[0]?.url) {
+      throw new Error('No converted file URL found')
+    }
+
     const audioUrl = exportTask.result.files[0].url
+    console.log('Converted audio URL:', audioUrl)
 
     // Download the audio file
     const audioResponse = await fetch(audioUrl)
     if (!audioResponse.ok) {
       throw new Error('Failed to download converted audio')
+    }
+
+    // Update progress
+    if (transcriptionId) {
+      await supabase
+        .from('transcriptions')
+        .update({ progress: 80 })
+        .eq('id', transcriptionId)
     }
 
     const audioBuffer = await audioResponse.arrayBuffer()
@@ -119,6 +188,18 @@ serve(async (req) => {
     if (uploadError) {
       console.error('Error uploading audio:', uploadError)
       throw new Error('Failed to upload converted audio')
+    }
+
+    // Update transcription record with the audio file path
+    if (transcriptionId) {
+      await supabase
+        .from('transcriptions')
+        .update({
+          audio_file_path: audioPath,
+          status: 'ready_for_transcription',
+          progress: 90
+        })
+        .eq('id', transcriptionId)
     }
 
     console.log('Audio conversion and upload complete')
