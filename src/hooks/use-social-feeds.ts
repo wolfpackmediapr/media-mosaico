@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { SocialPost, SocialPlatform } from "@/types/social";
 import { 
@@ -7,7 +7,8 @@ import {
   fetchPlatformCounts, 
   fetchSocialPosts, 
   refreshSocialFeeds,
-  ITEMS_PER_PAGE
+  ITEMS_PER_PAGE,
+  SOCIAL_FEEDS 
 } from "@/services/social/api";
 import { 
   transformArticlesToPosts, 
@@ -23,8 +24,12 @@ export const useSocialFeeds = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
+  
+  // Use refs to avoid unnecessary rerendering in callbacks
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
 
-  const fetchPlatforms = async () => {
+  const fetchPlatforms = useCallback(async () => {
     try {
       // Fetch platform data
       const platformData = await fetchPlatformsData();
@@ -39,24 +44,30 @@ export const useSocialFeeds = () => {
         // Transform data to SocialPlatform format
         const platformsData = transformPlatformData(platformData, platformCounts);
         
+        console.log('Platforms data:', platformsData);
         setPlatforms(platformsData);
       }
     } catch (error) {
-      handleSocialFeedError(error, 'platforms', toast);
+      handleSocialFeedError(error, 'platforms', toastRef.current);
     }
-  };
+  }, []);
 
-  const fetchPosts = async (page: number, searchTerm: string = '', selectedPlatforms: string[] = []) => {
+  const fetchPosts = useCallback(async (page: number, searchTerm: string = '', selectedPlatforms: string[] = []) => {
     try {
       console.log('Fetching posts for page:', page, 'search:', searchTerm, 'platforms:', selectedPlatforms);
       setIsLoading(true);
       
       // Fetch posts with filters
       const { data, count } = await fetchSocialPosts(page, searchTerm, selectedPlatforms);
+      console.log('Fetched posts data:', data?.length || 0, 'items', 'Total count:', count);
       
       setTotalCount(count);
 
       if (data) {
+        // Log source names to debug which feeds are coming through
+        const sourcesFound = [...new Set(data.map(item => item.feed_source?.name))];
+        console.log('Sources found in data:', sourcesFound);
+        
         // Transform the data to include platform information
         const transformedPosts = transformArticlesToPosts(data);
         setPosts(transformedPosts);
@@ -65,16 +76,19 @@ export const useSocialFeeds = () => {
       // Fetch platforms with counts
       await fetchPlatforms();
     } catch (error) {
-      handleSocialFeedError(error, 'posts', toast);
+      handleSocialFeedError(error, 'posts', toastRef.current);
+      // Set empty posts in case of error
+      setPosts([]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchPlatforms]);
 
-  const refreshFeeds = async () => {
+  const refreshFeeds = useCallback(async () => {
     setIsRefreshing(true);
     try {
       console.log('Refreshing social feeds...');
+      console.log('Available social feeds:', SOCIAL_FEEDS);
       
       // Call the refresh function
       const data = await refreshSocialFeeds();
@@ -83,18 +97,17 @@ export const useSocialFeeds = () => {
       
       // Reset to first page after refresh
       await fetchPosts(1);
-      await fetchPlatforms();
 
-      toast({
+      toastRef.current({
         title: "¡Éxito!",
         description: "Feeds de redes sociales actualizados correctamente",
       });
     } catch (error) {
-      handleSocialFeedError(error, 'refresh', toast);
+      handleSocialFeedError(error, 'refresh', toastRef.current);
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [fetchPosts]);
 
   return {
     posts,

@@ -6,9 +6,17 @@ import type { SocialPost, SocialPlatform } from "@/types/social";
 export const SOCIAL_PLATFORMS = ['twitter', 'facebook', 'instagram', 'youtube', 'linkedin', 'social_media'];
 
 // Social feed URLs - ensure we're using the correct .json format
-export const SOCIAL_FEED_URLS = [
-  "https://rss.app/feeds/v1.1/nrAbJHacD1J6WUYp.json", // Jay Fonseca
-  "https://rss.app/feeds/v1.1/zk9arb6A8VuE0TNe.json"  // Jugando Pelota Dura
+export const SOCIAL_FEEDS = [
+  {
+    url: "https://rss.app/feeds/v1.1/nrAbJHacD1J6WUYp.json", 
+    name: "Jay Fonseca",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/zk9arb6A8VuE0TNe.json",  
+    name: "Jugando Pelota Dura",
+    platform: "twitter"
+  }
 ];
 
 // Constants
@@ -16,6 +24,8 @@ export const ITEMS_PER_PAGE = 10;
 
 // Fetch platforms from the database
 export const fetchPlatformsData = async () => {
+  console.log('Fetching platforms data...');
+  
   // Only get social media platforms, exclude news platforms
   const { data, error } = await supabase
     .from('feed_sources')
@@ -24,20 +34,37 @@ export const fetchPlatformsData = async () => {
     .not('platform', 'is', null)
     .order('name');
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching platforms:', error);
+    throw error;
+  }
+  
+  console.log('Fetched platforms:', data?.length || 0);
   return data;
 };
 
 // Fetch platform counts
 export const fetchPlatformCounts = async () => {
+  console.log('Fetching platform counts...');
+  
   // Get feed source IDs for social feeds
-  const { data: feedSources } = await supabase
+  const { data: feedSources, error: sourcesError } = await supabase
     .from('feed_sources')
     .select('id, name, platform')
-    .in('url', SOCIAL_FEED_URLS)
     .in('platform', SOCIAL_PLATFORMS);
   
+  if (sourcesError) {
+    console.error('Error fetching feed sources:', sourcesError);
+    throw sourcesError;
+  }
+  
+  console.log('Feed sources found:', feedSources?.map(s => s.name));
+  
   const feedSourceIds = feedSources?.map(fs => fs.id) || [];
+  if (feedSourceIds.length === 0) {
+    console.log('No feed sources found, returning empty array');
+    return [];
+  }
   
   // Now get articles only from these feed sources
   const { data: articles, error } = await supabase
@@ -45,7 +72,12 @@ export const fetchPlatformCounts = async () => {
     .select('id, feed_source_id, feed_source:feed_source_id(name, platform)')
     .in('feed_source_id', feedSourceIds);
     
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching article counts:', error);
+    throw error;
+  }
+  
+  console.log('Articles for platform counts:', articles?.length || 0);
   return articles;
 };
 
@@ -58,21 +90,28 @@ export const fetchSocialPosts = async (
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Get feed source IDs for social feeds - only those marked as social platforms
-  const { data: feedSources } = await supabase
+  console.log('Fetching social posts with params:', { page, searchTerm, selectedPlatforms });
+  
+  // Get all feed sources that match social platforms
+  const { data: feedSources, error: sourcesError } = await supabase
     .from('feed_sources')
-    .select('id, name')
-    .in('url', SOCIAL_FEED_URLS)
+    .select('id, name, platform')
     .in('platform', SOCIAL_PLATFORMS);
   
+  if (sourcesError) {
+    console.error('Error fetching social feed sources:', sourcesError);
+    throw sourcesError;
+  }
+  
   const feedSourceIds = feedSources?.map(fs => fs.id) || [];
+  console.log('All social feed source IDs:', feedSourceIds);
+  console.log('Feed sources:', feedSources?.map(fs => `${fs.name} (${fs.platform})`));
   
   // If no feed sources found, return empty result
   if (feedSourceIds.length === 0) {
+    console.log('No feed sources found, returning empty result');
     return { data: [], count: 0 };
   }
-
-  console.log(`Fetching posts from feed sources: ${feedSourceIds.join(', ')}`);
 
   let query = supabase
     .from('news_articles')
@@ -88,17 +127,18 @@ export const fetchSocialPosts = async (
     `, { count: 'exact' })
     .in('feed_source_id', feedSourceIds);
 
-  // Filter by source names if specificSources is provided
+  // Filter by source names if selectedPlatforms is provided
   if (selectedPlatforms.length > 0) {
-    // Get feed sources that match the selected names/platforms
-    const { data: filteredSources } = await supabase
-      .from('feed_sources')
-      .select('id')
-      .in('name', selectedPlatforms)
-      .in('platform', SOCIAL_PLATFORMS);
+    console.log('Filtering by selected platforms:', selectedPlatforms);
     
-    if (filteredSources && filteredSources.length > 0) {
-      const filteredSourceIds = filteredSources.map(fs => fs.id);
+    // Get feed sources that match the selected names/platforms
+    const filteredSourceIds = feedSources
+      .filter(fs => selectedPlatforms.includes(fs.name))
+      .map(fs => fs.id);
+    
+    console.log('Filtered source IDs:', filteredSourceIds);
+    
+    if (filteredSourceIds.length > 0) {
       query = query.in('feed_source_id', filteredSourceIds);
     }
   }
@@ -114,8 +154,12 @@ export const fetchSocialPosts = async (
     .order('pub_date', { ascending: false })
     .range(from, to);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching social posts:', error);
+    throw error;
+  }
   
+  console.log(`Fetched ${data?.length || 0} social posts out of ${count} total`);
   return { data, count: count || 0 };
 };
 
@@ -130,6 +174,8 @@ export const refreshSocialFeeds = async () => {
     throw new Error('Debe iniciar sesión para actualizar el feed');
   }
 
+  console.log('Invoking process-social-feeds function with SOCIAL_FEEDS:', SOCIAL_FEEDS.map(f => f.name));
+  
   const { data, error } = await supabase.functions.invoke('process-social-feeds', {
     body: { 
       timestamp: new Date().toISOString(),
@@ -138,6 +184,7 @@ export const refreshSocialFeeds = async () => {
   });
 
   if (error) {
+    console.error('Error refreshing social feeds:', error);
     throw error;
   }
   

@@ -13,6 +13,7 @@ const RedesSociales = () => {
     isRefreshing,
     totalCount,
     fetchPosts,
+    fetchPlatforms,
     refreshFeeds,
   } = useSocialFeeds();
   
@@ -20,26 +21,38 @@ const RedesSociales = () => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Initial load - fetch platforms and posts
   useEffect(() => {
-    // Initial load - fetch posts when the component mounts
-    fetchPosts(1, searchTerm, selectedPlatforms);
+    console.log('Initial load of RedesSociales component');
+    
+    // First load platforms to populate the filter
+    fetchPlatforms();
+    
+    // Then fetch the initial posts with no filters
+    fetchPosts(1);
   }, []); // Empty dependency array means this runs once when component mounts
 
+  // When search term or selected platforms change, reset to first page and fetch
   useEffect(() => {
-    // Reset to first page when search term or platforms change
+    console.log('Search term or platforms changed:', searchTerm, selectedPlatforms);
     setCurrentPage(1);
     fetchPosts(1, searchTerm, selectedPlatforms);
-  }, [searchTerm, selectedPlatforms]);
+  }, [searchTerm, selectedPlatforms, fetchPosts]);
 
+  // When only page changes, fetch the new page
   useEffect(() => {
-    fetchPosts(currentPage, searchTerm, selectedPlatforms);
-  }, [currentPage]);
+    if (currentPage > 1) { // Skip first page as it's handled by the above effect
+      console.log('Page changed to:', currentPage);
+      fetchPosts(currentPage, searchTerm, selectedPlatforms);
+    }
+  }, [currentPage, fetchPosts, searchTerm, selectedPlatforms]);
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
   };
 
   const handlePlatformChange = (platforms: string[]) => {
+    console.log('Platform selection changed to:', platforms);
     setSelectedPlatforms(platforms);
   };
 
@@ -48,9 +61,18 @@ const RedesSociales = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleRefresh = async () => {
+    console.log('Manually refreshing feeds');
+    await refreshFeeds();
+    // After refresh, reset filters and fetch all posts
+    setSearchTerm("");
+    setSelectedPlatforms([]);
+    fetchPosts(1);
+  };
+
   return (
     <div className="w-full space-y-6">
-      <SocialHeader onRefresh={refreshFeeds} isRefreshing={isRefreshing} />
+      <SocialHeader onRefresh={handleRefresh} isRefreshing={isRefreshing} />
       
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">
@@ -69,7 +91,10 @@ const RedesSociales = () => {
             currentPage={currentPage}
             totalCount={totalCount}
             onPageChange={handlePageChange}
-            onClearSearch={() => setSearchTerm("")}
+            onClearSearch={() => {
+              setSearchTerm("");
+              setSelectedPlatforms([]);
+            }}
           />
         </div>
       </div>
