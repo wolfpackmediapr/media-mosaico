@@ -1,3 +1,4 @@
+
 import { ExternalLink } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,11 +28,11 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   const [imageError, setImageError] = useState(false);
   const [imageToUse, setImageToUse] = useState<string | null>(null);
   
-  // Map of known profile images - moved outside useEffect for reusability and clarity
+  // Map of known profile images - updated with new image for Benjamín Torres Gotay
   const profileImageMap: Record<string, string> = {
     "Jay Fonseca": "/lovable-uploads/245cf068-419d-4227-918d-f35e38320b3e.png",
     "Jugando Pelota Dura": "/lovable-uploads/2cc77865-c53b-42a6-a1fd-96ed2c7a031e.png", 
-    "Benjamín Torres Gotay": "/lovable-uploads/12ac2e43-4806-468a-bf6d-40700af4893d.png"
+    "Benjamín Torres Gotay": "/lovable-uploads/3201a499-9523-4ff1-a701-cadf852b7314.png"
   };
   
   // Determine profile image and update image state when post changes
