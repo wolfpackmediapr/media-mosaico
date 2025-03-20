@@ -1,4 +1,6 @@
 
-import { useNotifications, NotificationAlert, transformNotification } from "./notifications";
+import { useNotifications, transformNotification } from "./notifications";
+import type { NotificationAlert } from "./notifications";
 
-export { useNotifications, NotificationAlert, transformNotification };
+export { useNotifications, transformNotification };
+export type { NotificationAlert };
