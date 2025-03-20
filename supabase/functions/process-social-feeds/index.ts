@@ -20,6 +20,11 @@ const SOCIAL_FEEDS = [
     url: "https://rss.app/feeds/v1.1/zk9arb6A8VuE0TNe.json",
     name: "Jugando Pelota Dura",
     platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/BB3hsnvn6hOHtwVS.json",
+    name: "Molusco",
+    platform: "twitter"
   }
 ];
 
