@@ -12,8 +12,10 @@ export interface NotificationAnalytics {
   clientEngagement: { client: string; openRate: number }[];
 }
 
+export type JobStatus = "pending" | "processing" | "completed" | "failed" | undefined;
+
 export function useNotificationProcessing() {
-  const [activeFilter, setActiveFilter] = useState<"pending" | "processing" | "completed" | "failed" | undefined>(undefined);
+  const [activeFilter, setActiveFilter] = useState<JobStatus>(undefined);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
 

@@ -12,7 +12,7 @@ interface ProcessingJobsTableProps {
   jobsCount: number;
   isLoadingJobs: boolean;
   activeFilter: string | undefined;
-  setActiveFilter: (value: string | undefined) => void;
+  setActiveFilter: (value: string | undefined) => void | React.Dispatch<React.SetStateAction<"pending" | "processing" | "completed" | "failed" | undefined>>;
   page: number;
   setPage: (page: number) => void;
   pageSize: number;
@@ -68,6 +68,11 @@ const ProcessingJobsTable = ({
     }
   };
 
+  // Cast the setActiveFilter function to ensure correct handling
+  const handleFilterChange = (value: string) => {
+    setActiveFilter(value === "all" ? undefined : value as any);
+  };
+
   return (
     <>
       <div className="flex justify-between items-center mb-6">
@@ -75,7 +80,7 @@ const ProcessingJobsTable = ({
           <Label htmlFor="status-filter">Filtrar por estado:</Label>
           <Select 
             value={activeFilter || "all"}
-            onValueChange={(value) => setActiveFilter(value === "all" ? undefined : value as any)}
+            onValueChange={handleFilterChange}
           >
             <SelectTrigger id="status-filter" className="w-[180px]">
               <SelectValue placeholder="Todos los estados" />

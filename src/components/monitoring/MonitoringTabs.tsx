@@ -20,7 +20,7 @@ interface MonitoringTabsProps {
   analytics: any;
   isLoadingAnalytics: boolean;
   activeFilter: string | undefined;
-  setActiveFilter: (value: string | undefined) => void;
+  setActiveFilter: (value: string | undefined) => void | React.Dispatch<React.SetStateAction<"pending" | "processing" | "completed" | "failed" | undefined>>;
   page: number;
   setPage: (page: number) => void;
   pageSize: number;
