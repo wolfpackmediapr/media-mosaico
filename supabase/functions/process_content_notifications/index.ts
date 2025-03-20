@@ -12,6 +12,57 @@ interface ContentPayload {
   job_id: string;
 }
 
+// Smart grouping: threshold for considering notifications similar (higher = more strict)
+const SIMILARITY_THRESHOLD = 0.7;
+
+// Function to calculate simple similarity between two strings
+function calculateSimilarity(str1: string, str2: string): number {
+  const words1 = new Set(str1.toLowerCase().split(/\s+/));
+  const words2 = new Set(str2.toLowerCase().split(/\s+/));
+  
+  // Intersection
+  const intersection = new Set([...words1].filter(x => words2.has(x)));
+  
+  // Union
+  const union = new Set([...words1, ...words2]);
+  
+  // Jaccard similarity
+  return intersection.size / union.size;
+}
+
+// Function to check if a notification is similar to any in a given array
+function isSimilarToExisting(
+  newNotification: { title: string; description: string; keyword_matched: string[] },
+  existingNotifications: { title: string; description: string; keyword_matched: string[] }[]
+): boolean {
+  return existingNotifications.some(existing => {
+    // Check if they share keywords
+    const sharedKeywords = new Set(
+      (newNotification.keyword_matched || []).filter(
+        kw => (existing.keyword_matched || []).includes(kw)
+      )
+    );
+    
+    if (sharedKeywords.size === 0) return false;
+    
+    // Calculate similarity of content
+    const titleSimilarity = calculateSimilarity(
+      newNotification.title || "",
+      existing.title || ""
+    );
+    
+    const descSimilarity = calculateSimilarity(
+      newNotification.description || "",
+      existing.description || ""
+    );
+    
+    // Average similarity
+    const avgSimilarity = (titleSimilarity + descSimilarity) / 2;
+    
+    return avgSimilarity > SIMILARITY_THRESHOLD;
+  });
+}
+
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === "OPTIONS") {
@@ -157,8 +208,31 @@ serve(async (req) => {
       throw new Error(`Failed to fetch clients: ${clientsError.message}`);
     }
 
+    // Check for recent similar notifications (in the last 24 hours)
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+    const { data: recentNotifications, error: recentError } = await supabase
+      .from("client_alerts")
+      .select("client_id, title, description, keyword_matched, content_type")
+      .gte("created_at", oneDayAgo.toISOString());
+
+    if (recentError) {
+      console.error("Error fetching recent notifications:", recentError);
+    }
+
+    // Group by client for smart notification grouping
+    const recentByClient: Record<string, any[]> = {};
+    recentNotifications?.forEach(notification => {
+      if (!recentByClient[notification.client_id]) {
+        recentByClient[notification.client_id] = [];
+      }
+      recentByClient[notification.client_id].push(notification);
+    });
+
     // Process each client
     const notificationsGenerated = [];
+    const digestUpdates = [];
     
     for (const client of clients) {
       // Skip clients without keywords
@@ -191,8 +265,8 @@ serve(async (req) => {
       // Calculate importance level based on number of matches
       const importanceLevel = calculateImportance(matchedKeywords.length);
       
-      // Create notification
-      const notificationData = {
+      // Prepare notification data
+      const newNotificationData = {
         client_id: client.id,
         title: `Nuevo contenido con menciones de ${client.name}`,
         description: `Se encontraron ${matchedKeywords.length} coincidencias en ${contentSource}: "${contentTitle}"`,
@@ -207,25 +281,105 @@ serve(async (req) => {
           source: contentSource
         }
       };
+      
+      // Check for similar recent notifications for this client
+      const clientRecentNotifications = recentByClient[client.id] || [];
+      const isSimilar = isSimilarToExisting(
+        newNotificationData,
+        clientRecentNotifications
+      );
 
-      // Insert notification
-      const { data: notification, error: notificationError } = await supabase
-        .from("client_alerts")
-        .insert(notificationData)
-        .select();
+      let notificationId;
 
-      if (notificationError) {
-        console.error(`Failed to create notification for client ${client.id}:`, notificationError);
-        continue;
+      // If similar notifications exist, update digest or create a new one
+      if (isSimilar && clientRecentNotifications.length > 0) {
+        // Find the most recent notification with the same keywords
+        const similarNotifications = clientRecentNotifications.filter(n => 
+          n.keyword_matched && 
+          n.keyword_matched.some((kw: string) => matchedKeywords.includes(kw))
+        );
+
+        if (similarNotifications.length > 0) {
+          // Get the most recent similar notification
+          const mostRecentSimilar = similarNotifications.reduce((prev, current) => {
+            return new Date(prev.created_at) > new Date(current.created_at) ? prev : current;
+          });
+
+          // Check if it already has a digest
+          const hasDigest = mostRecentSimilar.metadata && 
+                           mostRecentSimilar.metadata.is_digest;
+
+          if (hasDigest) {
+            // Update the existing digest
+            const { data: updatedDigest, error: updateError } = await supabase
+              .from("client_alerts")
+              .update({
+                metadata: {
+                  ...mostRecentSimilar.metadata,
+                  digest_count: (mostRecentSimilar.metadata.digest_count || 1) + 1,
+                  last_updated: new Date().toISOString()
+                }
+              })
+              .eq("id", mostRecentSimilar.id)
+              .select();
+
+            if (updateError) {
+              console.error("Error updating digest:", updateError);
+            } else {
+              notificationId = updatedDigest?.[0]?.id;
+              digestUpdates.push(updatedDigest?.[0]);
+            }
+          } else {
+            // Convert the existing notification to a digest
+            const { data: newDigest, error: digestError } = await supabase
+              .from("client_alerts")
+              .update({
+                title: `Múltiples menciones de ${client.name}`,
+                description: `Se encontraron nuevas menciones de ${client.name} en contenido similar`,
+                metadata: {
+                  ...mostRecentSimilar.metadata,
+                  is_digest: true,
+                  digest_count: 2,
+                  original_content_id: mostRecentSimilar.content_id,
+                  related_content_ids: [job.content_id],
+                  last_updated: new Date().toISOString()
+                }
+              })
+              .eq("id", mostRecentSimilar.id)
+              .select();
+
+            if (digestError) {
+              console.error("Error creating digest:", digestError);
+            } else {
+              notificationId = newDigest?.[0]?.id;
+              digestUpdates.push(newDigest?.[0]);
+            }
+          }
+        }
+      }
+      
+      // If no digest was created or updated, create a new notification
+      if (!notificationId) {
+        // Insert notification
+        const { data: notification, error: notificationError } = await supabase
+          .from("client_alerts")
+          .insert(newNotificationData)
+          .select();
+
+        if (notificationError) {
+          console.error(`Failed to create notification for client ${client.id}:`, notificationError);
+          continue;
+        }
+
+        notificationId = notification[0].id;
+        notificationsGenerated.push(notification[0]);
       }
 
-      notificationsGenerated.push(notification[0]);
-
       // Schedule external delivery if needed
-      if (preferences && preferences.length > 0) {
+      if (preferences && preferences.length > 0 && notificationId) {
         for (const pref of preferences) {
           if (shouldSendExternalNotification(pref, importanceLevel, job.content_type)) {
-            await scheduleExternalNotifications(supabase, notification[0].id, pref.notification_channels);
+            await scheduleExternalNotifications(supabase, notificationId, pref.notification_channels);
           }
         }
       }
@@ -245,7 +399,9 @@ serve(async (req) => {
         success: true, 
         job_id: job.id,
         notifications_count: notificationsGenerated.length,
-        notifications: notificationsGenerated
+        notifications: notificationsGenerated,
+        digests_updated: digestUpdates.length,
+        digests: digestUpdates
       }),
       {
         status: 200,

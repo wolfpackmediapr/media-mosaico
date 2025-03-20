@@ -1,8 +1,16 @@
 
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getContentProcessingJobs, getNotificationDeliveryLogs } from "@/services/notifications/contentNotificationService";
+import { getContentProcessingJobs, getNotificationDeliveryLogs, getNotificationAnalytics } from "@/services/notifications/contentNotificationService";
 import { supabase } from "@/integrations/supabase/client";
+
+export interface NotificationAnalytics {
+  totalCount: number;
+  volumeByDay: { date: string; count: number }[];
+  topKeywords: { keyword: string; count: number }[];
+  sourceDistribution: { source: string; count: number }[];
+  clientEngagement: { client: string; openRate: number }[];
+}
 
 export function useNotificationProcessing() {
   const [activeFilter, setActiveFilter] = useState<"pending" | "processing" | "completed" | "failed" | undefined>(undefined);
@@ -34,6 +42,15 @@ export function useNotificationProcessing() {
     }),
   });
 
+  const {
+    data: analyticsData,
+    isLoading: isLoadingAnalytics,
+    refetch: refetchAnalytics
+  } = useQuery({
+    queryKey: ["notification-analytics"],
+    queryFn: () => getNotificationAnalytics(),
+  });
+
   // Setup real-time updates
   useEffect(() => {
     const channel = supabase
@@ -62,12 +79,24 @@ export function useNotificationProcessing() {
           refetchDeliveryLogs();
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "client_alerts"
+        },
+        () => {
+          // Refresh analytics data when notifications change
+          refetchAnalytics();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refetchJobs, refetchDeliveryLogs]);
+  }, [refetchJobs, refetchDeliveryLogs, refetchAnalytics]);
 
   return {
     jobs: jobsData?.data || [],
@@ -76,6 +105,8 @@ export function useNotificationProcessing() {
     deliveryLogs: deliveryLogsData?.data || [],
     deliveryLogsCount: deliveryLogsData?.count || 0,
     isLoadingDeliveryLogs,
+    analytics: analyticsData?.data || null,
+    isLoadingAnalytics,
     activeFilter,
     setActiveFilter,
     page,
@@ -83,6 +114,7 @@ export function useNotificationProcessing() {
     pageSize,
     setPageSize,
     refetchJobs,
-    refetchDeliveryLogs
+    refetchDeliveryLogs,
+    refetchAnalytics
   };
 }
