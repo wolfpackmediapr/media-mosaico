@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NotificationAnalytics } from "@/hooks/use-notification-processing";
@@ -47,6 +46,12 @@ const NotificationAnalyticsDashboard: React.FC<NotificationAnalyticsDashboardPro
     );
   }
 
+  const calculateAverageOpenRate = () => {
+    if (analytics.clientEngagement.length === 0) return "0%";
+    const avgRate = analytics.clientEngagement.reduce((sum, item) => sum + item.openRate, 0) / analytics.clientEngagement.length;
+    return `${avgRate.toFixed(1)}%`;
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -89,11 +94,7 @@ const NotificationAnalyticsDashboard: React.FC<NotificationAnalyticsDashboardPro
               <CardTitle className="text-sm font-medium">Tasa Promedio Apertura</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">
-                {analytics.clientEngagement.length > 0 
-                  ? `${(analytics.clientEngagement.reduce((sum, item) => sum + item.openRate, 0) / analytics.clientEngagement.length).toFixed(1)}%`
-                  : "0%"}
-              </p>
+              <p className="text-2xl font-bold">{calculateAverageOpenRate()}</p>
             </CardContent>
           </Card>
         </div>
@@ -187,7 +188,10 @@ const NotificationAnalyticsDashboard: React.FC<NotificationAnalyticsDashboardPro
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" unit="%" domain={[0, 100]} />
                     <YAxis type="category" dataKey="client" />
-                    <Tooltip formatter={(value) => [`${value.toFixed(1)}%`, 'Tasa de Apertura']} />
+                    <Tooltip formatter={(value) => {
+                      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                      return [`${numValue.toFixed(1)}%`, 'Tasa de Apertura'];
+                    }} />
                     <Bar dataKey="openRate" fill="#ffc658" name="Tasa de Apertura" />
                   </BarChart>
                 </ResponsiveContainer>

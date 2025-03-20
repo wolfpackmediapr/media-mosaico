@@ -1,5 +1,5 @@
 
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import Layout from "./components/layout/Layout";
 import Index from "./pages/Index";
@@ -21,38 +21,44 @@ import UsersSettings from "./pages/configuracion/UsersSettings";
 import MediaSettings from "./pages/configuracion/MediaSettings";
 import NotificationsSettings from "./pages/configuracion/NotificationsSettings";
 import NotificationMonitoring from "./pages/configuracion/NotificationMonitoring";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+// Create a client
+const queryClient = new QueryClient();
 
 function App() {
   return (
-    <Router>
-      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <Routes>
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/registro" element={<Registro />} />
-          <Route path="/recuperar-password" element={<RecuperarPassword />} />
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Index />} />
-            <Route path="prensa" element={<Prensa />} />
-            <Route path="redes-sociales" element={<RedesSociales />} />
-            <Route path="radio" element={<Radio />} />
-            <Route path="tv" element={<Tv />} />
-            <Route path="prensa-escrita" element={<PrensaEscrita />} />
-            <Route path="reportes" element={<Reportes />} />
-            <Route path="ajustes" element={<Ajustes />} />
-            <Route path="configuracion">
-              <Route path="clientes" element={<ClientsSettings />} />
-              <Route path="usuarios" element={<UsersSettings />} />
-              <Route path="medios" element={<MediaSettings />} />
-              <Route path="notificaciones" element={<NotificationsSettings />} />
-              <Route path="monitoreo-notificaciones" element={<NotificationMonitoring />} />
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/registro" element={<Registro />} />
+            <Route path="/recuperar-password" element={<RecuperarPassword />} />
+            <Route path="/" element={<Layout><Outlet /></Layout>}>
+              <Route index element={<Index />} />
+              <Route path="prensa" element={<Prensa />} />
+              <Route path="redes-sociales" element={<RedesSociales />} />
+              <Route path="radio" element={<Radio />} />
+              <Route path="tv" element={<Tv />} />
+              <Route path="prensa-escrita" element={<PrensaEscrita />} />
+              <Route path="reportes" element={<Reportes />} />
+              <Route path="ajustes" element={<Ajustes />} />
+              <Route path="configuracion">
+                <Route path="clientes" element={<ClientsSettings />} />
+                <Route path="usuarios" element={<UsersSettings />} />
+                <Route path="medios" element={<MediaSettings />} />
+                <Route path="notificaciones" element={<NotificationsSettings />} />
+                <Route path="monitoreo-notificaciones" element={<NotificationMonitoring />} />
+              </Route>
+              <Route path="notificaciones" element={<Notificaciones />} />
+              <Route path="ayuda" element={<Ayuda />} />
+              <Route path="envio-alertas" element={<EnvioAlertas />} />
             </Route>
-            <Route path="notificaciones" element={<Notificaciones />} />
-            <Route path="ayuda" element={<Ayuda />} />
-            <Route path="envio-alertas" element={<EnvioAlertas />} />
-          </Route>
-        </Routes>
-      </ThemeProvider>
-    </Router>
+          </Routes>
+        </ThemeProvider>
+      </Router>
+    </QueryClientProvider>
   );
 }
 

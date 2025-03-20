@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, ChevronRight, Filter, Settings, TestTube, Wand2 } from "lucide-react";
+import { Check, ChevronRight, Filter, Loader2, Settings, TestTube, Wand2 } from "lucide-react";
 import { testNotificationSettings } from "@/services/notifications/contentNotificationService";
 import { useToast } from "@/hooks/use-toast";
 
