@@ -1,4 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import NotificationFeed from "@/components/notifications/NotificationFeed";
 import { BarChart2, Radio, Tv, Newspaper } from "lucide-react";
 
 const stats = [
@@ -42,7 +44,7 @@ const Index = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -71,6 +73,10 @@ const Index = () => {
             </Card>
           );
         })}
+        
+        <div className="col-span-1 md:col-span-3">
+          <NotificationFeed maxItems={5} />
+        </div>
       </div>
     </div>
   );
