@@ -21,6 +21,11 @@ export const SOCIAL_FEEDS = [
     url: "https://rss.app/feeds/v1.1/BB3hsnvn6hOHtwVS.json",
     name: "Molusco",
     platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/MRcCrwF4ucCwL3Ps.json",
+    name: "Benjamín Torres Gotay",
+    platform: "twitter"
   }
 ];
 
