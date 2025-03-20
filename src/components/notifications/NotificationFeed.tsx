@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import NotificationsList from "./NotificationsList";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { transformNotification } from "@/hooks/notifications";
 
 interface NotificationFeedProps {
   maxItems?: number;
@@ -34,17 +35,7 @@ const NotificationFeed: React.FC<NotificationFeedProps> = ({
     
     if (error) throw error;
     
-    return data.map(notification => ({
-      id: notification.id,
-      title: notification.title,
-      description: notification.description,
-      createdAt: notification.created_at,
-      status: (notification.status || "unread") as "unread" | "read" | "archived",
-      importance: notification.importance_level || 3,
-      clientId: notification.client_id,
-      clientName: notification.clients?.name,
-      keywords: notification.keyword_matched || []
-    }));
+    return data.map(transformNotification);
   };
   
   // Query with polling
