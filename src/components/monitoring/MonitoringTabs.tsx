@@ -7,6 +7,7 @@ import ProcessingJobsTable from "./ProcessingJobsTable";
 import DeliveryLogsTable from "./DeliveryLogsTable";
 import NotificationAnalyticsDashboard from "@/components/notifications/NotificationAnalyticsDashboard";
 import NotificationPreferenceWizard from "@/components/notifications/NotificationPreferenceWizard";
+import { JobStatus } from "@/hooks/use-notification-processing";
 
 interface MonitoringTabsProps {
   activeTab: string;
@@ -19,8 +20,8 @@ interface MonitoringTabsProps {
   isLoadingDeliveryLogs: boolean;
   analytics: any;
   isLoadingAnalytics: boolean;
-  activeFilter: string | undefined;
-  setActiveFilter: (value: string | undefined) => void | React.Dispatch<React.SetStateAction<"pending" | "processing" | "completed" | "failed" | undefined>>;
+  activeFilter: JobStatus;
+  setActiveFilter: React.Dispatch<React.SetStateAction<JobStatus>>;
   page: number;
   setPage: (page: number) => void;
   pageSize: number;

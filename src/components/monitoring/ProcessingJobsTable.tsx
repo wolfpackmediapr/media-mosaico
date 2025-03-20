@@ -6,13 +6,14 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { JobStatus } from "@/hooks/use-notification-processing";
 
 interface ProcessingJobsTableProps {
   jobs: any[];
   jobsCount: number;
   isLoadingJobs: boolean;
-  activeFilter: string | undefined;
-  setActiveFilter: (value: string | undefined) => void | React.Dispatch<React.SetStateAction<"pending" | "processing" | "completed" | "failed" | undefined>>;
+  activeFilter: JobStatus;
+  setActiveFilter: React.Dispatch<React.SetStateAction<JobStatus>>;
   page: number;
   setPage: (page: number) => void;
   pageSize: number;
@@ -68,9 +69,13 @@ const ProcessingJobsTable = ({
     }
   };
 
-  // Cast the setActiveFilter function to ensure correct handling
+  // Handle filter change with correct type casting
   const handleFilterChange = (value: string) => {
-    setActiveFilter(value === "all" ? undefined : value as any);
+    if (value === "all") {
+      setActiveFilter(undefined);
+    } else {
+      setActiveFilter(value as "pending" | "processing" | "completed" | "failed");
+    }
   };
 
   return (
