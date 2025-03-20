@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NotificationAnalytics } from "@/hooks/use-notification-processing";
@@ -189,8 +190,14 @@ const NotificationAnalyticsDashboard: React.FC<NotificationAnalyticsDashboardPro
                     <XAxis type="number" unit="%" domain={[0, 100]} />
                     <YAxis type="category" dataKey="client" />
                     <Tooltip formatter={(value) => {
-                      const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                      return [`${numValue.toFixed(1)}%`, 'Tasa de Apertura'];
+                      // Check if value is a number or can be converted to one
+                      if (typeof value === 'number') {
+                        return [`${value.toFixed(1)}%`, 'Tasa de Apertura'];
+                      } else if (typeof value === 'string' && !isNaN(Number(value))) {
+                        return [`${parseFloat(value).toFixed(1)}%`, 'Tasa de Apertura'];
+                      }
+                      // Fallback for any other case
+                      return [`${value}`, 'Tasa de Apertura'];
                     }} />
                     <Bar dataKey="openRate" fill="#ffc658" name="Tasa de Apertura" />
                   </BarChart>
