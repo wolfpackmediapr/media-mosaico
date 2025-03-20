@@ -1,195 +1,12 @@
 
-// Follow this setup guide to integrate the Deno runtime into your application:
-// https://deno.land/manual/examples/deploy_node_app
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
-import { corsHeaders } from "../_shared/cors.ts";
+import { corsHeaders } from "./cors.ts";
+import { SOCIAL_FEEDS } from "./constants.ts";
+import { processRssJsonFeed, updateFeedSource, logProcessingError } from "./feed-processor.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") as string;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string;
-
-// Social media feeds to process
-const SOCIAL_FEEDS = [
-  {
-    url: "https://rss.app/feeds/v1.1/LQAaHOXtVRGhYhlc.json",
-    name: "Jay Fonseca",
-    platform: "twitter"
-  },
-  {
-    url: "https://rss.app/feeds/v1.1/zk9arb6A8VuE0TNe.json",
-    name: "Jugando Pelota Dura",
-    platform: "twitter"
-  },
-  {
-    url: "https://rss.app/feeds/v1.1/BB3hsnvn6hOHtwVS.json",
-    name: "Molusco",
-    platform: "twitter"
-  },
-  {
-    url: "https://rss.app/feeds/v1.1/MRcCrwF4ucCwL3Ps.json",
-    name: "Benjamín Torres Gotay",
-    platform: "twitter"
-  }
-];
-
-// Number of posts to fetch per feed
-const POSTS_PER_FEED = 10;
-
-// Clean up HTML content for better display
-const cleanHtmlContent = (html: string): string => {
-  if (!html) return '';
-  
-  // Remove script tags
-  let cleaned = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  
-  // Remove excessive newlines and spaces
-  cleaned = cleaned.replace(/\n\s+/g, '\n').trim();
-  
-  return cleaned;
-};
-
-// Extract image URL from content if possible
-const extractImageUrl = (item: any): string | null => {
-  // Check all possible image sources in order of preference
-  
-  // Direct image property
-  if (item.image) return item.image;
-  
-  // Media content
-  if (item.media_content) return item.media_content;
-  
-  // Media content in different format
-  if (item.media && item.media.content) return item.media.content;
-  
-  // Attachments array
-  if (item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0) {
-    const attachment = item.attachments[0];
-    if (attachment.url) return attachment.url;
-    if (attachment.image_url) return attachment.image_url;
-  }
-  
-  // Enclosures (common in RSS feeds)
-  if (item.enclosures && Array.isArray(item.enclosures) && item.enclosures.length > 0) {
-    const enclosure = item.enclosures[0];
-    if (typeof enclosure === 'string') return enclosure;
-    if (enclosure.url) return enclosure.url;
-  }
-  
-  // Thumbnail
-  if (item.thumbnail) return item.thumbnail;
-  
-  // Extract from HTML as last resort
-  return extractImageFromHtml(item.content_html || item.description || '');
-};
-
-// Extract image from HTML content
-const extractImageFromHtml = (html: string): string | null => {
-  // Try to extract image tag
-  const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-  if (imgMatch && imgMatch[1]) return imgMatch[1];
-  
-  // Try background-image style
-  const bgImgMatch = html.match(/background-image:\s*url\(['"]?([^'"]+)['"]?\)/i);
-  if (bgImgMatch && bgImgMatch[1]) return bgImgMatch[1];
-  
-  // Try Twitter card/summary image (often in meta tags)
-  const twitterMatch = html.match(/twitter:image[^>]+content=["']([^"']+)["']/i);
-  if (twitterMatch && twitterMatch[1]) return twitterMatch[1];
-  
-  return null;
-};
-
-const processRssJsonFeed = async (supabase, feed, feedSourceId) => {
-  console.log(`Fetching JSON feed: ${feed.url}`);
-  const response = await fetch(feed.url);
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-  
-  const feedData = await response.json();
-  
-  if (!feedData.items || !Array.isArray(feedData.items)) {
-    throw new Error("Invalid feed format: items array not found");
-  }
-  
-  console.log(`Found ${feedData.items.length} items in feed, will process up to ${POSTS_PER_FEED}`);
-  
-  // Process only the latest posts (up to POSTS_PER_FEED)
-  const articlesToInsert = [];
-  const itemsToProcess = feedData.items.slice(0, POSTS_PER_FEED);
-  
-  for (const item of itemsToProcess) {
-    const linkUrl = item.url || item.link;
-    if (!linkUrl) {
-      console.warn(`Skipping item without URL: ${item.title}`);
-      continue;
-    }
-    
-    // Check if article already exists by link
-    const { data: existingArticle } = await supabase
-      .from("news_articles")
-      .select("id")
-      .eq("link", linkUrl)
-      .maybeSingle();
-    
-    if (existingArticle) {
-      console.log(`Article already exists: ${item.title}`);
-      continue;
-    }
-    
-    // Parse the publication date
-    let pubDate;
-    try {
-      pubDate = new Date(item.date_published || item.pubDate || item.published).toISOString();
-    } catch (e) {
-      console.error(`Error parsing date for "${item.title}": ${e.message}`);
-      pubDate = new Date().toISOString();
-    }
-    
-    // Get the best description content (prefer content_html over summary over description)
-    const description = cleanHtmlContent(
-      item.content_html || item.content || item.summary || item.description || ""
-    );
-    
-    // Extract image URL from multiple possible sources
-    const imageUrl = extractImageUrl(item);
-    
-    const newArticle = {
-      feed_source_id: feedSourceId,
-      title: item.title,
-      description: description,
-      link: linkUrl,
-      pub_date: pubDate,
-      source: feed.name,
-      image_url: imageUrl,
-      category: "Social Media",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    articlesToInsert.push(newArticle);
-  }
-  
-  // Insert new articles in batch
-  if (articlesToInsert.length > 0) {
-    const { data: insertedArticles, error: insertError } = await supabase
-      .from("news_articles")
-      .insert(articlesToInsert)
-      .select("id");
-    
-    if (insertError) {
-      throw new Error(`Error inserting articles: ${insertError.message}`);
-    }
-    
-    console.log(`Successfully inserted ${insertedArticles.length} articles from ${feed.name}`);
-    return insertedArticles.length;
-  }
-  
-  console.log(`No new articles to insert for ${feed.name}`);
-  return 0;
-};
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -251,14 +68,7 @@ serve(async (req) => {
           console.log(`Using existing feed source ID: ${feedSourceId}`);
           
           // Update the last successful fetch time
-          await supabase
-            .from("feed_sources")
-            .update({ 
-              last_successful_fetch: new Date().toISOString(),
-              error_count: 0,
-              last_fetch_error: null
-            })
-            .eq("id", feedSourceId);
+          await updateFeedSource(supabase, feed.url, true);
         } else {
           // Create a new feed source
           const { data: newSource, error: sourceError } = await supabase
@@ -293,35 +103,11 @@ serve(async (req) => {
         console.error(`Error processing feed ${feed.name}: ${error.message}`);
         console.error(error.stack);
         
-        try {
-          // Update feed source with error if it exists
-          const { data: existingSource } = await supabase
-            .from("feed_sources")
-            .select("id, error_count")
-            .eq("url", feed.url)
-            .maybeSingle();
-            
-          if (existingSource) {
-            await supabase
-              .from("feed_sources")
-              .update({
-                last_fetch_error: error.message,
-                error_count: existingSource.error_count ? existingSource.error_count + 1 : 1
-              })
-              .eq("url", feed.url);
-          }
-          
-          // Log the error in the processing_errors table
-          await supabase
-            .from("processing_errors")
-            .insert({
-              stage: "feed_processing",
-              error_message: error.message,
-              article_info: { feed_url: feed.url, feed_name: feed.name }
-            });
-        } catch (logError) {
-          console.error(`Failed to log error: ${logError.message}`);
-        }
+        // Update feed source with error
+        await updateFeedSource(supabase, feed.url, false, error.message);
+        
+        // Log the error in the processing_errors table
+        await logProcessingError(supabase, { feed_url: feed.url, feed_name: feed.name }, error.message);
         
         results.push({
           feed: feed.name,
