@@ -6,10 +6,19 @@ import { cn } from "@/lib/utils"
 import { useChart } from "./context"
 import { getPayloadConfigFromPayload } from "./utils"
 
-export interface ChartTooltipContentProps extends React.ComponentProps<"div">, React.ComponentProps<typeof RechartsPrimitive.Tooltip> {
+// Modified interface to prevent the conflict with content property
+export interface ChartTooltipContentProps {
+  active?: boolean
+  payload?: Array<any>
+  className?: string
+  indicator?: "line" | "dot" | "dashed"
   hideLabel?: boolean
   hideIndicator?: boolean
-  indicator?: "line" | "dot" | "dashed"
+  label?: any
+  labelFormatter?: (label: any, payload: any[]) => React.ReactNode
+  labelClassName?: string
+  formatter?: (value: any, name: any, item: any, index: number, payload: any) => React.ReactNode
+  color?: string
   nameKey?: string
   labelKey?: string
 }
