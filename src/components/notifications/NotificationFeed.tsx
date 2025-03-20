@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +39,7 @@ const NotificationFeed: React.FC<NotificationFeedProps> = ({
       title: notification.title,
       description: notification.description,
       createdAt: notification.created_at,
-      status: notification.status || "unread",
+      status: (notification.status || "unread") as "unread" | "read" | "archived",
       importance: notification.importance_level || 3,
       clientId: notification.client_id,
       clientName: notification.clients?.name,
