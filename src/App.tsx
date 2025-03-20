@@ -45,9 +45,9 @@ function App() {
   return (
     <>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <BrowserRouter>
-          <RealTimeAlertsProvider>
-            <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <RealTimeAlertsProvider>
               <Routes>
                 <Route path="/" element={<Layout>{<Outlet />}</Layout>}>
                   <Route index element={<Index />} />
@@ -71,9 +71,9 @@ function App() {
                 <Route path="recuperar-password" element={<RecuperarPassword />} />
               </Routes>
               <Toaster />
-            </QueryClientProvider>
-          </RealTimeAlertsProvider>
-        </BrowserRouter>
+            </RealTimeAlertsProvider>
+          </BrowserRouter>
+        </QueryClientProvider>
       </ThemeProvider>
     </>
   );
