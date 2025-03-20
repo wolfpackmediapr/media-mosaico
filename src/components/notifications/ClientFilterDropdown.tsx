@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ClientFilterDropdownProps {
   clients: { id: string; name: string; category: string }[];
@@ -34,7 +35,7 @@ const ClientFilterDropdown = ({
   
   const selectedClientName = React.useMemo(() => {
     if (!selectedClient) return null;
-    const client = clients.find(c => c.id === selectedClient);
+    const client = clients?.find(c => c.id === selectedClient);
     return client?.name || null;
   }, [selectedClient, clients]);
 
@@ -46,6 +47,9 @@ const ClientFilterDropdown = ({
       </Button>
     );
   }
+
+  // Make sure clients is an array before rendering
+  const clientsArray = Array.isArray(clients) ? clients : [];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -71,6 +75,7 @@ const ClientFilterDropdown = ({
           <CommandEmpty>No se encontraron clientes.</CommandEmpty>
           <CommandGroup>
             <CommandItem
+              key="all-clients"
               onSelect={() => {
                 onSelectClient(null);
                 setOpen(false);
@@ -85,7 +90,7 @@ const ClientFilterDropdown = ({
               />
               <span>Todos los clientes</span>
             </CommandItem>
-            {clients.map((client) => (
+            {clientsArray.map((client) => (
               <CommandItem
                 key={client.id}
                 onSelect={() => {
@@ -103,9 +108,11 @@ const ClientFilterDropdown = ({
                   />
                   <span>{client.name}</span>
                 </div>
-                <Badge variant="outline" className="ml-2 text-xs">
-                  {client.category}
-                </Badge>
+                {client.category && (
+                  <Badge variant="outline" className="ml-2 text-xs">
+                    {client.category}
+                  </Badge>
+                )}
               </CommandItem>
             ))}
           </CommandGroup>
