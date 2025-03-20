@@ -35,6 +35,9 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   } else if (post.source === "Jugando Pelota Dura") {
     // Use the newly uploaded image for Jugando Pelota Dura
     profileImageUrl = "/lovable-uploads/2cc77865-c53b-42a6-a1fd-96ed2c7a031e.png";
+  } else if (post.source === "Benjamín Torres Gotay") {
+    // Use the newly uploaded image for Benjamín Torres Gotay
+    profileImageUrl = "/lovable-uploads/12ac2e43-4806-468a-bf6d-40700af4893d.png";
   }
   
   // Determine which image to display - prioritize:
