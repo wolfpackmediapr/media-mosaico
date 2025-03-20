@@ -17,6 +17,9 @@ export interface NotificationData {
  */
 export const createNotification = async (notificationData: NotificationData) => {
   try {
+    // Calculate priority based on importance level
+    const priority = calculatePriorityFromImportance(notificationData.importance_level || 3);
+    
     const { data, error } = await supabase
       .from("client_alerts")
       .insert({
@@ -28,6 +31,7 @@ export const createNotification = async (notificationData: NotificationData) => 
         keyword_matched: notificationData.keyword_matched,
         importance_level: notificationData.importance_level || 3,
         status: "unread",
+        priority: priority,
         metadata: notificationData.metadata
       })
       .select();
@@ -103,6 +107,16 @@ const calculateImportance = (matchCount: number): number => {
   if (matchCount >= 3) return 4;
   if (matchCount >= 2) return 3;
   return 2;
+};
+
+/**
+ * Calculate priority string from importance level
+ */
+const calculatePriorityFromImportance = (importance: number): string => {
+  if (importance >= 5) return "urgent";
+  if (importance >= 4) return "high";
+  if (importance >= 3) return "medium";
+  return "low";
 };
 
 /**
