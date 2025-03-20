@@ -64,15 +64,18 @@ export function useRealTimeAlerts() {
           const clientName = alert.client_name || "Cliente";
           const summary = alert.summary || alert.title || "Nueva alerta";
           
+          // Add the metadata category if available
+          const category = alert.metadata?.category ? ` - ${alert.metadata.category}` : "";
+          
           toast({
-            title: `¡Nueva alerta para ${clientName}!`,
+            title: `¡Nueva alerta para ${clientName}!${category}`,
             description: summary,
             variant: "default",
           });
           
           // Show browser notification
           showBrowserNotification(
-            `¡Nueva alerta para ${clientName}!`,
+            `¡Nueva alerta para ${clientName}!${category}`,
             summary
           );
           

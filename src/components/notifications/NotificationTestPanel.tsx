@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { scheduleContentProcessing, processContentItem } from "@/services/notifications/contentNotificationService";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import MediaAnalysisTestPanel from "./MediaAnalysisTestPanel";
 
 const NotificationTestPanel = () => {
   const { toast } = useToast();
@@ -68,45 +70,58 @@ const NotificationTestPanel = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Button 
-            onClick={handleTriggerProcessing}
-            disabled={isScheduling}
-            className="w-full"
-          >
-            {isScheduling ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Programando...
-              </>
-            ) : (
-              "Procesar Todo el Contenido Nuevo"
-            )}
-          </Button>
+        <Tabs defaultValue="batch">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="batch">Procesamiento por Lotes</TabsTrigger>
+            <TabsTrigger value="analysis">Análisis de Contenido</TabsTrigger>
+          </TabsList>
           
-          <Button 
-            onClick={handleProcessNews}
-            disabled={isProcessing}
-            variant="outline"
-            className="w-full"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Procesando...
-              </>
-            ) : (
-              "Simular Notificación de Noticias"
-            )}
-          </Button>
-        </div>
-        
-        <div className="text-sm text-muted-foreground mt-4">
-          <p>
-            Estas acciones procesarán contenido nuevo y generarán notificaciones basadas en las
-            coincidencias de palabras clave y las preferencias configuradas.
-          </p>
-        </div>
+          <TabsContent value="batch" className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Button 
+                onClick={handleTriggerProcessing}
+                disabled={isScheduling}
+                className="w-full"
+              >
+                {isScheduling ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Programando...
+                  </>
+                ) : (
+                  "Procesar Todo el Contenido Nuevo"
+                )}
+              </Button>
+              
+              <Button 
+                onClick={handleProcessNews}
+                disabled={isProcessing}
+                variant="outline"
+                className="w-full"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  "Simular Notificación de Noticias"
+                )}
+              </Button>
+            </div>
+            
+            <div className="text-sm text-muted-foreground mt-4">
+              <p>
+                Estas acciones procesarán contenido nuevo y generarán notificaciones basadas en las
+                coincidencias de palabras clave y las preferencias configuradas.
+              </p>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="analysis">
+            <MediaAnalysisTestPanel />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
