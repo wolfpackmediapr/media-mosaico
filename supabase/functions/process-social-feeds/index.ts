@@ -12,7 +12,7 @@ const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string;
 // Social media feeds to process
 const SOCIAL_FEEDS = [
   {
-    url: "https://rss.app/feeds/v1.1/nrAbJHacD1J6WUYp.json",
+    url: "https://rss.app/feeds/v1.1/LQAaHOXtVRGhYhlc.json",
     name: "Jay Fonseca",
     platform: "twitter"
   },

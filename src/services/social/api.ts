@@ -8,7 +8,7 @@ export const SOCIAL_PLATFORMS = ['twitter', 'facebook', 'instagram', 'youtube', 
 // Social feed URLs - ensure we're using the correct .json format
 export const SOCIAL_FEEDS = [
   {
-    url: "https://rss.app/feeds/v1.1/nrAbJHacD1J6WUYp.json", 
+    url: "https://rss.app/feeds/v1.1/LQAaHOXtVRGhYhlc.json", 
     name: "Jay Fonseca",
     platform: "twitter"
   },
