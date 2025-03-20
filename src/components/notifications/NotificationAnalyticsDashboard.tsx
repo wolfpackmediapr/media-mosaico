@@ -3,15 +3,19 @@ import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NotificationAnalytics } from "@/hooks/use-notification-processing";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Loader2 } from "lucide-react";
+import {
+  NotificationVolumeChart,
+  KeywordsFrequencyChart,
+  SourceDistributionChart,
+  ClientEngagementChart,
+  NotificationStats
+} from "./charts";
 
 interface NotificationAnalyticsDashboardProps {
   analytics: NotificationAnalytics | null;
   isLoading: boolean;
 }
-
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1', '#a4de6c', '#d0ed57'];
 
 const NotificationAnalyticsDashboard: React.FC<NotificationAnalyticsDashboardProps> = ({
   analytics,
@@ -62,43 +66,12 @@ const NotificationAnalyticsDashboard: React.FC<NotificationAnalyticsDashboardPro
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardHeader className="py-2">
-              <CardTitle className="text-sm font-medium">Total Notificaciones</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{analytics.totalCount}</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="py-2">
-              <CardTitle className="text-sm font-medium">Keywords Únicos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{analytics.topKeywords.length}</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="py-2">
-              <CardTitle className="text-sm font-medium">Fuentes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{analytics.sourceDistribution.length}</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="py-2">
-              <CardTitle className="text-sm font-medium">Tasa Promedio Apertura</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{calculateAverageOpenRate()}</p>
-            </CardContent>
-          </Card>
-        </div>
+        <NotificationStats 
+          totalCount={analytics.totalCount}
+          keywordsCount={analytics.topKeywords.length}
+          sourcesCount={analytics.sourceDistribution.length}
+          avgOpenRate={calculateAverageOpenRate()}
+        />
 
         <Tabs defaultValue="volume" className="w-full">
           <TabsList className="mb-4">
@@ -109,101 +82,19 @@ const NotificationAnalyticsDashboard: React.FC<NotificationAnalyticsDashboardPro
           </TabsList>
           
           <TabsContent value="volume" className="space-y-4">
-            <div className="border rounded-md p-4">
-              <h4 className="text-sm font-medium mb-4">Volumen de Notificaciones (30 días)</h4>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={analytics.volumeByDay}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#8884d8" name="Notificaciones" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <NotificationVolumeChart data={analytics.volumeByDay} />
           </TabsContent>
           
           <TabsContent value="keywords" className="space-y-4">
-            <div className="border rounded-md p-4">
-              <h4 className="text-sm font-medium mb-4">Keywords Más Frecuentes</h4>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={analytics.topKeywords}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis type="category" dataKey="keyword" />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#82ca9d" name="Menciones" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <KeywordsFrequencyChart data={analytics.topKeywords} />
           </TabsContent>
           
           <TabsContent value="sources" className="space-y-4">
-            <div className="border rounded-md p-4">
-              <h4 className="text-sm font-medium mb-4">Distribución por Fuente</h4>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={analytics.sourceDistribution}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={true}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="count"
-                      nameKey="source"
-                      label={({ source, count, percent }) => 
-                        `${source}: ${count} (${(percent * 100).toFixed(0)}%)`
-                      }
-                    >
-                      {analytics.sourceDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <SourceDistributionChart data={analytics.sourceDistribution} />
           </TabsContent>
           
           <TabsContent value="engagement" className="space-y-4">
-            <div className="border rounded-md p-4">
-              <h4 className="text-sm font-medium mb-4">Engagement por Cliente</h4>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={analytics.clientEngagement}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" unit="%" domain={[0, 100]} />
-                    <YAxis type="category" dataKey="client" />
-                    <Tooltip formatter={(value) => {
-                      // Check if value is a number or can be converted to one
-                      if (typeof value === 'number') {
-                        return [`${value.toFixed(1)}%`, 'Tasa de Apertura'];
-                      } else if (typeof value === 'string' && !isNaN(Number(value))) {
-                        return [`${parseFloat(value).toFixed(1)}%`, 'Tasa de Apertura'];
-                      }
-                      // Fallback for any other case
-                      return [`${value}`, 'Tasa de Apertura'];
-                    }} />
-                    <Bar dataKey="openRate" fill="#ffc658" name="Tasa de Apertura" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <ClientEngagementChart data={analytics.clientEngagement} />
           </TabsContent>
         </Tabs>
       </CardContent>
