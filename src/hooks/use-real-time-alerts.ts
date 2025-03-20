@@ -1,12 +1,21 @@
 
-import { useEffect, useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
-export function useRealTimeAlerts() {
-  const { toast } = useToast();
+interface NotificationAlertsOptions {
+  enableRealtime?: boolean;
+  toastCallback?: (title: string, description: string) => void;
+}
+
+/**
+ * Hook for handling real-time notification alerts
+ */
+export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
+  const { enableRealtime = true, toastCallback } = options;
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Play notification sound
   const playNotificationSound = useCallback(() => {
@@ -37,8 +46,10 @@ export function useRealTimeAlerts() {
     }
   }, []);
 
-  // Setup real-time subscription for alerts
+  // Setup real-time subscription
   useEffect(() => {
+    if (!enableRealtime) return;
+
     // Request browser notification permission
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
@@ -59,7 +70,7 @@ export function useRealTimeAlerts() {
           // Play sound
           playNotificationSound();
           
-          // Show toast notification
+          // Get alert details
           const alert = payload.new;
           const clientName = alert.client_name || "Cliente";
           const summary = alert.summary || alert.title || "Nueva alerta";
@@ -67,17 +78,21 @@ export function useRealTimeAlerts() {
           // Add the metadata category if available
           const category = alert.metadata?.category ? ` - ${alert.metadata.category}` : "";
           
-          toast({
-            title: `¡Nueva alerta para ${clientName}!${category}`,
-            description: summary,
-            variant: "default",
-          });
+          const title = `¡Nueva alerta para ${clientName}!${category}`;
+          
+          // Show toast notification
+          if (toastCallback) {
+            toastCallback(title, summary);
+          } else {
+            toast({
+              title,
+              description: summary,
+              variant: "default",
+            });
+          }
           
           // Show browser notification
-          showBrowserNotification(
-            `¡Nueva alerta para ${clientName}!${category}`,
-            summary
-          );
+          showBrowserNotification(title, summary);
           
           // Invalidate queries to refresh data
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -108,13 +123,46 @@ export function useRealTimeAlerts() {
         (payload) => {
           console.log("New press clipping processed:", payload);
           
-          toast({
-            title: "Nuevo contenido de prensa",
-            description: payload.new.title || "Contenido procesado y listo para consulta",
-            variant: "default",
-          });
+          const title = "Nuevo contenido de prensa";
+          const description = payload.new.title || "Contenido procesado y listo para consulta";
+          
+          if (toastCallback) {
+            toastCallback(title, description);
+          } else {
+            toast({
+              title,
+              description,
+              variant: "default",
+            });
+          }
           
           queryClient.invalidateQueries({ queryKey: ["press-clippings"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "transcriptions"
+        },
+        (payload) => {
+          console.log("New transcription processed:", payload);
+          
+          const title = "Nueva transcripción completada";
+          const description = "El contenido de audio/video ha sido transcrito exitosamente";
+          
+          if (toastCallback) {
+            toastCallback(title, description);
+          } else {
+            toast({
+              title,
+              description,
+              variant: "default",
+            });
+          }
+          
+          queryClient.invalidateQueries({ queryKey: ["transcriptions"] });
         }
       )
       .subscribe();
@@ -123,7 +171,7 @@ export function useRealTimeAlerts() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient, playNotificationSound, showBrowserNotification, toast]);
+  }, [queryClient, playNotificationSound, showBrowserNotification, toast, toastCallback, enableRealtime]);
 
   return {
     // You can add methods here if needed for manual alert creation

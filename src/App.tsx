@@ -1,75 +1,78 @@
-
-import { BrowserRouter as Router, Routes, Route, Outlet } from "react-router-dom";
-import { ThemeProvider } from "./components/theme/ThemeProvider";
+import React, { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { ThemeProvider } from "@/components/ui/theme-provider";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Layout from "./components/layout/Layout";
 import Index from "./pages/Index";
-import Prensa from "./pages/Prensa";
-import RedesSociales from "./pages/RedesSociales";
-import Radio from "./pages/Radio";
 import Tv from "./pages/Tv";
+import Radio from "./pages/Radio";
+import Prensa from "./pages/Prensa";
 import PrensaEscrita from "./pages/PrensaEscrita";
-import Reportes from "./pages/Reportes";
-import Ajustes from "./pages/Ajustes";
-import Ayuda from "./pages/Ayuda";
-import EnvioAlertas from "./pages/EnvioAlertas";
+import RedesSociales from "./pages/RedesSociales";
 import Notificaciones from "./pages/Notificaciones";
+import Reportes from "./pages/Reportes";
+import EnvioAlertas from "./pages/EnvioAlertas";
+import ConfiguracionGeneral from "./pages/configuracion/ConfiguracionGeneral";
+import ConfiguracionAlertas from "./pages/configuracion/ConfiguracionAlertas";
+import ConfiguracionUsuarios from "./pages/configuracion/ConfiguracionUsuarios";
+import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
-import ClientsSettings from "./pages/configuracion/ClientsSettings";
-import UsersSettings from "./pages/configuracion/UsersSettings";
-import MediaSettings from "./pages/configuracion/MediaSettings";
-import NotificationsSettings from "./pages/configuracion/NotificationsSettings";
-import NotificationMonitoring from "./pages/configuracion/NotificationMonitoring";
-import GeneralSettings from "./pages/configuracion/GeneralSettings";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import RealTimeAlertsProvider from "@/components/notifications/RealTimeAlertsProvider";
+import { Toaster } from "@/components/ui/toaster";
 
-const queryClient = new QueryClient();
+import "./App.css";
+import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    // Check if the user is logged in
+    const token = localStorage.getItem("sb-access-token");
+    if (token) {
+      setIsLoggedIn(true);
+    } else {
+      setIsLoggedIn(false);
+    }
+  }, []);
+
+  const queryClient = new QueryClient();
+  
   return (
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+    <>
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <BrowserRouter>
           <RealTimeAlertsProvider>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/registro" element={<Registro />} />
-              <Route path="/recuperar-password" element={<RecuperarPassword />} />
-              <Route path="/" element={<Layout><Outlet /></Layout>}>
-                <Route index element={<Index />} />
-                <Route path="prensa" element={<Prensa />} />
-                <Route path="redes-sociales" element={<RedesSociales />} />
-                <Route path="radio" element={<Radio />} />
-                <Route path="tv" element={<Tv />} />
-                <Route path="prensa-escrita" element={<PrensaEscrita />} />
-                <Route path="reportes" element={<Reportes />} />
-                <Route path="ajustes" element={<Ajustes />} />
-                <Route path="ajustes/general" element={<GeneralSettings />} />
-                <Route path="ajustes/usuarios" element={<UsersSettings />} />
-                <Route path="ajustes/clientes" element={<ClientsSettings />} />
-                <Route path="ajustes/prensa" element={<Outlet />} />
-                <Route path="ajustes/radio" element={<Outlet />} />
-                <Route path="ajustes/tv" element={<Outlet />} />
-                <Route path="ajustes/participantes" element={<Outlet />} />
-                <Route path="ajustes/instituciones" element={<Outlet />} />
-                <Route path="configuracion">
-                  <Route path="clientes" element={<ClientsSettings />} />
-                  <Route path="usuarios" element={<UsersSettings />} />
-                  <Route path="medios" element={<MediaSettings />} />
-                  <Route path="notificaciones" element={<NotificationsSettings />} />
-                  <Route path="monitoreo-notificaciones" element={<NotificationMonitoring />} />
+            <QueryClientProvider client={queryClient}>
+              <Routes>
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<Index />} />
+                  <Route path="tv" element={<Tv />} />
+                  <Route path="radio" element={<Radio />} />
+                  <Route path="prensa" element={<Prensa />} />
+                  <Route path="prensa-escrita" element={<PrensaEscrita />} />
+                  <Route path="redes-sociales" element={<RedesSociales />} />
+                  <Route path="notificaciones" element={<Notificaciones />} />
+                  <Route path="reportes" element={<Reportes />} />
+                  <Route path="enviar-alertas" element={<EnvioAlertas />} />
+                  <Route path="configuracion/*" element={<Outlet />}>
+                    <Route path="general" element={<ConfiguracionGeneral />} />
+                    <Route path="alertas" element={<ConfiguracionAlertas />} />
+                    <Route path="usuarios" element={<ConfiguracionUsuarios />} />
+                  </Route>
+                  <Route path="ayuda" element={<Ayuda />} />
                 </Route>
-                <Route path="notificaciones" element={<Notificaciones />} />
-                <Route path="ayuda" element={<Ayuda />} />
-                <Route path="envio-alertas" element={<EnvioAlertas />} />
-              </Route>
-            </Routes>
+                <Route path="auth" element={<Auth />} />
+                <Route path="registro" element={<Registro />} />
+                <Route path="recuperar-password" element={<RecuperarPassword />} />
+              </Routes>
+              <Toaster />
+            </QueryClientProvider>
           </RealTimeAlertsProvider>
-        </ThemeProvider>
-      </Router>
-    </QueryClientProvider>
+        </BrowserRouter>
+      </ThemeProvider>
+    </>
   );
 }
 

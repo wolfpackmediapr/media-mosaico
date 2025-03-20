@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
+import { createNotification } from "@/services/notifications/notificationService";
 
 interface RadioAnalysisProps {
   transcriptionText?: string;
@@ -38,6 +38,54 @@ const RadioAnalysis = ({ transcriptionText, onSegmentsGenerated }: RadioAnalysis
         // Generate radio segments based on analysis result
         if (onSegmentsGenerated) {
           generateImprovedSegments(data.analysis, transcriptionText);
+        }
+        
+        // Create notification for radio content analysis
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            // Extract category and keywords from analysis text if available
+            let category = "";
+            let keywords: string[] = [];
+            let matchedClients: string[] = [];
+            
+            // Try to parse category, keywords and clients from the analysis text
+            const categoryMatch = data.analysis.match(/Categoría:?\s*([A-Z\s&]+)/i);
+            if (categoryMatch && categoryMatch[1]) {
+              category = categoryMatch[1].trim();
+            }
+            
+            const keywordsMatch = data.analysis.match(/Keywords:?\s*([^\.]+)/i);
+            if (keywordsMatch && keywordsMatch[1]) {
+              keywords = keywordsMatch[1].split(',').map((k: string) => k.trim()).filter(Boolean);
+            }
+            
+            const clientsMatch = data.analysis.match(/Clientes relacionados:?\s*([^\.]+)/i);
+            if (clientsMatch && clientsMatch[1]) {
+              matchedClients = clientsMatch[1].split(',').map((c: string) => c.trim()).filter(Boolean);
+            }
+            
+            // Only create notification if we found some useful info
+            if (category || keywords.length > 0 || matchedClients.length > 0) {
+              await createNotification({
+                client_id: user.id,
+                title: `Análisis de contenido radial: ${category || 'Sin categoría'}`,
+                description: `${matchedClients.length > 0 ? 'Clientes: ' + matchedClients.join(', ') : ''}`,
+                content_type: "radio",
+                importance_level: matchedClients.length > 0 ? 4 : 3,
+                keyword_matched: keywords,
+                metadata: {
+                  category,
+                  matchedClients,
+                  relevantKeywords: keywords
+                }
+              });
+              
+              console.log("Created notification for radio content analysis");
+            }
+          }
+        } catch (notificationError) {
+          console.error("Error creating notification:", notificationError);
         }
       }
     } catch (error) {

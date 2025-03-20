@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { createNotification } from "@/services/notifications/notificationService";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -84,6 +85,20 @@ export const processVideoFile = async (
             title: "Transcripción completada",
             description: "El archivo ha sido procesado exitosamente",
           });
+          
+          // Create notification for the transcription completion
+          await createNotification({
+            client_id: user.id,
+            title: "Nueva transcripción completada",
+            description: `Transcripción de archivo ${file.name} completada exitosamente`,
+            content_type: "tv",
+            importance_level: 3,
+            metadata: {
+              fileName: file.name,
+              fileType: file.type,
+              transcriptionLength: transcriptionData.text.length
+            }
+          });
         }
       }
     } 
@@ -129,6 +144,20 @@ export const processVideoFile = async (
             title: "Transcripción completada",
             description: "El archivo ha sido procesado exitosamente",
           });
+          
+          // Create notification for the transcription completion
+          await createNotification({
+            client_id: user.id,
+            title: "Nueva transcripción completada",
+            description: `Transcripción de archivo ${file.name} completada exitosamente`,
+            content_type: "tv",
+            importance_level: 3,
+            metadata: {
+              fileName: file.name,
+              fileType: file.type,
+              transcriptionLength: transcriptionData.text.length
+            }
+          });
         }
       }
     } 
@@ -148,6 +177,20 @@ export const processVideoFile = async (
         toast({
           title: "Transcripción completada",
           description: "El archivo ha sido procesado exitosamente",
+        });
+        
+        // Create notification for the transcription completion
+        await createNotification({
+          client_id: user.id,
+          title: "Nueva transcripción completada",
+          description: `Transcripción de archivo ${file.name} completada exitosamente`,
+          content_type: "tv",
+          importance_level: 3,
+          metadata: {
+            fileName: file.name,
+            fileType: file.type,
+            transcriptionLength: data.text.length
+          }
         });
       }
     }
