@@ -21,6 +21,7 @@ import UsersSettings from "./pages/configuracion/UsersSettings";
 import MediaSettings from "./pages/configuracion/MediaSettings";
 import NotificationsSettings from "./pages/configuracion/NotificationsSettings";
 import NotificationMonitoring from "./pages/configuracion/NotificationMonitoring";
+import GeneralSettings from "./pages/configuracion/GeneralSettings";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Create a client
@@ -44,6 +45,7 @@ function App() {
               <Route path="prensa-escrita" element={<PrensaEscrita />} />
               <Route path="reportes" element={<Reportes />} />
               <Route path="ajustes" element={<Ajustes />} />
+              <Route path="ajustes/general" element={<GeneralSettings />} />
               <Route path="configuracion">
                 <Route path="clientes" element={<ClientsSettings />} />
                 <Route path="usuarios" element={<UsersSettings />} />
