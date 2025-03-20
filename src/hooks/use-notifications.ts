@@ -16,6 +16,7 @@ type NotificationAlert = {
   content_type: string | null;
   keyword_matched: string[] | null;
   client_id: string | null;
+  clients?: { name: string } | null;
   metadata: any | null;
 };
 
@@ -34,14 +35,17 @@ export function useNotifications(options: { enableRealtime?: boolean } = {}) {
       importance: notification.importance_level || 
         (notification.priority === "urgent" ? 5 : 
          notification.priority === "high" ? 4 : 
-         notification.priority === "medium" ? 3 : 2)
+         notification.priority === "medium" ? 3 : 2),
+      clientId: notification.client_id || null,
+      clientName: notification.clients?.name || null,
+      keywords: notification.keyword_matched || []
     };
   };
 
   const fetchNotifications = async () => {
     const { data, error } = await supabase
       .from("client_alerts")
-      .select("*")
+      .select("*, clients(name)")
       .order("created_at", { ascending: false })
       .limit(50);
 

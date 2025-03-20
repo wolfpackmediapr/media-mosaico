@@ -1,31 +1,30 @@
 
-import React from "react";
+import * as React from "react";
 import { cn } from "@/lib/utils";
 
 interface EmptyPlaceholderProps {
-  icon?: React.ReactNode;
-  title?: string;
   message: string;
-  children?: React.ReactNode;
+  description?: string;
+  icon?: React.ReactNode;
   className?: string;
+  children?: React.ReactNode;
 }
 
 export function EmptyPlaceholder({
-  icon,
-  title,
   message,
-  children,
+  description,
+  icon,
   className,
+  children,
 }: EmptyPlaceholderProps) {
   return (
-    <div className={cn(
-      "flex flex-col items-center justify-center text-center p-8 h-full",
-      className
-    )}>
-      {icon && <div className="mb-4">{icon}</div>}
-      {title && <h3 className="text-lg font-medium mb-2">{title}</h3>}
-      <p className="text-sm text-muted-foreground mb-4">{message}</p>
-      {children}
+    <div className={cn("flex min-h-[200px] flex-col items-center justify-center rounded-md p-8 text-center", className)}>
+      <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
+        {icon && <div className="mb-4">{icon}</div>}
+        <h3 className="text-lg font-semibold">{message}</h3>
+        {description && <p className="mb-4 mt-2 text-sm text-muted-foreground">{description}</p>}
+        {children}
+      </div>
     </div>
   );
 }

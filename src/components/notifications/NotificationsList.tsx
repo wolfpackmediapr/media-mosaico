@@ -11,6 +11,7 @@ interface NotificationsListProps {
   isLoading?: boolean;
   onNotificationClick?: (id: string) => void;
   showViewAll?: boolean;
+  showClientInfo?: boolean;
 }
 
 const NotificationsList = ({
@@ -18,6 +19,7 @@ const NotificationsList = ({
   isLoading = false,
   onNotificationClick,
   showViewAll = false,
+  showClientInfo = true,
 }: NotificationsListProps) => {
   const navigate = useNavigate();
 

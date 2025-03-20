@@ -1,4 +1,3 @@
-
 import React from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -41,6 +40,7 @@ interface NotificationPreferenceFormProps {
   onCancel: () => void;
   isSubmitting: boolean;
   clients?: { id: string; name: string }[];
+  presetClientId?: string;
 }
 
 const NotificationPreferenceForm = ({
@@ -48,11 +48,13 @@ const NotificationPreferenceForm = ({
   onCancel,
   isSubmitting,
   clients = [],
+  presetClientId,
 }: NotificationPreferenceFormProps) => {
   // Form setup
   const form = useForm<NotificationPreferenceFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      client_id: presetClientId || "",
       notification_channels: ["in_app"],
       frequency: "daily",
       threshold: 1,
@@ -65,6 +67,9 @@ const NotificationPreferenceForm = ({
     onSubmit(values);
   };
 
+  // If a client ID is preset, the field should be disabled
+  const isClientFieldDisabled = !!presetClientId;
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
@@ -74,7 +79,11 @@ const NotificationPreferenceForm = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Cliente</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select 
+                onValueChange={field.onChange} 
+                defaultValue={field.value}
+                disabled={isClientFieldDisabled}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccione un cliente" />

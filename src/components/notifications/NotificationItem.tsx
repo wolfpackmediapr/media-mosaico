@@ -2,7 +2,9 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import { AlertCircle, Bell, Info } from "lucide-react";
+import { AlertCircle, Bell, Info, Tag } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export interface NotificationItemProps {
   id: string;
@@ -11,6 +13,9 @@ export interface NotificationItemProps {
   createdAt: string;
   status: "unread" | "read" | "archived";
   importance: number;
+  clientName?: string;
+  clientId?: string;
+  keywords?: string[];
   onClick?: (id: string) => void;
 }
 
@@ -21,6 +26,9 @@ const NotificationItem = ({
   createdAt,
   status,
   importance,
+  clientName,
+  clientId,
+  keywords,
   onClick,
 }: NotificationItemProps) => {
   const handleClick = () => {
@@ -47,22 +55,66 @@ const NotificationItem = ({
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p
-          className={cn(
-            "text-sm font-medium",
-            status === "unread" ? "text-foreground" : "text-muted-foreground"
+        <div className="flex items-center justify-between">
+          <p
+            className={cn(
+              "text-sm font-medium",
+              status === "unread" ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            {title}
+          </p>
+          
+          {clientName && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              {clientName}
+            </Badge>
           )}
-        >
-          {title}
-        </p>
+        </div>
+        
         {description && (
           <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
             {description}
           </p>
         )}
-        <p className="text-xs text-muted-foreground mt-1">
-          {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
-        </p>
+        
+        <div className="flex items-center justify-between mt-1">
+          <p className="text-xs text-muted-foreground">
+            {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
+          </p>
+          
+          {keywords && keywords.length > 0 && (
+            <div className="flex items-center">
+              <Tag className="h-3 w-3 text-muted-foreground mr-1" />
+              <div className="flex space-x-1 overflow-hidden">
+                {keywords.slice(0, 2).map((keyword, index) => (
+                  <span key={index} className="text-xs bg-muted rounded-sm px-1">
+                    {keyword}
+                  </span>
+                ))}
+                
+                {keywords.length > 2 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs bg-muted rounded-sm px-1 cursor-help">
+                          +{keywords.length - 2}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="flex flex-col space-y-1">
+                          {keywords.slice(2).map((keyword, index) => (
+                            <span key={index}>{keyword}</span>
+                          ))}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
