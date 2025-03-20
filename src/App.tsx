@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
-import { ThemeProvider } from "@/components/ui/theme-provider";
+import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Layout from "./components/layout/Layout";
 import Index from "./pages/Index";
@@ -12,9 +13,11 @@ import RedesSociales from "./pages/RedesSociales";
 import Notificaciones from "./pages/Notificaciones";
 import Reportes from "./pages/Reportes";
 import EnvioAlertas from "./pages/EnvioAlertas";
-import ConfiguracionGeneral from "./pages/configuracion/ConfiguracionGeneral";
-import ConfiguracionAlertas from "./pages/configuracion/ConfiguracionAlertas";
-import ConfiguracionUsuarios from "./pages/configuracion/ConfiguracionUsuarios";
+import { 
+  GeneralSettings as ConfiguracionGeneral,
+  NotificationsSettings as ConfiguracionAlertas,
+  UsersSettings as ConfiguracionUsuarios
+} from "./pages/configuracion";
 import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
@@ -46,7 +49,7 @@ function App() {
           <RealTimeAlertsProvider>
             <QueryClientProvider client={queryClient}>
               <Routes>
-                <Route path="/" element={<Layout />}>
+                <Route path="/" element={<Layout>{<Outlet />}</Layout>}>
                   <Route index element={<Index />} />
                   <Route path="tv" element={<Tv />} />
                   <Route path="radio" element={<Radio />} />
