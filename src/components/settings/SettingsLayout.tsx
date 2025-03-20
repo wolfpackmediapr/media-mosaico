@@ -147,13 +147,14 @@ function SettingsNav({ currentPath }: { currentPath: string }) {
     <Tabs className="w-full" orientation="vertical" defaultValue="general">
       <TabsList className="flex h-auto w-full flex-col items-stretch justify-start bg-transparent p-0">
         {sections.map((section) => {
+          // Check if this section is active based on the URL path
           const isActive = currentPath.includes(section.path);
-          const isActiveExact = currentPath === section.path;
+          const sectionValue = section.path.split('/').pop() || '';
           
           return (
             <div key={section.path} className="mb-2">
               <TabsTrigger
-                value={section.path.split('/').pop() || ''}
+                value={sectionValue}
                 className={`mb-1 w-full justify-start px-3 py-2 text-left hover:bg-muted ${
                   isActive ? 'bg-muted font-medium' : ''
                 }`}

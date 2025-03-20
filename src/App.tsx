@@ -46,6 +46,13 @@ function App() {
               <Route path="reportes" element={<Reportes />} />
               <Route path="ajustes" element={<Ajustes />} />
               <Route path="ajustes/general" element={<GeneralSettings />} />
+              <Route path="ajustes/usuarios" element={<UsersSettings />} />
+              <Route path="ajustes/clientes" element={<ClientsSettings />} />
+              <Route path="ajustes/prensa" element={<Outlet />} />
+              <Route path="ajustes/radio" element={<Outlet />} />
+              <Route path="ajustes/tv" element={<Outlet />} />
+              <Route path="ajustes/participantes" element={<Outlet />} />
+              <Route path="ajustes/instituciones" element={<Outlet />} />
               <Route path="configuracion">
                 <Route path="clientes" element={<ClientsSettings />} />
                 <Route path="usuarios" element={<UsersSettings />} />
