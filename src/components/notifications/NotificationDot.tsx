@@ -1,5 +1,6 @@
 
 import React from "react";
+import { cn } from "@/lib/utils";
 
 const NotificationDot = ({ className }: { className?: string }) => {
   return (
@@ -9,7 +10,7 @@ const NotificationDot = ({ className }: { className?: string }) => {
       fill="currentColor"
       viewBox="0 0 6 6"
       xmlns="http://www.w3.org/2000/svg"
-      className={className}
+      className={cn("notification-dot", className)}
       aria-hidden="true"
     >
       <circle cx="3" cy="3" r="3" />

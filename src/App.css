@@ -71,3 +71,23 @@
 .custom-sonner-toast[data-dismissing="true"] {
   animation: fade-out-scale 0.15s ease forwards !important;
 }
+
+/* Animation for notification dot pulse */
+@keyframes pulse-dot {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+.notification-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
