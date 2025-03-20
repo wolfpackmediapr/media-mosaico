@@ -49,7 +49,7 @@ function App() {
           <BrowserRouter>
             <RealTimeAlertsProvider>
               <Routes>
-                <Route path="/" element={<Layout>{<Outlet />}</Layout>}>
+                <Route path="/" element={<Layout><Outlet /></Layout>}>
                   <Route index element={<Index />} />
                   <Route path="tv" element={<Tv />} />
                   <Route path="radio" element={<Radio />} />

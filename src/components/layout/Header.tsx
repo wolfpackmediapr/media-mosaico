@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import NotificationsList from "@/components/notifications/NotificationsList";
 import { useNotifications } from "@/hooks/use-notifications";
 
@@ -28,42 +29,45 @@ const Header = () => {
       <div className="flex items-center space-x-2 md:space-x-4">
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
+            <Button variant="outline" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 h-4 w-4 text-[10px] flex items-center justify-center bg-red-500 text-white rounded-full">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
+                <Badge className="absolute -top-2 left-full min-w-5 -translate-x-1/2 px-1">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Badge>
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0 max-h-[450px] overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-              <h3 className="font-medium text-sm">Notificaciones</h3>
+          <PopoverContent align="end" className="w-80 p-1">
+            <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+              <div className="text-sm font-semibold">Notificaciones</div>
               {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs"
+                <button 
+                  className="text-xs font-medium hover:underline" 
                   onClick={() => markAllAsRead()}
                 >
                   Marcar todo como leído
-                </Button>
+                </button>
               )}
             </div>
+            <div
+              role="separator"
+              aria-orientation="horizontal"
+              className="-mx-1 my-1 h-px bg-border"
+            ></div>
             <div className="max-h-[400px] overflow-y-auto">
               <NotificationsList 
-                notifications={notifications.slice(0, 5)} 
+                notifications={notifications.slice(0, 10)} 
                 isLoading={isLoading} 
                 onNotificationClick={handleNotificationClick}
-                showViewAll={notifications.length > 5}
+                showViewAll={notifications.length > 10}
               />
             </div>
           </PopoverContent>
         </Popover>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
+            <Button variant="outline" size="icon" className="rounded-full">
               <User className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
