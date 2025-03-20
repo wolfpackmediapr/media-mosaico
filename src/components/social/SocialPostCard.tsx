@@ -7,7 +7,7 @@ import { es } from "date-fns/locale";
 import { platformIcons } from "@/lib/platform-icons";
 import type { SocialPost } from "@/types/social";
 import { sanitizeSocialContent, extractImageFromHtml } from "@/services/social/content-sanitizer";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Image } from "@/components/ui/image";
 
 interface SocialPostCardProps {
@@ -26,28 +26,39 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   
   // Track image loading state
   const [imageError, setImageError] = useState(false);
+  const [imageToUse, setImageToUse] = useState<string>(placeholderImage);
   
   // Determine profile image based on platform/source name
-  let profileImageUrl = null;
-  if (post.source === "Jay Fonseca") {
-    // Use the newly uploaded image for Jay Fonseca
-    profileImageUrl = "/lovable-uploads/245cf068-419d-4227-918d-f35e38320b3e.png";
-  } else if (post.source === "Jugando Pelota Dura") {
-    // Use the newly uploaded image for Jugando Pelota Dura
-    profileImageUrl = "/lovable-uploads/2cc77865-c53b-42a6-a1fd-96ed2c7a031e.png";
-  } else if (post.source === "Benjamín Torres Gotay") {
-    // Use the newly uploaded image for Benjamín Torres Gotay
-    profileImageUrl = "/lovable-uploads/12ac2e43-4806-468a-bf6d-40700af4893d.png";
-  }
+  useEffect(() => {
+    let profileImageUrl = null;
+    
+    if (post.source === "Jay Fonseca") {
+      profileImageUrl = "/lovable-uploads/245cf068-419d-4227-918d-f35e38320b3e.png";
+    } else if (post.source === "Jugando Pelota Dura") {
+      profileImageUrl = "/lovable-uploads/2cc77865-c53b-42a6-a1fd-96ed2c7a031e.png";
+    } else if (post.source === "Benjamín Torres Gotay") {
+      profileImageUrl = "/lovable-uploads/12ac2e43-4806-468a-bf6d-40700af4893d.png";
+    }
+    
+    // Reset image error state when post changes
+    setImageError(false);
+    
+    // Determine which image to display - prioritize:
+    const newImageToUse = imageError 
+      ? (profileImageUrl || placeholderImage)
+      : (post.image_url || contentImage || profileImageUrl || placeholderImage);
+    
+    setImageToUse(newImageToUse);
+    
+    // Log for debugging
+    console.log(`Post from ${post.source}, using image: ${newImageToUse}`);
+    console.log(`Profile image for ${post.source}: ${profileImageUrl}`);
+  }, [post, contentImage, imageError]);
   
-  // Determine which image to display - prioritize:
-  // 1. Post image if available and not errored
-  // 2. Content extracted image if available
-  // 3. Profile image if available
-  // 4. Generic placeholder as last resort
-  const imageToUse = imageError 
-    ? (profileImageUrl || placeholderImage)
-    : (post.image_url || contentImage || profileImageUrl || placeholderImage);
+  const handleImageError = () => {
+    console.log(`Image failed to load: ${imageToUse}`);
+    setImageError(true);
+  };
   
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
@@ -57,7 +68,7 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
             src={imageToUse}
             alt={post.title}
             className="w-full h-full object-cover"
-            onError={() => setImageError(true)}
+            onError={handleImageError}
             crossOrigin="anonymous"
             loading="lazy"
             width={400}
