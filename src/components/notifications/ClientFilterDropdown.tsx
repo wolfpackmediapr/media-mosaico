@@ -70,10 +70,10 @@ const ClientFilterDropdown = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[250px] p-0">
-        <Command>
-          <CommandInput placeholder="Buscar cliente..." />
-          <CommandEmpty>No se encontraron clientes.</CommandEmpty>
-          <CommandGroup>
+        <Command className="w-full">
+          <CommandInput placeholder="Buscar cliente..." className="h-9" />
+          <CommandEmpty className="py-2 text-center text-sm">No se encontraron clientes.</CommandEmpty>
+          <CommandGroup className="max-h-[300px] overflow-auto">
             <CommandItem
               key="all-clients"
               onSelect={() => {
