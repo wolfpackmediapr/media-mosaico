@@ -1,4 +1,3 @@
-
 import { ExternalLink } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { platformIcons } from "@/lib/platform-icons";
 import type { SocialPost } from "@/types/social";
-import { sanitizeSocialContent, extractImageFromHtml } from "@/services/social/content-sanitizer";
+import { sanitizeSocialContent, extractImageFromHtml, getPlatformPlaceholderImage } from "@/services/social/content-sanitizer";
 import { useState, useEffect } from "react";
 import { Image } from "@/components/ui/image";
 
@@ -22,50 +21,72 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   const contentImage = !post.image_url ? extractImageFromHtml(post.description) : null;
   
   // Use a more specific placeholder image for Twitter/social media
-  const placeholderImage = `https://images.unsplash.com/photo-1611162616475-46b635cb6868?q=80&w=2874&auto=format&fit=crop`;
+  const placeholderImage = getPlatformPlaceholderImage(post.platform);
   
   // Track image loading state
   const [imageError, setImageError] = useState(false);
-  const [imageToUse, setImageToUse] = useState<string>(placeholderImage);
+  const [imageToUse, setImageToUse] = useState<string | null>(null);
   
-  // Determine profile image based on platform/source name
+  // Map of known profile images - moved outside useEffect for reusability and clarity
+  const profileImageMap: Record<string, string> = {
+    "Jay Fonseca": "/lovable-uploads/245cf068-419d-4227-918d-f35e38320b3e.png",
+    "Jugando Pelota Dura": "/lovable-uploads/2cc77865-c53b-42a6-a1fd-96ed2c7a031e.png", 
+    "Benjamín Torres Gotay": "/lovable-uploads/12ac2e43-4806-468a-bf6d-40700af4893d.png"
+  };
+  
+  // Determine profile image and update image state when post changes
   useEffect(() => {
-    let profileImageUrl = null;
-    
-    if (post.source === "Jay Fonseca") {
-      profileImageUrl = "/lovable-uploads/245cf068-419d-4227-918d-f35e38320b3e.png";
-    } else if (post.source === "Jugando Pelota Dura") {
-      profileImageUrl = "/lovable-uploads/2cc77865-c53b-42a6-a1fd-96ed2c7a031e.png";
-    } else if (post.source === "Benjamín Torres Gotay") {
-      profileImageUrl = "/lovable-uploads/12ac2e43-4806-468a-bf6d-40700af4893d.png";
-    }
-    
     // Reset image error state when post changes
     setImageError(false);
     
-    // Determine which image to display - prioritize:
-    const newImageToUse = imageError 
-      ? (profileImageUrl || placeholderImage)
-      : (post.image_url || contentImage || profileImageUrl || placeholderImage);
+    // Get the profile image for this source
+    const profileImageUrl = profileImageMap[post.source] || null;
+    
+    console.log(`Post source: "${post.source}"`);
+    console.log(`Looking up profile image for "${post.source}": ${profileImageUrl}`);
+    
+    // Determine which image to display with clear priority order
+    let newImageToUse = post.image_url || contentImage || profileImageUrl || placeholderImage;
+    
+    // If we're explicitly using the profile image, log it
+    if (profileImageUrl && (newImageToUse === profileImageUrl)) {
+      console.log(`Using profile image for ${post.source}: ${profileImageUrl}`);
+    }
     
     setImageToUse(newImageToUse);
-    
-    // Log for debugging
-    console.log(`Post from ${post.source}, using image: ${newImageToUse}`);
-    console.log(`Profile image for ${post.source}: ${profileImageUrl}`);
-  }, [post, contentImage, imageError]);
+  }, [post, contentImage, placeholderImage]);
   
+  // Handle image load errors
   const handleImageError = () => {
     console.log(`Image failed to load: ${imageToUse}`);
-    setImageError(true);
+    
+    // If image fails, try to use profile image as fallback or placeholder
+    const profileImage = profileImageMap[post.source];
+    
+    // Only set error state if we haven't already tried the fallback image
+    if (!imageError) {
+      setImageError(true);
+      
+      // Explicitly set fallback image
+      if (profileImage) {
+        console.log(`Falling back to profile image: ${profileImage}`);
+        setImageToUse(profileImage);
+      } else {
+        console.log(`No profile image available, using placeholder: ${placeholderImage}`);
+        setImageToUse(placeholderImage);
+      }
+    }
   };
+  
+  // Ensure we have an image to display
+  const finalImageUrl = imageToUse || placeholderImage;
   
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
       <CardContent className="p-0">
         <div className="w-full h-48 overflow-hidden">
           <Image 
-            src={imageToUse}
+            src={finalImageUrl}
             alt={post.title}
             className="w-full h-full object-cover"
             onError={handleImageError}
