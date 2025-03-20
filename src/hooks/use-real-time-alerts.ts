@@ -37,7 +37,7 @@ export function useRealTimeAlerts() {
     }
   }, []);
 
-  // Setup real-time subscription for transcriptions
+  // Setup real-time subscription for alerts
   useEffect(() => {
     // Request browser notification permission
     if ("Notification" in window && Notification.permission === "default") {
@@ -45,7 +45,7 @@ export function useRealTimeAlerts() {
     }
 
     const channel = supabase
-      .channel("media-content-changes")
+      .channel("client-alerts-channel")
       .on(
         "postgres_changes",
         {
@@ -54,32 +54,31 @@ export function useRealTimeAlerts() {
           table: "client_alerts"
         },
         (payload) => {
-          console.log("New media alert received:", payload);
+          console.log("New client alert received:", payload);
           
           // Play sound
           playNotificationSound();
           
           // Show toast notification
-          const newAlert = payload.new;
-          const clientName = newAlert.clients?.name || "Cliente";
-          const category = newAlert.metadata?.category || "";
-          const sourceType = getSourceTypeDisplay(newAlert.content_type);
+          const alert = payload.new;
+          const clientName = alert.client_name || "Cliente";
+          const summary = alert.summary || alert.title || "Nueva alerta";
           
           toast({
-            title: `¡Nueva alerta de ${sourceType}!`,
-            description: `${newAlert.title} - Relevante para ${clientName} ${category ? `(${category})` : ""}`,
-            variant: newAlert.priority === "urgent" ? "destructive" : "default",
+            title: `¡Nueva alerta para ${clientName}!`,
+            description: summary,
+            variant: "default",
           });
           
           // Show browser notification
           showBrowserNotification(
-            `¡Nueva alerta de ${sourceType}!`,
-            `${newAlert.title} - Relevante para ${clientName}`
+            `¡Nueva alerta para ${clientName}!`,
+            summary
           );
           
           // Invalidate queries to refresh data
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
-          queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
+          queryClient.invalidateQueries({ queryKey: ["client-alerts"] });
         }
       )
       .on(
@@ -106,9 +105,8 @@ export function useRealTimeAlerts() {
         (payload) => {
           console.log("New press clipping processed:", payload);
           
-          // Show a more subtle toast for new content
           toast({
-            title: "Nuevo contenido de prensa procesado",
+            title: "Nuevo contenido de prensa",
             description: payload.new.title || "Contenido procesado y listo para consulta",
             variant: "default",
           });
@@ -118,6 +116,7 @@ export function useRealTimeAlerts() {
       )
       .subscribe();
 
+    // Cleanup subscription when component unmounts
     return () => {
       supabase.removeChannel(channel);
     };
@@ -125,20 +124,9 @@ export function useRealTimeAlerts() {
 
   return {
     // You can add methods here if needed for manual alert creation
-    createManualAlert: (clientId: string, title: string, description: string, priority: string = "medium") => {
-      // Logic to create a manual alert
+    createManualAlert: (clientId: string, title: string, description: string) => {
+      // Logic for creating a manual alert could be added here
+      console.log("Manual alert creation not yet implemented", { clientId, title, description });
     }
   };
-}
-
-// Helper function to get a display name for the content type
-function getSourceTypeDisplay(contentType: string | null): string {
-  switch (contentType) {
-    case "news": return "Noticias";
-    case "social": return "Redes Sociales";
-    case "radio": return "Radio";
-    case "tv": return "TV";
-    case "press": return "Prensa";
-    default: return "Contenido";
-  }
 }
