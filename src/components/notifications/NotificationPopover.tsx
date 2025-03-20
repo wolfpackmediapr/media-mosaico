@@ -4,8 +4,8 @@ import { Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useNotifications } from "@/hooks/use-notifications";
 import { Badge } from "@/components/ui/badge";
+import { useNotifications } from "@/hooks/use-notifications";
 import NotificationDot from "./NotificationDot";
 import { formatDistanceToNow } from "date-fns";
 

@@ -13,10 +13,13 @@ import RedesSociales from "./pages/RedesSociales";
 import Notificaciones from "./pages/Notificaciones";
 import Reportes from "./pages/Reportes";
 import EnvioAlertas from "./pages/EnvioAlertas";
+import Ajustes from "./pages/Ajustes";
 import { 
   GeneralSettings as ConfiguracionGeneral,
   NotificationsSettings as ConfiguracionAlertas,
-  UsersSettings as ConfiguracionUsuarios
+  UsersSettings as ConfiguracionUsuarios,
+  ClientsSettings as ConfiguracionClientes,
+  NotificationMonitoring
 } from "./pages/configuracion";
 import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
@@ -24,6 +27,7 @@ import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
 import { Toaster } from "@/components/ui/toaster";
 import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
+import { SettingsLayout } from "./components/settings/SettingsLayout";
 
 import "./App.css";
 
@@ -56,11 +60,17 @@ function App() {
                 <Route path="redes-sociales" element={<RedesSociales />} />
                 <Route path="notificaciones" element={<Notificaciones />} />
                 <Route path="reportes" element={<Reportes />} />
-                <Route path="enviar-alertas" element={<EnvioAlertas />} />
-                <Route path="configuracion/*" element={<Outlet />}>
+                <Route path="envio-alertas" element={<EnvioAlertas />} />
+                <Route path="ajustes" element={<Ajustes />} />
+                <Route path="ajustes/*" element={<Outlet />}>
                   <Route path="general" element={<ConfiguracionGeneral />} />
-                  <Route path="alertas" element={<ConfiguracionAlertas />} />
+                  <Route path="general/*" element={<ConfiguracionGeneral />} />
                   <Route path="usuarios" element={<ConfiguracionUsuarios />} />
+                  <Route path="usuarios/*" element={<ConfiguracionUsuarios />} />
+                  <Route path="clientes" element={<ConfiguracionClientes />} />
+                  <Route path="clientes/*" element={<ConfiguracionClientes />} />
+                  <Route path="notificaciones" element={<ConfiguracionAlertas />} />
+                  <Route path="monitoreo-notificaciones" element={<NotificationMonitoring />} />
                 </Route>
                 <Route path="ayuda" element={<Ayuda />} />
               </Route>
