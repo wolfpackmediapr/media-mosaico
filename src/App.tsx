@@ -1,3 +1,4 @@
+
 import { BrowserRouter as Router, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import Layout from "./components/layout/Layout";
@@ -28,10 +29,10 @@ const queryClient = new QueryClient();
 
 function App() {
   return (
-    <RealTimeAlertsProvider>
-      <QueryClientProvider client={queryClient}>
-        <Router>
-          <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+          <RealTimeAlertsProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/registro" element={<Registro />} />
@@ -65,10 +66,10 @@ function App() {
                 <Route path="envio-alertas" element={<EnvioAlertas />} />
               </Route>
             </Routes>
-          </ThemeProvider>
-        </Router>
-      </QueryClientProvider>
-    </RealTimeAlertsProvider>
+          </RealTimeAlertsProvider>
+        </ThemeProvider>
+      </Router>
+    </QueryClientProvider>
   );
 }
 
