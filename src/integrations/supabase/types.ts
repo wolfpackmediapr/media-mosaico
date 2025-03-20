@@ -141,6 +141,39 @@ export type Database = {
         }
         Relationships: []
       }
+      content_processing_jobs: {
+        Row: {
+          content_id: string
+          content_type: string
+          created_at: string
+          error: string | null
+          id: string
+          processed_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          content_id: string
+          content_type: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          content_id?: string
+          content_type?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversion_jobs: {
         Row: {
           cloudconvert_job_id: string | null
@@ -408,6 +441,47 @@ export type Database = {
             columns: ["transcription_id"]
             isOneToOne: false
             referencedRelation: "transcriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_delivery_log: {
+        Row: {
+          channel: string
+          created_at: string
+          error: string | null
+          id: string
+          notification_id: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          notification_id: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          notification_id?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_delivery_log_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "client_alerts"
             referencedColumns: ["id"]
           },
         ]
@@ -1054,6 +1128,10 @@ export type Database = {
           category: string
           similarity: number
         }[]
+      }
+      schedule_content_notification_processing: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       sparsevec_out: {
         Args: {
