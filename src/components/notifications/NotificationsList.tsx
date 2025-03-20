@@ -13,15 +13,6 @@ interface NotificationsListProps {
   showViewAll?: boolean;
 }
 
-export function EmptyPlaceholder({ message }: { message: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center text-center p-6 h-48">
-      <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
-      <p className="text-sm text-muted-foreground">{message}</p>
-    </div>
-  );
-}
-
 const NotificationsList = ({
   notifications,
   isLoading = false,
@@ -49,7 +40,10 @@ const NotificationsList = ({
 
   if (notifications.length === 0) {
     return (
-      <EmptyPlaceholder message="No hay notificaciones nuevas" />
+      <EmptyPlaceholder 
+        message="No hay notificaciones nuevas"
+        icon={<Inbox className="h-12 w-12 text-muted-foreground" />}
+      />
     );
   }
 

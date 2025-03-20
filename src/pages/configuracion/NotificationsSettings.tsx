@@ -58,6 +58,20 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+// Define the preference type
+interface NotificationPreference {
+  id: string;
+  client_id: string;
+  notification_channels: string[];
+  frequency: string;
+  threshold: number;
+  sources: string[];
+  is_active: boolean;
+  clients?: {
+    name: string;
+  };
+}
+
 const NotificationsSettings = () => {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -72,7 +86,7 @@ const NotificationsSettings = () => {
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data;
+      return data as NotificationPreference[];
     },
   });
 
@@ -439,8 +453,8 @@ const NotificationsSettings = () => {
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit" loading={createPreference.isPending}>
-                    Guardar
+                  <Button type="submit" disabled={createPreference.isPending}>
+                    {createPreference.isPending ? "Guardando..." : "Guardar"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -490,7 +504,7 @@ const NotificationsSettings = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    preferences?.map((pref: any) => (
+                    preferences?.map((pref) => (
                       <TableRow key={pref.id}>
                         <TableCell className="font-medium">
                           {pref.clients?.name || "Cliente desconocido"}

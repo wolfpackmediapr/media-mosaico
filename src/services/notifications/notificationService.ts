@@ -13,18 +13,29 @@ export interface NotificationData {
 }
 
 /**
- * Send a notification via Supabase Edge Function
+ * Create a notification in the client_alerts table
  */
-export const sendNotification = async (notificationData: NotificationData) => {
+export const createNotification = async (notificationData: NotificationData) => {
   try {
-    const { data, error } = await supabase.functions.invoke("process-notifications", {
-      body: notificationData,
-    });
+    const { data, error } = await supabase
+      .from("client_alerts")
+      .insert({
+        client_id: notificationData.client_id,
+        title: notificationData.title,
+        description: notificationData.description,
+        content_id: notificationData.content_id,
+        content_type: notificationData.content_type,
+        keyword_matched: notificationData.keyword_matched,
+        importance_level: notificationData.importance_level || 3,
+        status: "unread",
+        metadata: notificationData.metadata
+      })
+      .select();
 
     if (error) throw error;
-    return data;
+    return data[0];
   } catch (error) {
-    console.error("Error sending notification:", error);
+    console.error("Error creating notification:", error);
     throw error;
   }
 };
@@ -63,7 +74,7 @@ export const generateKeywordNotifications = async (
 
       // If we have matches, create a notification
       if (matchedKeywords.length > 0) {
-        await sendNotification({
+        await createNotification({
           client_id: client.id,
           title: `Nuevo contenido con menciones de ${client.name}`,
           description: `Se han encontrado ${matchedKeywords.length} palabras clave en un nuevo ${getContentTypeDisplay(contentType)}`,

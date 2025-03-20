@@ -12,31 +12,49 @@ export type Database = {
       client_alerts: {
         Row: {
           client_id: string | null
+          content_id: string | null
+          content_type: string | null
           created_at: string
           description: string | null
           id: string
+          importance_level: number | null
+          keyword_matched: string[] | null
+          metadata: Json | null
           priority: string
           read_at: string | null
+          status: string | null
           title: string
           transcription_id: string | null
         }
         Insert: {
           client_id?: string | null
+          content_id?: string | null
+          content_type?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          importance_level?: number | null
+          keyword_matched?: string[] | null
+          metadata?: Json | null
           priority: string
           read_at?: string | null
+          status?: string | null
           title: string
           transcription_id?: string | null
         }
         Update: {
           client_id?: string | null
+          content_id?: string | null
+          content_type?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          importance_level?: number | null
+          keyword_matched?: string[] | null
+          metadata?: Json | null
           priority?: string
           read_at?: string | null
+          status?: string | null
           title?: string
           transcription_id?: string | null
         }
@@ -390,6 +408,53 @@ export type Database = {
             columns: ["transcription_id"]
             isOneToOne: false
             referencedRelation: "transcriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          client_id: string
+          created_at: string
+          frequency: string | null
+          id: string
+          is_active: boolean | null
+          keyword_id: string | null
+          notification_channels: string[]
+          sources: string[] | null
+          threshold: number | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          frequency?: string | null
+          id?: string
+          is_active?: boolean | null
+          keyword_id?: string | null
+          notification_channels?: string[]
+          sources?: string[] | null
+          threshold?: number | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          frequency?: string | null
+          id?: string
+          is_active?: boolean | null
+          keyword_id?: string | null
+          notification_channels?: string[]
+          sources?: string[] | null
+          threshold?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]

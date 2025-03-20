@@ -8,14 +8,13 @@ type NotificationAlert = {
   id: string;
   title: string;
   description: string | null;
-  priority: string;
   created_at: string;
   status: "unread" | "read" | "archived";
-  client_id: string | null;
   importance_level: number;
   content_id: string | null;
   content_type: string | null;
   keyword_matched: string[] | null;
+  client_id: string | null;
   metadata: any | null;
 };
 
@@ -23,13 +22,13 @@ export function useNotifications() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const transformNotification = (notification: NotificationAlert): Omit<NotificationItemProps, "onClick"> => {
+  const transformNotification = (notification: any): Omit<NotificationItemProps, "onClick"> => {
     return {
       id: notification.id,
       title: notification.title,
       description: notification.description,
       createdAt: notification.created_at,
-      status: notification.status,
+      status: notification.status || "unread",
       importance: notification.importance_level || 
         (notification.priority === "urgent" ? 5 : 
          notification.priority === "high" ? 4 : 
@@ -45,7 +44,7 @@ export function useNotifications() {
       .limit(50);
 
     if (error) throw error;
-    return (data as NotificationAlert[]).map(transformNotification);
+    return (data || []).map(transformNotification);
   };
 
   const fetchUnreadCount = async () => {
