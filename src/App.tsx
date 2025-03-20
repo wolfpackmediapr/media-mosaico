@@ -23,12 +23,13 @@ import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
 import { Toaster } from "@/components/ui/toaster";
+import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
 
 import "./App.css";
-import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const queryClient = new QueryClient(); 
 
   useEffect(() => {
     // Check if the user is logged in
@@ -39,43 +40,39 @@ function App() {
       setIsLoggedIn(false);
     }
   }, []);
-
-  const queryClient = new QueryClient();
   
   return (
-    <>
-      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <RealTimeAlertsProvider>
-              <Routes>
-                <Route path="/" element={<Layout><Outlet /></Layout>}>
-                  <Route index element={<Index />} />
-                  <Route path="tv" element={<Tv />} />
-                  <Route path="radio" element={<Radio />} />
-                  <Route path="prensa" element={<Prensa />} />
-                  <Route path="prensa-escrita" element={<PrensaEscrita />} />
-                  <Route path="redes-sociales" element={<RedesSociales />} />
-                  <Route path="notificaciones" element={<Notificaciones />} />
-                  <Route path="reportes" element={<Reportes />} />
-                  <Route path="enviar-alertas" element={<EnvioAlertas />} />
-                  <Route path="configuracion/*" element={<Outlet />}>
-                    <Route path="general" element={<ConfiguracionGeneral />} />
-                    <Route path="alertas" element={<ConfiguracionAlertas />} />
-                    <Route path="usuarios" element={<ConfiguracionUsuarios />} />
-                  </Route>
-                  <Route path="ayuda" element={<Ayuda />} />
+    <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <RealTimeAlertsProvider>
+            <Routes>
+              <Route path="/" element={<Layout><Outlet /></Layout>}>
+                <Route index element={<Index />} />
+                <Route path="tv" element={<Tv />} />
+                <Route path="radio" element={<Radio />} />
+                <Route path="prensa" element={<Prensa />} />
+                <Route path="prensa-escrita" element={<PrensaEscrita />} />
+                <Route path="redes-sociales" element={<RedesSociales />} />
+                <Route path="notificaciones" element={<Notificaciones />} />
+                <Route path="reportes" element={<Reportes />} />
+                <Route path="enviar-alertas" element={<EnvioAlertas />} />
+                <Route path="configuracion/*" element={<Outlet />}>
+                  <Route path="general" element={<ConfiguracionGeneral />} />
+                  <Route path="alertas" element={<ConfiguracionAlertas />} />
+                  <Route path="usuarios" element={<ConfiguracionUsuarios />} />
                 </Route>
-                <Route path="auth" element={<Auth />} />
-                <Route path="registro" element={<Registro />} />
-                <Route path="recuperar-password" element={<RecuperarPassword />} />
-              </Routes>
-              <Toaster />
-            </RealTimeAlertsProvider>
-          </BrowserRouter>
-        </QueryClientProvider>
-      </ThemeProvider>
-    </>
+                <Route path="ayuda" element={<Ayuda />} />
+              </Route>
+              <Route path="auth" element={<Auth />} />
+              <Route path="registro" element={<Registro />} />
+              <Route path="recuperar-password" element={<RecuperarPassword />} />
+            </Routes>
+            <Toaster />
+          </RealTimeAlertsProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

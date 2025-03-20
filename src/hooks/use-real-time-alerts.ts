@@ -21,6 +21,7 @@ export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
   const playNotificationSound = useCallback(() => {
     try {
       const audio = new Audio("/notification-sound.mp3");
+      audio.volume = 0.5; // Lower volume to be less intrusive
       audio.play().catch((e) => console.log("Could not play notification sound", e));
     } catch (error) {
       console.error("Error playing notification sound:", error);
@@ -109,7 +110,7 @@ export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
         (payload) => {
           console.log("New news segment processed:", payload);
           
-          // Don't show a toast for every segment, but invalidate the queries
+          // Invalidate the queries
           queryClient.invalidateQueries({ queryKey: ["news-segments"] });
         }
       )

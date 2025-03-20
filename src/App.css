@@ -40,3 +40,34 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Custom animations for notifications */
+@keyframes fade-in-scale {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fade-out-scale {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.custom-sonner-toast {
+  animation: fade-in-scale 0.35s ease forwards !important;
+}
+
+.custom-sonner-toast[data-dismissing="true"] {
+  animation: fade-out-scale 0.15s ease forwards !important;
+}

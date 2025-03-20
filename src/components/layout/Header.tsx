@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import NotificationsList from "@/components/notifications/NotificationsList";
 import { useNotifications } from "@/hooks/use-notifications";
+import NotificationDot from "@/components/notifications/NotificationDot";
 
 const Header = () => {
   const { notifications, unreadCount, isLoading, markAsRead, markAllAsRead } = useNotifications();
@@ -29,7 +30,7 @@ const Header = () => {
       <div className="flex items-center space-x-2 md:space-x-4">
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" className="relative">
+            <Button variant="outline" size="icon" className="relative" aria-label="Abrir notificaciones">
               <Bell className="h-5 w-5" />
               {unreadCount > 0 && (
                 <Badge className="absolute -top-2 left-full min-w-5 -translate-x-1/2 px-1">
@@ -56,12 +57,55 @@ const Header = () => {
               className="-mx-1 my-1 h-px bg-border"
             ></div>
             <div className="max-h-[400px] overflow-y-auto">
-              <NotificationsList 
-                notifications={notifications.slice(0, 10)} 
-                isLoading={isLoading} 
-                onNotificationClick={handleNotificationClick}
-                showViewAll={notifications.length > 10}
-              />
+              {notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className="rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent"
+                  onClick={() => handleNotificationClick(notification.id)}
+                >
+                  <div className="relative flex items-start pe-3">
+                    <div className="flex-1 space-y-1">
+                      <button className="text-left text-foreground/80 after:absolute after:inset-0">
+                        <span className="font-medium text-foreground hover:underline">
+                          {notification.clientName || "Sistema"}
+                        </span>{" "}
+                        - {notification.title}
+                      </button>
+                      {notification.description && (
+                        <div className="text-muted-foreground line-clamp-2">{notification.description}</div>
+                      )}
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(notification.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                    {notification.status === "unread" && (
+                      <div className="absolute end-0 self-center">
+                        <span className="sr-only">No leído</span>
+                        <NotificationDot />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {notifications.length === 0 && !isLoading && (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  No hay notificaciones nuevas
+                </div>
+              )}
+              {isLoading && (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  Cargando notificaciones...
+                </div>
+              )}
+              <div className="p-2 border-t border-border mt-2">
+                <Button
+                  variant="ghost"
+                  className="w-full text-sm"
+                  onClick={() => window.location.href = "/notificaciones"}
+                >
+                  Ver todas las notificaciones
+                </Button>
+              </div>
             </div>
           </PopoverContent>
         </Popover>
