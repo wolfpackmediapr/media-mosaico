@@ -1,5 +1,14 @@
 
-export { default as GeneralSettings } from './GeneralSettings';
-export { default as MediaSettings } from './MediaSettings';
-export { default as ClientsSettings } from './ClientsSettings';
-export { default as UsersSettings } from './UsersSettings';
+import ClientsSettings from "./ClientsSettings";
+import GeneralSettings from "./GeneralSettings";
+import MediaSettings from "./MediaSettings";
+import UsersSettings from "./UsersSettings";
+import NotificationsSettings from "./NotificationsSettings";
+
+export {
+  ClientsSettings,
+  GeneralSettings,
+  MediaSettings,
+  UsersSettings,
+  NotificationsSettings,
+};

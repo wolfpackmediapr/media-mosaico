@@ -1,118 +1,172 @@
 
-import { Bell, BellDot, Flag, MessageSquare } from "lucide-react";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import React, { useState } from "react";
+import { Bell, Archive, MoreHorizontal, Trash2, CheckSquare } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
-const notifications = [
-  {
-    id: 1,
-    title: "Nueva mención en medios",
-    description: "Se ha detectado una nueva mención de su marca en Canal 13",
-    type: "media",
-    status: "new",
-    timestamp: "Hace 5 minutos",
-  },
-  {
-    id: 2,
-    title: "Alerta de sentimiento negativo",
-    description: "Se ha detectado un incremento en menciones negativas en Twitter",
-    type: "sentiment",
-    status: "urgent",
-    timestamp: "Hace 30 minutos",
-  },
-  {
-    id: 3,
-    title: "Actualización de competidor",
-    description: "Nueva campaña detectada de su competidor principal",
-    type: "competitor",
-    status: "info",
-    timestamp: "Hace 2 horas",
-  },
-];
+import { Button } from "@/components/ui/button";
+import { useNotifications } from "@/hooks/use-notifications";
+import NotificationsList from "@/components/notifications/NotificationsList";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 
 const Notificaciones = () => {
+  const { notifications, isLoading, unreadCount, markAsRead, markAllAsRead, markAsArchived } = useNotifications();
+  const [activeTab, setActiveTab] = useState("all");
+
+  const filteredNotifications = notifications.filter(notification => {
+    if (activeTab === "unread") return notification.status === "unread";
+    if (activeTab === "archived") return notification.status === "archived";
+    return true; // "all" tab
+  });
+
+  const handleNotificationClick = (id: string) => {
+    markAsRead(id);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Notificaciones</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-2">
-          Gestión de notificaciones y alertas importantes
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Bell className="h-6 w-6 text-blue-600" />
+            Notificaciones
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-2">
+            Gestión de notificaciones y alertas importantes
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => markAllAsRead()}
+            disabled={unreadCount === 0}
+          >
+            <CheckSquare className="h-4 w-4" />
+            Marcar todo como leído
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="dark:border-gray-800">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BellDot className="h-5 w-5 text-red-500" />
-              <span>Notificaciones Nuevas</span>
-            </CardTitle>
-            <CardDescription>Notificaciones sin revisar</CardDescription>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Todas</CardTitle>
+            <CardDescription>Todas las notificaciones</CardDescription>
           </CardHeader>
           <CardContent>
-            <span className="text-3xl font-bold">3</span>
+            <span className="text-3xl font-bold">{notifications.length}</span>
           </CardContent>
         </Card>
 
         <Card className="dark:border-gray-800">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Flag className="h-5 w-5 text-yellow-500" />
-              <span>Notificaciones Urgentes</span>
-            </CardTitle>
-            <CardDescription>Requieren atención inmediata</CardDescription>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Sin leer</CardTitle>
+            <CardDescription>Notificaciones pendientes</CardDescription>
           </CardHeader>
           <CardContent>
-            <span className="text-3xl font-bold">1</span>
+            <span className="text-3xl font-bold">{unreadCount}</span>
           </CardContent>
         </Card>
 
         <Card className="dark:border-gray-800">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-blue-500" />
-              <span>Total Menciones</span>
-            </CardTitle>
-            <CardDescription>En las últimas 24 horas</CardDescription>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Archivadas</CardTitle>
+            <CardDescription>Notificaciones archivadas</CardDescription>
           </CardHeader>
           <CardContent>
-            <span className="text-3xl font-bold">24</span>
+            <span className="text-3xl font-bold">
+              {notifications.filter(n => n.status === "archived").length}
+            </span>
           </CardContent>
         </Card>
       </div>
 
-      <div className="space-y-4">
-        {notifications.map((notification) => (
-          <Alert
-            key={notification.id}
-            className="dark:border-gray-800 dark:bg-gray-900"
-          >
-            <Bell className="h-4 w-4" />
-            <AlertTitle className="flex items-center gap-2">
-              {notification.title}
-              <Badge
-                variant={
-                  notification.status === "urgent"
-                    ? "destructive"
-                    : notification.status === "new"
-                    ? "default"
-                    : "secondary"
-                }
-                className="ml-2"
-              >
-                {notification.status}
-              </Badge>
-            </AlertTitle>
-            <AlertDescription className="flex justify-between items-center">
-              <span>{notification.description}</span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                {notification.timestamp}
-              </span>
-            </AlertDescription>
-          </Alert>
-        ))}
-      </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-center">
+            <CardTitle>Historial de Notificaciones</CardTitle>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => markAllAsRead()}
+                  disabled={unreadCount === 0}
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  <span>Marcar todo como leído</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive flex items-center gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  <span>Eliminar todas</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardHeader>
+        <CardContent className="pb-4 pt-2">
+          <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="all">
+                Todas
+                <Badge variant="secondary" className="ml-2">{notifications.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="unread">
+                Sin leer
+                <Badge variant="secondary" className="ml-2">{unreadCount}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="archived">
+                Archivadas
+                <Badge variant="secondary" className="ml-2">
+                  {notifications.filter(n => n.status === "archived").length}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="all" className="m-0">
+              <div className="border rounded-md overflow-hidden">
+                <NotificationsList 
+                  notifications={filteredNotifications} 
+                  isLoading={isLoading} 
+                  onNotificationClick={handleNotificationClick}
+                />
+              </div>
+            </TabsContent>
+            <TabsContent value="unread" className="m-0">
+              <div className="border rounded-md overflow-hidden">
+                <NotificationsList 
+                  notifications={filteredNotifications} 
+                  isLoading={isLoading} 
+                  onNotificationClick={handleNotificationClick}
+                />
+              </div>
+            </TabsContent>
+            <TabsContent value="archived" className="m-0">
+              <div className="border rounded-md overflow-hidden">
+                <NotificationsList 
+                  notifications={filteredNotifications} 
+                  isLoading={isLoading} 
+                  onNotificationClick={handleNotificationClick}
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };
