@@ -7,7 +7,7 @@ import { Loader2, ScrollText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { NewsSegment } from "@/hooks/use-video-processor";
-import { createNotification } from "@/services/notifications/notificationService";
+import { createNotification } from "@/services/notifications/unifiedNotificationService";
 
 interface TranscriptionAnalysisProps {
   transcriptionText?: string;

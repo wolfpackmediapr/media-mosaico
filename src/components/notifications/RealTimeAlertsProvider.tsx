@@ -76,9 +76,51 @@ const RealTimeAlertsProvider: React.FC<RealTimeAlertsProviderProps> = ({ childre
       Notification.requestPermission();
     }
     
-    // Set up notification listeners for various content types
+    // Set up notification listeners for the client_alerts table
     const channel = supabase
       .channel("real-time-alerts")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "client_alerts"
+        },
+        (payload) => {
+          console.log("New client alert detected:", payload);
+          const alert = payload.new;
+          const notificationId = `alert-${alert.id}`;
+          
+          if (!shouldShowNotification(notificationId)) return;
+          
+          // Determine alert importance for styling
+          const isUrgent = alert.importance_level >= 4 || alert.priority === 'urgent';
+          
+          // Get client name from metadata if available
+          const clientName = alert.metadata?.clientName || "Cliente";
+          
+          const title = isUrgent 
+            ? `¡Alerta importante para ${clientName}!` 
+            : `Notificación para ${clientName}`;
+          const description = alert.description || alert.title;
+          
+          if (isUrgent) {
+            toast.error(title, {
+              description,
+              id: notificationId,
+              duration: 6000 // Show urgent alerts longer
+            });
+          } else {
+            toast.info(title, {
+              description,
+              id: notificationId
+            });
+          }
+          
+          playNotificationSound();
+          showBrowserNotification(title, description);
+        }
+      )
       .on(
         "postgres_changes",
         {
@@ -152,48 +194,6 @@ const RealTimeAlertsProvider: React.FC<RealTimeAlertsProviderProps> = ({ childre
             description,
             id: notificationId
           });
-          
-          playNotificationSound();
-          showBrowserNotification(title, description);
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "client_alerts"
-        },
-        (payload) => {
-          console.log("New client alert detected:", payload);
-          const alert = payload.new;
-          const notificationId = `alert-${alert.id}`;
-          
-          if (!shouldShowNotification(notificationId)) return;
-          
-          // Determine alert importance for styling
-          const isUrgent = alert.importance_level >= 4 || alert.priority === 'urgent';
-          
-          // Get client name from metadata if available
-          const clientName = alert.metadata?.clientName || "Cliente";
-          
-          const title = isUrgent 
-            ? `¡Alerta importante para ${clientName}!` 
-            : `Notificación para ${clientName}`;
-          const description = alert.description || alert.title;
-          
-          if (isUrgent) {
-            toast.error(title, {
-              description,
-              id: notificationId,
-              duration: 6000 // Show urgent alerts longer
-            });
-          } else {
-            toast.info(title, {
-              description,
-              id: notificationId
-            });
-          }
           
           playNotificationSound();
           showBrowserNotification(title, description);
