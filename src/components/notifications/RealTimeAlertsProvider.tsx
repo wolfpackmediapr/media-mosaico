@@ -1,7 +1,7 @@
-
 import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface RealTimeAlertsProviderProps {
   children: React.ReactNode;
@@ -15,6 +15,7 @@ const RealTimeAlertsProvider: React.FC<RealTimeAlertsProviderProps> = ({ childre
   const [mounted, setMounted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastNotificationTimeRef = useRef<Record<string, number>>({});
+  const queryClient = useQueryClient();
   
   // Prevent duplicate notifications within a short timeframe
   const shouldShowNotification = (id: string): boolean => {
@@ -65,6 +66,15 @@ const RealTimeAlertsProvider: React.FC<RealTimeAlertsProviderProps> = ({ childre
     } catch (error) {
       console.error("Error showing browser notification:", error);
     }
+  };
+
+  // Refresh notifications
+  const refreshNotifications = () => {
+    console.log("Refreshing notification queries...");
+    // Invalidate all notification-related queries
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    queryClient.invalidateQueries({ queryKey: ["notifications-feed"] });
+    queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
   };
 
   useEffect(() => {
@@ -119,6 +129,9 @@ const RealTimeAlertsProvider: React.FC<RealTimeAlertsProviderProps> = ({ childre
           
           playNotificationSound();
           showBrowserNotification(title, description);
+          
+          // Refresh notifications to update the UI
+          refreshNotifications();
         }
       )
       .on(
@@ -145,6 +158,9 @@ const RealTimeAlertsProvider: React.FC<RealTimeAlertsProviderProps> = ({ childre
           
           playNotificationSound();
           showBrowserNotification(title, description);
+          
+          // Refresh notifications to update the UI
+          refreshNotifications();
         }
       )
       .on(
@@ -171,6 +187,9 @@ const RealTimeAlertsProvider: React.FC<RealTimeAlertsProviderProps> = ({ childre
           
           playNotificationSound();
           showBrowserNotification(title, description);
+          
+          // Refresh notifications to update the UI
+          refreshNotifications();
         }
       )
       .on(
@@ -197,6 +216,9 @@ const RealTimeAlertsProvider: React.FC<RealTimeAlertsProviderProps> = ({ childre
           
           playNotificationSound();
           showBrowserNotification(title, description);
+          
+          // Refresh notifications to update the UI
+          refreshNotifications();
         }
       )
       .subscribe((status) => {
@@ -208,7 +230,7 @@ const RealTimeAlertsProvider: React.FC<RealTimeAlertsProviderProps> = ({ childre
       console.log("Cleaning up real-time notification listeners");
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [queryClient]);
   
   if (!mounted) return <>{children}</>;
   
