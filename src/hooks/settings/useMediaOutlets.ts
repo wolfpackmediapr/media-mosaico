@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { 
@@ -32,9 +31,8 @@ export function useMediaOutlets() {
     try {
       const outlets = await fetchMediaOutlets(sortField, sortOrder, filterType);
       setMediaOutlets(outlets);
-      
       setTotalPages(Math.max(1, Math.ceil(outlets.length / ITEMS_PER_PAGE)));
-      
+
       if (currentPage > Math.ceil(outlets.length / ITEMS_PER_PAGE)) {
         setCurrentPage(1);
       }
@@ -128,9 +126,9 @@ export function useMediaOutlets() {
     }
   };
 
-  const handleImportComplete = () => {
+  const handleImportComplete = async (): Promise<void> => {
     setImportSuccess(true);
-    loadMediaOutlets();
+    await loadMediaOutlets();
   };
 
   return {
