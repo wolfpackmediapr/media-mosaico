@@ -1,19 +1,13 @@
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileDown } from "lucide-react";
+import { CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMediaOutlets } from "@/hooks/settings/useMediaOutlets";
 import { defaultCsvData } from "@/services/media/defaultMediaData";
 
 // Import our components
-import { MediaOutletForm } from "@/components/settings/media/MediaOutletForm";
-import { MediaOutletsTable } from "@/components/settings/media/MediaOutletsTable";
-import { MediaFilter } from "@/components/settings/media/MediaFilter";
-import { MediaLoadingState } from "@/components/settings/media/MediaLoadingState";
-import { MediaEmptyState } from "@/components/settings/media/MediaEmptyState";
-import { ImportMediaButton } from "@/components/settings/media/ImportMediaButton";
-import { MediaPagination } from "@/components/settings/media/MediaPagination";
+import { MediaHeaderActions } from "@/components/settings/media/MediaHeaderActions";
+import { MediaContent } from "@/components/settings/media/MediaContent";
+import { MediaFooter } from "@/components/settings/media/MediaFooter";
 
 export function MediaSettingsContainer() {
   const [showFilter, setShowFilter] = useState(false);
@@ -21,6 +15,7 @@ export function MediaSettingsContainer() {
   
   const { 
     loading,
+    mediaOutlets,
     sortField,
     sortOrder,
     filterType,
@@ -65,93 +60,61 @@ export function MediaSettingsContainer() {
   };
 
   const mediaOutletsOnCurrentPage = getCurrentPageOutlets();
+  const totalMediaOutlets = mediaOutlets.length;
 
   return (
     <>
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
           <span>Medios de Comunicación</span>
-          <div className="flex gap-2">
-            <MediaFilter 
-              filterType={filterType}
-              onFilterChange={handleFilterChange}
-              showFilter={showFilter}
-              onToggleFilter={toggleFilter}
-            />
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleExport}
-              disabled={mediaOutletsOnCurrentPage.length === 0 || loading}
-              title="Exportar medios a CSV"
-            >
-              <FileDown className="h-4 w-4 mr-1" />
-              Exportar CSV
-            </Button>
-            <ImportMediaButton
-              csvData={defaultCsvData}
-              onImportComplete={handleImportComplete}
-              disabled={loading}
-            />
-            <Button 
-              size="sm"
-              onClick={toggleAddForm}
-            >
-              {showAddForm ? 'Cancelar' : 'Añadir Medio'}
-            </Button>
-          </div>
+          <MediaHeaderActions 
+            filterType={filterType}
+            onFilterChange={handleFilterChange}
+            showFilter={showFilter}
+            onToggleFilter={toggleFilter}
+            onExport={handleExport}
+            onImportComplete={handleImportComplete}
+            onToggleAddForm={toggleAddForm}
+            showAddForm={showAddForm}
+            hasMediaOutlets={mediaOutletsOnCurrentPage.length > 0}
+            loading={loading}
+            csvData={defaultCsvData}
+          />
         </CardTitle>
         <CardDescription>
           Lista de medios de comunicación disponibles en el sistema
         </CardDescription>
       </CardHeader>
 
-      <CardContent>
-        {showAddForm && (
-          <MediaOutletForm 
-            onSubmit={handleAddSubmit}
-            onCancel={toggleAddForm}
-          />
-        )}
+      <MediaContent 
+        loading={loading}
+        showAddForm={showAddForm}
+        onAddFormSubmit={handleAddSubmit}
+        onAddFormCancel={toggleAddForm}
+        mediaOutlets={mediaOutletsOnCurrentPage}
+        hasFilter={!!filterType}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={handleSort}
+        onEdit={handleEditClick}
+        onDelete={handleDeleteMediaOutlet}
+        editingId={editingId}
+        editFormData={editFormData}
+        onEditFormChange={handleEditFormChange}
+        onSaveEdit={saveEditedOutlet}
+        onCancelEdit={handleCancelEdit}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+      />
 
-        {loading ? (
-          <MediaLoadingState />
-        ) : mediaOutletsOnCurrentPage.length === 0 ? (
-          <MediaEmptyState hasFilter={!!filterType} />
-        ) : (
-          <>
-            <MediaOutletsTable 
-              mediaOutlets={mediaOutletsOnCurrentPage} 
-              sortField={sortField}
-              sortOrder={sortOrder}
-              onSort={handleSort}
-              onEdit={handleEditClick}
-              onDelete={handleDeleteMediaOutlet}
-              editingId={editingId}
-              editFormData={editFormData}
-              onEditFormChange={handleEditFormChange}
-              onSaveEdit={saveEditedOutlet}
-              onCancelEdit={handleCancelEdit}
-              loading={loading}
-            />
-            <MediaPagination 
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-            />
-          </>
-        )}
-      </CardContent>
-      <CardFooter className="flex justify-between border-t pt-6">
-        <p className="text-xs text-muted-foreground">
-          {mediaOutletsOnCurrentPage.length > 0 && (
-            `Mostrando ${(currentPage - 1) * 10 + 1} a ${Math.min(currentPage * 10, mediaOutletsOnCurrentPage.length + ((currentPage - 1) * 10))} de ${mediaOutletsOnCurrentPage.length + ((currentPage - 1) * 10)} medios`
-          )}
-        </p>
-        <Button variant="outline" onClick={loadMediaOutlets}>
-          Refrescar
-        </Button>
-      </CardFooter>
+      <MediaFooter 
+        currentPage={currentPage}
+        itemsPerPage={10}
+        totalItems={totalMediaOutlets}
+        onRefresh={loadMediaOutlets}
+        hasItems={mediaOutletsOnCurrentPage.length > 0}
+      />
     </>
   );
 }
