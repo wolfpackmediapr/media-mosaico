@@ -5,6 +5,8 @@ import PrensaSearch from "@/components/prensa/PrensaSearch";
 import NewsList from "@/components/prensa/NewsList";
 import FeedStatus from "@/components/prensa/FeedStatus";
 import { useNewsFeed } from "@/hooks/use-news-feed";
+import { toast } from "sonner";
+import { format, startOfDay } from "date-fns";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -23,6 +25,7 @@ const Prensa = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOutlet, setSelectedOutlet] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   // Load feed sources on mount
   useEffect(() => {
@@ -34,13 +37,17 @@ const Prensa = () => {
   // Fetch articles when filters or page changes
   useEffect(() => {
     const sourceId = selectedOutlet === "all" ? "" : selectedOutlet;
-    fetchArticles(currentPage, searchTerm, sourceId);
-  }, [currentPage, searchTerm, selectedOutlet, fetchArticles]);
+    const dateString = selectedDate 
+      ? format(startOfDay(selectedDate), 'yyyy-MM-dd') 
+      : "";
+    
+    fetchArticles(currentPage, searchTerm, sourceId, dateString);
+  }, [currentPage, searchTerm, selectedOutlet, selectedDate, fetchArticles]);
 
-  // Reset to page 1 when search term or outlet filter changes
+  // Reset to page 1 when search term, outlet filter, or date changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedOutlet]);
+  }, [searchTerm, selectedOutlet, selectedDate]);
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
@@ -57,11 +64,24 @@ const Prensa = () => {
     setSelectedOutlet(value);
   };
   
+  const handleDateChange = (date: Date | undefined) => {
+    setSelectedDate(date);
+    if (date) {
+      toast.info(`Filtrando noticias del ${format(date, 'dd/MM/yyyy')}`);
+    }
+  };
+  
   // Transform feedSources to the format required by the outlet filter
   const outletOptions = feedSources.map(source => ({
     id: source.id,
     name: source.name
   }));
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSelectedOutlet("all");
+    setSelectedDate(undefined);
+  };
 
   return (
     <div className="w-full space-y-6">
@@ -72,7 +92,12 @@ const Prensa = () => {
         </p>
       </div>
       
-      <PrensaHeader onRefresh={refreshFeed} isRefreshing={isRefreshing} />
+      <PrensaHeader 
+        onRefresh={refreshFeed} 
+        isRefreshing={isRefreshing} 
+        selectedDate={selectedDate}
+        onDateChange={handleDateChange}
+      />
       
       <FeedStatus feedSources={feedSources} />
 
@@ -90,10 +115,7 @@ const Prensa = () => {
         searchTerm={searchTerm}
         currentPage={currentPage}
         totalPages={totalPages}
-        onClearSearch={() => {
-          setSearchTerm("");
-          setSelectedOutlet("all");
-        }}
+        onClearSearch={handleClearFilters}
         onPageChange={handlePageChange}
       />
     </div>

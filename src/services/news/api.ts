@@ -22,7 +22,12 @@ export const fetchNewsSourcesFromDatabase = async () => {
 };
 
 // Fetch articles from the database
-export const fetchArticlesFromDatabase = async (page: number, searchTerm: string = '', sourceId: string = '') => {
+export const fetchArticlesFromDatabase = async (
+  page: number, 
+  searchTerm: string = '', 
+  sourceId: string = '',
+  dateFilter: string = ''
+) => {
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
@@ -56,6 +61,12 @@ export const fetchArticlesFromDatabase = async (page: number, searchTerm: string
   // Add source filter if provided
   if (sourceId) {
     query = query.eq('feed_source_id', sourceId);
+  }
+  
+  // Add date filter if provided
+  if (dateFilter) {
+    query = query.gte('pub_date', `${dateFilter}T00:00:00`)
+                .lt('pub_date', `${dateFilter}T23:59:59`);
   }
 
   // Execute the query with pagination

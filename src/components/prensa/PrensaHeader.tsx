@@ -1,13 +1,21 @@
 
 import { Button } from "@/components/ui/button";
 import { Newspaper, RefreshCcw, Calendar, Download } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
 
 interface PrensaHeaderProps {
   onRefresh: () => void;
   isRefreshing: boolean;
+  selectedDate: Date | undefined;
+  onDateChange: (date: Date | undefined) => void;
 }
 
-const PrensaHeader = ({ onRefresh, isRefreshing }: PrensaHeaderProps) => {
+const PrensaHeader = ({ 
+  onRefresh, 
+  isRefreshing, 
+  selectedDate,
+  onDateChange
+}: PrensaHeaderProps) => {
   return (
     <div className="flex items-center justify-between">
       <div>
@@ -29,10 +37,11 @@ const PrensaHeader = ({ onRefresh, isRefreshing }: PrensaHeaderProps) => {
           <RefreshCcw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           {isRefreshing ? 'Actualizando...' : 'Actualizar'}
         </Button>
-        <Button variant="outline" className="gap-2">
-          <Calendar className="h-4 w-4" />
-          Filtrar por fecha
-        </Button>
+        <DatePicker 
+          date={selectedDate}
+          onDateChange={onDateChange}
+          placeholder="Filtrar por fecha"
+        />
         <Button variant="outline" className="gap-2">
           <Download className="h-4 w-4" />
           Exportar

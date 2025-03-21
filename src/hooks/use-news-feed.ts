@@ -1,18 +1,12 @@
 
-import { useState, useCallback, useRef } from "react";
-import { useToast } from "@/hooks/use-toast";
-import type { NewsArticle, FeedSource } from "@/types/prensa";
+import { useState, useCallback } from 'react';
 import { 
   fetchNewsSourcesFromDatabase, 
-  fetchArticlesFromDatabase,
-  refreshNewsFeedViaFunction, 
-  ITEMS_PER_PAGE 
-} from "@/services/news/api";
-import { 
-  transformSourcesToFeedSources, 
-  transformDatabaseArticlesToNewsArticles 
-} from "@/services/news/transforms";
-import { handleNewsFeedError } from "@/services/news/error-handler";
+  fetchArticlesFromDatabase, 
+  refreshNewsFeedViaFunction 
+} from '@/services/news/api';
+import type { NewsArticle, FeedSource } from '@/types/prensa';
+import { toast } from 'sonner';
 
 export const useNewsFeed = () => {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
@@ -20,45 +14,40 @@ export const useNewsFeed = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
-  const { toast } = useToast();
-  
-  // Use refs to avoid unnecessary rerendering in callbacks
-  const toastRef = useRef(toast);
-  toastRef.current = toast;
 
   const fetchFeedSources = useCallback(async () => {
     try {
-      const sourcesData = await fetchNewsSourcesFromDatabase();
-      const typedSources = transformSourcesToFeedSources(sourcesData);
-      setFeedSources(typedSources);
+      const sources = await fetchNewsSourcesFromDatabase();
+      setFeedSources(sources);
     } catch (error) {
-      handleNewsFeedError(error, "sources", toastRef.current);
+      console.error('Error fetching feed sources', error);
+      toast.error('Error al cargar las fuentes de noticias');
     }
   }, []);
 
-  const fetchArticles = useCallback(async (page: number, searchTerm: string = '', sourceId: string = '') => {
+  const fetchArticles = useCallback(async (
+    page: number = 1, 
+    searchTerm: string = '', 
+    sourceId: string = '',
+    dateFilter: string = ''
+  ) => {
+    setIsLoading(true);
+    
     try {
-      console.log('Fetching articles for page:', page, 'search:', searchTerm, 'sourceId:', sourceId);
-      setIsLoading(true);
+      const { articlesData, count } = await fetchArticlesFromDatabase(
+        page,
+        searchTerm,
+        sourceId,
+        dateFilter
+      );
       
-      const { articlesData, count } = await fetchArticlesFromDatabase(page, searchTerm, sourceId);
-      
-      if (!articlesData || articlesData.length === 0) {
-        console.log('No articles found, setting empty array');
-        setArticles([]);
-        setTotalCount(0);
-        return;
-      }
-      
+      setArticles(articlesData || []);
       setTotalCount(count || 0);
-      const convertedArticles = transformDatabaseArticlesToNewsArticles(articlesData);
-      
-      console.log('Processed articles:', convertedArticles);
-      setArticles(convertedArticles);
     } catch (error) {
-      handleNewsFeedError(error, "articles", toastRef.current);
-      // Set empty articles in case of error
+      console.error('Error fetching articles', error);
+      toast.error('Error al cargar los artículos');
       setArticles([]);
+      setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -66,23 +55,18 @@ export const useNewsFeed = () => {
 
   const refreshFeed = useCallback(async () => {
     setIsRefreshing(true);
+    
     try {
-      console.log('Refreshing feed...');
+      await refreshNewsFeedViaFunction();
+      toast.success('Feed actualizado correctamente');
       
-      const data = await refreshNewsFeedViaFunction();
-      console.log('Feed refresh response:', data);
-      
-      await Promise.all([
-        fetchArticles(1), // Reset to first page after refresh
-        fetchFeedSources()
-      ]);
-
-      toastRef.current({
-        title: "¡Éxito!",
-        description: "Feed de noticias actualizado correctamente",
-      });
+      // Refresh articles and sources
+      await fetchArticles();
+      await fetchFeedSources();
     } catch (error) {
-      handleNewsFeedError(error, "refresh", toastRef.current);
+      console.error('Error refreshing feed', error);
+      const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(`Error al actualizar el feed: ${errorMsg}`);
     } finally {
       setIsRefreshing(false);
     }
