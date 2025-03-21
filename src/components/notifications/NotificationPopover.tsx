@@ -1,6 +1,6 @@
 
 import React from "react";
-import { NotificationPopover as CustomNotificationPopover } from "@/components/ui/notification-popover";
+import { NotificationPopover as CustomNotificationPopover } from "@/components/ui/notification/notification-popover";
 import { useNotificationPopover } from "@/hooks/notifications";
 
 export function NotificationPopover() {
