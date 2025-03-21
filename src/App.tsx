@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -25,7 +26,7 @@ import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";
 import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
 
 import "./App.css";

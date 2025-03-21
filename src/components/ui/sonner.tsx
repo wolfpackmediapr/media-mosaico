@@ -21,11 +21,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
           cancelButton:
             "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
         },
-        duration: 4000, // Duración más corta para no molestar tanto al usuario
+        duration: 4000, // Shorter duration so notifications don't annoy users
       }}
-      position="top-right" // Posición consistente
-      richColors // Colores mejorados
-      closeButton // Botón para cerrar
+      position="top-right" // Consistent position
+      richColors // Enhanced colors
+      closeButton // Add close button for better UX
       {...props}
     />
   )
