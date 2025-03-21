@@ -27,7 +27,7 @@ export const transformDatabaseArticlesToNewsArticles = (articlesData: any[]): Ne
     if (article.clients) {
       if (Array.isArray(article.clients)) {
         // Convert each item to string
-        clients = article.clients.map(client => String(client));
+        clients = article.clients.map((client: any) => String(client));
       } else if (typeof article.clients === 'string') {
         clients = [article.clients];
       } else if (typeof article.clients === 'object') {
@@ -55,7 +55,7 @@ export const transformDatabaseArticlesToNewsArticles = (articlesData: any[]): Ne
       category: article.category || '',
       clients: clients,
       keywords: Array.isArray(article.keywords) 
-        ? article.keywords.map(keyword => String(keyword))
+        ? article.keywords.map((keyword: any) => String(keyword))
         : [],
       image_url: article.image_url || undefined,
       last_processed: article.last_processed || undefined,

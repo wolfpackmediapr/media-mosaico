@@ -1,6 +1,8 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { NewsArticle, FeedSource } from "@/types/prensa";
 import { SOCIAL_PLATFORMS } from "@/services/social/api";
+import { transformDatabaseArticlesToNewsArticles } from "./transforms";
 
 // Constants
 export const ITEMS_PER_PAGE = 10;
@@ -131,14 +133,17 @@ export const fetchArticlesFromDatabase = async (
 
   if (error) throw error;
   
+  // Transform database articles to NewsArticle type before caching
+  const transformedArticles = transformDatabaseArticlesToNewsArticles(articlesData);
+  
   // Update cache
   articlesCache.set(cacheKey, {
-    data: articlesData,
+    data: transformedArticles,
     count: count || 0,
     timestamp: now
   });
   
-  return { articlesData, count };
+  return { articlesData: transformedArticles, count };
 };
 
 /**

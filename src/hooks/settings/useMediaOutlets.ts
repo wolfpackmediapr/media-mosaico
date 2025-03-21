@@ -175,8 +175,9 @@ export function useMediaOutlets() {
     queryClient.invalidateQueries({ queryKey: ['mediaOutlets'] });
   };
 
-  const loadMediaOutlets = async () => {
-    return refetch();
+  // Fix the return type by adding void return type annotation
+  const loadMediaOutlets = async (): Promise<void> => {
+    await refetch();
   };
 
   return {
