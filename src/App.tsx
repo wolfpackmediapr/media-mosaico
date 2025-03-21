@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -13,6 +14,10 @@ import Notificaciones from "./pages/Notificaciones";
 import Reportes from "./pages/Reportes";
 import EnvioAlertas from "./pages/EnvioAlertas";
 import Ajustes from "./pages/Ajustes";
+import Auth from "./pages/Auth";
+import Registro from "./pages/Registro";
+import RecuperarPassword from "./pages/RecuperarPassword";
+import Ayuda from "./pages/Ayuda";
 import { 
   GeneralSettings,
   NotificationsSettings,
