@@ -10,6 +10,9 @@ import NotificationsList from './NotificationsList';
 import NotificationStats from './NotificationStats';
 import NotificationTabs from './NotificationTabs';
 import NotificationAnalyticsDashboard from './NotificationAnalyticsDashboard';
+import { NotificationPopover } from './NotificationPopover';
+import NotificationList from './NotificationList';
+import NotificationItemComponent from './NotificationItemComponent';
 
 export {
   ClientContext,
@@ -22,5 +25,8 @@ export {
   NotificationsList,
   NotificationStats,
   NotificationTabs,
-  NotificationAnalyticsDashboard
+  NotificationAnalyticsDashboard,
+  NotificationPopover,
+  NotificationList,
+  NotificationItemComponent
 };
