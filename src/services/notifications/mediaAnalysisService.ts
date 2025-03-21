@@ -36,30 +36,47 @@ export const analyzeMediaContent = async (mediaContent: MediaContentToAnalyze): 
 
     // For each matched client, create a notification
     if (analysisResult.matched_clients && analysisResult.matched_clients.length > 0) {
-      // Get client IDs from client names
-      const { data: clientsData, error: clientsError } = await supabase
-        .from("clients")
-        .select("id, name")
-        .in("name", analysisResult.matched_clients);
+      try {
+        // Get client IDs from client names
+        const { data: clientsData, error: clientsError } = await supabase
+          .from("clients")
+          .select("id, name")
+          .in("name", analysisResult.matched_clients);
 
-      if (clientsError) throw clientsError;
+        if (clientsError) {
+          console.error("Error fetching clients:", clientsError);
+          return analysisResult;
+        }
 
-      // Create notifications for each matched client
-      for (const client of clientsData) {
-        await createNotification({
-          client_id: client.id,
-          title: `Nuevo contenido relevante: ${analysisResult.category}`,
-          description: analysisResult.summary,
-          content_id: mediaContent.contentId,
-          content_type: mediaContent.contentType,
-          keyword_matched: analysisResult.relevant_keywords,
-          importance_level: calculateImportanceByMatchCount(analysisResult.matched_clients.length, analysisResult.relevant_keywords.length),
-          metadata: {
-            category: analysisResult.category,
-            matchedClients: analysisResult.matched_clients,
-            relevantKeywords: analysisResult.relevant_keywords
+        if (!clientsData || clientsData.length === 0) {
+          console.warn("No matching clients found in the database");
+          return analysisResult;
+        }
+
+        // Create notifications for each matched client
+        for (const client of clientsData) {
+          try {
+            await createNotification({
+              client_id: client.id,
+              title: `Nuevo contenido relevante: ${analysisResult.category}`,
+              description: analysisResult.summary,
+              content_id: mediaContent.contentId,
+              content_type: mediaContent.contentType,
+              keyword_matched: analysisResult.relevant_keywords,
+              importance_level: calculateImportanceByMatchCount(analysisResult.matched_clients.length, analysisResult.relevant_keywords.length),
+              metadata: {
+                category: analysisResult.category,
+                matchedClients: analysisResult.matched_clients,
+                relevantKeywords: analysisResult.relevant_keywords
+              }
+            });
+          } catch (notificationError) {
+            console.error(`Error creating notification for client ${client.id}:`, notificationError);
+            // Continue with other clients even if one fails
           }
-        });
+        }
+      } catch (error) {
+        console.error("Error processing client notifications:", error);
       }
     }
 

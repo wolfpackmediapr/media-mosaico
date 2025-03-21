@@ -17,6 +17,24 @@ export interface NotificationData {
  */
 export const createNotification = async (notificationData: NotificationData) => {
   try {
+    // First check if client exists to avoid foreign key constraint error
+    const { data: clientExists, error: clientCheckError } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("id", notificationData.client_id)
+      .maybeSingle();
+    
+    if (clientCheckError) {
+      console.error("Error checking client:", clientCheckError);
+      throw clientCheckError;
+    }
+    
+    // If client doesn't exist, log warning and skip notification creation
+    if (!clientExists) {
+      console.warn(`Skipping notification creation: Client with ID ${notificationData.client_id} not found`);
+      return null;
+    }
+    
     // Calculate priority based on importance level
     const priority = calculatePriorityFromImportance(notificationData.importance_level || 3);
     

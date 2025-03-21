@@ -35,6 +35,7 @@ export function NotificationPopover() {
           handleMarkAsRead(changedNotification.id);
         }
       }}
+      showViewAll={true}
     />
   );
 }
