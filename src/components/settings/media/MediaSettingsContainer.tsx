@@ -60,7 +60,6 @@ export function MediaSettingsContainer() {
     setShowAddForm(false);
   };
 
-  // The handleExport function now correctly returns Promise<void>
   const handleExport = async (): Promise<void> => {
     await handleExportCSV();
   };

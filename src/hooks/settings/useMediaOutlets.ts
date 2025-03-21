@@ -131,7 +131,6 @@ export function useMediaOutlets() {
     }
   };
 
-  // Changed return type from boolean to void
   const handleExportCSV = async (): Promise<void> => {
     try {
       let filenameParts = ['medios'];
@@ -156,11 +155,9 @@ export function useMediaOutlets() {
       downloadCSV(csvContent, filename);
       
       toast.success('Datos exportados correctamente');
-      // Removed the return true statement
     } catch (error) {
       console.error('Error exporting to CSV:', error);
       toast.error('Error al exportar los datos');
-      // Removed the return false statement
     }
   };
 
