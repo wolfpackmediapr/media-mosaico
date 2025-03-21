@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,6 +60,12 @@ export function MediaSettingsContainer() {
     setShowAddForm(false);
   };
 
+  // Wrapper for handleExportCSV to match the expected Promise<void> type
+  const handleExport = async (): Promise<void> => {
+    await handleExportCSV();
+    // No need to return anything, as void is expected
+  };
+
   const mediaOutletsOnCurrentPage = getCurrentPageOutlets();
 
   return (
@@ -76,7 +83,7 @@ export function MediaSettingsContainer() {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={handleExportCSV}
+              onClick={handleExport}
               disabled={mediaOutletsOnCurrentPage.length === 0 || loading}
               title="Exportar medios a CSV"
             >
