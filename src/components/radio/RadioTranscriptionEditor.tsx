@@ -3,6 +3,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import { useAutosave } from "@/hooks/use-autosave";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
@@ -18,50 +20,61 @@ const RadioTranscriptionEditor = ({
   transcriptionId,
 }: RadioTranscriptionEditorProps) => {
   const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
-  const [localText, setLocalText] = useState(transcriptionText);
+  
+  // Use persistent state with session storage for unsaved content
+  const [localText, setLocalText] = usePersistentState(
+    `radio-transcription-${transcriptionId || "draft"}`,
+    transcriptionText,
+    { storage: 'sessionStorage' }
+  );
 
+  // Update local text when transcription changes from parent
   useEffect(() => {
     setLocalText(transcriptionText);
-  }, [transcriptionText]);
+  }, [transcriptionText, setLocalText]);
 
-  const handleTextChange = async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  // Setup autosave
+  const { isSaving } = useAutosave({
+    data: { text: localText, id: transcriptionId },
+    onSave: async (data) => {
+      if (!data.id) {
+        console.warn('No transcription ID provided for saving');
+        return;
+      }
+      
+      try {
+        const { error } = await supabase
+          .from('transcriptions')
+          .update({ 
+            transcription_text: data.text,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', data.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Guardado automático",
+          description: "La transcripción se ha guardado correctamente",
+        });
+      } catch (error) {
+        console.error('Error saving transcription:', error);
+        toast({
+          title: "Error al guardar",
+          description: "No se pudo guardar la transcripción",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    debounce: 2000, // Save after 2 seconds of inactivity
+    enabled: !!transcriptionId,
+  });
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
     setLocalText(newText);
     onTranscriptionChange(newText);
-    
-    if (!transcriptionId) {
-      console.warn('No transcription ID provided for saving');
-      return;
-    }
-    
-    setIsSaving(true);
-    try {
-      // Using 'transcriptions' table instead of 'radio_transcriptions'
-      const { error } = await supabase
-        .from('transcriptions')
-        .update({ 
-          transcription_text: newText,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', transcriptionId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Guardado automático",
-        description: "La transcripción se ha guardado correctamente",
-      });
-    } catch (error) {
-      console.error('Error saving transcription:', error);
-      toast({
-        title: "Error al guardar",
-        description: "No se pudo guardar la transcripción",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   return (

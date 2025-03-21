@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { CirclePlay, CirclePause, SkipForward, SkipBack } from 'lucide-react';
+import { useMediaSession } from '@/hooks/use-media-session';
+import { usePersistentState } from '@/hooks/use-persistent-state';
 
 interface AudioPlayerProps {
   file: File;
@@ -12,8 +14,24 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  
+  // Remember volume setting using persistent state
+  const [volume, setVolume] = usePersistentState<number[]>(
+    'audio-player-volume', 
+    [50], 
+    { storage: 'localStorage' }
+  );
+  
+  const [isMuted, setIsMuted] = useState(false);
   const howler = useRef<Howl | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval>>();
+  
+  // Save last position for each file to enable resuming playback
+  const [lastPosition, setLastPosition] = usePersistentState<Record<string, number>>(
+    'audio-player-positions',
+    {},
+    { storage: 'sessionStorage' }
+  );
 
   useEffect(() => {
     // Clean up previous instance
@@ -31,6 +49,13 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
       format: ['mp3', 'wav', 'ogg', 'm4a'], // Added more supported formats
       onload: () => {
         setDuration(sound.duration());
+        
+        // Resume from last position if available
+        const fileId = file.name + '-' + file.size;
+        if (lastPosition[fileId]) {
+          sound.seek(lastPosition[fileId]);
+          setProgress(lastPosition[fileId]);
+        }
       },
       onplay: () => {
         setIsPlaying(true);
@@ -59,17 +84,47 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
       },
     });
 
+    // Set initial volume from stored preferences
+    sound.volume(volume[0] / 100);
+
     howler.current = sound;
 
     return () => {
       if (progressInterval.current) {
         clearInterval(progressInterval.current);
       }
+      // Save current position before unloading
+      const fileId = file.name + '-' + file.size;
+      if (sound) {
+        const currentPos = sound.seek() as number;
+        if (currentPos > 0) {
+          setLastPosition({...lastPosition, [fileId]: currentPos});
+        }
+      }
       URL.revokeObjectURL(fileUrl);
       sound.unload();
     };
   }, [file, onEnded]);
 
+  // Integrate with Media Session API
+  useMediaSession({
+    title: file.name,
+    artist: 'Transcripción de Audio',
+    onPlay: () => {
+      if (!isPlaying && howler.current) {
+        howler.current.play();
+      }
+    },
+    onPause: () => {
+      if (isPlaying && howler.current) {
+        howler.current.pause();
+      }
+    },
+    onSeekBackward: ({ seekOffset }) => handleSkip('backward'),
+    onSeekForward: ({ seekOffset }) => handleSkip('forward')
+  });
+
+  // Update progress regularly
   const updateProgress = () => {
     if (!howler.current) return;
 
@@ -77,6 +132,10 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
       if (howler.current) {
         const seek = howler.current.seek() || 0;
         setProgress(seek);
+        
+        // Save position periodically
+        const fileId = file.name + '-' + file.size;
+        setLastPosition({...lastPosition, [fileId]: seek});
       }
     }, 1000);
   };

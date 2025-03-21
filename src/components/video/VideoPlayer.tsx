@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -10,30 +11,77 @@ import {
   Maximize,
   Minimize,
 } from "lucide-react";
+import { useMediaSession } from "@/hooks/use-media-session";
+import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useStickyState } from "@/hooks/use-sticky-state";
 
 interface VideoPlayerProps {
   src: string;
   className?: string;
+  title?: string;
 }
 
-const VideoPlayer = ({ src, className }: VideoPlayerProps) => {
+const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState([50]);
+  
+  // Use persistent volume setting
+  const [volume, setVolume] = usePersistentState<number[]>(
+    'video-player-volume', 
+    [50], 
+    { storage: 'localStorage' }
+  );
+  
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Use sticky state for the player (optional floating mode)
+  const { isSticky, stickyRef, toggleSticky } = useStickyState({
+    persistKey: `video-sticky-${src.substring(0, 20)}`,
+    defaultSticky: false
+  });
+  
+  // Save and restore playback position
+  const [playbackPositions, setPlaybackPositions] = usePersistentState<Record<string, number>>(
+    'video-positions',
+    {},
+    { storage: 'sessionStorage' }
+  );
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const handleTimeUpdate = () => setCurrentTime(video.currentTime);
-    const handleLoadedMetadata = () => setDuration(video.duration);
+    const handleTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+      
+      // Save position periodically
+      if (src) {
+        setPlaybackPositions(prev => ({
+          ...prev,
+          [src]: video.currentTime
+        }));
+      }
+    };
+    
+    const handleLoadedMetadata = () => {
+      setDuration(video.duration);
+      
+      // Restore last position if available
+      if (src && playbackPositions[src]) {
+        video.currentTime = playbackPositions[src];
+        setCurrentTime(playbackPositions[src]);
+      }
+    };
+    
     const handleFullscreenChange = () => 
       setIsFullscreen(document.fullscreenElement !== null);
 
+    // Set initial volume from stored preferences
+    video.volume = volume[0] / 100;
+    
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -43,7 +91,38 @@ const VideoPlayer = ({ src, className }: VideoPlayerProps) => {
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
-  }, []);
+  }, [src, playbackPositions]);
+
+  // Integrate with Media Session API
+  useMediaSession({
+    title,
+    artist: 'Video Player',
+    onPlay: () => {
+      if (videoRef.current && !isPlaying) {
+        videoRef.current.play();
+        setIsPlaying(true);
+      }
+    },
+    onPause: () => {
+      if (videoRef.current && isPlaying) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    },
+    onSeekBackward: () => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+      }
+    },
+    onSeekForward: () => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = Math.min(
+          videoRef.current.duration, 
+          videoRef.current.currentTime + 10
+        );
+      }
+    }
+  });
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -98,11 +177,29 @@ const VideoPlayer = ({ src, className }: VideoPlayerProps) => {
   };
 
   return (
-    <div className={cn("relative group", className)}>
+    <div 
+      className={cn(
+        "relative group", 
+        isSticky ? "fixed bottom-4 right-4 w-72 z-50 shadow-lg rounded-lg" : "",
+        className
+      )}
+      ref={stickyRef}
+    >
+      {isSticky && (
+        <Button 
+          size="sm" 
+          variant="secondary" 
+          className="absolute -top-8 right-0 z-10 opacity-80"
+          onClick={toggleSticky}
+        >
+          Restaurar
+        </Button>
+      )}
+      
       <video
         ref={videoRef}
         src={src}
-        className="w-full rounded-lg"
+        className={cn("w-full rounded-lg", isSticky ? "max-h-40" : "")}
         onClick={togglePlay}
       />
       
@@ -161,6 +258,23 @@ const VideoPlayer = ({ src, className }: VideoPlayerProps) => {
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
             </div>
+
+            {/* PIP/Sticky mode toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSticky}
+              className="text-white hover:bg-white/20 mr-2"
+              title={isSticky ? "Exit Picture-in-Picture" : "Picture-in-Picture"}
+            >
+              {isSticky ? (
+                <Minimize className="h-4 w-4" />
+              ) : (
+                <div className="h-4 w-4 border border-white rounded-sm flex items-center justify-center">
+                  <div className="h-2 w-2 bg-white rounded-sm"></div>
+                </div>
+              )}
+            </Button>
 
             {/* Fullscreen button */}
             <Button
