@@ -1,0 +1,38 @@
+
+import { Source } from "../types/press-types";
+
+export const getInitialSources = (): Source[] => [
+  { id: "1", name: "EFE" },
+  { id: "2", name: "AIOLA VIRELLA" },
+  { id: "3", name: "ALEX DAVID" },
+  { id: "4", name: "ANDREA MARTINEZ" },
+  { id: "5", name: "ANTONIO GOMEZ" },
+  { id: "6", name: "ALBA Y. MUÑIZ" },
+  { id: "7", name: "CAMILE ROLDAN" },
+  { id: "8", name: "CARMEN ARROYO" },
+  { id: "9", name: "CARMEN MILLAN" },
+  { id: "10", name: "CESAR VAZQUEZ" },
+  { id: "11", name: "CYNTHIA LOPEZ" },
+  { id: "12", name: "DANIEL RIVERA" },
+  { id: "13", name: "DENNISE PEREZ" },
+  { id: "14", name: "EDWARD ZAYAS" },
+  { id: "15", name: "ENRIQUE MARTEL" },
+  { id: "16", name: "EUGENIO HOPGOOD" },
+  { id: "17", name: "EVA LLORENS" },
+  { id: "18", name: "FIRUZEH SHOKOOH" },
+  { id: "19", name: "FRANCES ROSARIO" },
+  { id: "20", name: "FRANCISCO RODRIGUEZ" },
+  { id: "21", name: "MARGA PARES" },
+  { id: "22", name: "MARIA MIRANDA" },
+  { id: "23", name: "MARIA VERA" },
+  { id: "24", name: "MARIAN DIAZ" },
+  { id: "25", name: "MARIANA COBIAN" },
+  { id: "26", name: "EL NUEVO DÍA" },
+  { id: "27", name: "PRIMERA HORA" },
+  { id: "28", name: "EL VOCERO" },
+  { id: "29", name: "INDICE" },
+  { id: "30", name: "METRO" },
+  { id: "31", name: "CYBERNEWS" },
+  { id: "32", name: "JAY FONSECA" },
+  { id: "33", name: "DANICA COTO" }
+];

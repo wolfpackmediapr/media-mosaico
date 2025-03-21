@@ -1,18 +1,15 @@
 
 import { useState, useEffect } from "react";
 import { CardContent } from "@/components/ui/card";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Plus, Pencil, Trash2, Save, X, Search } from "lucide-react";
-import { Label } from "@/components/ui/label";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { MediaPagination } from "@/components/settings/media/MediaPagination";
-
-type Source = {
-  id: string;
-  name: string;
-};
+import { Source } from "./types/press-types";
+import { SourcesTable } from "./components/SourcesTable";
+import { SourcesSearch } from "./components/SourcesSearch";
+import { AddSourceForm } from "./components/AddSourceForm";
+import { SourcesPagination } from "./components/SourcesPagination";
+import { getInitialSources } from "./components/initialSources";
 
 export function SourcesSettings() {
   const [sources, setSources] = useState<Source[]>([]);
@@ -28,43 +25,7 @@ export function SourcesSettings() {
 
   useEffect(() => {
     // Initial data - in a real app, this would come from the API
-    const initialSources: Source[] = [
-      { id: "1", name: "EFE" },
-      { id: "2", name: "AIOLA VIRELLA" },
-      { id: "3", name: "ALEX DAVID" },
-      { id: "4", name: "ANDREA MARTINEZ" },
-      { id: "5", name: "ANTONIO GOMEZ" },
-      { id: "6", name: "ALBA Y. MUÑIZ" },
-      { id: "7", name: "CAMILE ROLDAN" },
-      { id: "8", name: "CARMEN ARROYO" },
-      { id: "9", name: "CARMEN MILLAN" },
-      { id: "10", name: "CESAR VAZQUEZ" },
-      { id: "11", name: "CYNTHIA LOPEZ" },
-      { id: "12", name: "DANIEL RIVERA" },
-      { id: "13", name: "DENNISE PEREZ" },
-      { id: "14", name: "EDWARD ZAYAS" },
-      { id: "15", name: "ENRIQUE MARTEL" },
-      { id: "16", name: "EUGENIO HOPGOOD" },
-      { id: "17", name: "EVA LLORENS" },
-      { id: "18", name: "FIRUZEH SHOKOOH" },
-      { id: "19", name: "FRANCES ROSARIO" },
-      { id: "20", name: "FRANCISCO RODRIGUEZ" },
-      // Adding more from provided list
-      { id: "21", name: "MARGA PARES" },
-      { id: "22", name: "MARIA MIRANDA" },
-      { id: "23", name: "MARIA VERA" },
-      { id: "24", name: "MARIAN DIAZ" },
-      { id: "25", name: "MARIANA COBIAN" },
-      { id: "26", name: "EL NUEVO DÍA" },
-      { id: "27", name: "PRIMERA HORA" },
-      { id: "28", name: "EL VOCERO" },
-      { id: "29", name: "INDICE" },
-      { id: "30", name: "METRO" },
-      // Adding even more to demonstrate pagination
-      { id: "31", name: "CYBERNEWS" },
-      { id: "32", name: "JAY FONSECA" },
-      { id: "33", name: "DANICA COTO" }
-    ];
+    const initialSources = getInitialSources();
     
     setSources(initialSources);
     setFilteredSources(initialSources);
@@ -134,6 +95,11 @@ export function SourcesSettings() {
     setEditingId(null);
   };
 
+  const handleCancelAdd = () => {
+    setIsAddingNew(false);
+    setNewSourceName("");
+  };
+
   const handleShowAll = () => {
     setSearchTerm("");
   };
@@ -168,125 +134,43 @@ export function SourcesSettings() {
       </div>
       
       {/* Search section */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-4">
-        <div className="w-full sm:w-64 space-y-1.5">
-          <Label htmlFor="search-source">FUENTE</Label>
-          <div className="relative">
-            <Input
-              id="search-source"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar fuente..."
-              className="pr-10"
-            />
-            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          </div>
-        </div>
-        <div className="flex items-end gap-2">
-          <Button onClick={() => setSearchTerm(searchTerm)} size="sm" variant="secondary">
-            Buscar
-          </Button>
-          <Button onClick={handleShowAll} size="sm" variant="outline">
-            Mostrar todo
-          </Button>
-        </div>
-      </div>
+      <SourcesSearch 
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        handleShowAll={handleShowAll}
+      />
       
       {/* Add new source form */}
       {isAddingNew && (
-        <div className="flex gap-2 mb-4 items-center">
-          <Input
-            value={newSourceName}
-            onChange={(e) => setNewSourceName(e.target.value)}
-            placeholder="Nombre de la fuente"
-            className="max-w-md"
-          />
-          <Button onClick={handleAddSource} size="sm" variant="default">
-            <Save className="h-4 w-4 mr-2" />
-            Guardar
-          </Button>
-          <Button onClick={() => setIsAddingNew(false)} size="sm" variant="outline">
-            <X className="h-4 w-4 mr-2" />
-            Cancelar
-          </Button>
-        </div>
+        <AddSourceForm
+          newSourceName={newSourceName}
+          setNewSourceName={setNewSourceName}
+          handleAddSource={handleAddSource}
+          handleCancelAdd={handleCancelAdd}
+        />
       )}
 
       {/* Sources table */}
-      <div className="border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[80%]">FUENTE</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedSources.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
-                  No hay fuentes encontradas
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedSources.map((source) => (
-                <TableRow key={source.id}>
-                  <TableCell>
-                    {editingId === source.id ? (
-                      <Input
-                        value={editedName}
-                        onChange={(e) => setEditedName(e.target.value)}
-                        className="max-w-md"
-                      />
-                    ) : (
-                      source.name
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {editingId === source.id ? (
-                      <div className="flex justify-end gap-2">
-                        <Button onClick={() => handleSaveEdit(source.id)} size="sm" variant="default">
-                          <Save className="h-4 w-4" />
-                        </Button>
-                        <Button onClick={handleCancelEdit} size="sm" variant="outline">
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex justify-end gap-2">
-                        <Button onClick={() => handleEditSource(source.id)} size="sm" variant="outline">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          onClick={() => handleDeleteSource(source.id)} 
-                          size="sm" 
-                          variant="outline"
-                          className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <SourcesTable
+        paginatedSources={paginatedSources}
+        onEdit={handleEditSource}
+        onDelete={handleDeleteSource}
+        onSaveEdit={handleSaveEdit}
+        onCancelEdit={handleCancelEdit}
+        editingId={editingId}
+        editedName={editedName}
+        setEditedName={setEditedName}
+      />
       
       {/* Pagination */}
       {filteredSources.length > 0 && (
-        <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="text-sm">
-            REGISTRO {(currentPage - 1) * itemsPerPage + 1} A {Math.min(currentPage * itemsPerPage, filteredSources.length)} DE {filteredSources.length}
-          </div>
-          <MediaPagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-          />
-        </div>
+        <SourcesPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          filteredItemsCount={filteredSources.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+        />
       )}
     </CardContent>
   );
