@@ -55,9 +55,10 @@ export function MediaSettingsContainer() {
     setShowAddForm(false);
   };
 
-  // Fixed handleExport to explicitly return Promise<void> with no return value
+  // Properly implemented handleExport to ensure it returns Promise<void>
   const handleExport = async (): Promise<void> => {
     await handleExportCSV();
+    // No return statement, so it implicitly returns undefined (void)
   };
 
   const mediaOutletsOnCurrentPage = getCurrentPageOutlets();
