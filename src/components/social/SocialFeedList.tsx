@@ -8,6 +8,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import SocialEmptyState from "./SocialEmptyState";
 import { Card } from "@/components/ui/card";
 import type { SocialPost } from "@/types/social";
+import { 
+  Pagination, 
+  PaginationContent, 
+  PaginationEllipsis, 
+  PaginationItem, 
+  PaginationLink, 
+  PaginationNext, 
+  PaginationPrevious 
+} from "@/components/ui/pagination";
 
 interface SocialFeedListProps {
   posts: SocialPost[];
@@ -43,6 +52,105 @@ const SocialFeedList = ({
   const handleClear = () => {
     setInputValue("");
     onClearSearch();
+  };
+
+  // Function to render pagination
+  const renderPagination = () => {
+    // If only one page, don't show pagination
+    if (totalPages <= 1) {
+      return null;
+    }
+
+    // Function to determine which page numbers to display
+    const getPaginationItems = () => {
+      const items = [];
+      
+      // Always show first page
+      items.push(
+        <PaginationItem key="page-1">
+          <PaginationLink 
+            onClick={() => onPageChange(1)}
+            isActive={currentPage === 1}
+          >
+            1
+          </PaginationLink>
+        </PaginationItem>
+      );
+      
+      // Add ellipsis if needed
+      if (currentPage > 3) {
+        items.push(
+          <PaginationItem key="ellipsis-1">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+      
+      // Add pages around current page
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+        if (i <= currentPage + 1 && i >= currentPage - 1) {
+          items.push(
+            <PaginationItem key={`page-${i}`}>
+              <PaginationLink 
+                onClick={() => onPageChange(i)}
+                isActive={currentPage === i}
+              >
+                {i}
+              </PaginationLink>
+            </PaginationItem>
+          );
+        }
+      }
+      
+      // Add ellipsis if needed
+      if (currentPage < totalPages - 2) {
+        items.push(
+          <PaginationItem key="ellipsis-2">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+      
+      // Always show last page if it's not the first page
+      if (totalPages > 1) {
+        items.push(
+          <PaginationItem key={`page-${totalPages}`}>
+            <PaginationLink 
+              onClick={() => onPageChange(totalPages)}
+              isActive={currentPage === totalPages}
+            >
+              {totalPages}
+            </PaginationLink>
+          </PaginationItem>
+        );
+      }
+      
+      return items;
+    };
+
+    return (
+      <Pagination className="mt-6">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious 
+              onClick={() => onPageChange(currentPage - 1)}
+              className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+              aria-disabled={currentPage === 1}
+            />
+          </PaginationItem>
+          
+          {getPaginationItems()}
+          
+          <PaginationItem>
+            <PaginationNext 
+              onClick={() => onPageChange(currentPage + 1)}
+              className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+              aria-disabled={currentPage === totalPages}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
   };
 
   return (
@@ -96,38 +204,7 @@ const SocialFeedList = ({
             ))}
           </div>
           
-          {totalPages > 1 && (
-            <div className="flex justify-center mt-6 w-full">
-              <div className="join">
-                <Button
-                  variant="outline"
-                  className="join-item"
-                  disabled={currentPage === 1}
-                  onClick={() => onPageChange(currentPage - 1)}
-                >
-                  «
-                </Button>
-                {Array.from({ length: totalPages }).map((_, i) => (
-                  <Button
-                    key={i}
-                    variant={currentPage === i + 1 ? "default" : "outline"}
-                    className="join-item"
-                    onClick={() => onPageChange(i + 1)}
-                  >
-                    {i + 1}
-                  </Button>
-                ))}
-                <Button
-                  variant="outline"
-                  className="join-item"
-                  disabled={currentPage === totalPages}
-                  onClick={() => onPageChange(currentPage + 1)}
-                >
-                  »
-                </Button>
-              </div>
-            </div>
-          )}
+          {renderPagination()}
         </>
       )}
     </div>

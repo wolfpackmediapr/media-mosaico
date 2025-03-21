@@ -41,7 +41,8 @@ export const useNewsFeed = () => {
         dateFilter
       );
       
-      setArticles(articlesData || []);
+      // Ensure the articlesData is treated as NewsArticle[]
+      setArticles(articlesData as NewsArticle[] || []);
       setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching articles', error);

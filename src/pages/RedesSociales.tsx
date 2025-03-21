@@ -4,8 +4,7 @@ import SocialHeader from "@/components/social/SocialHeader";
 import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";
 import { useSocialFeeds } from "@/hooks/use-social-feeds";
-import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ITEMS_PER_PAGE } from "@/services/social/api";
 
 const RedesSociales = () => {
   const {
@@ -69,6 +68,10 @@ const RedesSociales = () => {
   };
 
   const handlePageChange = (page: number) => {
+    if (page === currentPage || page < 1 || (totalCount > 0 && page > Math.ceil(totalCount / ITEMS_PER_PAGE))) {
+      return;
+    }
+    
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -82,23 +85,6 @@ const RedesSociales = () => {
     setCurrentPage(1);
   };
 
-  // Log posts to help debug what's being displayed
-  useEffect(() => {
-    if (posts.length > 0) {
-      const sources = [...new Set(posts.map(post => post.source))];
-      console.log('Currently displayed sources:', sources);
-      
-      // Check specifically for Jay Fonseca posts
-      const jayPosts = posts.filter(post => post.source === 'Jay Fonseca');
-      if (jayPosts.length > 0) {
-        console.log('Jay Fonseca posts in current display:', jayPosts.length);
-        console.log('Latest Jay Fonseca post date:', new Date(jayPosts[0].pub_date).toLocaleString());
-      } else {
-        console.log('No Jay Fonseca posts in current display');
-      }
-    }
-  }, [posts]);
-
   return (
     <div className="w-full space-y-6">
       <SocialHeader onRefresh={handleRefresh} isRefreshing={isRefreshing} />
@@ -108,7 +94,6 @@ const RedesSociales = () => {
           <p className="text-sm text-muted-foreground">
             Última actualización: {lastRefreshTime.toLocaleString()}
           </p>
-          {/* Removed the duplicate "Actualizar ahora" button */}
         </div>
       )}
       
