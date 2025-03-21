@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Pencil, Trash2, Save, X } from "lucide-react";
 import { toast } from "sonner";
+import { MediaPagination } from "@/components/settings/media/MediaPagination";
 
 type Genre = {
   id: string;
@@ -19,6 +20,10 @@ export function GenresSettings() {
   const [newGenreName, setNewGenreName] = useState("");
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [editedName, setEditedName] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredGenres, setFilteredGenres] = useState<Genre[]>([]);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     // Initial data - in a real app, this would come from the API
@@ -38,8 +43,22 @@ export function GenresSettings() {
     ];
     
     setGenres(initialGenres);
+    setFilteredGenres(initialGenres);
     setIsLoading(false);
   }, []);
+
+  // Update filtered genres when genres or search term change
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setFilteredGenres(genres);
+    } else {
+      const filtered = genres.filter(genre => 
+        genre.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredGenres(filtered);
+    }
+    setCurrentPage(1); // Reset to first page on search
+  }, [searchTerm, genres]);
 
   const handleAddGenre = () => {
     if (!newGenreName.trim()) {
@@ -91,6 +110,13 @@ export function GenresSettings() {
     setEditingId(null);
   };
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredGenres.length / itemsPerPage);
+  const paginatedGenres = filteredGenres.slice(
+    (currentPage - 1) * itemsPerPage, 
+    currentPage * itemsPerPage
+  );
+
   if (isLoading) {
     return (
       <CardContent className="p-6">
@@ -111,6 +137,18 @@ export function GenresSettings() {
             Agregar género
           </Button>
         )}
+      </div>
+      
+      {/* Search section */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="w-full sm:w-64 space-y-1.5">
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar género..."
+            className="pr-10"
+          />
+        </div>
       </div>
       
       {isAddingNew && (
@@ -141,14 +179,14 @@ export function GenresSettings() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {genres.length === 0 ? (
+            {paginatedGenres.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
                   No hay géneros periodísticos configurados
                 </TableCell>
               </TableRow>
             ) : (
-              genres.map((genre) => (
+              paginatedGenres.map((genre) => (
                 <TableRow key={genre.id}>
                   <TableCell>
                     {editingId === genre.id ? (
@@ -193,6 +231,20 @@ export function GenresSettings() {
           </TableBody>
         </Table>
       </div>
+      
+      {/* Pagination */}
+      {filteredGenres.length > 0 && (
+        <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="text-sm">
+            REGISTRO {(currentPage - 1) * itemsPerPage + 1} A {Math.min(currentPage * itemsPerPage, filteredGenres.length)} DE {filteredGenres.length}
+          </div>
+          <MediaPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      )}
     </CardContent>
   );
 }
