@@ -10,7 +10,7 @@ import { MediaOutlet } from "@/services/media/mediaService";
 interface MediaContentProps {
   loading: boolean;
   showAddForm: boolean;
-  onAddFormSubmit: (formData: { type: string; name: string; folder: string }) => Promise<void>;
+  onAddFormSubmit: (formData: { type: string; name: string; folder: string }) => Promise<boolean>;
   onAddFormCancel: () => void;
   mediaOutlets: MediaOutlet[];
   hasFilter: boolean;
@@ -22,7 +22,7 @@ interface MediaContentProps {
   editingId: string | null;
   editFormData: MediaOutlet | null;
   onEditFormChange: (updatedOutlet: MediaOutlet) => void;
-  onSaveEdit: () => Promise<void>;
+  onSaveEdit: () => Promise<boolean>;
   onCancelEdit: () => void;
   currentPage: number;
   totalPages: number;

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,7 @@ import {
 import { Check, X } from "lucide-react";
 
 interface MediaOutletFormProps {
-  onSubmit: (formData: { type: string; name: string; folder: string }) => Promise<void>;
+  onSubmit: (formData: { type: string; name: string; folder: string }) => Promise<boolean>;
   onCancel: () => void;
 }
 
