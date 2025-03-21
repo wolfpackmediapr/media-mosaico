@@ -33,7 +33,6 @@ export function MediaSettingsContainer() {
     handleCancelEdit,
     saveEditedOutlet,
     handleDeleteMediaOutlet,
-    handleExportCSV,
     handleImportComplete,
     loadMediaOutlets,
     setFilterType
@@ -55,12 +54,6 @@ export function MediaSettingsContainer() {
     setShowAddForm(false);
   };
 
-  const handleExport = async (): Promise<void> => {
-    // Use void to explicitly discard any potential return value
-    await handleExportCSV();
-    // No return statement needed, as Promise<void> is implicitly returned
-  };
-
   const mediaOutletsOnCurrentPage = getCurrentPageOutlets();
   const totalMediaOutlets = mediaOutlets.length;
 
@@ -74,7 +67,6 @@ export function MediaSettingsContainer() {
             onFilterChange={handleFilterChange}
             showFilter={showFilter}
             onToggleFilter={toggleFilter}
-            onExport={handleExport}
             onImportComplete={handleImportComplete}
             onToggleAddForm={toggleAddForm}
             showAddForm={showAddForm}

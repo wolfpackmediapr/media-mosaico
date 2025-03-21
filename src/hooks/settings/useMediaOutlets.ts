@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { 
@@ -5,9 +6,7 @@ import {
   fetchMediaOutlets,
   addMediaOutlet,
   updateMediaOutlet,
-  deleteMediaOutlet,
-  exportMediaOutletsToCSV,
-  downloadCSV
+  deleteMediaOutlet
 } from "@/services/media/mediaService";
 
 export function useMediaOutlets() {
@@ -129,38 +128,6 @@ export function useMediaOutlets() {
     }
   };
 
-  const handleExportCSV = async (): Promise<void> => {
-    try {
-      let filenameParts = ['medios'];
-      
-      if (filterType) {
-        const typeLabels: Record<string, string> = {
-          'tv': 'television',
-          'radio': 'radio',
-          'prensa': 'prensa-digital',
-          'prensa_escrita': 'prensa-escrita',
-          'redes_sociales': 'redes-sociales'
-        };
-        filenameParts.push(typeLabels[filterType] || filterType);
-      }
-      
-      const dateStr = new Date().toISOString().split('T')[0];
-      filenameParts.push(dateStr);
-      
-      const filename = `${filenameParts.join('_')}.csv`;
-      
-      const csvContent = exportMediaOutletsToCSV(mediaOutlets);
-      void downloadCSV(csvContent, filename);
-      
-      toast.success('Datos exportados correctamente');
-      return;
-    } catch (error) {
-      console.error('Error exporting to CSV:', error);
-      toast.error('Error al exportar los datos');
-      return;
-    }
-  };
-
   const handleImportComplete = () => {
     setImportSuccess(true);
     loadMediaOutlets();
@@ -186,7 +153,6 @@ export function useMediaOutlets() {
     handleCancelEdit,
     saveEditedOutlet,
     handleDeleteMediaOutlet,
-    handleExportCSV,
     handleImportComplete,
     loadMediaOutlets,
     setFilterType

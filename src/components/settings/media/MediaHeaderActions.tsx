@@ -1,6 +1,5 @@
 
 import { Button } from "@/components/ui/button";
-import { FileDown } from "lucide-react";
 import { MediaFilter } from "@/components/settings/media/MediaFilter";
 import { ImportMediaButton } from "@/components/settings/media/ImportMediaButton";
 
@@ -9,7 +8,6 @@ interface MediaHeaderActionsProps {
   onFilterChange: (type: string) => void;
   showFilter: boolean;
   onToggleFilter: () => void;
-  onExport: () => Promise<void>;
   onImportComplete: () => void;
   onToggleAddForm: () => void;
   showAddForm: boolean;
@@ -23,7 +21,6 @@ export function MediaHeaderActions({
   onFilterChange,
   showFilter,
   onToggleFilter,
-  onExport,
   onImportComplete,
   onToggleAddForm,
   showAddForm,
@@ -39,16 +36,6 @@ export function MediaHeaderActions({
         showFilter={showFilter}
         onToggleFilter={onToggleFilter}
       />
-      <Button 
-        variant="outline" 
-        size="sm" 
-        onClick={onExport}
-        disabled={!hasMediaOutlets || loading}
-        title="Exportar medios a CSV"
-      >
-        <FileDown className="h-4 w-4 mr-1" />
-        Exportar CSV
-      </Button>
       <ImportMediaButton
         csvData={csvData}
         onImportComplete={onImportComplete}
