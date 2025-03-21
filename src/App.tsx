@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -19,16 +18,13 @@ import {
   NotificationsSettings,
   UsersSettings,
   ClientsSettings,
-  NotificationMonitoring
+  NotificationMonitoring,
+  RadioSettings,
+  PressSettings
 } from "./pages/configuracion";
 import MediaSettings from "./pages/configuracion/MediaSettings";
 import CategoriesSettings from "./pages/configuracion/categories/CategoriesSettings";
 import TvSettings from "./pages/configuracion/TvSettings";
-import RadioSettings from "./pages/configuracion/RadioSettings";
-import Ayuda from "./pages/Ayuda";
-import Auth from "./pages/Auth";
-import Registro from "./pages/Registro";
-import RecuperarPassword from "./pages/RecuperarPassword";
 import { Toaster } from "@/components/ui/sonner";
 import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
 import { seedMediaOutlets } from "./services/media/mediaImportService";
@@ -103,6 +99,8 @@ function App() {
                   <Route path="tv/*" element={<TvSettings />} />
                   <Route path="radio" element={<RadioSettings />} />
                   <Route path="radio/*" element={<RadioSettings />} />
+                  <Route path="prensa" element={<PressSettings />} />
+                  <Route path="prensa/*" element={<PressSettings />} />
                 </Route>
                 <Route path="ayuda" element={<Ayuda />} />
               </Route>
