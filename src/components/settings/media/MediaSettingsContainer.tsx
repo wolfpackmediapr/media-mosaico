@@ -60,10 +60,9 @@ export function MediaSettingsContainer() {
     setShowAddForm(false);
   };
 
-  // Fix the return type by ensuring no value is returned
+  // The handleExport function now correctly returns Promise<void>
   const handleExport = async (): Promise<void> => {
     await handleExportCSV();
-    // Not returning anything to match Promise<void> type
   };
 
   const mediaOutletsOnCurrentPage = getCurrentPageOutlets();
