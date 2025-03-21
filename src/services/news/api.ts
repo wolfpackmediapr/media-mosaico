@@ -1,13 +1,31 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { NewsArticle, FeedSource } from "@/types/prensa";
 import { SOCIAL_PLATFORMS } from "@/services/social/api";
 
 // Constants
 export const ITEMS_PER_PAGE = 10;
+export const NEWS_CACHE_TIME = 5 * 60 * 1000; // 5 minutes cache
 
-// Fetch news sources from the database
-export const fetchNewsSourcesFromDatabase = async () => {
+// Keep track of last fetch time to optimize requests
+let lastSourcesFetchTime = 0;
+let cachedSources: FeedSource[] | null = null;
+
+/**
+ * Fetch news sources with optimized caching
+ * - Uses in-memory cache for rapid consecutive requests
+ * - Bypasses cache after expiration time
+ */
+export const fetchNewsSourcesFromDatabase = async (forceRefresh = false) => {
+  const now = Date.now();
+  
+  // Return cached data if it's fresh enough and not forced to refresh
+  if (!forceRefresh && cachedSources && now - lastSourcesFetchTime < NEWS_CACHE_TIME) {
+    console.log("Returning cached news sources");
+    return cachedSources;
+  }
+  
+  console.log("Fetching fresh news sources");
+  
   // Only get news sources, exclude social media platforms
   const { data: sourcesData, error } = await supabase
     .from('feed_sources')
@@ -18,16 +36,53 @@ export const fetchNewsSourcesFromDatabase = async () => {
 
   if (error) throw error;
   
+  // Update cache
+  cachedSources = sourcesData;
+  lastSourcesFetchTime = now;
+  
   return sourcesData;
 };
 
-// Fetch articles from the database
+// Cache structure for articles by query parameters
+interface ArticlesCacheItem {
+  data: NewsArticle[];
+  count: number;
+  timestamp: number;
+}
+
+const articlesCache = new Map<string, ArticlesCacheItem>();
+
+/**
+ * Generate a cache key for articles query
+ */
+function getArticlesCacheKey(page: number, searchTerm: string, sourceId: string, dateFilter: string): string {
+  return `articles:${page}:${searchTerm}:${sourceId}:${dateFilter}`;
+}
+
+/**
+ * Fetch articles from the database with optimized caching
+ */
 export const fetchArticlesFromDatabase = async (
   page: number, 
   searchTerm: string = '', 
   sourceId: string = '',
-  dateFilter: string = ''
+  dateFilter: string = '',
+  forceRefresh = false
 ) => {
+  const cacheKey = getArticlesCacheKey(page, searchTerm, sourceId, dateFilter);
+  const now = Date.now();
+  
+  // Check cache first if not forced to refresh
+  if (!forceRefresh) {
+    const cached = articlesCache.get(cacheKey);
+    if (cached && now - cached.timestamp < NEWS_CACHE_TIME) {
+      console.log("Returning cached articles for:", cacheKey);
+      return { articlesData: cached.data, count: cached.count };
+    }
+  }
+  
+  console.log("Fetching fresh articles for:", cacheKey);
+  
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
@@ -76,10 +131,26 @@ export const fetchArticlesFromDatabase = async (
 
   if (error) throw error;
   
+  // Update cache
+  articlesCache.set(cacheKey, {
+    data: articlesData,
+    count: count || 0,
+    timestamp: now
+  });
+  
   return { articlesData, count };
 };
 
-// Refresh the news feed via the edge function
+/**
+ * Clear the articles cache - useful when new articles are added
+ */
+export const clearArticlesCache = () => {
+  articlesCache.clear();
+};
+
+/**
+ * Refresh the news feed via the edge function
+ */
 export const refreshNewsFeedViaFunction = async () => {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) {
@@ -97,6 +168,10 @@ export const refreshNewsFeedViaFunction = async () => {
   if (error) {
     throw error;
   }
+  
+  // Clear caches after refresh
+  clearArticlesCache();
+  cachedSources = null;
   
   return data;
 };

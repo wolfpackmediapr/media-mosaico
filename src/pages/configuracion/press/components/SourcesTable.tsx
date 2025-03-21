@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pencil, Trash2, Save, X } from "lucide-react";
 import { Source } from "../types/press-types";
+import { memo } from "react";
 
 interface SourcesTableProps {
   paginatedSources: Source[];
@@ -16,7 +17,7 @@ interface SourcesTableProps {
   setEditedName: (name: string) => void;
 }
 
-export function SourcesTable({
+export const SourcesTable = memo(function SourcesTable({
   paginatedSources,
   onEdit,
   onDelete,
@@ -89,4 +90,4 @@ export function SourcesTable({
       </Table>
     </div>
   );
-}
+});
