@@ -150,12 +150,14 @@ export function useMediaOutlets() {
       const filename = `${filenameParts.join('_')}.csv`;
       
       const csvContent = exportMediaOutletsToCSV(mediaOutlets);
-      downloadCSV(csvContent, filename);
+      void downloadCSV(csvContent, filename);
       
       toast.success('Datos exportados correctamente');
+      return;
     } catch (error) {
       console.error('Error exporting to CSV:', error);
       toast.error('Error al exportar los datos');
+      return;
     }
   };
 
