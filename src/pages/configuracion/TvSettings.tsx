@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChannelsManagement } from "@/components/settings/tv/ChannelsManagement";
