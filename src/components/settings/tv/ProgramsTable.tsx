@@ -78,35 +78,43 @@ export function ProgramsTable({ programs, channels, onEdit, onDelete }: Programs
           </TableRow>
         </TableHeader>
         <TableBody>
-          {programs.map((program) => (
-            <TableRow key={program.id}>
-              <TableCell className="font-medium">{program.name}</TableCell>
-              <TableCell>{getChannelName(program.channel_id)}</TableCell>
-              <TableCell>
-                {formatTime(program.start_time)} - {formatTime(program.end_time)}
-              </TableCell>
-              <TableCell>{formatDays(program.days)}</TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onEdit(program)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onDelete(program.id)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+          {programs.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="h-24 text-center">
+                No hay programas para mostrar en esta página
               </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            programs.map((program) => (
+              <TableRow key={program.id}>
+                <TableCell className="font-medium">{program.name}</TableCell>
+                <TableCell>{getChannelName(program.channel_id)}</TableCell>
+                <TableCell>
+                  {formatTime(program.start_time)} - {formatTime(program.end_time)}
+                </TableCell>
+                <TableCell>{formatDays(program.days)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onEdit(program)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onDelete(program.id)}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </div>

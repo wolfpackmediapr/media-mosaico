@@ -12,6 +12,7 @@ import {
 import { ProgramsTable } from "./ProgramsTable";
 import { ProgramFormDialog } from "./ProgramFormDialog";
 import { ProgramLoadingState, ProgramEmptyState } from "./ProgramStates";
+import { ProgramsPagination } from "./ProgramsPagination";
 import { toast } from "sonner";
 import { 
   fetchPrograms,
@@ -30,6 +31,11 @@ export function ProgramsManagement() {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingProgram, setEditingProgram] = useState<ProgramType | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   const loadData = async () => {
     setLoading(true);
@@ -39,6 +45,15 @@ export function ProgramsManagement() {
         fetchChannels()
       ]);
       setPrograms(programsData);
+      
+      // Calculate total pages
+      setTotalPages(Math.max(1, Math.ceil(programsData.length / ITEMS_PER_PAGE)));
+      
+      // Reset to page 1 if current page is out of bounds
+      if (currentPage > Math.ceil(programsData.length / ITEMS_PER_PAGE)) {
+        setCurrentPage(1);
+      }
+      
       setChannels(channelsData);
     } catch (error) {
       console.error("Error loading data:", error);
@@ -95,6 +110,17 @@ export function ProgramsManagement() {
     }
   };
 
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Get current page programs
+  const getCurrentPagePrograms = () => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return programs.slice(startIndex, endIndex);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -117,16 +143,28 @@ export function ProgramsManagement() {
         ) : programs.length === 0 ? (
           <ProgramEmptyState hasChannels={channels.length > 0} />
         ) : (
-          <ProgramsTable 
-            programs={programs} 
-            channels={channels}
-            onEdit={handleEditProgram}
-            onDelete={handleDeleteProgram}
-          />
+          <>
+            <ProgramsTable 
+              programs={getCurrentPagePrograms()} 
+              channels={channels}
+              onEdit={handleEditProgram}
+              onDelete={handleDeleteProgram}
+            />
+            <ProgramsPagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </>
         )}
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex justify-between">
         <Button variant="outline" onClick={loadData}>Refrescar</Button>
+        <div className="text-sm text-muted-foreground">
+          {programs.length > 0 && (
+            `Mostrando ${(currentPage - 1) * ITEMS_PER_PAGE + 1} a ${Math.min(currentPage * ITEMS_PER_PAGE, programs.length)} de ${programs.length} programas`
+          )}
+        </div>
       </CardFooter>
 
       {/* Add Program Dialog */}
