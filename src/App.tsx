@@ -22,6 +22,7 @@ import {
   NotificationMonitoring
 } from "./pages/configuracion";
 import CategoriesSettings from "./pages/configuracion/categories/CategoriesSettings";
+import TvSettings from "./pages/configuracion/TvSettings";
 import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
@@ -71,6 +72,8 @@ function App() {
                   <Route path="clientes/*" element={<ConfiguracionClientes />} />
                   <Route path="notificaciones" element={<ConfiguracionAlertas />} />
                   <Route path="monitoreo-notificaciones" element={<NotificationMonitoring />} />
+                  <Route path="tv" element={<TvSettings />} />
+                  <Route path="tv/*" element={<TvSettings />} />
                 </Route>
                 <Route path="ayuda" element={<Ayuda />} />
               </Route>

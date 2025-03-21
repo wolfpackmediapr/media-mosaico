@@ -55,7 +55,8 @@ export function SettingsNav({ currentPath }: SettingsNavProps) {
       path: '/ajustes/tv',
       subsections: [
         { label: 'Canales', path: '/ajustes/tv/canales' },
-        { label: 'Programas', path: '/ajustes/tv/programas' }
+        { label: 'Programas', path: '/ajustes/tv/programas' },
+        { label: 'Tarifas', path: '/ajustes/tv/tarifas' }
       ]
     },
     { 

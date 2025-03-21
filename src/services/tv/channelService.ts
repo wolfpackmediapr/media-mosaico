@@ -132,25 +132,15 @@ export async function deleteChannel(id: string): Promise<void> {
   }
 }
 
-// Program Services - We'll use a custom table for these
+// Program Services - We'll use localStorage for these
 export async function fetchPrograms(): Promise<ProgramType[]> {
   try {
     // Check if we need to create the table first
     await ensureTablesExist();
     
-    // Set up the tv_programs collection
-    const { data, error } = await supabase
-      .rpc('get_tv_programs')
-      .select('*')
-      .order('name');
-
-    if (error) {
-      // If the RPC doesn't exist, return an empty array for now
-      console.warn('Error fetching programs:', error);
-      return [];
-    }
-    
-    return data || [];
+    // Get from localStorage
+    const storedPrograms = JSON.parse(localStorage.getItem('tv_programs') || '[]');
+    return storedPrograms;
   } catch (error) {
     console.error('Error fetching programs:', error);
     return []; // Return empty array for now
