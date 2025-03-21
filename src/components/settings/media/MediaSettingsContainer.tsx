@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,8 +60,10 @@ export function MediaSettingsContainer() {
     setShowAddForm(false);
   };
 
+  // Fix the return type by ensuring no value is returned
   const handleExport = async (): Promise<void> => {
     await handleExportCSV();
+    // Not returning anything to match Promise<void> type
   };
 
   const mediaOutletsOnCurrentPage = getCurrentPageOutlets();
