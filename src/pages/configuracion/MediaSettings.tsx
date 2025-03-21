@@ -12,6 +12,7 @@ import { MediaFilter } from "@/components/settings/media/MediaFilter";
 import { MediaLoadingState } from "@/components/settings/media/MediaLoadingState";
 import { MediaEmptyState } from "@/components/settings/media/MediaEmptyState";
 import { ImportMediaButton } from "@/components/settings/media/ImportMediaButton";
+import { MediaPagination } from "@/components/settings/media/MediaPagination";
 
 // Import the services
 import { 
@@ -36,6 +37,10 @@ export default function MediaSettings() {
   const [editFormData, setEditFormData] = useState<MediaOutlet | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [importSuccess, setImportSuccess] = useState(false);
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     loadMediaOutlets();
@@ -46,12 +51,28 @@ export default function MediaSettings() {
     try {
       const outlets = await fetchMediaOutlets(sortField, sortOrder, filterType);
       setMediaOutlets(outlets);
+      
+      setTotalPages(Math.max(1, Math.ceil(outlets.length / ITEMS_PER_PAGE)));
+      
+      if (currentPage > Math.ceil(outlets.length / ITEMS_PER_PAGE)) {
+        setCurrentPage(1);
+      }
     } catch (error) {
       console.error('Error loading media outlets:', error);
       toast.error('Error al cargar los medios');
     } finally {
       setLoading(false);
     }
+  };
+
+  const getCurrentPageOutlets = () => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return mediaOutlets.slice(startIndex, endIndex);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
   const handleSort = (field: keyof MediaOutlet) => {
@@ -223,25 +244,34 @@ export default function MediaSettings() {
         ) : mediaOutlets.length === 0 ? (
           <MediaEmptyState hasFilter={!!filterType} />
         ) : (
-          <MediaOutletsTable 
-            mediaOutlets={mediaOutlets}
-            sortField={sortField}
-            sortOrder={sortOrder}
-            onSort={handleSort}
-            onEdit={handleEditClick}
-            onDelete={handleDeleteMediaOutlet}
-            editingId={editingId}
-            editFormData={editFormData}
-            onEditFormChange={handleEditFormChange}
-            onSaveEdit={saveEditedOutlet}
-            onCancelEdit={handleCancelEdit}
-            loading={loading}
-          />
+          <>
+            <MediaOutletsTable 
+              mediaOutlets={getCurrentPageOutlets()} 
+              sortField={sortField}
+              sortOrder={sortOrder}
+              onSort={handleSort}
+              onEdit={handleEditClick}
+              onDelete={handleDeleteMediaOutlet}
+              editingId={editingId}
+              editFormData={editFormData}
+              onEditFormChange={handleEditFormChange}
+              onSaveEdit={saveEditedOutlet}
+              onCancelEdit={handleCancelEdit}
+              loading={loading}
+            />
+            <MediaPagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </>
         )}
       </CardContent>
       <CardFooter className="flex justify-between border-t pt-6">
         <p className="text-xs text-muted-foreground">
-          Los cambios en los medios pueden afectar a todo el sistema
+          {mediaOutlets.length > 0 && (
+            `Mostrando ${(currentPage - 1) * ITEMS_PER_PAGE + 1} a ${Math.min(currentPage * ITEMS_PER_PAGE, mediaOutlets.length)} de ${mediaOutlets.length} medios`
+          )}
         </p>
         <Button variant="outline" onClick={loadMediaOutlets}>
           Refrescar
