@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -21,7 +20,7 @@ import {
   ClientsSettings as ConfiguracionClientes,
   NotificationMonitoring
 } from "./pages/configuracion";
-import CategoriesSettings from "./pages/configuracion/CategoriesSettings";
+import CategoriesSettings from "./pages/configuracion/categories/CategoriesSettings";
 import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
@@ -36,7 +35,6 @@ function App() {
   const queryClient = new QueryClient(); 
 
   useEffect(() => {
-    // Check if the user is logged in
     const token = localStorage.getItem("sb-access-token");
     if (token) {
       setIsLoggedIn(true);
