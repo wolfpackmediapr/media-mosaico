@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { 
@@ -130,7 +129,6 @@ export function useMediaOutlets() {
     }
   };
 
-  // Fix: Changed return type to void and removed implicit boolean returns
   const handleExportCSV = async (): Promise<void> => {
     try {
       let filenameParts = ['medios'];
@@ -155,11 +153,9 @@ export function useMediaOutlets() {
       downloadCSV(csvContent, filename);
       
       toast.success('Datos exportados correctamente');
-      // Removed the "return true" that was causing the type error
     } catch (error) {
       console.error('Error exporting to CSV:', error);
       toast.error('Error al exportar los datos');
-      // Removed the "return false" that was causing the type error
     }
   };
 

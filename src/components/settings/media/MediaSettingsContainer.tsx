@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMediaOutlets } from "@/hooks/settings/useMediaOutlets";
@@ -56,7 +55,7 @@ export function MediaSettingsContainer() {
   };
 
   const handleExport = async (): Promise<void> => {
-    void await handleExportCSV();
+    await handleExportCSV();
   };
 
   const mediaOutletsOnCurrentPage = getCurrentPageOutlets();
