@@ -13,6 +13,7 @@ import { ChannelsTable } from "./ChannelsTable";
 import { ChannelFormDialog } from "./ChannelFormDialog";
 import { ChannelLoadingState } from "./ChannelStates";
 import { ChannelEmptyState } from "./ChannelStates";
+import { ChannelsPagination } from "./ChannelsPagination";
 import { toast } from "sonner";
 import { 
   fetchChannels,
@@ -27,12 +28,25 @@ export function ChannelsManagement() {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingChannel, setEditingChannel] = useState<ChannelType | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   const loadChannels = async () => {
     setLoading(true);
     try {
       const data = await fetchChannels();
       setChannels(data);
+      
+      // Calculate total pages
+      setTotalPages(Math.max(1, Math.ceil(data.length / ITEMS_PER_PAGE)));
+      
+      // Reset to page 1 if current page is out of bounds
+      if (currentPage > Math.ceil(data.length / ITEMS_PER_PAGE)) {
+        setCurrentPage(1);
+      }
     } catch (error) {
       console.error("Error loading channels:", error);
       toast.error("Error al cargar los canales");
@@ -44,6 +58,18 @@ export function ChannelsManagement() {
   useEffect(() => {
     loadChannels();
   }, []);
+
+  // Get channels for current page
+  const getCurrentPageChannels = () => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return channels.slice(startIndex, endIndex);
+  };
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   const handleAddChannel = async (channelData: Omit<ChannelType, 'id'>) => {
     try {
@@ -88,6 +114,9 @@ export function ChannelsManagement() {
     }
   };
 
+  // Get channels for the current page
+  const channelsOnCurrentPage = getCurrentPageChannels();
+
   return (
     <Card>
       <CardHeader>
@@ -105,11 +134,23 @@ export function ChannelsManagement() {
         ) : channels.length === 0 ? (
           <ChannelEmptyState />
         ) : (
-          <ChannelsTable 
-            channels={channels} 
-            onEdit={handleEditChannel}
-            onDelete={handleDeleteChannel}
-          />
+          <>
+            <ChannelsTable 
+              channels={channelsOnCurrentPage} 
+              onEdit={handleEditChannel}
+              onDelete={handleDeleteChannel}
+            />
+            <ChannelsPagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              {channels.length > 0 && (
+                `Mostrando ${(currentPage - 1) * ITEMS_PER_PAGE + 1} a ${Math.min(currentPage * ITEMS_PER_PAGE, channels.length)} de ${channels.length} canales`
+              )}
+            </p>
+          </>
         )}
       </CardContent>
       <CardFooter>
