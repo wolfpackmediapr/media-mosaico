@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -23,6 +24,7 @@ import {
 import MediaSettings from "./pages/configuracion/MediaSettings";
 import CategoriesSettings from "./pages/configuracion/categories/CategoriesSettings";
 import TvSettings from "./pages/configuracion/TvSettings";
+import RadioSettings from "./pages/configuracion/RadioSettings";
 import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
@@ -99,6 +101,8 @@ function App() {
                   <Route path="monitoreo-notificaciones" element={<NotificationMonitoring />} />
                   <Route path="tv" element={<TvSettings />} />
                   <Route path="tv/*" element={<TvSettings />} />
+                  <Route path="radio" element={<RadioSettings />} />
+                  <Route path="radio/*" element={<RadioSettings />} />
                 </Route>
                 <Route path="ayuda" element={<Ayuda />} />
               </Route>
