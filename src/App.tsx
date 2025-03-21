@@ -21,13 +21,13 @@ import {
   ClientsSettings as ConfiguracionClientes,
   NotificationMonitoring
 } from "./pages/configuracion";
+import CategoriesSettings from "./pages/configuracion/CategoriesSettings";
 import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
 import { Toaster } from "@/components/ui/toaster";
 import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
-import { SettingsLayout } from "./components/settings/SettingsLayout";
 
 import "./App.css";
 
@@ -64,6 +64,7 @@ function App() {
                 <Route path="ajustes" element={<Ajustes />} />
                 <Route path="ajustes/*" element={<Outlet />}>
                   <Route path="general" element={<ConfiguracionGeneral />} />
+                  <Route path="general/categorias" element={<CategoriesSettings />} />
                   <Route path="general/*" element={<ConfiguracionGeneral />} />
                   <Route path="usuarios" element={<ConfiguracionUsuarios />} />
                   <Route path="usuarios/*" element={<ConfiguracionUsuarios />} />

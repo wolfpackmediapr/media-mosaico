@@ -1,16 +1,16 @@
 
-import ClientsSettings from "./ClientsSettings";
 import GeneralSettings from "./GeneralSettings";
-import MediaSettings from "./MediaSettings";
 import UsersSettings from "./UsersSettings";
+import ClientsSettings from "./ClientsSettings";
 import NotificationsSettings from "./NotificationsSettings";
 import NotificationMonitoring from "./NotificationMonitoring";
+import CategoriesSettings from "./CategoriesSettings";
 
 export {
-  ClientsSettings,
   GeneralSettings,
-  MediaSettings,
   UsersSettings,
+  ClientsSettings,
   NotificationsSettings,
-  NotificationMonitoring
+  NotificationMonitoring,
+  CategoriesSettings
 };
