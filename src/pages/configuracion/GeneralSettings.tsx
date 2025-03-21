@@ -1,74 +1,30 @@
 
-import { useState, useEffect } from "react";
-import { SettingsLayout } from "@/components/settings/SettingsLayout";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "react-router-dom";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
+import { Settings2 } from "lucide-react";
+import { SettingsLayout } from "@/components/settings/SettingsLayout";
+import { seedMediaOutlets } from "@/services/media/mediaImportService";
+import { defaultCsvData } from "@/services/media/defaultMediaData";
 
-// Define types for media outlets
-interface MediaOutlet {
-  id: string;
-  type: string;
-  name: string;
-  folder: string | null;
-  created_at: string;
-}
+export function GeneralSettings() {
+  const [initialized, setInitialized] = useState(false);
 
-export default function GeneralSettings() {
-  const [mediaOutlets, setMediaOutlets] = useState<MediaOutlet[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sortField, setSortField] = useState<keyof MediaOutlet>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-
-  // Function to get display name for media type
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'tv': return 'Televisión';
-      case 'radio': return 'Radio';
-      case 'prensa': return 'Prensa Digital';
-      case 'prensa_escrita': return 'Prensa Escrita';
-      case 'redes_sociales': return 'Redes Sociales';
-      default: return type;
-    }
-  };
-
-  // Fetch media outlets from Supabase
-  const fetchMediaOutlets = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('media_outlets')
-        .select('*')
-        .order(sortField, { ascending: sortOrder === 'asc' });
-
-      if (error) throw error;
-      setMediaOutlets(data || []);
-    } catch (error) {
-      console.error('Error fetching media outlets:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle column sort
-  const handleSort = (field: keyof MediaOutlet) => {
-    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    setSortField(field);
-  };
-
-  // Load data on component mount
+  // Seed the media outlets on first load
   useEffect(() => {
-    fetchMediaOutlets();
-  }, [sortField, sortOrder]);
+    const initData = async () => {
+      try {
+        if (!initialized) {
+          await seedMediaOutlets(defaultCsvData);
+          setInitialized(true);
+        }
+      } catch (error) {
+        console.error("Error initializing data:", error);
+      }
+    };
+    
+    initData();
+  }, [initialized]);
 
   return (
     <SettingsLayout
@@ -76,77 +32,37 @@ export default function GeneralSettings() {
       description="Administra la configuración general del sistema"
     >
       <CardHeader>
-        <CardTitle>Configuración General</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <Settings2 className="h-5 w-5" />
+          Configuración General
+        </CardTitle>
         <CardDescription>
-          Estas configuraciones afectan a todos los aspectos del sistema
+          Ajustes globales del sistema
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <h3 className="text-lg font-medium">Medios de Comunicación</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Lista de medios de comunicación disponibles en el sistema
-          </p>
-          <div className="flex justify-end mb-4">
-            <Button asChild variant="default" size="sm">
-              <Link to="/ajustes/general/medios">Gestionar Medios</Link>
-            </Button>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="bg-card border rounded-lg p-4 shadow-sm">
+            <h3 className="font-semibold mb-2">Ajustes de Apariencia</h3>
+            <p className="text-sm text-muted-foreground">
+              Personalizar colores, temas e interfaces
+            </p>
           </div>
-
-          {loading ? (
-            <div className="text-center py-6">Cargando medios...</div>
-          ) : mediaOutlets.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">
-              No hay medios de comunicación configurados.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead 
-                    className="cursor-pointer"
-                    onClick={() => handleSort('type')}
-                  >
-                    Tipo {sortField === 'type' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </TableHead>
-                  <TableHead 
-                    className="cursor-pointer"
-                    onClick={() => handleSort('name')}
-                  >
-                    Nombre {sortField === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </TableHead>
-                  <TableHead 
-                    className="cursor-pointer"
-                    onClick={() => handleSort('folder')}
-                  >
-                    Carpeta {sortField === 'folder' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mediaOutlets.map((outlet) => (
-                  <TableRow key={outlet.id}>
-                    <TableCell>{getTypeLabel(outlet.type)}</TableCell>
-                    <TableCell>{outlet.name}</TableCell>
-                    <TableCell>{outlet.folder || '-'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-
-        <div className="space-y-2 mt-8">
-          <h3 className="text-lg font-medium">Categorías</h3>
-          <p className="text-sm text-muted-foreground">
-            Administra las categorías para clasificar el contenido
-          </p>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/ajustes/general/categorias">Configurar categorías</Link>
-          </Button>
+          <div className="bg-card border rounded-lg p-4 shadow-sm">
+            <h3 className="font-semibold mb-2">Notificaciones</h3>
+            <p className="text-sm text-muted-foreground">
+              Configurar preferencias de notificaciones y alertas
+            </p>
+          </div>
+          <div className="bg-card border rounded-lg p-4 shadow-sm">
+            <h3 className="font-semibold mb-2">Seguridad</h3>
+            <p className="text-sm text-muted-foreground">
+              Configurar opciones de seguridad y acceso
+            </p>
+          </div>
         </div>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="border-t pt-6">
         <p className="text-xs text-muted-foreground">
           Los cambios en la configuración general afectan a todo el sistema
         </p>

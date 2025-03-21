@@ -11,8 +11,9 @@ import { MediaOutletsTable } from "@/components/settings/media/MediaOutletsTable
 import { MediaFilter } from "@/components/settings/media/MediaFilter";
 import { MediaLoadingState } from "@/components/settings/media/MediaLoadingState";
 import { MediaEmptyState } from "@/components/settings/media/MediaEmptyState";
+import { ImportMediaButton } from "@/components/settings/media/ImportMediaButton";
 
-// Import the service
+// Import the services
 import { 
   MediaOutlet, 
   fetchMediaOutlets,
@@ -22,6 +23,7 @@ import {
   exportMediaOutletsToCSV,
   downloadCSV
 } from "@/services/media/mediaService";
+import { defaultCsvData } from "@/services/media/defaultMediaData";
 
 export default function MediaSettings() {
   const [mediaOutlets, setMediaOutlets] = useState<MediaOutlet[]>([]);
@@ -33,6 +35,7 @@ export default function MediaSettings() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<MediaOutlet | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [importSuccess, setImportSuccess] = useState(false);
 
   useEffect(() => {
     loadMediaOutlets();
@@ -159,6 +162,11 @@ export default function MediaSettings() {
     }
   };
 
+  const handleImportComplete = () => {
+    setImportSuccess(true);
+    loadMediaOutlets();
+  };
+
   return (
     <SettingsLayout
       title="Medios"
@@ -184,6 +192,11 @@ export default function MediaSettings() {
               <FileDown className="h-4 w-4 mr-1" />
               Exportar CSV
             </Button>
+            <ImportMediaButton
+              csvData={defaultCsvData}
+              onImportComplete={handleImportComplete}
+              disabled={loading}
+            />
             <Button 
               size="sm"
               onClick={toggleAddForm}

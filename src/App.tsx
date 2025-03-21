@@ -21,6 +21,7 @@ import {
   ClientsSettings as ConfiguracionClientes,
   NotificationMonitoring
 } from "./pages/configuracion";
+import MediaSettings from "./pages/configuracion/MediaSettings";
 import CategoriesSettings from "./pages/configuracion/categories/CategoriesSettings";
 import TvSettings from "./pages/configuracion/TvSettings";
 import Ayuda from "./pages/Ayuda";
@@ -29,11 +30,15 @@ import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
 import { Toaster } from "@/components/ui/sonner";
 import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
+import { seedMediaOutlets } from "./services/media/mediaImportService";
+import { defaultCsvData } from "./services/media/defaultMediaData";
+import { seedTvData } from "./services/tv/channelService";
 
 import "./App.css";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const queryClient = new QueryClient(); 
 
   useEffect(() => {
@@ -44,6 +49,29 @@ function App() {
       setIsLoggedIn(false);
     }
   }, []);
+  
+  // Initialize the application data (media outlets and TV data)
+  useEffect(() => {
+    const initializeData = async () => {
+      if (!initialized) {
+        try {
+          // First seed the media outlets
+          await seedMediaOutlets(defaultCsvData);
+          console.log("Media outlets seeded successfully");
+          
+          // Then seed the TV data
+          await seedTvData();
+          console.log("TV data seeded successfully");
+          
+          setInitialized(true);
+        } catch (error) {
+          console.error("Error initializing data:", error);
+        }
+      }
+    };
+    
+    initializeData();
+  }, [initialized]);
   
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
@@ -64,6 +92,7 @@ function App() {
                 <Route path="ajustes" element={<Ajustes />} />
                 <Route path="ajustes/*" element={<Outlet />}>
                   <Route path="general" element={<ConfiguracionGeneral />} />
+                  <Route path="general/medios" element={<MediaSettings />} />
                   <Route path="general/categorias" element={<CategoriesSettings />} />
                   <Route path="general/*" element={<ConfiguracionGeneral />} />
                   <Route path="usuarios" element={<ConfiguracionUsuarios />} />
