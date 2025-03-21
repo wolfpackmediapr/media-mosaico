@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -8,7 +7,7 @@ import { Settings2, Bell, User, Shield, Tv, Radio, Newspaper, Users, Building2 }
 import { useToast } from "@/components/ui/use-toast";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
-import { seedTvData } from "@/services/tv/channelService";
+import { seedTvData } from "@/services/tv";
 
 const Ajustes = () => {
   const { toast } = useToast();

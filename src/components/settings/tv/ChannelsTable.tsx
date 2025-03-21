@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Pencil, Trash2 } from "lucide-react";
-import { ChannelType } from "@/services/tv/channelService";
+import { ChannelType } from "@/services/tv/types";
 
 interface ChannelsTableProps {
   channels: ChannelType[];

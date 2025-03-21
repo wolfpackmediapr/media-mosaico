@@ -1,6 +1,6 @@
 
 export { GeneralSettings } from "./GeneralSettings";
-export { NotificationsSettings } from "./configuracion/NotificationsSettings";
-export { UsersSettings } from "./configuracion/UsersSettings";
-export { ClientsSettings } from "./configuracion/ClientsSettings";
-export { NotificationMonitoring } from "./configuracion/NotificationMonitoring";
+export { default as NotificationsSettings } from "./NotificationsSettings";
+export { default as UsersSettings } from "./UsersSettings";
+export { default as ClientsSettings } from "./ClientsSettings";
+export { default as NotificationMonitoring } from "./NotificationMonitoring";

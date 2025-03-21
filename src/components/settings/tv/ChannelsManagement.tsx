@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -17,9 +18,9 @@ import {
   fetchChannels,
   createChannel,
   updateChannel,
-  deleteChannel,
-  ChannelType
-} from "@/services/tv";
+  deleteChannel
+} from "@/services/tv/channelService";
+import { ChannelType } from "@/services/tv/types";
 
 export function ChannelsManagement() {
   const [channels, setChannels] = useState<ChannelType[]>([]);

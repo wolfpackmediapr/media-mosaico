@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -29,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ProgramType, ChannelType } from "@/services/tv/channelService";
+import { ProgramType, ChannelType } from "@/services/tv/types";
 
 const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
 
@@ -83,7 +82,6 @@ export function ProgramFormDialog({
     },
   });
 
-  // Reset form when program prop changes
   useEffect(() => {
     if (open) {
       form.reset({
@@ -102,7 +100,6 @@ export function ProgramFormDialog({
     form.reset();
   };
 
-  // Helper function to set all weekdays or weekend
   const setDays = (days: string[]) => {
     form.setValue("days", days);
   };

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -21,7 +20,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChannelType } from "@/services/tv/channelService";
+import { ChannelType } from "@/services/tv/types";
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -55,7 +54,6 @@ export function ChannelFormDialog({
     },
   });
 
-  // Reset form when channel prop changes
   useEffect(() => {
     if (open) {
       form.reset({
