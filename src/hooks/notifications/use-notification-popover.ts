@@ -1,43 +1,52 @@
 
-import { useState, useEffect } from "react";
-import { useNotifications } from "@/hooks/use-notifications";
+import { useEffect } from "react";
+import { useNotificationQueries } from "./use-notification-queries";
+import { useNotificationMutations } from "./use-notification-mutations";
+import { useNotificationAlerts } from "./use-notification-alerts";
 
+/**
+ * Hook for the notification popover component
+ */
 export function useNotificationPopover() {
-  const [isOpen, setIsOpen] = useState(false);
-  const { notifications, unreadCount, markAsRead, markAllAsRead, isLoading } = useNotifications();
-
-  const toggleOpen = () => setIsOpen(!isOpen);
+  const { notifications, isLoading, unreadCount, refetch } = useNotificationQueries();
+  const { markAsRead, markAllAsRead } = useNotificationMutations();
   
-  const handleMarkAsRead = (id: string) => {
-    markAsRead(id);
-    // We don't need to close the popover when marking a single notification as read
-  };
-
-  const handleMarkAllAsRead = () => {
-    markAllAsRead();
-  };
-
-  // Close popover when clicking outside
+  // Setup notification alerts
+  useNotificationAlerts();
+  
+  // Auto-refresh notifications when component mounts
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isOpen && !(event.target as Element).closest('.notification-popover-content')) {
-        setIsOpen(false);
-      }
-    };
+    refetch();
+    
+    // Set up polling for notifications
+    const intervalId = setInterval(() => {
+      refetch();
+    }, 30000); // Poll every 30 seconds
+    
+    return () => clearInterval(intervalId);
+  }, [refetch]);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen]);
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await markAsRead(id);
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllAsRead();
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
+  };
 
   return {
-    isOpen,
-    toggleOpen,
     notifications,
     unreadCount,
     isLoading,
     handleMarkAsRead,
-    handleMarkAllAsRead
+    handleMarkAllAsRead,
   };
 }

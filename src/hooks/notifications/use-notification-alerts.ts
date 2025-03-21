@@ -1,8 +1,7 @@
 
 import { useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { NotificationAlert } from "./types";
+import { setupNotificationListener } from "@/services/notifications/unifiedNotificationService";
 
 interface NotificationAlertsOptions {
   enableRealtime?: boolean;
@@ -19,6 +18,7 @@ export function useNotificationAlerts(options: NotificationAlertsOptions = {}) {
   const playNotificationSound = useCallback(() => {
     try {
       const audio = new Audio("/notification-sound.mp3");
+      audio.volume = 0.5; // Lower volume to be less intrusive
       audio.play().catch((e) => console.log("Could not play notification sound", e));
     } catch (error) {
       console.error("Error playing notification sound:", error);
@@ -53,50 +53,24 @@ export function useNotificationAlerts(options: NotificationAlertsOptions = {}) {
       Notification.requestPermission();
     }
 
-    const channel = supabase
-      .channel("schema-db-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "client_alerts"
-        },
-        (payload) => {
-          console.log("New notification received:", payload);
-          
-          // Play sound
-          playNotificationSound();
-          
-          // Show browser notification
-          const newAlert = payload.new as NotificationAlert;
-          showBrowserNotification(
-            newAlert.title,
-            newAlert.description || "Nueva notificación recibida"
-          );
-          
-          // Refresh notifications data
-          queryClient.invalidateQueries({ queryKey: ["notifications"] });
-          queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "client_alerts"
-        },
-        () => {
-          // Refresh notifications data
-          queryClient.invalidateQueries({ queryKey: ["notifications"] });
-          queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
-        }
-      )
-      .subscribe();
+    // Setup unified notification listener
+    const unsubscribe = setupNotificationListener((notification) => {
+      // Play sound
+      playNotificationSound();
+      
+      // Show browser notification
+      showBrowserNotification(
+        notification.title,
+        notification.description || "Nueva notificación recibida"
+      );
+      
+      // Refresh notifications data
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
   }, [enableRealtime, queryClient, playNotificationSound, showBrowserNotification]);
 
