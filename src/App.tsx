@@ -35,6 +35,10 @@ import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsPro
 import { seedMediaOutlets } from "./services/media/mediaImportService";
 import { defaultCsvData } from "./services/media/defaultMediaData";
 import { seedTvData } from "@/services/tv";
+import { GenresSettings } from "./pages/configuracion/press/GenresSettings";
+import { SourcesSettings } from "./pages/configuracion/press/SourcesSettings";
+import { SectionsSettings } from "./pages/configuracion/press/SectionsSettings";
+import { RatesSettings } from "./pages/configuracion/press/RatesSettings";
 
 import "./App.css";
 
@@ -105,6 +109,10 @@ function App() {
                   <Route path="radio" element={<RadioSettings />} />
                   <Route path="radio/*" element={<RadioSettings />} />
                   <Route path="prensa" element={<PressSettings />} />
+                  <Route path="prensa/generos" element={<GenresSettings />} />
+                  <Route path="prensa/fuentes" element={<SourcesSettings />} />
+                  <Route path="prensa/secciones" element={<SectionsSettings />} />
+                  <Route path="prensa/tarifas" element={<RatesSettings />} />
                   <Route path="prensa/*" element={<PressSettings />} />
                 </Route>
                 <Route path="ayuda" element={<Ayuda />} />
