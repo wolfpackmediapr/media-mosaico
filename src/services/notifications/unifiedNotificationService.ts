@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export interface NotificationData {
   client_id?: string;
@@ -108,10 +108,9 @@ export const showDebouncedToast = (
   
   // Set a new debounced toast
   const timeoutId = setTimeout(() => {
-    toast({
-      title,
+    toast[type === "destructive" ? "error" : "success"](title, {
       description,
-      variant: type,
+      id
     });
     pendingToasts.delete(id);
   }, TOAST_DEBOUNCE_MS);

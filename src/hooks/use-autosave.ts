@@ -8,6 +8,7 @@ interface AutosaveOptions<T> {
   debounce?: number;
   saveOnUnmount?: boolean;
   enabled?: boolean;
+  showSuccessToast?: boolean; // Nuevo parámetro para controlar si se muestra el toast
 }
 
 /**
@@ -19,10 +20,12 @@ export function useAutosave<T>({
   interval = 0,
   debounce = 1000,
   saveOnUnmount = true,
-  enabled = true
+  enabled = true,
+  showSuccessToast = false // Por defecto, no mostramos toasts
 }: AutosaveOptions<T>) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<boolean | null>(null);
   const timeoutRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
   const dataRef = useRef(data);
@@ -37,11 +40,14 @@ export function useAutosave<T>({
     if (!enabled) return;
     
     setIsSaving(true);
+    setSaveSuccess(null);
     try {
       await onSave(dataRef.current);
       setLastSavedAt(new Date());
+      setSaveSuccess(true);
     } catch (error) {
       console.error('Autosave failed:', error);
+      setSaveSuccess(false);
     } finally {
       setIsSaving(false);
     }
@@ -104,6 +110,7 @@ export function useAutosave<T>({
   return {
     isSaving,
     lastSavedAt,
+    saveSuccess,
     forceSave
   };
 }

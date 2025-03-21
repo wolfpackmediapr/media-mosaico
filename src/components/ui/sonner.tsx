@@ -1,3 +1,4 @@
+
 import { useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"
 
@@ -20,7 +21,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
           cancelButton:
             "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
         },
+        duration: 4000, // Duración más corta para no molestar tanto al usuario
       }}
+      position="top-right" // Posición consistente
+      richColors // Colores mejorados
+      closeButton // Botón para cerrar
       {...props}
     />
   )

@@ -34,7 +34,7 @@ const RadioTranscriptionEditor = ({
   }, [transcriptionText, setLocalText]);
 
   // Setup autosave
-  const { isSaving } = useAutosave({
+  const { isSaving, saveSuccess } = useAutosave({
     data: { text: localText, id: transcriptionId },
     onSave: async (data) => {
       if (!data.id) {
@@ -52,11 +52,9 @@ const RadioTranscriptionEditor = ({
           .eq('id', data.id);
 
         if (error) throw error;
-
-        toast({
-          title: "Guardado automático",
-          description: "La transcripción se ha guardado correctamente",
-        });
+        
+        // No mostramos el toast aquí directamente
+        return;
       } catch (error) {
         console.error('Error saving transcription:', error);
         toast({
@@ -70,6 +68,16 @@ const RadioTranscriptionEditor = ({
     debounce: 2000, // Save after 2 seconds of inactivity
     enabled: !!transcriptionId,
   });
+
+  // Mostrar toast solo cuando saveSuccess cambie a true
+  useEffect(() => {
+    if (saveSuccess === true) {
+      toast({
+        title: "Guardado automático",
+        description: "La transcripción se ha guardado correctamente",
+      });
+    }
+  }, [saveSuccess, toast]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;

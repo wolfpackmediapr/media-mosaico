@@ -32,7 +32,7 @@ const TranscriptionEditor = ({
   }, [transcriptionText, setLocalText]);
 
   // Setup autosave
-  const { isSaving } = useAutosave({
+  const { isSaving, saveSuccess } = useAutosave({
     data: localText,
     onSave: async (text) => {
       try {
@@ -43,10 +43,8 @@ const TranscriptionEditor = ({
 
         if (error) throw error;
         
-        toast({
-          title: "Guardado automático",
-          description: "La transcripción se ha guardado correctamente",
-        });
+        // No mostramos el toast aquí directamente
+        return;
       } catch (error) {
         toast({
           title: "Error al guardar",
@@ -58,6 +56,16 @@ const TranscriptionEditor = ({
     },
     debounce: 2000, // Save after 2 seconds of inactivity
   });
+
+  // Mostrar toast solo cuando saveSuccess cambie a true
+  useEffect(() => {
+    if (saveSuccess === true) {
+      toast({
+        title: "Guardado automático",
+        description: "La transcripción se ha guardado correctamente",
+      });
+    }
+  }, [saveSuccess, toast]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
