@@ -55,7 +55,8 @@ export function MediaSettingsContainer() {
     setShowAddForm(!showAddForm);
   };
 
-  const handleAddSubmit = async (formData: { type: string; name: string; folder: string }) => {
+  // Fix the type issue by making this function return Promise<void> instead of Promise<boolean>
+  const handleAddSubmit = async (formData: { type: string; name: string; folder: string }): Promise<void> => {
     const success = await handleAddMediaOutlet(formData);
     if (success) {
       setShowAddForm(false);
