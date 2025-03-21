@@ -13,6 +13,11 @@ export interface Client {
   updated_at?: string;
 }
 
+export interface PaginatedClients {
+  data: Client[];
+  totalCount: number;
+}
+
 export function formatDate(dateString?: string): string {
   if (!dateString) return '-';
   try {
@@ -23,15 +28,32 @@ export function formatDate(dateString?: string): string {
   }
 }
 
-export async function fetchClients() {
+export async function fetchClients(page = 1, pageSize = 10, orderField = 'name', orderDirection = 'asc') {
   try {
+    // Get total count first for pagination
+    const { count, error: countError } = await supabase
+      .from('clients')
+      .select('*', { count: 'exact', head: true });
+    
+    if (countError) throw countError;
+    
+    // Calculate the start and end items for the page
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize - 1;
+    
+    // Fetch the data for the requested page
     const { data, error } = await supabase
       .from('clients')
       .select('*')
-      .order('name');
+      .order(orderField, { ascending: orderDirection === 'asc' })
+      .range(start, end);
 
     if (error) throw error;
-    return data || [];
+    
+    return { 
+      data: data || [], 
+      totalCount: count || 0 
+    };
   } catch (error: any) {
     console.error("Error fetching clients:", error);
     toast.error("Error al cargar los clientes");

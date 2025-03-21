@@ -12,13 +12,15 @@ export function ClientsContainer() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<keyof Client>("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
 
   const queryClient = useQueryClient();
 
-  // Fetch clients
-  const { data: clients, isLoading, error } = useQuery({
-    queryKey: ["clients"],
-    queryFn: fetchClients
+  // Fetch clients with pagination
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["clients", currentPage, pageSize, sortField, sortOrder],
+    queryFn: () => fetchClients(currentPage, pageSize, sortField, sortOrder)
   });
 
   // Mutations
@@ -83,6 +85,11 @@ export function ClientsContainer() {
       setSortField(field);
       setSortOrder("asc");
     }
+    setCurrentPage(1); // Reset to first page when sorting changes
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
   const cancelForm = () => {
@@ -91,13 +98,18 @@ export function ClientsContainer() {
   };
 
   // Get unique categories for filter
-  const categories = clients
-    ? [...new Set(clients.map(client => client.category))]
+  const categories = data?.data
+    ? [...new Set(data.data.map(client => client.category))]
     : [];
 
-  // Filter and sort clients
-  const filteredClients = clients
-    ? clients
+  // Calculate total pages
+  const totalPages = data?.totalCount
+    ? Math.ceil(data.totalCount / pageSize)
+    : 1;
+
+  // Filter and sort clients (server handles most of this now)
+  const filteredClients = data?.data
+    ? data.data
         .filter(client => {
           // Category filter
           if (filterCategory && client.category !== filterCategory) {
@@ -111,17 +123,6 @@ export function ClientsContainer() {
           
           return true;
         })
-        .sort((a, b) => {
-          // Ensure the properties exist on the object
-          const fieldA = a[sortField]?.toString().toLowerCase() || "";
-          const fieldB = b[sortField]?.toString().toLowerCase() || "";
-          
-          if (sortOrder === "asc") {
-            return fieldA.localeCompare(fieldB);
-          } else {
-            return fieldB.localeCompare(fieldA);
-          }
-        })
     : [];
 
   // Check if we have filters applied
@@ -130,7 +131,7 @@ export function ClientsContainer() {
   return (
     <ClientsList
       clients={filteredClients}
-      allClients={clients || []}
+      allClients={data?.data || []}
       categories={categories}
       isLoading={isLoading}
       error={error as Error | null}
@@ -144,6 +145,9 @@ export function ClientsContainer() {
       sortField={sortField}
       sortOrder={sortOrder}
       hasFilters={hasFilters}
+      currentPage={currentPage}
+      totalPages={totalPages}
+      onPageChange={handlePageChange}
       onAddClient={handleAddClient}
       onUpdateClient={handleUpdateClient}
       onDeleteClient={handleDeleteClient}

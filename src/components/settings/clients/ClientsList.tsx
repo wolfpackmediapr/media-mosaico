@@ -8,6 +8,14 @@ import { ClientFilter } from "./ClientFilter";
 import { ClientEmptyState } from "./ClientEmptyState";
 import { ClientLoadingState } from "./ClientLoadingState";
 import { Client } from "@/services/clients/clientService";
+import { 
+  Pagination, 
+  PaginationContent, 
+  PaginationItem, 
+  PaginationLink, 
+  PaginationNext, 
+  PaginationPrevious 
+} from "@/components/ui/pagination";
 
 interface ClientsListProps {
   clients: Client[];
@@ -25,6 +33,9 @@ interface ClientsListProps {
   sortField: keyof Client;
   sortOrder: "asc" | "desc";
   hasFilters: boolean;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
   onAddClient: (client: Client) => void;
   onUpdateClient: (client: Client) => void;
   onDeleteClient: (id: string) => void;
@@ -49,6 +60,9 @@ export function ClientsList({
   sortField,
   sortOrder,
   hasFilters,
+  currentPage,
+  totalPages,
+  onPageChange,
   onAddClient,
   onUpdateClient,
   onDeleteClient,
@@ -104,14 +118,42 @@ export function ClientsList({
             Error al cargar clientes: {error.message}
           </div>
         ) : clients.length > 0 ? (
-          <ClientsTable 
-            clients={clients} 
-            onEdit={onEditClient} 
-            onDelete={onDeleteClient}
-            sortField={sortField}
-            sortOrder={sortOrder}
-            onSort={onSort}
-          />
+          <div className="space-y-4">
+            <ClientsTable 
+              clients={clients} 
+              onEdit={onEditClient} 
+              onDelete={onDeleteClient}
+              sortField={sortField}
+              sortOrder={sortOrder}
+              onSort={onSort}
+            />
+            
+            {/* Pagination */}
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
+                    className={currentPage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+                
+                {/* Show current page / total pages */}
+                <PaginationItem className="flex items-center justify-center">
+                  <span className="text-sm text-muted-foreground">
+                    Página {currentPage} de {totalPages}
+                  </span>
+                </PaginationItem>
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
+                    className={currentPage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
         ) : allClients.length > 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             No se encontraron clientes con los filtros actuales.
