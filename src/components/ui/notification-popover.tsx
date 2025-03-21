@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -104,9 +103,9 @@ interface NotificationPopoverProps {
   hoverBgColor?: string;
   dividerColor?: string;
   headerBorderColor?: string;
+  showViewAll?: boolean;
 }
 
-// Default notifications for demo purposes
 const dummyNotifications: Notification[] = [
   {
     id: "1",
@@ -140,6 +139,7 @@ export const NotificationPopover = ({
   hoverBgColor = "hover:bg-accent/50",
   dividerColor = "divide-border",
   headerBorderColor = "border-border",
+  showViewAll = false,
 }: NotificationPopoverProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = 
@@ -166,7 +166,6 @@ export const NotificationPopover = ({
     onNotificationsChange?.(updatedNotifications);
   };
 
-  // Close popover when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (isOpen && !(event.target as Element).closest('.notification-popover-content')) {
@@ -232,15 +231,17 @@ export const NotificationPopover = ({
               dividerColor={dividerColor}
             />
             
-            <div className="p-2 border-t border-border">
-              <Button
-                variant="ghost"
-                className="w-full text-sm"
-                onClick={() => window.location.href = "/notificaciones"}
-              >
-                Ver todas las notificaciones
-              </Button>
-            </div>
+            {showViewAll && (
+              <div className="p-2 border-t border-border">
+                <Button
+                  variant="ghost"
+                  className="w-full text-sm"
+                  onClick={() => window.location.href = "/notificaciones"}
+                >
+                  Ver todas las notificaciones
+                </Button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
