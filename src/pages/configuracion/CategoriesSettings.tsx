@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,6 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// Define the Category type
 interface Category {
   id: string;
   name_es: string;
@@ -38,7 +36,6 @@ export default function CategoriesSettings() {
   });
   const { toast } = useToast();
 
-  // Set initial categories based on the image provided
   useEffect(() => {
     const initialCategories: Category[] = [
       { id: "1", name_es: "ENTRETENIMIENTO", name_en: "SHOW BUSINESS & ENTRATAINMENT" },
@@ -68,10 +65,13 @@ export default function CategoriesSettings() {
     // fetchCategories();
   }, []);
 
-  // This would be the real implementation to fetch from Supabase
   const fetchCategories = async () => {
     setLoading(true);
     try {
+      // NOTE: This is commented out because 'categories' table doesn't exist yet
+      // We'll need to create this table in Supabase first
+      
+      /*
       const { data, error } = await supabase
         .from('categories')
         .select('*')
@@ -79,6 +79,14 @@ export default function CategoriesSettings() {
 
       if (error) throw error;
       setCategories(data || []);
+      */
+      
+      // For now, we'll just use the mock data
+      const initialCategories: Category[] = [
+        { id: "1", name_es: "ENTRETENIMIENTO", name_en: "SHOW BUSINESS & ENTRATAINMENT" },
+        // ... other categories
+      ];
+      setCategories(initialCategories);
     } catch (error) {
       console.error('Error fetching categories:', error);
       toast({
