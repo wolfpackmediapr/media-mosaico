@@ -1,16 +1,10 @@
 
 import React from "react";
-import { Bell } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { NotificationPopover as CustomNotificationPopover } from "@/components/ui/notification-popover";
 import { useNotificationPopover } from "@/hooks/notifications";
-import NotificationList from "./NotificationList";
 
 export function NotificationPopover() {
   const {
-    isOpen,
-    toggleOpen,
     notifications,
     unreadCount,
     isLoading,
@@ -18,68 +12,29 @@ export function NotificationPopover() {
     handleMarkAllAsRead
   } = useNotificationPopover();
 
+  // Transform notifications to the format expected by CustomNotificationPopover
+  const transformedNotifications = notifications.map(notification => ({
+    id: notification.id,
+    title: notification.title,
+    description: notification.description || "",
+    timestamp: new Date(notification.createdAt),
+    read: notification.status !== "unread"
+  }));
+
   return (
-    <div className="relative">
-      <Button
-        onClick={toggleOpen}
-        variant="outline"
-        size="icon"
-        className="relative"
-        aria-label="Abrir notificaciones"
-      >
-        <Bell className="h-5 w-5" />
-        {unreadCount > 0 && (
-          <Badge className="absolute -top-2 left-full min-w-5 -translate-x-1/2 px-1">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </Badge>
-        )}
-      </Button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="notification-popover-content absolute right-0 mt-2 w-80 max-h-[400px] overflow-y-auto rounded-lg border border-border bg-background shadow-lg z-50"
-          >
-            <div className="p-3 border-b border-border flex justify-between items-center">
-              <h3 className="text-sm font-semibold">Notificaciones</h3>
-              <Button
-                onClick={handleMarkAllAsRead}
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                disabled={unreadCount === 0}
-              >
-                Marcar todo como leído
-              </Button>
-            </div>
-
-            {isLoading ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">
-                Cargando notificaciones...
-              </div>
-            ) : (
-              <NotificationList
-                notifications={notifications}
-                onMarkAsRead={handleMarkAsRead}
-              />
-            )}
-            
-            <div className="p-2 border-t border-border">
-              <Button
-                variant="ghost"
-                className="w-full text-sm"
-                onClick={() => window.location.href = "/notificaciones"}
-              >
-                Ver todas las notificaciones
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <CustomNotificationPopover 
+      notifications={transformedNotifications}
+      onNotificationsChange={(updatedNotifications) => {
+        // When a notification is marked as read in the custom component,
+        // trigger the original handler
+        const changedNotification = updatedNotifications.find(
+          (n, i) => n.read && !transformedNotifications[i].read
+        );
+        
+        if (changedNotification) {
+          handleMarkAsRead(changedNotification.id);
+        }
+      }}
+    />
   );
 }

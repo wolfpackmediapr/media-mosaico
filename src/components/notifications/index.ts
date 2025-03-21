@@ -13,6 +13,7 @@ import NotificationAnalyticsDashboard from './NotificationAnalyticsDashboard';
 import { NotificationPopover } from './NotificationPopover';
 import NotificationList from './NotificationList';
 import NotificationItemComponent from './NotificationItemComponent';
+import NotificationFeed from './NotificationFeed';
 
 export {
   ClientContext,
@@ -28,5 +29,6 @@ export {
   NotificationAnalyticsDashboard,
   NotificationPopover,
   NotificationList,
-  NotificationItemComponent
+  NotificationItemComponent,
+  NotificationFeed
 };
