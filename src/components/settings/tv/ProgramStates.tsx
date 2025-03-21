@@ -28,20 +28,12 @@ interface ProgramEmptyStateProps {
 
 export function ProgramEmptyState({ hasChannels }: ProgramEmptyStateProps) {
   return (
-    <EmptyPlaceholder>
-      <EmptyPlaceholder.Icon>
-        {hasChannels ? (
-          <PlusCircle className="h-8 w-8" />
-        ) : (
-          <AlertCircle className="h-8 w-8" />
-        )}
-      </EmptyPlaceholder.Icon>
-      <EmptyPlaceholder.Title>No hay programas</EmptyPlaceholder.Title>
-      <EmptyPlaceholder.Description>
-        {hasChannels 
-          ? "No hay programas de televisión añadidos aún. Añade un nuevo programa para empezar."
-          : "No hay canales de televisión añadidos. Añade un canal primero antes de añadir programas."}
-      </EmptyPlaceholder.Description>
-    </EmptyPlaceholder>
+    <EmptyPlaceholder
+      icon={hasChannels ? <PlusCircle className="h-8 w-8" /> : <AlertCircle className="h-8 w-8" />}
+      message="No hay programas"
+      description={hasChannels 
+        ? "No hay programas de televisión añadidos aún. Añade un nuevo programa para empezar."
+        : "No hay canales de televisión añadidos. Añade un canal primero antes de añadir programas."}
+    />
   );
 }

@@ -21,15 +21,10 @@ export function ChannelLoadingState() {
 
 export function ChannelEmptyState() {
   return (
-    <EmptyPlaceholder>
-      <EmptyPlaceholder.Icon>
-        <PlusCircle className="h-8 w-8" />
-      </EmptyPlaceholder.Icon>
-      <EmptyPlaceholder.Title>No hay canales</EmptyPlaceholder.Title>
-      <EmptyPlaceholder.Description>
-        No hay canales de televisión añadidos aún.
-        Añade un nuevo canal para empezar.
-      </EmptyPlaceholder.Description>
-    </EmptyPlaceholder>
+    <EmptyPlaceholder
+      icon={<PlusCircle className="h-8 w-8" />}
+      message="No hay canales"
+      description="No hay canales de televisión añadidos aún. Añade un nuevo canal para empezar."
+    />
   );
 }
