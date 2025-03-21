@@ -12,8 +12,8 @@ interface MediaSessionOptions {
   }>;
   onPlay?: () => void;
   onPause?: () => void;
-  onSeekBackward?: (details: { seekOffset: number }) => void;
-  onSeekForward?: (details: { seekOffset: number }) => void;
+  onSeekBackward?: (details: MediaSessionActionDetails) => void;
+  onSeekForward?: (details: MediaSessionActionDetails) => void;
 }
 
 /**
