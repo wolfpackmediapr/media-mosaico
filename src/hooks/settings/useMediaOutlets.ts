@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { 
@@ -21,7 +20,6 @@ export function useMediaOutlets() {
   const [editFormData, setEditFormData] = useState<MediaOutlet | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
   
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const ITEMS_PER_PAGE = 10;
