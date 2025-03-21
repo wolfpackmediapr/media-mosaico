@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Check, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface NotificationItemComponentProps {
+export interface NotificationItemComponentProps {
   id: string;
   title: string;
   description: string | null;
@@ -20,6 +20,7 @@ interface NotificationItemComponentProps {
   onMarkAsRead?: (id: string) => void;
   onDelete?: (id: string) => void;
   className?: string;
+  index?: number;
 }
 
 /**

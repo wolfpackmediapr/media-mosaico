@@ -25,11 +25,17 @@ const NotificationList = ({
       notifications.map((notification, index) => (
         <NotificationItemComponent
           key={notification.id}
-          notification={notification}
-          index={index}
+          id={notification.id}
+          title={notification.title}
+          description={notification.description}
+          status={notification.status}
+          createdAt={notification.createdAt}
+          importance={notification.importance}
+          clientName={notification.clientName}
+          keywords={notification.keywords}
           onMarkAsRead={onMarkAsRead}
-          textColor={textColor}
-          hoverBgColor={hoverBgColor}
+          className=""
+          index={index}
         />
       ))
     )}

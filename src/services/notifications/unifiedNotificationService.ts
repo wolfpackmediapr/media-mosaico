@@ -94,7 +94,7 @@ export const createNotification = async (notificationData: NotificationData) => 
 export const showDebouncedToast = (
   title: string, 
   description: string, 
-  type: "default" | "destructive" | "success" = "default",
+  type: "default" | "destructive" = "default",
   toastId?: string
 ) => {
   // Generate a unique ID based on content if not provided
