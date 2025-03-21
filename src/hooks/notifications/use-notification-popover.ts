@@ -8,7 +8,13 @@ import { useNotificationAlerts } from "./use-notification-alerts";
  * Hook for the notification popover component
  */
 export function useNotificationPopover() {
-  const { notifications, isLoading, unreadCount, refetch } = useNotificationQueries();
+  const { notifications, isLoading, unreadCount, refetch } = useNotificationQueries({
+    // Configure with longer staleTime to reduce unnecessary fetches
+    staleTime: 60000, // 1 minute
+    // Reduce polling frequency for better performance
+    pollingInterval: 60000 // 1 minute polling 
+  });
+  
   const { markAsRead, markAllAsRead } = useNotificationMutations();
   
   // Setup notification alerts
@@ -16,12 +22,13 @@ export function useNotificationPopover() {
   
   // Auto-refresh notifications when component mounts
   useEffect(() => {
+    // Initial fetch
     refetch();
     
-    // Set up polling for notifications
+    // Set up polling with reduced frequency
     const intervalId = setInterval(() => {
       refetch();
-    }, 30000); // Poll every 30 seconds
+    }, 60000); // Poll every 60 seconds instead of 30
     
     return () => clearInterval(intervalId);
   }, [refetch]);

@@ -38,11 +38,12 @@ const NotificationFeed: React.FC<NotificationFeedProps> = ({
     return data.map(transformNotification);
   };
   
-  // Query with polling
+  // Query with optimized caching
   const { data: notifications, isLoading } = useQuery({
     queryKey: ["notifications-feed"],
     queryFn: fetchNotifications,
-    refetchInterval: 5000, // Poll every 5 seconds
+    staleTime: 60000, // 1 minute stale time
+    refetchInterval: 10000, // Poll every 10 seconds
   });
   
   // Listen for notification count changes
@@ -59,7 +60,8 @@ const NotificationFeed: React.FC<NotificationFeedProps> = ({
   const { data: unreadCount } = useQuery({
     queryKey: ["notifications", "unread"],
     queryFn: fetchUnreadCount,
-    refetchInterval: 3000, // Poll a bit more frequently for the badge
+    staleTime: 30000, // 30 seconds stale time
+    refetchInterval: 10000, // Poll every 10 seconds
   });
   
   // Handle notification click
@@ -75,9 +77,21 @@ const NotificationFeed: React.FC<NotificationFeedProps> = ({
       return;
     }
     
-    // Invalidate queries to refresh data
-    queryClient.invalidateQueries({ queryKey: ["notifications-feed"] });
-    queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
+    // Update cache directly with optimistic update
+    queryClient.setQueryData(["notifications-feed"], (oldData: any) => {
+      if (!oldData) return oldData;
+      return oldData.map((notification: any) => {
+        if (notification.id === id) {
+          return { ...notification, status: "read" };
+        }
+        return notification;
+      });
+    });
+    
+    // Also update the unread count cache
+    queryClient.setQueryData(["notifications", "unread"], (oldCount: number) => {
+      return Math.max(0, (oldCount || 0) - 1);
+    });
   };
   
   // Navigate to notifications page

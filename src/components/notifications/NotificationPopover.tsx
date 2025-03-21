@@ -40,9 +40,18 @@ export function NotificationPopover() {
             playNotificationSound();
           }
           
-          // Refresh notifications to update the unread count and list
-          queryClient.invalidateQueries({ queryKey: ["notifications"] });
-          queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
+          // Use cache-optimized invalidation
+          queryClient.invalidateQueries({
+            queryKey: ["notifications"],
+            // Don't refetch immediately, wait for the next interval
+            refetchType: "inactive"
+          });
+          
+          queryClient.invalidateQueries({
+            queryKey: ["notifications", "unread"],
+            // Don't refetch immediately, wait for the next interval
+            refetchType: "inactive"
+          });
         }
       )
       .subscribe();
