@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -21,7 +20,7 @@ import {
   ProgramType,
   fetchChannels,
   ChannelType
-} from "@/services/tv/channelService";
+} from "@/services/tv";
 
 export function ProgramsManagement() {
   const [programs, setPrograms] = useState<ProgramType[]>([]);

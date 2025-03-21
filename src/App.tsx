@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -15,10 +14,10 @@ import Reportes from "./pages/Reportes";
 import EnvioAlertas from "./pages/EnvioAlertas";
 import Ajustes from "./pages/Ajustes";
 import { 
-  GeneralSettings as ConfiguracionGeneral,
-  NotificationsSettings as ConfiguracionAlertas,
-  UsersSettings as ConfiguracionUsuarios,
-  ClientsSettings as ConfiguracionClientes,
+  GeneralSettings,
+  NotificationsSettings,
+  UsersSettings,
+  ClientsSettings,
   NotificationMonitoring
 } from "./pages/configuracion";
 import MediaSettings from "./pages/configuracion/MediaSettings";
@@ -32,7 +31,7 @@ import { Toaster } from "@/components/ui/sonner";
 import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
 import { seedMediaOutlets } from "./services/media/mediaImportService";
 import { defaultCsvData } from "./services/media/defaultMediaData";
-import { seedTvData } from "./services/tv/channelService";
+import { seedTvData } from "@/services/tv";
 
 import "./App.css";
 
@@ -50,16 +49,13 @@ function App() {
     }
   }, []);
   
-  // Initialize the application data (media outlets and TV data)
   useEffect(() => {
     const initializeData = async () => {
       if (!initialized) {
         try {
-          // First seed the media outlets
           await seedMediaOutlets(defaultCsvData);
           console.log("Media outlets seeded successfully");
           
-          // Then seed the TV data
           await seedTvData();
           console.log("TV data seeded successfully");
           
@@ -91,15 +87,15 @@ function App() {
                 <Route path="envio-alertas" element={<EnvioAlertas />} />
                 <Route path="ajustes" element={<Ajustes />} />
                 <Route path="ajustes/*" element={<Outlet />}>
-                  <Route path="general" element={<ConfiguracionGeneral />} />
+                  <Route path="general" element={<GeneralSettings />} />
                   <Route path="general/medios" element={<MediaSettings />} />
                   <Route path="general/categorias" element={<CategoriesSettings />} />
-                  <Route path="general/*" element={<ConfiguracionGeneral />} />
-                  <Route path="usuarios" element={<ConfiguracionUsuarios />} />
-                  <Route path="usuarios/*" element={<ConfiguracionUsuarios />} />
-                  <Route path="clientes" element={<ConfiguracionClientes />} />
-                  <Route path="clientes/*" element={<ConfiguracionClientes />} />
-                  <Route path="notificaciones" element={<ConfiguracionAlertas />} />
+                  <Route path="general/*" element={<GeneralSettings />} />
+                  <Route path="usuarios" element={<UsersSettings />} />
+                  <Route path="usuarios/*" element={<UsersSettings />} />
+                  <Route path="clientes" element={<ClientsSettings />} />
+                  <Route path="clientes/*" element={<ClientsSettings />} />
+                  <Route path="notificaciones" element={<NotificationsSettings />} />
                   <Route path="monitoreo-notificaciones" element={<NotificationMonitoring />} />
                   <Route path="tv" element={<TvSettings />} />
                   <Route path="tv/*" element={<TvSettings />} />

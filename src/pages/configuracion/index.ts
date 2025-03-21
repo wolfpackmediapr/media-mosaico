@@ -1,16 +1,6 @@
 
-import GeneralSettings from "./GeneralSettings";
-import UsersSettings from "./UsersSettings";
-import ClientsSettings from "./ClientsSettings";
-import NotificationsSettings from "./NotificationsSettings";
-import NotificationMonitoring from "./NotificationMonitoring";
-import CategoriesSettings from "./categories/CategoriesSettings";
-
-export {
-  GeneralSettings,
-  UsersSettings,
-  ClientsSettings,
-  NotificationsSettings,
-  NotificationMonitoring,
-  CategoriesSettings
-};
+export { GeneralSettings } from "./GeneralSettings";
+export { NotificationsSettings } from "./configuracion/NotificationsSettings";
+export { UsersSettings } from "./configuracion/UsersSettings";
+export { ClientsSettings } from "./configuracion/ClientsSettings";
+export { NotificationMonitoring } from "./configuracion/NotificationMonitoring";

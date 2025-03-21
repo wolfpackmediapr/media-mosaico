@@ -1,20 +1,14 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyPlaceholder } from "@/components/ui/empty-placeholder";
-import { PlusCircle } from "lucide-react";
+import { FolderIcon, AlertCircle } from "lucide-react";
 
 export function ChannelLoadingState() {
   return (
     <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-center space-x-4">
-          <Skeleton className="h-12 w-12" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-[250px]" />
-            <Skeleton className="h-4 w-[200px]" />
-          </div>
-        </div>
-      ))}
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
     </div>
   );
 }
@@ -22,9 +16,9 @@ export function ChannelLoadingState() {
 export function ChannelEmptyState() {
   return (
     <EmptyPlaceholder
-      icon={<PlusCircle className="h-8 w-8" />}
       message="No hay canales"
-      description="No hay canales de televisión añadidos aún. Añade un nuevo canal para empezar."
+      description="No se encontraron canales de televisión, agrega uno para empezar."
+      icon={<AlertCircle className="h-8 w-8 text-muted-foreground" />}
     />
   );
 }
