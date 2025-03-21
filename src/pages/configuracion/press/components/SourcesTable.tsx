@@ -1,10 +1,8 @@
 
-import { useState } from "react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pencil, Trash2, Save, X } from "lucide-react";
-import { toast } from "sonner";
 import { Source } from "../types/press-types";
 
 interface SourcesTableProps {
