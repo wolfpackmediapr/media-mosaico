@@ -1,7 +1,11 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { NotificationPopover as CustomNotificationPopover } from "@/components/ui/notification/notification-popover";
 import { useNotificationPopover } from "@/hooks/notifications";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useNotificationSound } from "./hooks/use-notification-sound";
+import { useNotificationDeduplication } from "./hooks/use-notification-deduplication";
 
 export function NotificationPopover() {
   const {
@@ -11,6 +15,42 @@ export function NotificationPopover() {
     handleMarkAsRead,
     handleMarkAllAsRead
   } = useNotificationPopover();
+  
+  const queryClient = useQueryClient();
+  const { playNotificationSound } = useNotificationSound();
+  const { shouldShowNotification } = useNotificationDeduplication();
+
+  // Setup real-time listener for new notifications to update the bell icon immediately
+  useEffect(() => {
+    const channel = supabase
+      .channel("notification-bell-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "client_alerts"
+        },
+        (payload) => {
+          console.log("New notification received in bell icon:", payload);
+          
+          // Play notification sound if not a duplicate
+          const notificationId = `bell-${payload.new.id}`;
+          if (shouldShowNotification(notificationId)) {
+            playNotificationSound();
+          }
+          
+          // Refresh notifications to update the unread count and list
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, playNotificationSound, shouldShowNotification]);
 
   // Transform notifications to the format expected by CustomNotificationPopover
   const transformedNotifications = notifications.map(notification => ({

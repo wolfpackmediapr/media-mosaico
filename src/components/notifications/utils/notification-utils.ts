@@ -1,41 +1,44 @@
 
 /**
- * Utilities for notification sounds and browser notifications
+ * Request browser notification permission
  */
-
-// Play notification sound
-export const playNotificationSound = () => {
-  try {
-    const audio = new Audio("/notification-sound.mp3");
-    audio.volume = 0.5; // Lower volume to be less intrusive
-    audio.play().catch((e) => console.log("Could not play notification sound", e));
-  } catch (error) {
-    console.error("Error playing notification sound:", error);
+export const requestNotificationPermission = async (): Promise<boolean> => {
+  if (!("Notification" in window)) {
+    console.log("This browser does not support desktop notifications");
+    return false;
   }
+
+  if (Notification.permission === "granted") {
+    return true;
+  }
+  
+  if (Notification.permission !== "denied") {
+    const permission = await Notification.requestPermission();
+    return permission === "granted";
+  }
+  
+  return false;
 };
 
-// Show browser notification if permitted
-export const showBrowserNotification = (title: string, body: string) => {
+/**
+ * Show a browser notification
+ */
+export const showBrowserNotification = (title: string, body: string): void => {
   try {
-    if ("Notification" in window) {
-      if (Notification.permission === "granted") {
-        new Notification(title, { body });
-      } else if (Notification.permission !== "denied") {
-        Notification.requestPermission().then((permission) => {
-          if (permission === "granted") {
-            new Notification(title, { body });
-          }
-        });
-      }
+    if (!("Notification" in window)) {
+      return;
+    }
+
+    if (Notification.permission === "granted") {
+      new Notification(title, { body });
+    } else if (Notification.permission !== "denied") {
+      Notification.requestPermission().then(permission => {
+        if (permission === "granted") {
+          new Notification(title, { body });
+        }
+      });
     }
   } catch (error) {
     console.error("Error showing browser notification:", error);
-  }
-};
-
-// Request browser notification permission
-export const requestNotificationPermission = () => {
-  if ("Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
   }
 };
