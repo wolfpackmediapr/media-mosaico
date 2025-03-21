@@ -8,6 +8,7 @@ import { defaultCsvData } from "@/services/media/defaultMediaData";
 import { MediaHeaderActions } from "@/components/settings/media/MediaHeaderActions";
 import { MediaContent } from "@/components/settings/media/MediaContent";
 import { MediaFooter } from "@/components/settings/media/MediaFooter";
+import { MediaSearch } from "@/components/settings/media/MediaSearch";
 
 export function MediaSettingsContainer() {
   const [showFilter, setShowFilter] = useState(false);
@@ -19,6 +20,7 @@ export function MediaSettingsContainer() {
     sortField,
     sortOrder,
     filterType,
+    searchTerm,
     editingId,
     editFormData,
     currentPage,
@@ -27,6 +29,7 @@ export function MediaSettingsContainer() {
     handlePageChange,
     handleSort,
     handleFilterChange,
+    handleSearchChange,
     handleAddMediaOutlet,
     handleEditClick,
     handleEditFormChange,
@@ -49,9 +52,10 @@ export function MediaSettingsContainer() {
     setShowAddForm(!showAddForm);
   };
 
-  const handleAddSubmit = async (formData: { type: string; name: string; folder: string }): Promise<void> => {
-    await handleAddMediaOutlet(formData);
-    setShowAddForm(false);
+  const handleAddSubmit = async (formData: { type: string; name: string; folder: string }): Promise<boolean> => {
+    const result = await handleAddMediaOutlet(formData);
+    if (result) setShowAddForm(false);
+    return result;
   };
 
   const mediaOutletsOnCurrentPage = getCurrentPageOutlets();
@@ -78,6 +82,13 @@ export function MediaSettingsContainer() {
         <CardDescription>
           Lista de medios de comunicación disponibles en el sistema
         </CardDescription>
+        
+        <div className="mt-4">
+          <MediaSearch 
+            searchTerm={searchTerm}
+            onSearchChange={handleSearchChange}
+          />
+        </div>
       </CardHeader>
 
       <MediaContent 
@@ -86,7 +97,7 @@ export function MediaSettingsContainer() {
         onAddFormSubmit={handleAddSubmit}
         onAddFormCancel={toggleAddForm}
         mediaOutlets={mediaOutletsOnCurrentPage}
-        hasFilter={!!filterType}
+        hasFilter={!!filterType || !!searchTerm}
         sortField={sortField}
         sortOrder={sortOrder}
         onSort={handleSort}

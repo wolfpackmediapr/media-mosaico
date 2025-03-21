@@ -12,7 +12,8 @@ export interface MediaOutlet {
 export async function fetchMediaOutlets(
   sortField: keyof MediaOutlet = 'name',
   sortOrder: 'asc' | 'desc' = 'asc',
-  filterType: string = ''
+  filterType: string = '',
+  searchTerm: string = ''
 ): Promise<MediaOutlet[]> {
   try {
     let query = supabase
@@ -20,9 +21,14 @@ export async function fetchMediaOutlets(
       .select('*')
       .order(sortField, { ascending: sortOrder === 'asc' });
     
-    // Apply filter if any
+    // Apply type filter if any
     if (filterType) {
       query = query.eq('type', filterType);
+    }
+    
+    // Apply search if any (case-insensitive search on name and type)
+    if (searchTerm) {
+      query = query.or(`name.ilike.%${searchTerm}%,type.ilike.%${searchTerm}%`);
     }
     
     const { data, error } = await query;

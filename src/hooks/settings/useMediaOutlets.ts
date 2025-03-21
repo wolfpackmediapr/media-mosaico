@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { 
   MediaOutlet, 
@@ -7,6 +8,7 @@ import {
   updateMediaOutlet,
   deleteMediaOutlet
 } from "@/services/media/mediaService";
+import { useDebounce } from "@/hooks/useDebounce";
 
 export function useMediaOutlets() {
   const [mediaOutlets, setMediaOutlets] = useState<MediaOutlet[]>([]);
@@ -14,6 +16,8 @@ export function useMediaOutlets() {
   const [sortField, setSortField] = useState<keyof MediaOutlet>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterType, setFilterType] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<MediaOutlet | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
@@ -24,12 +28,12 @@ export function useMediaOutlets() {
 
   useEffect(() => {
     loadMediaOutlets();
-  }, [sortField, sortOrder, filterType]);
+  }, [sortField, sortOrder, filterType, debouncedSearchTerm]);
 
   const loadMediaOutlets = async () => {
     setLoading(true);
     try {
-      const outlets = await fetchMediaOutlets(sortField, sortOrder, filterType);
+      const outlets = await fetchMediaOutlets(sortField, sortOrder, filterType, debouncedSearchTerm);
       setMediaOutlets(outlets);
       setTotalPages(Math.max(1, Math.ceil(outlets.length / ITEMS_PER_PAGE)));
 
@@ -61,6 +65,11 @@ export function useMediaOutlets() {
 
   const handleFilterChange = (type: string) => {
     setFilterType(type);
+  };
+
+  const handleSearchChange = (term: string) => {
+    setSearchTerm(term);
+    setCurrentPage(1); // Reset to first page when search changes
   };
 
   const handleAddMediaOutlet = async (formData: { type: string; name: string; folder: string }) => {
@@ -137,6 +146,7 @@ export function useMediaOutlets() {
     sortField,
     sortOrder,
     filterType,
+    searchTerm,
     editingId,
     editFormData,
     currentPage,
@@ -145,6 +155,7 @@ export function useMediaOutlets() {
     handlePageChange,
     handleSort,
     handleFilterChange,
+    handleSearchChange,
     handleAddMediaOutlet,
     handleEditClick,
     handleEditFormChange,
