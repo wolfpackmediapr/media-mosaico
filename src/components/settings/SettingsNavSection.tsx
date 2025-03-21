@@ -24,11 +24,11 @@ export function SettingsNavSection({
   return (
     <div key={section.path} className="mb-2">
       <div
-        className={`mb-1 w-full justify-start px-3 py-2 text-left hover:bg-muted ${
+        className={`mb-1 w-full justify-start px-3 py-2 text-left hover:bg-muted transition-colors rounded-md ${
           isActive ? 'bg-muted font-medium' : ''
         }`}
       >
-        <Link to={section.path}>{section.label}</Link>
+        <Link to={section.path} className="block w-full">{section.label}</Link>
       </div>
       
       {isActive && section.subsections && (
@@ -39,8 +39,8 @@ export function SettingsNavSection({
               <Link
                 key={subsection.path}
                 to={subsection.path}
-                className={`block text-sm px-2 py-1 hover:text-primary ${
-                  isSubActive ? 'text-primary font-medium' : 'text-muted-foreground'
+                className={`block text-sm px-2 py-1 hover:text-primary transition-colors rounded-sm ${
+                  isSubActive ? 'text-primary font-medium bg-muted/50' : 'text-muted-foreground'
                 }`}
               >
                 {subsection.label}

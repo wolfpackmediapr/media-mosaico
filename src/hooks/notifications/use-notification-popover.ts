@@ -10,9 +10,9 @@ import { useNotificationAlerts } from "./use-notification-alerts";
 export function useNotificationPopover() {
   const { notifications, isLoading, unreadCount, refetch } = useNotificationQueries({
     // Configure with longer staleTime to reduce unnecessary fetches
-    staleTime: 60000, // 1 minute
+    staleTime: 120000, // 2 minutes
     // Reduce polling frequency for better performance
-    pollingInterval: 60000 // 1 minute polling 
+    pollingInterval: 120000 // 2 minute polling 
   });
   
   const { markAsRead, markAllAsRead } = useNotificationMutations();
@@ -28,7 +28,7 @@ export function useNotificationPopover() {
     // Set up polling with reduced frequency
     const intervalId = setInterval(() => {
       refetch();
-    }, 60000); // Poll every 60 seconds instead of 30
+    }, 120000); // Poll every 2 minutes 
     
     return () => clearInterval(intervalId);
   }, [refetch]);

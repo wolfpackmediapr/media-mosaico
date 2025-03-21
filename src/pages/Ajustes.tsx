@@ -6,10 +6,26 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Settings2, Bell, User, Shield, Tv, Radio, Newspaper, Users, Building2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { seedTvData } from "@/services/tv/channelService";
 
 const Ajustes = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Initialize TV data if needed
+  useEffect(() => {
+    const initTvData = async () => {
+      try {
+        await seedTvData();
+      } catch (error) {
+        console.error("Error initializing TV data:", error);
+      }
+    };
+    
+    initTvData();
+  }, []);
 
   const handleSettingChange = (setting: string, enabled: boolean) => {
     toast({
@@ -51,7 +67,7 @@ const Ajustes = () => {
     },
     {
       title: "TV",
-      description: "Administrar programas y tarifas de TV",
+      description: "Administrar canales y programas de TV",
       icon: Tv,
       path: "/ajustes/tv"
     },
