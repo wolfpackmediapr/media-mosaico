@@ -1,10 +1,10 @@
 
-import { NotificationItemProps } from "@/components/notifications/NotificationItem";
+import { NotificationItem } from "@/components/notifications/types";
 
 /**
  * Transform database notification to UI format
  */
-export function transformNotification(notification: any): Omit<NotificationItemProps, "onClick"> {
+export function transformNotification(notification: any): NotificationItem {
   return {
     id: notification.id,
     title: notification.title,

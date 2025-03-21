@@ -1,40 +1,22 @@
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useNotifications } from "@/hooks/use-notifications";
+import { useNotificationPopover } from "@/hooks/notifications";
 import NotificationList from "./NotificationList";
 
 export function NotificationPopover() {
-  const [isOpen, setIsOpen] = useState(false);
-  const { notifications, unreadCount, markAsRead, markAllAsRead, isLoading } = useNotifications();
-
-  const toggleOpen = () => setIsOpen(!isOpen);
-
-  const handleMarkAsRead = (id: string) => {
-    markAsRead(id);
-    // We don't need to close the popover when marking a single notification as read
-  };
-
-  const handleMarkAllAsRead = () => {
-    markAllAsRead();
-  };
-
-  // Close popover when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isOpen && !(event.target as Element).closest('.notification-popover-content')) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen]);
+  const {
+    isOpen,
+    toggleOpen,
+    notifications,
+    unreadCount,
+    isLoading,
+    handleMarkAsRead,
+    handleMarkAllAsRead
+  } = useNotificationPopover();
 
   return (
     <div className="relative">

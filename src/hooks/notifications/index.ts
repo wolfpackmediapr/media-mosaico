@@ -2,6 +2,7 @@
 import { useNotificationQueries } from "./use-notification-queries";
 import { useNotificationMutations } from "./use-notification-mutations";
 import { useNotificationAlerts } from "./use-notification-alerts";
+import { useNotificationPopover } from "./use-notification-popover";
 import { NotificationAlert } from "./types";
 import { transformNotification } from "./utils";
 
@@ -24,5 +25,9 @@ export function useNotifications(options: { enableRealtime?: boolean } = {}) {
   };
 }
 
+export {
+  useNotificationPopover,
+  transformNotification 
+};
+
 export type { NotificationAlert };
-export { transformNotification };
