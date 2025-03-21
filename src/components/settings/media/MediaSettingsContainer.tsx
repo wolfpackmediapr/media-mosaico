@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,14 +54,9 @@ export function MediaSettingsContainer() {
     setShowAddForm(!showAddForm);
   };
 
-  // Fix the return type to be Promise<void> instead of Promise<boolean>
   const handleAddSubmit = async (formData: { type: string; name: string; folder: string }): Promise<void> => {
-    const success = await handleAddMediaOutlet(formData);
-    if (success) {
-      setShowAddForm(false);
-    }
-    // Return undefined explicitly to satisfy the Promise<void> return type
-    return;
+    await handleAddMediaOutlet(formData);
+    setShowAddForm(false);
   };
 
   const mediaOutletsOnCurrentPage = getCurrentPageOutlets();
