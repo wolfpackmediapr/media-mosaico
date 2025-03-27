@@ -28,6 +28,7 @@ export function GenresSettings() {
     setNewGenreName,
     setEditedName,
     setCurrentPage,
+    setEditingId,
     handleAddGenre,
     handleEditGenre,
     handleSaveEdit,
