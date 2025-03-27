@@ -32,10 +32,12 @@ export async function seedTvData() {
           { name: "Telenoticias 5", start_time: "17:00", end_time: "17:30", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
           { name: "Primera Pregunta", start_time: "17:30", end_time: "18:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
           { name: "Telenoticias 10pm", start_time: "22:00", end_time: "23:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "Telenoticias 11pm", start_time: "23:00", end_time: "23:30", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
           { name: "Rayos X", start_time: "22:00", end_time: "23:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Telenoticias 11pm", start_time: "23:00", end_time: "23:30", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
           { name: "Telenoticias edición sábado", start_time: "22:00", end_time: "23:00", days: ["Sat"] },
-          { name: "Telenoticias edición domingo", start_time: "17:00", end_time: "18:00", days: ["Sun"] }
+          { name: "Telenoticias edición domingo", start_time: "17:00", end_time: "18:00", days: ["Sun"] },
+          { name: "Telenoticias edición domingo", start_time: "22:00", end_time: "23:00", days: ["Sun"] },
+          { name: "Telenoticias edición domingo", start_time: "23:00", end_time: "23:30", days: ["Sun"] }
         ]
       },
       {
@@ -53,21 +55,40 @@ export async function seedTvData() {
           { name: "Cu4rto Poder", start_time: "22:00", end_time: "23:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
           { name: "Noticentro Edición Nocturna", start_time: "23:00", end_time: "23:30", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
           { name: "Noticentro Edición Sábado", start_time: "17:00", end_time: "18:00", days: ["Sat"] },
-          { name: "Noticentro Edición Domingo", start_time: "17:00", end_time: "18:00", days: ["Sun"] }
+          { name: "Noticentro Edición Sábado", start_time: "22:00", end_time: "23:00", days: ["Sat"] },
+          { name: "Noticentro Edición Domingo", start_time: "17:00", end_time: "18:00", days: ["Sun"] },
+          { name: "Noticentro Edición Domingo", start_time: "22:00", end_time: "23:00", days: ["Sun"] }
+        ]
+      },
+      {
+        name: "WIPR",
+        code: "C06",
+        programs: [
+          { name: "Informe 940", start_time: "06:00", end_time: "08:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Un buen Día", start_time: "08:00", end_time: "10:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Notiséis", start_time: "10:30", end_time: "11:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "El Mediodía", start_time: "12:30", end_time: "14:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Notiséis", start_time: "18:00", end_time: "19:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Aquí estamos", start_time: "19:00", end_time: "20:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Al Gusto", start_time: "20:00", end_time: "21:00", days: ["Wed"] },
+          { name: "Homenaje", start_time: "20:00", end_time: "21:00", days: ["Tue"] }
         ]
       },
       {
         name: "TeleOnce",
         code: "C11",
         programs: [
-          { name: "Informe 940", start_time: "06:00", end_time: "08:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "Un buen Día", start_time: "08:00", end_time: "10:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "Notiséis (AM)", start_time: "10:30", end_time: "11:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "El Mediodía", start_time: "12:30", end_time: "14:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "Notiséis (PM)", start_time: "18:00", end_time: "19:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "Aquí estamos", start_time: "19:00", end_time: "20:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "Al Gusto", start_time: "20:00", end_time: "21:00", days: ["Wed"] },
-          { name: "Homenaje", start_time: "20:00", end_time: "21:00", days: ["Tue"] }
+          { name: "En la mañana", start_time: "06:00", end_time: "10:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "PR en vivo", start_time: "11:00", end_time: "12:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Las Noticias al Mediodía", start_time: "12:00", end_time: "12:30", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "El poder del pueblo", start_time: "15:00", end_time: "16:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Las Noticias Ahora", start_time: "16:00", end_time: "17:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Las Noticias Prime", start_time: "17:00", end_time: "18:30", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Última Palabra", start_time: "17:55", end_time: "18:30", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Jugando Pelota Dura: Pre Game", start_time: "18:30", end_time: "19:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Jugando Pelota Dura", start_time: "19:00", end_time: "20:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Jugando Pelota Dura Extra Inning", start_time: "20:00", end_time: "20:30", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Las Noticias Ultima Edición", start_time: "23:00", end_time: "23:30", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] }
         ]
       },
       {
@@ -80,27 +101,18 @@ export async function seedTvData() {
         ]
       },
       {
-        name: "WIPR",
-        code: "C06",
-        programs: [
-          { name: "Noticias 24/7", start_time: "06:00", end_time: "08:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "Puerto Rico Reporta", start_time: "12:00", end_time: "13:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "Cultura Viva", start_time: "15:00", end_time: "16:00", days: ["Sat", "Sun"] }
-        ]
-      },
-      {
         name: "ABC Puerto Rico",
         code: "C05",
         programs: [
-          { name: "ABC Noticias PR", start_time: "07:00", end_time: "08:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-          { name: "Buenos Días ABC", start_time: "09:00", end_time: "10:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] }
+          { name: "Pinto Final", start_time: "18:00", end_time: "18:30", days: ["Tue"] },
+          { name: "Prime Time", start_time: "19:00", end_time: "20:00", days: ["Tue"] }
         ]
       },
       {
         name: "Canal 32",
         code: "C32",
         programs: [
-          { name: "Noticias 32", start_time: "19:00", end_time: "20:00", days: ["Mon", "Wed", "Fri"] }
+          { name: "La Movida", start_time: "14:00", end_time: "15:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] }
         ]
       }
     ];

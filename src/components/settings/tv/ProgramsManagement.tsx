@@ -26,7 +26,11 @@ import {
 } from "@/services/tv/channelService";
 import { ProgramType, ChannelType } from "@/services/tv/types";
 
-export function ProgramsManagement() {
+interface ProgramsManagementProps {
+  isLoading?: boolean;
+}
+
+export function ProgramsManagement({ isLoading = false }: ProgramsManagementProps) {
   const [programs, setPrograms] = useState<ProgramType[]>([]);
   const [channels, setChannels] = useState<ChannelType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +63,7 @@ export function ProgramsManagement() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [isLoading]);
 
   // Filter programs by selected channel
   const filteredPrograms = useMemo(() => {
@@ -137,6 +141,9 @@ export function ProgramsManagement() {
     return filteredPrograms.slice(startIndex, endIndex);
   };
 
+  // Use external loading state if provided
+  const isPageLoading = loading || isLoading;
+
   return (
     <Card>
       <CardHeader>
@@ -144,7 +151,7 @@ export function ProgramsManagement() {
           <CardTitle>Programas de Televisión</CardTitle>
           <Button 
             onClick={() => setShowAddDialog(true)}
-            disabled={channels.length === 0}
+            disabled={channels.length === 0 || isPageLoading}
           >
             Añadir Programa
           </Button>
@@ -154,7 +161,7 @@ export function ProgramsManagement() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {loading ? (
+        {isPageLoading ? (
           <ProgramLoadingState />
         ) : programs.length === 0 ? (
           <ProgramEmptyState hasChannels={channels.length > 0} />
@@ -188,7 +195,7 @@ export function ProgramsManagement() {
         )}
       </CardContent>
       <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={loadData}>Refrescar</Button>
+        <Button variant="outline" onClick={loadData} disabled={isPageLoading}>Refrescar</Button>
         <div className="text-sm text-muted-foreground">
           {filteredPrograms.length > 0 && (
             `Mostrando ${(currentPage - 1) * ITEMS_PER_PAGE + 1} a ${Math.min(currentPage * ITEMS_PER_PAGE, filteredPrograms.length)} de ${filteredPrograms.length} programas`

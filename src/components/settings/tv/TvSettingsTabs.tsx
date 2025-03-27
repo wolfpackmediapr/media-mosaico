@@ -6,9 +6,10 @@ import { ProgramsManagement } from "@/components/settings/tv/ProgramsManagement"
 interface TvSettingsTabsProps {
   activeTab: string;
   onTabChange: (value: string) => void;
+  loading?: boolean;
 }
 
-export const TvSettingsTabs = ({ activeTab, onTabChange }: TvSettingsTabsProps) => {
+export const TvSettingsTabs = ({ activeTab, onTabChange, loading = false }: TvSettingsTabsProps) => {
   return (
     <Tabs defaultValue={activeTab} onValueChange={onTabChange} className="w-full">
       <TabsList className="grid w-full grid-cols-2">
@@ -19,7 +20,7 @@ export const TvSettingsTabs = ({ activeTab, onTabChange }: TvSettingsTabsProps) 
         <ChannelsManagement />
       </TabsContent>
       <TabsContent value="programs" className="space-y-4 pt-4">
-        <ProgramsManagement />
+        <ProgramsManagement isLoading={loading} />
       </TabsContent>
     </Tabs>
   );
