@@ -2,9 +2,15 @@
 import { supabase } from "@/integrations/supabase/client";
 import { saveStoredPrograms, getStoredPrograms } from "./utils";
 
+// Current data version for versioning control
+const CURRENT_DATA_VERSION = "1.0";
+
 // Seed function to initialize the database with the provided TV data
-export async function seedTvData() {
+export async function seedTvData(forceRefresh = false) {
   try {
+    // Check if data version is current
+    const currentVersion = localStorage.getItem('tv_data_version');
+    
     // First check if we already have data
     const { data: existingChannels } = await supabase
       .from('media_outlets')
@@ -12,9 +18,19 @@ export async function seedTvData() {
       .eq('type', 'tv')
       .single();
       
-    if (existingChannels && existingChannels.count > 0) {
-      console.log('TV channels already seeded');
-      return; // Data already exists, don't seed
+    // Check for programs in localStorage
+    const storedPrograms = getStoredPrograms();
+    
+    // Only proceed with seeding if channels don't exist, programs are empty, 
+    // version mismatch, or force refresh is requested
+    const shouldSeedChannels = !existingChannels || existingChannels.count === 0;
+    const shouldSeedPrograms = forceRefresh || 
+                              storedPrograms.length === 0 || 
+                              currentVersion !== CURRENT_DATA_VERSION;
+    
+    if (!shouldSeedChannels && !shouldSeedPrograms) {
+      console.log('TV data already seeded and up to date');
+      return; // Data already exists and is current, don't seed
     }
     
     // Predefined channels with their programs
@@ -117,40 +133,96 @@ export async function seedTvData() {
       }
     ];
     
-    // Create channels
-    for (const channelData of channelsData) {
-      // Create channel
-      const { data: channel } = await supabase
+    // Get existing channels if we need to seed programs but not channels
+    let existingChannelsData = [];
+    if (!shouldSeedChannels && shouldSeedPrograms) {
+      const { data } = await supabase
         .from('media_outlets')
-        .insert([
-          { name: channelData.name, type: 'tv', folder: channelData.code }
-        ])
-        .select()
-        .single();
+        .select('*')
+        .eq('type', 'tv');
       
-      if (!channel) continue;
-      
-      // Save programs to local storage as a temporary solution
-      if (channelData.programs.length > 0) {
-        const storedPrograms = getStoredPrograms();
+      existingChannelsData = data || [];
+    }
+    
+    // Build a map of channel names to IDs for easy lookup
+    const channelMap = {};
+    existingChannelsData.forEach(channel => {
+      channelMap[channel.name] = channel.id;
+    });
+    
+    // Create channels if needed
+    if (shouldSeedChannels) {
+      for (const channelData of channelsData) {
+        // Create channel
+        const { data: channel } = await supabase
+          .from('media_outlets')
+          .insert([
+            { name: channelData.name, type: 'tv', folder: channelData.code }
+          ])
+          .select()
+          .single();
         
-        const programsToAdd = channelData.programs.map(prog => ({
-          id: crypto.randomUUID(),
-          name: prog.name,
-          channel_id: channel.id,
-          start_time: prog.start_time,
-          end_time: prog.end_time,
-          days: prog.days,
-          created_at: new Date().toISOString()
-        }));
-        
-        saveStoredPrograms([...storedPrograms, ...programsToAdd]);
+        if (channel) {
+          channelMap[channel.name] = channel.id;
+        }
       }
+    }
+    
+    // Process programs if needed
+    if (shouldSeedPrograms) {
+      // Start with a clean slate for programs
+      const programsToAdd = [];
+      
+      // Process all channel data
+      for (const channelData of channelsData) {
+        const channelId = channelMap[channelData.name];
+        
+        // Skip if we couldn't find the channel
+        if (!channelId) continue;
+        
+        // Add programs for this channel
+        if (channelData.programs && channelData.programs.length > 0) {
+          channelData.programs.forEach(prog => {
+            programsToAdd.push({
+              id: crypto.randomUUID(),
+              name: prog.name,
+              channel_id: channelId,
+              start_time: prog.start_time,
+              end_time: prog.end_time,
+              days: prog.days,
+              created_at: new Date().toISOString()
+            });
+          });
+        }
+      }
+      
+      // Save all programs to localStorage
+      saveStoredPrograms(programsToAdd);
+      
+      // Update the data version
+      localStorage.setItem('tv_data_version', CURRENT_DATA_VERSION);
     }
     
     console.log('TV data seeded successfully');
   } catch (error) {
     console.error('Error seeding TV data:', error);
+    throw error;
+  }
+}
+
+// Helper to completely reset TV data
+export async function resetTvData() {
+  try {
+    // Clear programs from localStorage
+    localStorage.removeItem('tv_programs');
+    localStorage.removeItem('tv_data_version');
+    
+    // Force refresh the data
+    await seedTvData(true);
+    
+    return true;
+  } catch (error) {
+    console.error('Error resetting TV data:', error);
     throw error;
   }
 }

@@ -10,6 +10,7 @@ import { ProgramsHeader } from "./ProgramsHeader";
 import { ProgramsContent } from "./ProgramsContent";
 import { ProgramsFooter } from "./ProgramsFooter";
 import { useProgramsManagement } from "@/hooks/tv/useProgramsManagement";
+import { useEffect } from "react";
 
 interface ProgramsManagementProps {
   isLoading?: boolean;
@@ -37,6 +38,18 @@ export function ProgramsManagement({ isLoading = false }: ProgramsManagementProp
     isPageLoading,
     programs
   } = useProgramsManagement(isLoading);
+
+  // Force reload data when isLoading prop changes
+  useEffect(() => {
+    if (isLoading) {
+      // Wait until loading is complete to refresh the data
+      const timeoutId = setTimeout(() => {
+        loadData();
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isLoading, loadData]);
 
   return (
     <Card>

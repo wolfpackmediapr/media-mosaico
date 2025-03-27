@@ -2,12 +2,15 @@
 import { useState, useEffect } from "react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { TvSettingsTabs } from "@/components/settings/tv/TvSettingsTabs";
-import { seedTvData } from "@/services/tv/seedService";
+import { seedTvData, resetTvData } from "@/services/tv/seedService";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 export default function TvSettings() {
   const [activeTab, setActiveTab] = useState<string>("channels");
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     // Initialize TV data when component loads
@@ -27,12 +30,50 @@ export default function TvSettings() {
     initializeTvData();
   }, []);
 
+  const handleResetData = async () => {
+    if (!confirm("¿Está seguro que desea restablecer todos los datos de TV a los valores predeterminados? Los programas personalizados se perderán.")) {
+      return;
+    }
+    
+    try {
+      setResetting(true);
+      await resetTvData();
+      toast.success("Datos de TV restablecidos correctamente");
+      // Force active tab to refresh
+      setActiveTab(prev => {
+        // Toggle and then toggle back to force re-render
+        const current = prev;
+        setTimeout(() => setActiveTab(current), 10);
+        return prev === "channels" ? "programs" : "channels";
+      });
+    } catch (error) {
+      console.error("Error resetting TV data:", error);
+      toast.error("Error al restablecer los datos de TV");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <SettingsLayout
       title="Televisión"
       description="Administra los canales y programas de televisión"
+      action={
+        <Button 
+          variant="outline" 
+          onClick={handleResetData}
+          disabled={resetting}
+        >
+          {resetting ? (
+            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <AlertTriangle className="h-4 w-4 mr-2" />
+          )}
+          Restablecer datos
+        </Button>
+      }
     >
-      <TvSettingsTabs activeTab={activeTab} onTabChange={setActiveTab} loading={loading} />
+      <TvSettingsTabs activeTab={activeTab} onTabChange={setActiveTab} loading={loading || resetting} />
     </SettingsLayout>
   );
 }
