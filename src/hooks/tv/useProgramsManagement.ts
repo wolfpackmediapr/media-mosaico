@@ -6,8 +6,8 @@ import {
   createProgram,
   updateProgram,
   deleteProgram,
-  fetchChannels
 } from "@/services/tv/programService";
+import { fetchChannels } from "@/services/tv/channelService";
 import { ProgramType, ChannelType } from "@/services/tv/types";
 
 export function useProgramsManagement(isLoading = false) {
