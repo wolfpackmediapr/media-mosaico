@@ -10,15 +10,16 @@ interface SettingsLayoutProps {
   children: ReactNode;
   title: string;
   description?: string;
+  action?: ReactNode;  // Added this line to support the action prop
 }
 
-export function SettingsLayout({ children, title, description }: SettingsLayoutProps) {
+export function SettingsLayout({ children, title, description, action }: SettingsLayoutProps) {
   const location = useLocation();
   
   return (
     <div className="space-y-6 pb-16">
       <SettingsBreadcrumb title={title} />
-      <SettingsHeader title={title} description={description} />
+      <SettingsHeader title={title} description={description} action={action} />
       
       <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-8 lg:space-y-0">
         <aside className="lg:w-1/5">
