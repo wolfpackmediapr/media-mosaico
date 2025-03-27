@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { Genre } from "@/pages/configuracion/press/types/press-types";
@@ -119,6 +120,7 @@ export function useGenresManagement() {
     totalPages,
     filteredGenres,
     itemsPerPage,
+    searchTerm,
     setNewGenreName,
     setIsAddingNew,
     setEditedName,
