@@ -65,6 +65,11 @@ export function ProgramsTable({ programs, channels, onEdit, onDelete }: Programs
     }
   };
 
+  // Format schedule time range
+  const formatTimeRange = (startTime: string, endTime: string) => {
+    return `${formatTime(startTime)} - ${formatTime(endTime)}`;
+  };
+
   return (
     <div className="rounded-md border">
       <Table>
@@ -81,7 +86,8 @@ export function ProgramsTable({ programs, channels, onEdit, onDelete }: Programs
           {programs.length === 0 ? (
             <TableRow>
               <TableCell colSpan={5} className="h-24 text-center">
-                No hay programas para mostrar en esta página
+                No hay programas para mostrar
+                {programs.length === 0 && " con el filtro actual"}
               </TableCell>
             </TableRow>
           ) : (
@@ -90,7 +96,7 @@ export function ProgramsTable({ programs, channels, onEdit, onDelete }: Programs
                 <TableCell className="font-medium">{program.name}</TableCell>
                 <TableCell>{getChannelName(program.channel_id)}</TableCell>
                 <TableCell>
-                  {formatTime(program.start_time)} - {formatTime(program.end_time)}
+                  {formatTimeRange(program.start_time, program.end_time)}
                 </TableCell>
                 <TableCell>{formatDays(program.days)}</TableCell>
                 <TableCell className="text-right">

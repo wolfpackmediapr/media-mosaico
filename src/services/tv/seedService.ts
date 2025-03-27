@@ -80,14 +80,28 @@ export async function seedTvData() {
         ]
       },
       {
+        name: "WIPR",
+        code: "C06",
+        programs: [
+          { name: "Noticias 24/7", start_time: "06:00", end_time: "08:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Puerto Rico Reporta", start_time: "12:00", end_time: "13:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Cultura Viva", start_time: "15:00", end_time: "16:00", days: ["Sat", "Sun"] }
+        ]
+      },
+      {
         name: "ABC Puerto Rico",
         code: "C05",
-        programs: []
+        programs: [
+          { name: "ABC Noticias PR", start_time: "07:00", end_time: "08:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+          { name: "Buenos Días ABC", start_time: "09:00", end_time: "10:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] }
+        ]
       },
       {
         name: "Canal 32",
         code: "C32",
-        programs: []
+        programs: [
+          { name: "Noticias 32", start_time: "19:00", end_time: "20:00", days: ["Mon", "Wed", "Fri"] }
+        ]
       }
     ];
     

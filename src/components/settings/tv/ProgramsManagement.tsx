@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   Card, 
@@ -13,6 +13,7 @@ import { ProgramsTable } from "./ProgramsTable";
 import { ProgramFormDialog } from "./ProgramFormDialog";
 import { ProgramLoadingState, ProgramEmptyState } from "./ProgramStates";
 import { ProgramsPagination } from "./ProgramsPagination";
+import { ProgramChannelFilter } from "./ProgramChannelFilter";
 import { toast } from "sonner";
 import { 
   fetchPrograms,
@@ -32,9 +33,11 @@ export function ProgramsManagement() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingProgram, setEditingProgram] = useState<ProgramType | null>(null);
   
+  // Filtering state
+  const [selectedChannelId, setSelectedChannelId] = useState<string>('all');
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
   const loadData = async () => {
@@ -45,15 +48,6 @@ export function ProgramsManagement() {
         fetchChannels()
       ]);
       setPrograms(programsData);
-      
-      // Calculate total pages
-      setTotalPages(Math.max(1, Math.ceil(programsData.length / ITEMS_PER_PAGE)));
-      
-      // Reset to page 1 if current page is out of bounds
-      if (currentPage > Math.ceil(programsData.length / ITEMS_PER_PAGE)) {
-        setCurrentPage(1);
-      }
-      
       setChannels(channelsData);
     } catch (error) {
       console.error("Error loading data:", error);
@@ -66,6 +60,24 @@ export function ProgramsManagement() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Filter programs by selected channel
+  const filteredPrograms = useMemo(() => {
+    if (selectedChannelId === 'all') {
+      return programs;
+    }
+    return programs.filter(program => program.channel_id === selectedChannelId);
+  }, [programs, selectedChannelId]);
+
+  // Calculate total pages based on filtered programs
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredPrograms.length / ITEMS_PER_PAGE));
+  }, [filteredPrograms]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedChannelId]);
 
   const handleAddProgram = async (programData: Omit<ProgramType, 'id'>) => {
     try {
@@ -110,6 +122,10 @@ export function ProgramsManagement() {
     }
   };
 
+  const handleChannelChange = (channelId: string) => {
+    setSelectedChannelId(channelId);
+  };
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -118,7 +134,7 @@ export function ProgramsManagement() {
   const getCurrentPagePrograms = () => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return programs.slice(startIndex, endIndex);
+    return filteredPrograms.slice(startIndex, endIndex);
   };
 
   return (
@@ -144,25 +160,38 @@ export function ProgramsManagement() {
           <ProgramEmptyState hasChannels={channels.length > 0} />
         ) : (
           <>
-            <ProgramsTable 
-              programs={getCurrentPagePrograms()} 
+            <ProgramChannelFilter 
               channels={channels}
-              onEdit={handleEditProgram}
-              onDelete={handleDeleteProgram}
+              selectedChannelId={selectedChannelId}
+              onChannelChange={handleChannelChange}
             />
-            <ProgramsPagination 
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-            />
+            
+            <div className="mt-4">
+              <ProgramsTable 
+                programs={getCurrentPagePrograms()} 
+                channels={channels}
+                onEdit={handleEditProgram}
+                onDelete={handleDeleteProgram}
+              />
+            </div>
+            
+            {filteredPrograms.length > ITEMS_PER_PAGE && (
+              <div className="mt-4">
+                <ProgramsPagination 
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                />
+              </div>
+            )}
           </>
         )}
       </CardContent>
       <CardFooter className="flex justify-between">
         <Button variant="outline" onClick={loadData}>Refrescar</Button>
         <div className="text-sm text-muted-foreground">
-          {programs.length > 0 && (
-            `Mostrando ${(currentPage - 1) * ITEMS_PER_PAGE + 1} a ${Math.min(currentPage * ITEMS_PER_PAGE, programs.length)} de ${programs.length} programas`
+          {filteredPrograms.length > 0 && (
+            `Mostrando ${(currentPage - 1) * ITEMS_PER_PAGE + 1} a ${Math.min(currentPage * ITEMS_PER_PAGE, filteredPrograms.length)} de ${filteredPrograms.length} programas`
           )}
         </div>
       </CardFooter>
