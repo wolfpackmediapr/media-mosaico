@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, FileText, Upload } from "lucide-react";
-import { importRatesFromCsv } from "@/services/tv/rates/rateImport";
+import { importRatesFromCSV } from "@/services/tv/rates/rateImport";
 import { toast } from "sonner";
 
 interface TvRatesImportProps {
@@ -42,27 +42,15 @@ export function TvRatesImport({
     setError(null);
 
     try {
-      const result = await importRatesFromCsv(csvText);
+      // Convert the CSV text to a File object
+      const csvBlob = new Blob([csvText], { type: 'text/csv' });
+      const csvFile = new File([csvBlob], 'import.csv', { type: 'text/csv' });
       
-      if (result.success) {
-        toast.success(`Se importaron ${result.imported} tarifas correctamente`);
-        
-        if (result.errors.length > 0) {
-          console.error("Import errors:", result.errors);
-          toast.warning(`Se encontraron ${result.errors.length} errores durante la importación`);
-        }
-        
-        setCsvText("");
-        onImportComplete();
-        onClose();
-      } else {
-        if (result.errors.length > 0) {
-          const firstError = result.errors[0].error;
-          setError(`Error en la importación: ${firstError}`);
-        } else {
-          setError("La importación falló por un error desconocido");
-        }
-      }
+      await importRatesFromCSV(csvFile);
+      toast.success("Tarifas importadas correctamente");
+      setCsvText("");
+      onImportComplete();
+      onClose();
     } catch (error) {
       console.error("Import error:", error);
       setError(`Error: ${error instanceof Error ? error.message : 'Error desconocido'}`);
@@ -141,8 +129,8 @@ export function TvRatesImport({
           <div className="text-sm text-muted-foreground">
             <p>El formato CSV debe incluir estas columnas:</p>
             <ul className="list-disc list-inside ml-2 mt-1">
-              <li>channel (nombre del canal)</li>
-              <li>program (nombre del programa)</li>
+              <li>channel_id (id del canal)</li>
+              <li>program_id (id del programa)</li>
               <li>days (días de la semana, separados por comas)</li>
               <li>start_time (hora de inicio)</li>
               <li>end_time (hora de fin)</li>

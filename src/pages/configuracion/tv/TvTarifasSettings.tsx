@@ -7,6 +7,9 @@ import { TvRatesImport } from "@/components/settings/tv/rates/TvRatesImport";
 import { useTvRatesManagement } from "@/hooks/tv/useTvRatesManagement";
 import { TvRatesLoadingState } from "@/components/settings/tv/rates/TvRatesLoadingState";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Loader2, RefreshCw } from "lucide-react";
+import { seedTvRates } from "@/services/tv/rates";
 
 interface TvTarifasSettingsProps {
   isLoading?: boolean;
@@ -42,8 +45,9 @@ export function TvTarifasSettings({ isLoading: externalLoading = false }: TvTari
   } = useTvRatesManagement();
 
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
   
-  const isLoadingState = externalLoading || dataLoading;
+  const isLoadingState = externalLoading || dataLoading || isSeeding;
 
   const handleSearchChange = (term: string) => {
     setSearchTerm(term);
@@ -69,6 +73,24 @@ export function TvTarifasSettings({ isLoading: externalLoading = false }: TvTari
     toast.success("Importación completada. Los datos han sido actualizados.");
   };
 
+  const handleSeedRates = async () => {
+    if (!confirm("¿Está seguro que desea cargar los datos de tarifas predefinidos? Esta acción reemplazará todas las tarifas existentes.")) {
+      return;
+    }
+
+    setIsSeeding(true);
+    try {
+      await seedTvRates();
+      toast.success("Tarifas predefinidas cargadas correctamente.");
+      await loadData();
+    } catch (error) {
+      console.error("Error seeding TV rates:", error);
+      toast.error("Error al cargar tarifas predefinidas.");
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   if (isLoadingState) {
     return (
       <>
@@ -89,10 +111,26 @@ export function TvTarifasSettings({ isLoading: externalLoading = false }: TvTari
   return (
     <>
       <CardHeader>
-        <CardTitle>Tarifas de TV</CardTitle>
-        <CardDescription>
-          Administra las tarifas de publicidad para canales de televisión
-        </CardDescription>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle>Tarifas de TV</CardTitle>
+            <CardDescription>
+              Administra las tarifas de publicidad para canales de televisión
+            </CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={handleSeedRates}
+            disabled={isSeeding}
+          >
+            {isSeeding ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Cargar Tarifas Predefinidas
+          </Button>
+        </div>
       </CardHeader>
       
       <CardContent>
