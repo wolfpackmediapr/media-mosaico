@@ -82,15 +82,16 @@ export function useTvRatesManagement() {
   }, [searchTerm, selectedChannel, selectedProgram]);
 
   // Function to add a new rate
-  const handleAddRate = async (rateData: Omit<TvRateType, 'id' | 'created_at' | 'channel_name' | 'program_name'>) => {
+  const handleAddRate = async (rateData: Omit<TvRateType, 'id' | 'created_at' | 'channel_name' | 'program_name'>): Promise<void> => {
     try {
       await createRate(rateData);
       toast.success("Tarifa añadida correctamente");
       setIsAddingNew(false);
-      loadData();
+      await loadData();
     } catch (error) {
       console.error("Error adding TV rate:", error);
       toast.error("Error al añadir la tarifa");
+      throw error;
     }
   };
 
@@ -100,15 +101,16 @@ export function useTvRatesManagement() {
   };
 
   // Function to save an edited rate
-  const handleSaveEdit = async (rateData: Omit<TvRateType, 'created_at' | 'channel_name' | 'program_name'>) => {
+  const handleSaveEdit = async (rateData: Omit<TvRateType, 'created_at' | 'channel_name' | 'program_name'>): Promise<void> => {
     try {
       await updateRate(rateData);
       toast.success("Tarifa actualizada correctamente");
       setEditingId(null);
-      loadData();
+      await loadData();
     } catch (error) {
       console.error("Error updating TV rate:", error);
       toast.error("Error al actualizar la tarifa");
+      throw error;
     }
   };
 

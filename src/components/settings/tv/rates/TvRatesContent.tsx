@@ -16,13 +16,13 @@ interface TvRatesContentProps {
   onProgramChange: (programId: string) => void;
   onShowAll: () => void;
   isAddingNew: boolean;
-  onAddRate: (rateData: Omit<TvRateType, 'id' | 'created_at' | 'channel_name' | 'program_name'>) => void;
+  onAddRate: (rateData: Omit<TvRateType, 'id' | 'created_at' | 'channel_name' | 'program_name'>) => Promise<void>;
   onCancelAdd: () => void;
   filteredRates: TvRateType[];
   totalRates: number;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
-  onSaveEdit: (rateData: Omit<TvRateType, 'created_at' | 'channel_name' | 'program_name'>) => void;
+  onSaveEdit: (rateData: Omit<TvRateType, 'created_at' | 'channel_name' | 'program_name'>) => Promise<void>;
   onCancelEdit: () => void;
   editingId: string | null;
   channels: ChannelType[];

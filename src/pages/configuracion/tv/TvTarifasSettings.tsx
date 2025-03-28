@@ -7,6 +7,7 @@ import { TvRatesImport } from "@/components/settings/tv/rates/TvRatesImport";
 import { useTvRatesManagement } from "@/hooks/tv/useTvRatesManagement";
 import { TvRatesLoadingState } from "@/components/settings/tv/rates/TvRatesLoadingState";
 import { toast } from "sonner";
+import { TvRateType } from "@/services/tv/types";
 
 export function TvTarifasSettings() {
   const {

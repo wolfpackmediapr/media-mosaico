@@ -11,7 +11,7 @@ interface TvRatesTableProps {
   programs: ProgramType[];
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
-  onSaveEdit: (rateData: Omit<TvRateType, 'created_at' | 'channel_name' | 'program_name'>) => void;
+  onSaveEdit: (rateData: Omit<TvRateType, 'created_at' | 'channel_name' | 'program_name'>) => Promise<void>;
   onCancelEdit: () => void;
   editingId: string | null;
 }
