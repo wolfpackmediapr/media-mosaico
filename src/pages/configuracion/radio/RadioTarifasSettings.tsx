@@ -3,6 +3,8 @@ import { useState } from "react";
 import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { RadioRatesContent } from "@/components/settings/radio/rates/RadioRatesContent";
 import { RadioRatesFooter } from "@/components/settings/radio/rates/RadioRatesFooter";
+import { RadioRatesImport } from "@/components/settings/radio/rates/RadioRatesImport";
+import { RadioRatesHeader } from "@/components/settings/radio/rates/RadioRatesHeader";
 import { useRadioRatesManagement } from "@/hooks/radio/useRadioRatesManagement";
 import { toast } from "sonner";
 
@@ -35,6 +37,8 @@ export function RadioTarifasSettings() {
     loadData
   } = useRadioRatesManagement();
 
+  const [showImportDialog, setShowImportDialog] = useState(false);
+
   const handleSearchChange = (term: string) => {
     setSearchTerm(term);
   };
@@ -54,6 +58,11 @@ export function RadioTarifasSettings() {
     setEditingId(null);
   };
 
+  const handleImportComplete = () => {
+    loadData();
+    toast.success("Importación completada. Los datos han sido actualizados.");
+  };
+
   return (
     <>
       <CardHeader>
@@ -64,6 +73,11 @@ export function RadioTarifasSettings() {
       </CardHeader>
       
       <CardContent>
+        <RadioRatesHeader 
+          onAddClick={() => setIsAddingNew(true)} 
+          onImportClick={() => setShowImportDialog(true)} 
+        />
+        
         <RadioRatesContent
           isLoading={isLoading}
           searchTerm={searchTerm}
@@ -103,6 +117,12 @@ export function RadioTarifasSettings() {
           onPageChange={setCurrentPage}
         />
       </CardFooter>
+      
+      <RadioRatesImport 
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImportComplete={handleImportComplete}
+      />
     </>
   );
 }
