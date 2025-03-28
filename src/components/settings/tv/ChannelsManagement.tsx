@@ -23,7 +23,11 @@ import {
 } from "@/services/tv/channelService";
 import { ChannelType } from "@/services/tv/types";
 
-export function ChannelsManagement() {
+interface ChannelsManagementProps {
+  isLoading?: boolean;
+}
+
+export function ChannelsManagement({ isLoading: externalLoading = false }: ChannelsManagementProps) {
   const [channels, setChannels] = useState<ChannelType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -58,6 +62,18 @@ export function ChannelsManagement() {
   useEffect(() => {
     loadChannels();
   }, []);
+
+  // Force reload data when externalLoading prop changes
+  useEffect(() => {
+    if (externalLoading) {
+      // Wait until loading is complete to refresh the data
+      const timeoutId = setTimeout(() => {
+        loadChannels();
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [externalLoading]);
 
   // Get channels for current page
   const getCurrentPageChannels = () => {
@@ -117,6 +133,8 @@ export function ChannelsManagement() {
   // Get channels for the current page
   const channelsOnCurrentPage = getCurrentPageChannels();
 
+  const isPageLoading = loading || externalLoading;
+
   return (
     <Card>
       <CardHeader>
@@ -129,7 +147,7 @@ export function ChannelsManagement() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {loading ? (
+        {isPageLoading ? (
           <ChannelLoadingState />
         ) : channels.length === 0 ? (
           <ChannelEmptyState />
