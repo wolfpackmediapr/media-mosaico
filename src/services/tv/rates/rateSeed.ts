@@ -1,11 +1,39 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { TvRateType } from "../types";
 import { toast } from "sonner";
+import { fetchChannels } from "../channelService";
 
 // Function to seed TV rates from the provided lists
 export const seedTvRates = async (): Promise<void> => {
   try {
+    // First fetch the actual channel IDs from the database
+    const { data: channels, error: channelError } = await supabase
+      .from('media_outlets')
+      .select('id, name, folder')
+      .eq('type', 'tv');
+      
+    if (channelError) {
+      console.error("Error fetching TV channels:", channelError);
+      toast.error("Error al obtener canales de TV");
+      return;
+    }
+    
+    // Create a map of channel names to their IDs
+    const channelMap: Record<string, string> = {};
+    channels.forEach(channel => {
+      channelMap[channel.name.toLowerCase()] = channel.id;
+    });
+    
+    // Get channel IDs for Telemundo and WAPA
+    const telemundoId = channelMap['telemundo'] || channels.find(c => c.name.toLowerCase().includes('telemundo'))?.id;
+    const wapaId = channelMap['wapa'] || channels.find(c => c.name.toLowerCase().includes('wapa'))?.id;
+    
+    if (!telemundoId || !wapaId) {
+      toast.error("No se encontraron los canales Telemundo o WAPA");
+      console.error("Channels not found:", { telemundoId, wapaId, availableChannels: Object.keys(channelMap) });
+      return;
+    }
+    
     // First clear existing rates
     const { error: deleteError } = await supabase
       .from('tv_rates')
@@ -18,9 +46,9 @@ export const seedTvRates = async (): Promise<void> => {
       return;
     }
     
-    // Process both channels
-    const telemundoRates = processTelemundoRates();
-    const wapaRates = processWapaRates();
+    // Process both channels with the correct IDs
+    const telemundoRates = processTelemundoRates(telemundoId);
+    const wapaRates = processWapaRates(wapaId);
     const allRates = [...telemundoRates, ...wapaRates].filter(rate => 
       // Filter out rates with no values
       rate.rate_30s !== null || 
@@ -36,8 +64,8 @@ export const seedTvRates = async (): Promise<void> => {
       
       // Ensure all required properties are present in each rate
       const validBatch = batch.map(rate => ({
-        channel_id: rate.channel_id || '',
-        program_id: rate.program_id || '',
+        channel_id: rate.channel_id,
+        program_id: rate.program_id,
         days: rate.days || [],
         start_time: rate.start_time || '',
         end_time: rate.end_time || '',
@@ -66,10 +94,7 @@ export const seedTvRates = async (): Promise<void> => {
 };
 
 // Helper to process Telemundo rates
-const processTelemundoRates = (): Partial<TvRateType>[] => {
-  // Telemundo channel ID - this would need to be updated with actual channel ID
-  const channelId = "telemundo-channel-id";
-  
+const processTelemundoRates = (channelId: string): Partial<TvRateType>[] => {
   // Telemundo rates data structure
   const ratesData = [
     { name: "Acceso Total", time: "11pm a 11:30pm", rate: 3500, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
@@ -124,29 +149,12 @@ const processTelemundoRates = (): Partial<TvRateType>[] => {
     { name: "Zona Y", time: "12:30pm a 1pm", rate: 1375, days: ["Sábado"] },
   ];
   
-  // Map to TV rate objects
-  return ratesData.map(entry => {
-    const [startTime, endTime] = parseTimeRange(entry.time);
-    
-    return {
-      channel_id: channelId,
-      program_id: `${entry.name.toLowerCase().replace(/\s+/g, '-')}-id`,
-      days: entry.days,
-      start_time: startTime,
-      end_time: endTime,
-      rate_30s: entry.rate,
-      rate_15s: entry.rate ? Math.round(entry.rate * 0.6) : null,
-      rate_45s: entry.rate ? Math.round(entry.rate * 1.3) : null,
-      rate_60s: entry.rate ? Math.round(entry.rate * 1.6) : null,
-    };
-  });
+  // First, create program IDs or fetch existing ones
+  return createProgramsWithRates(channelId, ratesData);
 };
 
 // Helper to process WAPA rates
-const processWapaRates = (): Partial<TvRateType>[] => {
-  // WAPA channel ID - this would need to be updated with actual channel ID
-  const channelId = "wapa-channel-id";
-  
+const processWapaRates = (channelId: string): Partial<TvRateType>[] => {
   // WAPA rates data structure
   const ratesData = [
     { name: "Ahi Esta La Verdad", time: "9pm a 10pm", rate: 3200, days: ["Jueves"] },
@@ -189,22 +197,94 @@ const processWapaRates = (): Partial<TvRateType>[] => {
     { name: "Wapa a las Cuatro", time: "4pm a 5pm", rate: 1700, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
   ];
   
-  // Map to TV rate objects
-  return ratesData.map(entry => {
+  // Create programs with rates
+  return createProgramsWithRates(channelId, ratesData);
+};
+
+// Helper function to create programs and return rates
+const createProgramsWithRates = async (
+  channelId: string, 
+  ratesData: Array<{ name: string; time: string; rate: number | null; days: string[] }>
+): Promise<Partial<TvRateType>[]> => {
+  const rates: Partial<TvRateType>[] = [];
+  
+  // Process each rate entry
+  for (const entry of ratesData) {
     const [startTime, endTime] = parseTimeRange(entry.time);
     
-    return {
+    // Check if program already exists
+    const { data: existingPrograms } = await supabase
+      .from('tv_programs')
+      .select('id')
+      .eq('channel_id', channelId)
+      .eq('name', entry.name)
+      .limit(1);
+      
+    let programId: string;
+    
+    if (existingPrograms && existingPrograms.length > 0) {
+      // Use existing program
+      programId = existingPrograms[0].id;
+    } else {
+      // Create new program
+      const spanishToDayCode: Record<string, string> = {
+        'Lunes': 'Mon',
+        'Martes': 'Tue',
+        'Miércoles': 'Wed',
+        'Jueves': 'Thu',
+        'Viernes': 'Fri',
+        'Sábado': 'Sat',
+        'Domingo': 'Sun'
+      };
+      
+      const dayCodes = entry.days.map(day => spanishToDayCode[day] || day);
+      
+      const { data: newProgram, error } = await supabase
+        .from('tv_programs')
+        .insert({
+          channel_id: channelId,
+          name: entry.name,
+          start_time: startTime,
+          end_time: endTime,
+          days: dayCodes
+        })
+        .select()
+        .single();
+        
+      if (error) {
+        console.error(`Error creating program ${entry.name}:`, error);
+        continue;
+      }
+      
+      programId = newProgram.id;
+    }
+    
+    // Add rate with program ID
+    rates.push({
       channel_id: channelId,
-      program_id: `${entry.name.toLowerCase().replace(/\s+/g, '-')}-id`,
-      days: entry.days,
+      program_id: programId,
+      days: entry.days.map(day => {
+        const dayMap: Record<string, string> = {
+          'Lunes': 'Mon',
+          'Martes': 'Tue',
+          'Miércoles': 'Wed',
+          'Jueves': 'Thu',
+          'Viernes': 'Fri',
+          'Sábado': 'Sat',
+          'Domingo': 'Sun'
+        };
+        return dayMap[day] || day;
+      }),
       start_time: startTime,
-      end_time: endTime || startTime, // If no end time, use start time
+      end_time: endTime,
       rate_30s: entry.rate,
       rate_15s: entry.rate ? Math.round(entry.rate * 0.6) : null,
       rate_45s: entry.rate ? Math.round(entry.rate * 1.3) : null,
       rate_60s: entry.rate ? Math.round(entry.rate * 1.6) : null,
-    };
-  });
+    });
+  }
+  
+  return rates;
 };
 
 // Helper function to parse time ranges like "10:30pm a 11pm"

@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface TvRatesFooterProps {
   onRefresh: () => void;
@@ -19,61 +19,85 @@ export function TvRatesFooter({
   currentPage,
   totalPages,
   itemsPerPage,
-  onPageChange,
+  onPageChange
 }: TvRatesFooterProps) {
-  // Calculate the range of items being displayed
-  const start = totalRates === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
-  const end = Math.min(currentPage * itemsPerPage, totalRates);
-
+  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalRates);
+  
   return (
-    <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-2">
-      <div className="text-sm text-muted-foreground">
-        {totalRates > 0
-          ? `Mostrando ${start} a ${end} de ${totalRates} tarifas`
-          : "No hay tarifas para mostrar"}
+    <div className="flex flex-col-reverse sm:flex-row justify-between w-full">
+      <div className="text-sm text-muted-foreground mt-4 sm:mt-0">
+        {totalRates > 0 ? (
+          <>
+            Mostrando {startItem} a {endItem} de {totalRates} tarifas
+          </>
+        ) : (
+          'No hay tarifas que mostrar'
+        )}
       </div>
-
-      <div className="flex items-center gap-4">
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage <= 1 || isLoading}
-          >
-            Anterior
-          </Button>
-          {Array.from({ length: totalPages }).map((_, i) => (
+      
+      <div className="flex gap-2 justify-end">
+        {totalPages > 1 && (
+          <div className="flex gap-1">
             <Button
-              key={i}
-              variant={currentPage === i + 1 ? "default" : "outline"}
-              size="sm"
-              onClick={() => onPageChange(i + 1)}
-              disabled={isLoading}
+              variant="outline"
+              size="icon"
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage === 1 || isLoading}
             >
-              {i + 1}
+              <ChevronLeft className="h-4 w-4" />
             </Button>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage >= totalPages || isLoading}
-          >
-            Siguiente
-          </Button>
-        </div>
-
+            
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => 
+                page === 1 || 
+                page === totalPages || 
+                (page >= currentPage - 1 && page <= currentPage + 1)
+              )
+              .map((page, index, array) => {
+                // Add ellipsis
+                if (index > 0 && page - array[index - 1] > 1) {
+                  return (
+                    <span 
+                      key={`ellipsis-${page}`} 
+                      className="flex items-center justify-center w-9 h-9 text-sm"
+                    >
+                      ...
+                    </span>
+                  );
+                }
+                
+                return (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="icon"
+                    onClick={() => onPageChange(page)}
+                    disabled={isLoading}
+                  >
+                    {page}
+                  </Button>
+                );
+              })}
+            
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage === totalPages || isLoading}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+        
         <Button
-          variant="ghost"
-          size="sm"
+          variant="outline"
+          size="icon"
           onClick={onRefresh}
           disabled={isLoading}
         >
-          <RefreshCw
-            className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
-          />
-          Actualizar
+          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
     </div>
