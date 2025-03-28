@@ -9,9 +9,13 @@ import { TvRatesLoadingState } from "@/components/settings/tv/rates/TvRatesLoadi
 import { toast } from "sonner";
 import { TvRateType } from "@/services/tv/types";
 
-export function TvTarifasSettings() {
+interface TvTarifasSettingsProps {
+  isLoading?: boolean;
+}
+
+export function TvTarifasSettings({ isLoading: externalLoading = false }: TvTarifasSettingsProps) {
   const {
-    isLoading,
+    isLoading: dataLoading,
     searchTerm,
     selectedChannel,
     selectedProgram,
@@ -39,6 +43,9 @@ export function TvTarifasSettings() {
   } = useTvRatesManagement();
 
   const [showImportDialog, setShowImportDialog] = useState(false);
+  
+  // Combine external loading state with internal data loading state
+  const isLoadingState = externalLoading || dataLoading;
 
   const handleSearchChange = (term: string) => {
     setSearchTerm(term);
@@ -64,7 +71,7 @@ export function TvTarifasSettings() {
     toast.success("Importación completada. Los datos han sido actualizados.");
   };
 
-  if (isLoading) {
+  if (isLoadingState) {
     return (
       <>
         <CardHeader>
@@ -92,7 +99,7 @@ export function TvTarifasSettings() {
       
       <CardContent>
         <TvRatesContent
-          isLoading={isLoading}
+          isLoading={isLoadingState}
           searchTerm={searchTerm}
           selectedChannel={selectedChannel}
           selectedProgram={selectedProgram}
@@ -123,7 +130,7 @@ export function TvTarifasSettings() {
       <CardFooter>
         <TvRatesFooter
           onRefresh={loadData}
-          isLoading={isLoading}
+          isLoading={isLoadingState}
           totalRates={filteredRates.length}
           currentPage={currentPage}
           totalPages={totalPages}
