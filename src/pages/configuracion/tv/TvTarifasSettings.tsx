@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw } from "lucide-react";
 import { seedTvRates } from "@/services/tv/rates";
 
-interface TvTarifasSettingsProps {
+export interface TvTarifasSettingsProps {
   isLoading?: boolean;
 }
 

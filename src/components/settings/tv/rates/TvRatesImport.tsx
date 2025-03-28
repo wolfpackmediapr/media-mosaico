@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { FileUpload, Upload, X, AlertCircle, FileDown } from "lucide-react";
+import { Upload, X, AlertCircle, FileDown, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { importRatesFromCSV } from "@/services/tv/rates";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -118,7 +118,7 @@ channel-uuid-here,program-uuid-here,"Mon,Tue,Wed",08:00,09:00,500,1000,1300,1600
           {file ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <FileUpload className="h-5 w-5 text-muted-foreground" />
+                <FileText className="h-5 w-5 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground truncate max-w-[180px]">
                   {file.name}
                 </span>

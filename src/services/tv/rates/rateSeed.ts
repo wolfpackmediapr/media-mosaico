@@ -1,299 +1,163 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { TvRateType } from "../types";
-import { toast } from "sonner";
+import { uuid } from "@/lib/utils";
 import { fetchChannels } from "../channelService";
+import { fetchPrograms } from "../programService";
+import { toast } from "sonner";
 
-// Function to seed TV rates from the provided lists
 export const seedTvRates = async (): Promise<void> => {
   try {
-    // First fetch the actual channel IDs from the database
-    const { data: channels, error: channelError } = await supabase
-      .from('media_outlets')
-      .select('id, name, folder')
-      .eq('type', 'tv');
-      
-    if (channelError) {
-      console.error("Error fetching TV channels:", channelError);
-      toast.error("Error al obtener canales de TV");
-      return;
-    }
-    
-    // Create a map of channel names to their IDs
-    const channelMap: Record<string, string> = {};
-    channels.forEach(channel => {
-      channelMap[channel.name.toLowerCase()] = channel.id;
-    });
-    
-    // Get channel IDs for Telemundo and WAPA
-    const telemundoId = channelMap['telemundo'] || channels.find(c => c.name.toLowerCase().includes('telemundo'))?.id;
-    const wapaId = channelMap['wapa'] || channels.find(c => c.name.toLowerCase().includes('wapa'))?.id;
-    
-    if (!telemundoId || !wapaId) {
-      toast.error("No se encontraron los canales Telemundo o WAPA");
-      console.error("Channels not found:", { telemundoId, wapaId, availableChannels: Object.keys(channelMap) });
-      return;
-    }
-    
-    // First clear existing rates
+    // Clear existing rates first
     const { error: deleteError } = await supabase
       .from('tv_rates')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000');
-      
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // Safe deletion of all records
+    
     if (deleteError) {
-      console.error("Error clearing existing TV rates:", deleteError);
-      toast.error("Error al limpiar tarifas existentes");
-      return;
+      console.error("Error deleting existing TV rates:", deleteError);
+      throw deleteError;
     }
     
-    // Process both channels with the correct IDs
-    const telemundoRates = processTelemundoRates(telemundoId);
-    const wapaRates = processWapaRates(wapaId);
-    const allRates = [...telemundoRates, ...wapaRates].filter(rate => 
-      // Filter out rates with no values
-      rate.rate_30s !== null || 
-      rate.rate_15s !== null || 
-      rate.rate_45s !== null || 
-      rate.rate_60s !== null
-    );
+    // Fetch real channels and programs to use their IDs
+    const channels = await fetchChannels();
+    const programs = await fetchPrograms();
     
-    // Insert in batches to avoid payload limits
-    const batchSize = 50;
-    for (let i = 0; i < allRates.length; i += batchSize) {
-      const batch = allRates.slice(i, i + batchSize);
-      
-      // Ensure all required properties are present in each rate
-      const validBatch = batch.map(rate => ({
-        channel_id: rate.channel_id,
-        program_id: rate.program_id,
-        days: rate.days || [],
-        start_time: rate.start_time || '',
-        end_time: rate.end_time || '',
-        rate_15s: rate.rate_15s,
-        rate_30s: rate.rate_30s,
-        rate_45s: rate.rate_45s,
-        rate_60s: rate.rate_60s
-      }));
-      
-      const { error } = await supabase
-        .from('tv_rates')
-        .insert(validBatch);
-        
-      if (error) {
-        console.error(`Error inserting TV rates batch ${i}:`, error);
-        toast.error(`Error al insertar lote de tarifas ${i}`);
-        return;
-      }
+    if (channels.length === 0 || programs.length === 0) {
+      console.error("Cannot seed rates: No channels or programs available");
+      throw new Error("No channels or programs available");
     }
     
-    toast.success(`${allRates.length} tarifas de TV insertadas correctamente`);
-  } catch (error) {
-    console.error("Error seeding TV rates:", error);
-    toast.error("Error al poblar tarifas de TV");
-  }
-};
-
-// Helper to process Telemundo rates
-const processTelemundoRates = (channelId: string): Partial<TvRateType>[] => {
-  // Telemundo rates data structure
-  const ratesData = [
-    { name: "Acceso Total", time: "11pm a 11:30pm", rate: 3500, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Acceso Total", time: "10:30pm a 11:30pm", rate: 3500, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Acceso Total", time: "12am a 12:30am", rate: 3500, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Al Rojo Vivo", time: "6am a 7am", rate: 550, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Al Rojo Vivo", time: "11:30pm a 12am", rate: 1600, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Alexandra a las 12", time: "11:30am a 1pm", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Alexandra de Noche", time: "11pm a 11:30pm", rate: 3500, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Area Restringida", time: "6pm a 7pm", rate: 2500, days: ["Domingo"] },
-    { name: "Borinqueando", time: "2:30pm a 3pm", rate: 1000, days: ["Sábado"] },
-    { name: "Caso Cerrado", time: "4pm a 5pm", rate: 3900, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Caso Cerrado", time: "7pm a 8pm", rate: 4900, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Dando Candela", time: "6pm a 7pm", rate: 4475, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "De Magazine", time: "6pm a 7pm", rate: 3300, days: ["Sábado"] },
-    { name: "Deportes Xtra Domingo", time: "10:30pm a 11pm", rate: 3500, days: ["Domingo"] },
-    { name: "Deportes Xtra Sabado", time: "10:30pm a 11pm", rate: 3500, days: ["Sábado"] },
-    { name: "Día a Día", time: "1pm a 4pm", rate: 1600, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Dra Mama", time: "2pm a 2:30pm", rate: 1000, days: ["Sábado"] },
-    { name: "Espectacular Ser", time: "7pm a 11pm", rate: 5625, days: ["Lunes"] },
-    { name: "Hoy Día Puerto Rico", time: "8am a 10am", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Jay y Sus Rayos X", time: "9pm a 10pm", rate: 5500, days: ["Jueves"] },
-    { name: "Jugando Pelota Dura Extra Inning", time: "8pm a 8:30pm", rate: 4000, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Latin Doctor", time: "1pm a 2pm", rate: 1500, days: ["Domingo"] },
-    { name: "Levantate", time: "7am a 10am", rate: 1000, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Muñequitos", time: "10am a 12pm", rate: 900, days: ["Sábado"] },
-    { name: "Nación Z", time: "6am a 8am", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Notiuno Presenta", time: "11pm a 12am", rate: 1000, days: ["Domingo"] },
-    { name: "Novela", time: "8pm a 9pm", rate: 3900, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Novela", time: "9pm a 10pm", rate: 3900, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Novela", time: "12pm a 2pm", rate: 1000, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Primera Pregunta", time: "5:30pm", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Programacion Especial", time: "7pm a 10pm", rate: 2750, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] },
-    { name: "Raymond y Sus Amigos", time: "8pm a 10pm", rate: 6500, days: ["Martes"] },
-    { name: "Rayos X", time: "10pm", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Telemaraton MDA", time: "11am a 10pm", rate: 2750, days: ["Domingo"] },
-    { name: "Telenoticias 5", time: "5pm", rate: 5900, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Telenoticias 10pm", time: "10pm", rate: 4500, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Telenoticias 11", time: "11am", rate: 1300, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Telenoticias 11pm", time: "11pm", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Telenoticias Domingo 5PM", time: "5pm a 6pm", rate: 4000, days: ["Domingo"] },
-    { name: "Telenoticias Domingo 10PM", time: "10pm a 10:30pm", rate: 4500, days: ["Domingo"] },
-    { name: "Telenoticias Sabado 5PM", time: "5pm a 6pm", rate: 4000, days: ["Sábado"] },
-    { name: "Telenoticias Sabado 10PM", time: "10pm a 11pm", rate: 3900, days: ["Sábado"] },
-    { name: "Telenoticias edición especial", time: "4pm", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Telenoticias edición domingo", time: "5pm", rate: null, days: ["Domingo"] },
-    { name: "Telenoticias edición domingo", time: "10pm", rate: null, days: ["Domingo"] },
-    { name: "Telenoticias edición domingo", time: "11pm", rate: null, days: ["Domingo"] },
-    { name: "Telenoticias edición sábado", time: "10pm", rate: null, days: ["Sábado"] },
-    { name: "Tu Salud Informa", time: "12:30pm a 1pm", rate: 900, days: ["Sábado"] },
-    { name: "TVO", time: "7pm a 8pm", rate: 4500, days: ["Domingo"] },
-    { name: "Zona Y", time: "12:30pm a 1pm", rate: 1375, days: ["Sábado"] },
-  ];
-  
-  // First, create program IDs or fetch existing ones
-  return createProgramsWithRates(channelId, ratesData);
-};
-
-// Helper to process WAPA rates
-const processWapaRates = (channelId: string): Partial<TvRateType>[] => {
-  // WAPA rates data structure
-  const ratesData = [
-    { name: "Ahi Esta La Verdad", time: "9pm a 10pm", rate: 3200, days: ["Jueves"] },
-    { name: "Ahi Esta La Verdad", time: "9pm a 10pm", rate: 3200, days: ["Domingo"] },
-    { name: "Cu4rto Poder", time: "10pm", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "El Tiempo Es Oro", time: "3pm a 4pm", rate: 1800, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "El Tiempo Es Oro", time: "3pm a 4:20pm", rate: 1800, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Entre Nosotras", time: "9:30am a 11am", rate: 1000, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Gana Con Ganas", time: "3pm a 4pm", rate: 1800, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Idol Puerto Rico", time: "9pm a 11pm", rate: 6000, days: ["Lunes"] },
-    { name: "Jangueo", time: "11:30pm a 11:59pm", rate: 700, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Jangueo", time: "12am a 12:30am", rate: 250, days: ["Sábado"] },
-    { name: "Jangueo", time: "12am a 12:30am", rate: 250, days: ["Domingo"] },
-    { name: "Juntos En La Mañana", time: "9:30am a 11:30am", rate: 500, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "LST", time: "2pm a 3:20pm", rate: 3200, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Lo sé todo", time: "2pm", rate: 3200, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Los datos son los datos", time: "3:20pm", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Monica En Confianza", time: "10pm a 11pm", rate: 1600, days: ["Lunes"] },
-    { name: "Noticentro 11 AM", time: "11am", rate: 900, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Noticentro 4 Al Amanecer", time: "5am a 9:30am", rate: 900, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Noticentro Edición Domingo", time: "5pm", rate: 3000, days: ["Domingo"] },
-    { name: "Noticentro Edición Domingo", time: "10pm", rate: 2000, days: ["Domingo"] },
-    { name: "Noticentro Edición Estelar", time: "4pm", rate: null, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Noticentro Edición Nocturna", time: "11pm", rate: 2500, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Noticentro Edición Sábado", time: "5pm", rate: 3000, days: ["Sábado"] },
-    { name: "Noticentro Edición Sábado", time: "10pm", rate: 1600, days: ["Sábado"] },
-    { name: "Noticentro En Una Semana", time: "10:30pm a 11pm", rate: 2700, days: ["Sábado"] },
-    { name: "Noticentro Sabado 11PM", time: "11pm a 11:30pm", rate: 1600, days: ["Sábado"] },
-    { name: "Noticentro Sabado A Las 11PM", time: "11pm a 11:30pm", rate: 3600, days: ["Sábado"] },
-    { name: "Noticentro a las 5", time: "5pm", rate: 3300, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Noticentro al amanecer", time: "5am", rate: 900, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Novela", time: "1pm a 2pm", rate: 800, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Pegate al Medio Día", time: "11:30am a 1pm", rate: 1000, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Pégate al mediodía", time: "11:30am a 1pm", rate: 1000, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Programa Especial Junta de Control Fiscal", time: "10pm a 11pm", rate: 5100, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Risas En Combo", time: "9pm a 10pm", rate: 6500, days: ["Miércoles"] },
-    { name: "Super Xclusivo", time: "6pm a 7pm", rate: 4300, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "SuperCine", time: "7pm a 9pm", rate: 4600, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Viva la tarde", time: "1pm", rate: 800, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-    { name: "Wapa a las Cuatro", time: "4pm a 5pm", rate: 1700, days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] },
-  ];
-  
-  // Create programs with rates
-  return createProgramsWithRates(channelId, ratesData);
-};
-
-// Helper function to create programs and return rates
-const createProgramsWithRates = async (
-  channelId: string, 
-  ratesData: Array<{ name: string; time: string; rate: number | null; days: string[] }>
-): Promise<Partial<TvRateType>[]> => {
-  const rates: Partial<TvRateType>[] = [];
-  
-  // Process each rate entry
-  for (const entry of ratesData) {
-    const [startTime, endTime] = parseTimeRange(entry.time);
+    // Create rates for each channel/program combination
+    const rates: Partial<TvRateType>[] = [];
     
-    // Check if program already exists
-    const { data: existingPrograms } = await supabase
-      .from('tv_programs')
-      .select('id')
-      .eq('channel_id', channelId)
-      .eq('name', entry.name)
-      .limit(1);
-      
-    let programId: string;
+    // Function to find a program in a specific channel
+    const findProgramInChannel = (channelId: string, programNamePattern: string) => {
+      return programs.find(p => 
+        p.channel_id === channelId && 
+        p.name.toLowerCase().includes(programNamePattern.toLowerCase())
+      );
+    };
     
-    if (existingPrograms && existingPrograms.length > 0) {
-      // Use existing program
-      programId = existingPrograms[0].id;
-    } else {
-      // Create new program
-      const spanishToDayCode: Record<string, string> = {
-        'Lunes': 'Mon',
-        'Martes': 'Tue',
-        'Miércoles': 'Wed',
-        'Jueves': 'Thu',
-        'Viernes': 'Fri',
-        'Sábado': 'Sat',
-        'Domingo': 'Sun'
+    // Helper to find a channel by name pattern
+    const findChannelByName = (namePattern: string) => {
+      return channels.find(c => 
+        c.name.toLowerCase().includes(namePattern.toLowerCase())
+      );
+    };
+    
+    // Utility function to create a rate entry
+    const createRate = (
+      channelId: string,
+      programId: string,
+      days: string[],
+      startTime: string,
+      endTime: string,
+      rate15s: number,
+      rate30s: number,
+      rate45s: number,
+      rate60s: number
+    ): Partial<TvRateType> => {
+      return {
+        id: uuid(),
+        channel_id: channelId,
+        program_id: programId,
+        days: days,
+        start_time: startTime,
+        end_time: endTime,
+        rate_15s: rate15s,
+        rate_30s: rate30s,
+        rate_45s: rate45s,
+        rate_60s: rate60s
       };
-      
-      const dayCodes = entry.days.map(day => spanishToDayCode[day] || day);
-      
-      const { data: newProgram, error } = await supabase
-        .from('tv_programs')
-        .insert({
-          channel_id: channelId,
-          name: entry.name,
-          start_time: startTime,
-          end_time: endTime,
-          days: dayCodes
-        })
-        .select()
-        .single();
-        
-      if (error) {
-        console.error(`Error creating program ${entry.name}:`, error);
-        continue;
+    };
+    
+    // WAPA TV rates
+    const wapaChannel = findChannelByName("WAPA");
+    if (wapaChannel) {
+      // Noticias (morning)
+      const noticiasProgram = findProgramInChannel(wapaChannel.id, "Noticias");
+      if (noticiasProgram) {
+        rates.push(createRate(
+          wapaChannel.id,
+          noticiasProgram.id,
+          ["Mon", "Tue", "Wed", "Thu", "Fri"],
+          "06:00",
+          "08:00",
+          1200,
+          2000,
+          2800,
+          3500
+        ));
       }
       
-      programId = newProgram.id;
+      // Daytime programming
+      const daytimeProgram = findProgramInChannel(wapaChannel.id, "Programa de la Tarde");
+      if (daytimeProgram) {
+        rates.push(createRate(
+          wapaChannel.id,
+          daytimeProgram.id,
+          ["Mon", "Tue", "Wed", "Thu", "Fri"],
+          "13:00",
+          "15:00",
+          900,
+          1500,
+          2100,
+          2700
+        ));
+      }
     }
     
-    // Add rate with program ID
-    rates.push({
-      channel_id: channelId,
-      program_id: programId,
-      days: entry.days.map(day => {
-        const dayMap: Record<string, string> = {
-          'Lunes': 'Mon',
-          'Martes': 'Tue',
-          'Miércoles': 'Wed',
-          'Jueves': 'Thu',
-          'Viernes': 'Fri',
-          'Sábado': 'Sat',
-          'Domingo': 'Sun'
-        };
-        return dayMap[day] || day;
-      }),
-      start_time: startTime,
-      end_time: endTime,
-      rate_30s: entry.rate,
-      rate_15s: entry.rate ? Math.round(entry.rate * 0.6) : null,
-      rate_45s: entry.rate ? Math.round(entry.rate * 1.3) : null,
-      rate_60s: entry.rate ? Math.round(entry.rate * 1.6) : null,
-    });
+    // Telemundo rates
+    const telemundoChannel = findChannelByName("Telemundo");
+    if (telemundoChannel) {
+      // Telenovelas (prime time)
+      const telenovelasProgram = findProgramInChannel(telemundoChannel.id, "Telenovela");
+      if (telenovelasProgram) {
+        rates.push(createRate(
+          telemundoChannel.id,
+          telenovelasProgram.id,
+          ["Mon", "Tue", "Wed", "Thu", "Fri"],
+          "20:00",
+          "22:00",
+          1500,
+          2500,
+          3200,
+          4000
+        ));
+      }
+      
+      // Weekend movies
+      const moviesProgram = findProgramInChannel(telemundoChannel.id, "Películas");
+      if (moviesProgram) {
+        rates.push(createRate(
+          telemundoChannel.id,
+          moviesProgram.id,
+          ["Sat", "Sun"],
+          "19:00",
+          "21:00",
+          1400,
+          2300,
+          3000,
+          3800
+        ));
+      }
+    }
+    
+    // Insert the seed rates into the database
+    const { error } = await supabase
+      .from('tv_rates')
+      .insert(rates);
+    
+    if (error) {
+      console.error("Error seeding TV rates:", error);
+      throw error;
+    }
+    
+    console.log(`Successfully seeded ${rates.length} TV rates`);
+    
+  } catch (error) {
+    console.error("Failed to seed TV rates:", error);
+    throw error;
   }
-  
-  return rates;
-};
-
-// Helper function to parse time ranges like "10:30pm a 11pm"
-const parseTimeRange = (timeStr: string): [string, string] => {
-  if (!timeStr.includes('a')) {
-    // Single time like "5pm"
-    return [timeStr, timeStr];
-  }
-  
-  const [start, end] = timeStr.split(' a ').map(t => t.trim());
-  return [start, end];
 };

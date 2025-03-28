@@ -77,20 +77,18 @@ export const importRatesFromCSV = async (file: File): Promise<void> => {
             
             const rates = results.data.map((row: CSVRow) => {
               // Process days field - can be comma-separated or an array
-              let days: string[] = [];
+              let daysArray: string[] = [];
               if (typeof row.days === 'string') {
-                days = row.days.split(',').map(day => {
+                daysArray = row.days.split(',').map(day => {
                   const trimmedDay = day.trim();
                   return mapDayToCode(trimmedDay);
                 });
-              } else if (Array.isArray(row.days)) {
-                days = row.days.map(mapDayToCode);
               }
               
               return {
                 channel_id: row.channel_id,
                 program_id: row.program_id,
-                days: days,
+                days: daysArray,
                 start_time: row.start_time,
                 end_time: row.end_time,
                 rate_15s: row.rate_15s ? parseFloat(row.rate_15s) : null,
