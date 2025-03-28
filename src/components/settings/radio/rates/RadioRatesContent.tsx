@@ -19,8 +19,8 @@ interface RadioRatesContentProps {
   isAddingNew: boolean;
   onAddRate: (rate: Omit<RadioRateType, 'id' | 'created_at' | 'station_name' | 'program_name'>) => void;
   onCancelAdd: () => void;
-  filteredRates: RadioRateType[]; // Changed from paginatedRates to filteredRates
-  totalRates: number; // Add total count
+  filteredRates: RadioRateType[];
+  totalRates: number;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onSaveEdit: (rate: RadioRateType) => void;
@@ -28,11 +28,11 @@ interface RadioRatesContentProps {
   editingId: string | null;
   stations: StationType[];
   programs: ProgramType[];
-  currentPage: number; // Add current page
-  totalPages: number; // Add total pages
-  onPageChange: (page: number) => void; // Add page change handler
-  itemsPerPage: number; // Add items per page
-  onImportClick: () => void; // Added this prop to fix the error
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  itemsPerPage: number;
+  onImportClick: () => void;
 }
 
 export function RadioRatesContent({
@@ -47,8 +47,8 @@ export function RadioRatesContent({
   isAddingNew,
   onAddRate,
   onCancelAdd,
-  filteredRates, // Changed from paginatedRates to filteredRates
-  totalRates, // Add total count
+  filteredRates,
+  totalRates,
   onEdit,
   onDelete,
   onSaveEdit,
@@ -56,11 +56,11 @@ export function RadioRatesContent({
   editingId,
   stations,
   programs,
-  currentPage, // Add current page
-  totalPages, // Add total pages
-  onPageChange, // Add page change handler
-  itemsPerPage, // Add items per page
-  onImportClick // Added this prop to fix the error
+  currentPage,
+  totalPages,
+  onPageChange,
+  itemsPerPage,
+  onImportClick
 }: RadioRatesContentProps) {
   if (isLoading) {
     return <RadioRatesLoadingState />;
@@ -71,9 +71,9 @@ export function RadioRatesContent({
       {/* Header with add button */}
       <RadioRatesHeader 
         onAddClick={() => {
-          // Check if a station is selected for better UX
-          if (selectedStation !== 'all') {
-            onStationChange(selectedStation);
+          // Using isAddingNew instead of directly manipulating editingId
+          if (!isAddingNew && !editingId) {
+            onEdit("");
           }
         }} 
         onImportClick={onImportClick}
@@ -110,10 +110,8 @@ export function RadioRatesContent({
           selectedProgram={selectedProgram}
           onClearSearch={onShowAll} 
           onAddNew={() => {
-            // Check if a station is selected for better UX
-            if (selectedStation !== 'all') {
-              onStationChange(selectedStation);
-            }
+            // For adding new, call onEdit with empty string
+            onEdit("");
           }}
         />
       ) : (

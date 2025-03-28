@@ -68,7 +68,15 @@ export function TvRatesContent({
 
   return (
     <div className="space-y-4">
-      <TvRatesHeader onAddClick={() => onEdit("")} onImportClick={onImportClick} />
+      <TvRatesHeader 
+        onAddClick={() => {
+          // Using isAddingNew instead of directly manipulating editingId
+          if (!isAddingNew && !editingId) {
+            onEdit("");
+          }
+        }} 
+        onImportClick={onImportClick} 
+      />
       
       <TvRatesFilter
         searchTerm={searchTerm}

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { 
   fetchRates,
@@ -32,9 +32,6 @@ export function useRadioRatesManagement() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Try to seed initial data
-      await seedInitialRates();
-      
       // First, fetch stations
       const stationsData = await fetchStations();
       setStations(stationsData);

@@ -149,7 +149,13 @@ export function TvTarifasSettings({ isLoading: externalLoading = false }: TvTari
           onCancelAdd={handleCancelAdd}
           filteredRates={paginatedRates}
           totalRates={totalRates}
-          onEdit={handleEditRate}
+          onEdit={(id) => {
+            if (id === "") {
+              setIsAddingNew(true);
+            } else {
+              handleEditRate(id);
+            }
+          }}
           onDelete={handleDeleteRate}
           onSaveEdit={handleSaveEdit}
           onCancelEdit={handleCancelEdit}

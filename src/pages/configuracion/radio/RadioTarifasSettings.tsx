@@ -5,7 +5,11 @@ import { RadioRatesContent } from "@/components/settings/radio/rates/RadioRatesC
 import { RadioRatesFooter } from "@/components/settings/radio/rates/RadioRatesFooter";
 import { RadioRatesImport } from "@/components/settings/radio/rates/RadioRatesImport";
 import { useRadioRatesManagement } from "@/hooks/radio/useRadioRatesManagement";
+import { RadioRatesLoadingState } from "@/components/settings/radio/rates/RadioRatesLoadingState";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Loader2, RefreshCw } from "lucide-react";
+import { seedInitialRates } from "@/services/radio/rates";
 
 export function RadioTarifasSettings() {
   const {
@@ -37,6 +41,7 @@ export function RadioTarifasSettings() {
   } = useRadioRatesManagement();
 
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
 
   const handleSearchChange = (term: string) => {
     setSearchTerm(term);
@@ -60,20 +65,72 @@ export function RadioTarifasSettings() {
   const handleImportComplete = () => {
     loadData();
     toast.success("Importación completada. Los datos han sido actualizados.");
+    setShowImportDialog(false);
   };
+
+  const handleSeedRates = async () => {
+    if (!confirm("¿Está seguro que desea cargar los datos de tarifas predefinidos? Esta acción reemplazará todas las tarifas existentes.")) {
+      return;
+    }
+
+    setIsSeeding(true);
+    try {
+      await seedInitialRates();
+      toast.success("Tarifas predefinidas cargadas correctamente.");
+      await loadData();
+    } catch (error) {
+      console.error("Error seeding Radio rates:", error);
+      toast.error("Error al cargar tarifas predefinidas.");
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  if (isLoading || isSeeding) {
+    return (
+      <>
+        <CardHeader>
+          <CardTitle>Tarifas de Radio</CardTitle>
+          <CardDescription>
+            Administra las tarifas de publicidad para programas de radio
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          <RadioRatesLoadingState />
+        </CardContent>
+      </>
+    );
+  }
 
   return (
     <>
       <CardHeader>
-        <CardTitle>Tarifas de Radio</CardTitle>
-        <CardDescription>
-          Administra las tarifas de publicidad para programas de radio
-        </CardDescription>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle>Tarifas de Radio</CardTitle>
+            <CardDescription>
+              Administra las tarifas de publicidad para programas de radio
+            </CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={handleSeedRates}
+            disabled={isSeeding}
+          >
+            {isSeeding ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Cargar Tarifas Predefinidas
+          </Button>
+        </div>
       </CardHeader>
       
       <CardContent>
         <RadioRatesContent
-          isLoading={isLoading}
+          isLoading={isLoading || isSeeding}
           searchTerm={searchTerm}
           selectedStation={selectedStation}
           selectedProgram={selectedProgram}
@@ -86,7 +143,13 @@ export function RadioTarifasSettings() {
           onCancelAdd={handleCancelAdd}
           filteredRates={paginatedRates}
           totalRates={totalRates}
-          onEdit={handleEditRate}
+          onEdit={(id) => {
+            if (id === "") {
+              setIsAddingNew(true);
+            } else {
+              handleEditRate(id);
+            }
+          }}
           onDelete={handleDeleteRate}
           onSaveEdit={handleSaveEdit}
           onCancelEdit={handleCancelEdit}
@@ -104,7 +167,7 @@ export function RadioTarifasSettings() {
       <CardFooter>
         <RadioRatesFooter
           onRefresh={loadData}
-          isLoading={isLoading}
+          isLoading={isLoading || isSeeding}
           totalRates={filteredRates.length}
           currentPage={currentPage}
           totalPages={totalPages}
