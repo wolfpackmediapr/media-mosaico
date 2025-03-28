@@ -1,3 +1,5 @@
+// This component is now deprecated in favor of RatesFilter
+// Keeping it for backward compatibility but should be removed in future
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

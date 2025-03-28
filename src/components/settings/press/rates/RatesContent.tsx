@@ -1,7 +1,9 @@
 
 import { RatesTable } from "@/pages/configuracion/press/components/RatesTable";
-import { RatesSearch } from "@/pages/configuracion/press/components/RatesSearch";
 import { AddRateForm } from "@/pages/configuracion/press/components/AddRateForm";
+import { RatesFilter } from "@/components/settings/press/rates/RatesFilter";
+import { RatesEmptyState } from "@/components/settings/press/rates/RatesEmptyState";
+import { RatesLoadingState } from "@/components/settings/press/rates/RatesLoadingState";
 import { Source } from "@/pages/configuracion/press/types/press-types";
 
 interface RatesContentProps {
@@ -44,17 +46,13 @@ export function RatesContent({
   setEditedName
 }: RatesContentProps) {
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-56">
-        <p className="text-muted-foreground">Cargando tarifas...</p>
-      </div>
-    );
+    return <RatesLoadingState />;
   }
 
   return (
-    <>
-      {/* Search section */}
-      <RatesSearch 
+    <div className="space-y-4">
+      {/* Search/filter section */}
+      <RatesFilter 
         searchTerm={searchTerm}
         setSearchTerm={onSearchChange}
         handleShowAll={onShowAll}
@@ -70,17 +68,25 @@ export function RatesContent({
         />
       )}
 
-      {/* Rates table */}
-      <RatesTable
-        paginatedRates={paginatedRates}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        onSaveEdit={onSaveEdit}
-        onCancelEdit={onCancelEdit}
-        editingId={editingId}
-        editedName={editedName}
-        setEditedName={setEditedName}
-      />
-    </>
+      {/* Rates table or empty state */}
+      {paginatedRates.length === 0 ? (
+        <RatesEmptyState 
+          searchTerm={searchTerm} 
+          onClearSearch={onShowAll} 
+          onAddNew={() => setNewRateName("")}
+        />
+      ) : (
+        <RatesTable
+          paginatedRates={paginatedRates}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onSaveEdit={onSaveEdit}
+          onCancelEdit={onCancelEdit}
+          editingId={editingId}
+          editedName={editedName}
+          setEditedName={setEditedName}
+        />
+      )}
+    </div>
   );
 }

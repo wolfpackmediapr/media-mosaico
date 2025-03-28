@@ -9,6 +9,7 @@ import { RatesHeader } from "@/components/settings/press/rates/RatesHeader";
 import { RatesContent } from "@/components/settings/press/rates/RatesContent";
 import { RatesFooter } from "@/components/settings/press/rates/RatesFooter";
 import { useRatesManagement } from "@/hooks/press/useRatesManagement";
+import { toast } from "sonner";
 
 export function RatesSettings() {
   const {
@@ -42,6 +43,7 @@ export function RatesSettings() {
 
   const handleShowAll = () => {
     setSearchTerm("");
+    toast.info("Mostrando todas las tarifas");
   };
 
   const handleCancelAdd = () => {
@@ -55,7 +57,7 @@ export function RatesSettings() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-4">
         <RatesHeader onAddClick={() => setIsAddingNew(true)} />
       </CardHeader>
       
