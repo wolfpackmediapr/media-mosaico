@@ -1,327 +1,286 @@
 
-import { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useState } from "react";
+import { Upload, AlertCircle, CheckCircle2, FileWarning } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { importRatesFromCsv } from "@/services/radio/rates";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
-import { AlertTriangle, FileText, Upload, CheckCircle2, XCircle } from "lucide-react";
-import { parseRatesCSV, importRates, ImportedRateType } from "@/services/radio/rates/rateImport";
 
 interface RadioRatesImportProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  isOpen: boolean;
+  onClose: () => void;
   onImportComplete: () => void;
 }
 
-export function RadioRatesImport({ open, onOpenChange, onImportComplete }: RadioRatesImportProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [importedRates, setImportedRates] = useState<ImportedRateType[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [importStep, setImportStep] = useState<'upload' | 'review' | 'importing' | 'complete'>('upload');
+export function RadioRatesImport({
+  isOpen,
+  onClose,
+  onImportComplete,
+}: RadioRatesImportProps) {
+  const [step, setStep] = useState<"upload" | "review" | "result">("upload");
+  const [csvContent, setCsvContent] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [delimiter, setDelimiter] = useState(",");
+  const [isLoading, setIsLoading] = useState(false);
   const [importResult, setImportResult] = useState<{
     success: boolean;
     imported: number;
-    errors: number;
-    message: string;
+    errors: any[];
   } | null>(null);
 
-  const resetState = () => {
-    setFile(null);
-    setErrorMessage(null);
-    setImportedRates([]);
-    setImportStep('upload');
-    setImportResult(null);
-  };
-
+  // Reset the state when the dialog opens
   const handleClose = () => {
-    resetState();
-    onOpenChange(false);
+    setCsvContent("");
+    setCsvFile(null);
+    setDelimiter(",");
+    setStep("upload");
+    setImportResult(null);
+    setIsLoading(false);
+    onClose();
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCsvFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      setCsvContent(content);
+    };
+    reader.readAsText(file);
   };
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFile = e.dataTransfer.files[0];
-      await handleFileSelection(droppedFile);
-    }
-  };
-
-  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      await handleFileSelection(e.target.files[0]);
-    }
-  };
-
-  const handleFileSelection = async (selectedFile: File) => {
-    setErrorMessage(null);
-    setImportStep('upload');
-    
-    if (!selectedFile.name.endsWith('.csv')) {
-      setErrorMessage('Por favor seleccione un archivo CSV.');
-      return;
-    }
-    
-    if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
-      setErrorMessage('El archivo es demasiado grande. El tamaño máximo es 10MB.');
-      return;
-    }
-    
-    setFile(selectedFile);
-    
-    try {
-      setIsAnalyzing(true);
-      const parsedRates = await parseRatesCSV(selectedFile);
-      
-      if (parsedRates.length === 0) {
-        setErrorMessage('No se encontraron datos de tarifas en el archivo CSV.');
-        setFile(null);
-        return;
-      }
-      
-      setImportedRates(parsedRates);
-      setImportStep('review');
-    } catch (error) {
-      console.error("Error parsing CSV:", error);
-      setErrorMessage(`Error al analizar el archivo: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-      setFile(null);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
+  // Handle import
   const handleImport = async () => {
-    if (importedRates.length === 0) {
-      setErrorMessage('No hay tarifas para importar.');
-      return;
-    }
-    
+    if (!csvContent) return;
+
+    setIsLoading(true);
+
     try {
-      setImportStep('importing');
-      setIsUploading(true);
-      
-      const result = await importRates(importedRates);
+      const result = await importRatesFromCsv(csvContent, delimiter);
       setImportResult(result);
-      setImportStep('complete');
-      
+      setStep("result");
+
       if (result.success) {
-        // Only show toast for success, the modal will show errors
-        if (result.errors === 0) {
-          toast.success(`Importación completada: ${result.imported} tarifas importadas.`);
+        toast.success(`Importación completada. ${result.imported} tarifas importadas.`);
+        if (result.errors.length > 0) {
+          toast.warning(`Hubo ${result.errors.length} errores durante la importación.`);
         }
       } else {
-        setErrorMessage(result.message);
+        toast.error("Error durante la importación. Revisa los detalles.");
       }
+
+      // Refresh the rates list
+      onImportComplete();
     } catch (error) {
-      console.error("Error importing rates:", error);
-      setErrorMessage(`Error durante la importación: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-      setImportStep('review'); // Go back to review
+      toast.error("Error durante la importación");
+      console.error("Import error:", error);
     } finally {
-      setIsUploading(false);
+      setIsLoading(false);
     }
   };
 
-  const completeImport = () => {
-    onImportComplete();
-    handleClose();
+  // Handle pasting CSV content
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setCsvContent(e.target.value);
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-auto">
         <DialogHeader>
-          <DialogTitle>Importar Tarifas de Radio</DialogTitle>
+          <DialogTitle>Importar Tarifas</DialogTitle>
           <DialogDescription>
-            Suba un archivo CSV con las tarifas de radio para importarlas.
+            Importa tarifas de radio desde un archivo CSV.
           </DialogDescription>
         </DialogHeader>
 
-        {errorMessage && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        )}
+        <Tabs defaultValue="file" className="mt-4">
+          <TabsList className="mb-4">
+            <TabsTrigger value="file">Archivo CSV</TabsTrigger>
+            <TabsTrigger value="paste">Pegar Contenido</TabsTrigger>
+          </TabsList>
 
-        {importStep === 'upload' && (
-          <div
-            className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors ${
-              isDragging ? 'border-primary bg-primary/10' : 'border-border'
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => document.getElementById('rate-file-input')?.click()}
-          >
-            <input
-              type="file"
-              id="rate-file-input"
-              className="hidden"
-              accept=".csv"
-              onChange={handleFileInputChange}
-            />
-            <FileText className="h-10 w-10 mb-3 mx-auto text-muted-foreground" />
-            <p className="text-sm text-muted-foreground mb-1">
-              Arrastre y suelte el archivo CSV aquí o haga clic para seleccionar
-            </p>
-            {file && <p className="text-sm font-medium">{file.name}</p>}
-            
-            <div className="mt-4 text-xs text-muted-foreground">
-              <p>El archivo debe tener las siguientes columnas:</p>
-              <p className="font-mono bg-muted p-1 mt-1 rounded">
-                station_name, program_name, days, start_time, end_time, rate_15s, rate_30s, rate_45s, rate_60s
+          <TabsContent value="file" className="space-y-4">
+            <div className="border border-dashed border-gray-300 rounded-md p-6 text-center">
+              <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p className="text-sm text-gray-500 mb-2">
+                Arrastra y suelta un archivo CSV o haz clic para seleccionar
               </p>
-            </div>
-          </div>
-        )}
-
-        {importStep === 'review' && (
-          <div className="space-y-4">
-            <Alert>
-              <CheckCircle2 className="h-4 w-4" />
-              <AlertTitle>Archivo analizado correctamente</AlertTitle>
-              <AlertDescription className="text-sm">
-                Se encontraron {importedRates.length} tarifas para importar.
-                Revise la información antes de continuar.
-              </AlertDescription>
-            </Alert>
-            
-            <div className="max-h-40 overflow-y-auto border rounded-md">
-              <div className="p-2 bg-muted text-xs font-medium">
-                Estaciones: {new Set(importedRates.map(r => r.station_name)).size} | 
-                Programas: {new Set(importedRates.map(r => r.program_name)).size}
-              </div>
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-background">
-                  <tr className="border-b">
-                    <th className="p-2 text-left">Estación</th>
-                    <th className="p-2 text-left">Programa</th>
-                    <th className="p-2 text-left">Horario</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {importedRates.slice(0, 5).map((rate, idx) => (
-                    <tr key={idx} className="border-b">
-                      <td className="p-2">{rate.station_name}</td>
-                      <td className="p-2">{rate.program_name}</td>
-                      <td className="p-2">
-                        {rate.start_time.substring(0, 5)} - {rate.end_time.substring(0, 5)}
-                      </td>
-                    </tr>
-                  ))}
-                  {importedRates.length > 5 && (
-                    <tr>
-                      <td colSpan={3} className="p-2 text-center text-muted-foreground">
-                        ... y {importedRates.length - 5} más
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">
-                {file?.name} - {(file?.size || 0) / 1024 < 1000 
-                  ? `${Math.round((file?.size || 0) / 1024)} KB` 
-                  : `${Math.round((file?.size || 0) / 1024 / 1024 * 10) / 10} MB`}
-              </p>
-              <Button variant="outline" size="sm" onClick={() => setImportStep('upload')}>
-                Cambiar archivo
+              <Input
+                id="file-upload"
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                onClick={() => document.getElementById("file-upload")?.click()}
+              >
+                Seleccionar Archivo
               </Button>
+              {csvFile && (
+                <p className="mt-2 text-sm font-medium">
+                  Archivo seleccionado: {csvFile.name}
+                </p>
+              )}
             </div>
-          </div>
-        )}
 
-        {importStep === 'importing' && (
-          <div className="py-6 flex flex-col items-center justify-center">
-            <Upload className="h-10 w-10 animate-pulse mb-4 text-primary" />
-            <p className="text-center">Importando tarifas...</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Esto puede tardar un momento. Por favor, no cierre esta ventana.
-            </p>
-          </div>
-        )}
+            <div className="space-y-2">
+              <Label htmlFor="delimiter">Delimitador</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={delimiter === "," ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDelimiter(",")}
+                >
+                  Coma (,)
+                </Button>
+                <Button
+                  type="button"
+                  variant={delimiter === ";" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDelimiter(";")}
+                >
+                  Punto y coma (;)
+                </Button>
+                <Button
+                  type="button"
+                  variant={delimiter === "\t" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDelimiter("\t")}
+                >
+                  Tabulador
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
 
-        {importStep === 'complete' && importResult && (
-          <div className="space-y-4">
-            <Alert variant={importResult.errors === 0 ? "default" : "warning"}>
-              {importResult.errors === 0 ? (
+          <TabsContent value="paste" className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="csv-content">Contenido CSV</Label>
+              <Textarea
+                id="csv-content"
+                placeholder="Pega el contenido CSV aquí..."
+                rows={10}
+                value={csvContent}
+                onChange={handleContentChange}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="delimiter">Delimitador</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={delimiter === "," ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDelimiter(",")}
+                >
+                  Coma (,)
+                </Button>
+                <Button
+                  type="button"
+                  variant={delimiter === ";" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDelimiter(";")}
+                >
+                  Punto y coma (;)
+                </Button>
+                <Button
+                  type="button"
+                  variant={delimiter === "\t" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDelimiter("\t")}
+                >
+                  Tabulador
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        {step === "result" && importResult && (
+          <div className="mt-4 space-y-4">
+            <Alert
+              variant={importResult.success ? "default" : "destructive"}
+              className="mb-4"
+            >
+              {importResult.success ? (
                 <CheckCircle2 className="h-4 w-4" />
               ) : (
-                <AlertTriangle className="h-4 w-4" />
+                <AlertCircle className="h-4 w-4" />
               )}
-              <AlertTitle>Importación {importResult.success ? 'completada' : 'finalizada con errores'}</AlertTitle>
-              <AlertDescription className="text-sm">
-                {importResult.message}
+              <AlertTitle>
+                {importResult.success
+                  ? "Importación completada"
+                  : "Error en la importación"}
+              </AlertTitle>
+              <AlertDescription>
+                {importResult.success
+                  ? `Se importaron ${importResult.imported} tarifas correctamente.`
+                  : "No se pudieron importar las tarifas."}
+                {importResult.errors.length > 0 &&
+                  ` Se encontraron ${importResult.errors.length} errores.`}
               </AlertDescription>
             </Alert>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="border rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-primary">{importResult.imported}</p>
-                <p className="text-sm text-muted-foreground">Tarifas importadas</p>
+
+            {importResult.errors.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-medium">Errores encontrados:</h4>
+                <div className="max-h-60 overflow-y-auto border rounded-md p-4">
+                  {importResult.errors.map((error, index) => (
+                    <div key={index} className="mb-2 pb-2 border-b last:border-0">
+                      <div className="flex items-center gap-2">
+                        <FileWarning className="h-4 w-4 text-destructive" />
+                        <Badge variant="destructive">
+                          {error.line ? `Línea ${error.line}` : "Error"}
+                        </Badge>
+                        <span className="text-sm">{error.error}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="border rounded-lg p-4 text-center">
-                <p className={`text-2xl font-bold ${importResult.errors > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                  {importResult.errors}
-                </p>
-                <p className="text-sm text-muted-foreground">Errores</p>
-              </div>
-            </div>
-            
-            {importResult.errors > 0 && (
-              <Alert>
-                <XCircle className="h-4 w-4" />
-                <AlertTitle>Algunas tarifas no pudieron ser importadas</AlertTitle>
-                <AlertDescription className="text-xs">
-                  Esto puede deberse a que la estación no existe, el programa no es válido o hay datos en formato incorrecto.
-                </AlertDescription>
-              </Alert>
             )}
           </div>
         )}
 
         <DialogFooter>
-          {importStep === 'upload' && (
+          {step === "upload" && (
             <>
-              <Button variant="outline" onClick={handleClose}>Cancelar</Button>
-              <Button 
-                disabled={!file || isAnalyzing} 
-                onClick={() => document.getElementById('rate-file-input')?.click()}
+              <Button variant="outline" onClick={handleClose}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={!csvContent || isLoading}
               >
-                {isAnalyzing ? 'Analizando...' : 'Seleccionar archivo'}
+                {isLoading ? "Importando..." : "Importar"}
               </Button>
             </>
           )}
-          
-          {importStep === 'review' && (
-            <>
-              <Button variant="outline" onClick={handleClose}>Cancelar</Button>
-              <Button onClick={handleImport} disabled={isUploading || importedRates.length === 0}>
-                Importar {importedRates.length} tarifas
-              </Button>
-            </>
-          )}
-          
-          {importStep === 'complete' && (
-            <Button onClick={completeImport}>
-              {importResult?.success ? 'Continuar' : 'Cerrar'}
-            </Button>
+
+          {step === "result" && (
+            <Button onClick={handleClose}>Cerrar</Button>
           )}
         </DialogFooter>
       </DialogContent>
