@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { 
   fetchRates,
@@ -27,7 +27,8 @@ export function useTvRatesManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const loadData = async () => {
+  // Load all data (rates, channels, programs)
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       // Load all the data we need
@@ -39,6 +40,19 @@ export function useTvRatesManagement() {
       
       console.log('Loaded rates:', ratesData.length, 'Channels:', channelsData.length, 'Programs:', programsData.length);
       
+      // Analyze loaded data for potential issues
+      if (ratesData.length === 0) {
+        console.warn("No rates loaded from the database");
+      }
+      
+      if (channelsData.length === 0) {
+        console.warn("No channels loaded from the database");
+      }
+      
+      if (programsData.length === 0) {
+        console.warn("No programs loaded from the database");
+      }
+      
       setRates(ratesData);
       setChannels(channelsData);
       setPrograms(programsData);
@@ -48,19 +62,20 @@ export function useTvRatesManagement() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
+  // Initial data load
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   // Filter rates based on search term and selected channel/program
   const filteredRates = useMemo(() => {
     const filtered = rates.filter(rate => {
       const matchesSearch = 
         searchTerm === '' || 
-        rate.channel_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        rate.program_name?.toLowerCase().includes(searchTerm.toLowerCase());
+        (rate.channel_name && rate.channel_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (rate.program_name && rate.program_name.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesChannel = selectedChannel === 'all' || rate.channel_id === selectedChannel;
       const matchesProgram = selectedProgram === 'all' || rate.program_id === selectedProgram;
@@ -81,7 +96,7 @@ export function useTvRatesManagement() {
     const paginated = filteredRates.slice(startIndex, startIndex + itemsPerPage);
     console.log('Paginated rates:', paginated.length, 'Page:', currentPage, 'of', totalPages);
     return paginated;
-  }, [filteredRates, currentPage, itemsPerPage]);
+  }, [filteredRates, currentPage, itemsPerPage, totalPages]);
 
   // Reset page when filters change
   useEffect(() => {

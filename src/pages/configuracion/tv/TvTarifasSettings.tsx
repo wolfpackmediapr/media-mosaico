@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { TvRatesContent } from "@/components/settings/tv/rates/TvRatesContent";
 import { TvRatesFooter } from "@/components/settings/tv/rates/TvRatesFooter";
@@ -68,10 +68,11 @@ export function TvTarifasSettings({ isLoading: externalLoading = false }: TvTari
     setEditingId(null);
   };
 
-  const handleImportComplete = () => {
+  const handleImportComplete = useCallback(() => {
     loadData();
     toast.success("Importación completada. Los datos han sido actualizados.");
-  };
+    setShowImportDialog(false);
+  }, [loadData]);
 
   const handleSeedRates = async () => {
     if (!confirm("¿Está seguro que desea cargar los datos de tarifas predefinidos? Esta acción reemplazará todas las tarifas existentes.")) {

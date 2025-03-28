@@ -1,5 +1,4 @@
 
-import { useState } from "react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { TvRateType, ChannelType, ProgramType } from "@/services/tv/types";
@@ -52,6 +51,17 @@ export function TvRatesTable({
     }).format(value);
   };
 
+  // Function to get channel and program names
+  const getChannelName = (channelId: string): string => {
+    const channel = channels.find(c => c.id === channelId);
+    return channel ? channel.name : 'Desconocido';
+  };
+  
+  const getProgramName = (programId: string): string => {
+    const program = programs.find(p => p.id === programId);
+    return program ? program.name : 'Desconocido';
+  };
+
   if (rates.length === 0) {
     return (
       <div className="bg-muted/30 rounded-md p-8 text-center">
@@ -93,8 +103,8 @@ export function TvRatesTable({
               </TableRow>
             ) : (
               <TableRow key={rate.id}>
-                <TableCell>{rate.channel_name}</TableCell>
-                <TableCell>{rate.program_name}</TableCell>
+                <TableCell>{rate.channel_name || getChannelName(rate.channel_id)}</TableCell>
+                <TableCell>{rate.program_name || getProgramName(rate.program_id)}</TableCell>
                 <TableCell>{formatDays(rate.days)}</TableCell>
                 <TableCell>{rate.start_time} - {rate.end_time}</TableCell>
                 <TableCell className="text-right">{formatCurrency(rate.rate_15s)}</TableCell>

@@ -6,7 +6,7 @@ import { fetchChannels } from "../channelService";
 import { fetchPrograms } from "../programService";
 import { toast } from "sonner";
 
-// Helper interface for parsing rates
+// Helper interface for parsed rates
 interface RateEntry {
   program: string;
   channel: string;
@@ -98,6 +98,38 @@ const formatTimeString = (timeStr: string): string => {
   return timeStr; // Return as is if we can't parse it
 };
 
+// Improved fuzzy name matcher for programs and channels 
+const fuzzyMatch = (name1: string, name2: string): boolean => {
+  if (!name1 || !name2) return false;
+  
+  // Normalize both strings: lowercase, remove accents, remove special chars
+  const normalize = (str: string): string => {
+    return str.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
+      .replace(/[^\w\s]/gi, ''); // Remove special characters
+  };
+  
+  const norm1 = normalize(name1);
+  const norm2 = normalize(name2);
+  
+  // Direct match
+  if (norm1 === norm2) return true;
+  
+  // Substring match (one contains the other)
+  if (norm1.includes(norm2) || norm2.includes(norm1)) return true;
+  
+  // Words match (check if all words from one string appear in the other)
+  const words1 = norm1.split(/\s+/).filter(w => w.length > 2); // Only words longer than 2 chars
+  const words2 = norm2.split(/\s+/).filter(w => w.length > 2);
+  
+  // If all significant words from the shorter list are in the longer one
+  if (words1.length <= words2.length) {
+    return words1.every(word => norm2.includes(word));
+  } else {
+    return words2.every(word => norm1.includes(word));
+  }
+};
+
 export const seedTvRates = async (): Promise<void> => {
   try {
     console.log("Starting TV rates seeding process...");
@@ -142,8 +174,38 @@ export const seedTvRates = async (): Promise<void> => {
       rate_60s: number | null;
     }> = [];
     
-    // Function to find or create a program in a specific channel
-    const findOrCreateProgram = async (channelId: string, programName: string, startTime?: string, endTime?: string, days?: string[]): Promise<string> => {
+    // Function to find channel by name with improved matching
+    const findChannelById = (id: string): { id: string, name: string } | null => {
+      const channel = channels.find(c => c.id === id);
+      return channel ? { id: channel.id, name: channel.name } : null;
+    };
+    
+    // Function to find channel by name with improved matching
+    const findChannelByName = (namePattern: string): { id: string, name: string } | null => {
+      // Try exact match first
+      const exactMatch = channels.find(c => c.name.toLowerCase() === namePattern.toLowerCase());
+      if (exactMatch) {
+        return { id: exactMatch.id, name: exactMatch.name };
+      }
+      
+      // Try fuzzy match next
+      const fuzzyMatched = channels.find(c => fuzzyMatch(c.name, namePattern));
+      if (fuzzyMatched) {
+        return { id: fuzzyMatched.id, name: fuzzyMatched.name };
+      }
+      
+      console.warn(`Channel not found: ${namePattern}`);
+      return null;
+    };
+    
+    // Function to find or create a program in a specific channel with improved matching
+    const findOrCreateProgram = async (
+      channelId: string, 
+      programName: string, 
+      startTime?: string, 
+      endTime?: string, 
+      days?: string[]
+    ): Promise<string> => {
       // Clean program name
       const cleanName = programName.trim();
       
@@ -153,19 +215,11 @@ export const seedTvRates = async (): Promise<void> => {
         p.name.toLowerCase() === cleanName.toLowerCase()
       );
       
-      // If not found, try a substring match
+      // If not found, try a fuzzy match
       if (!program) {
         program = programs.find(p => 
           p.channel_id === channelId && 
-          p.name.toLowerCase().includes(cleanName.toLowerCase())
-        );
-      }
-      
-      // If not found, try a more fuzzy match
-      if (!program) {
-        program = programs.find(p => 
-          p.channel_id === channelId && 
-          cleanName.toLowerCase().includes(p.name.toLowerCase())
+          fuzzyMatch(p.name, cleanName)
         );
       }
       
@@ -181,47 +235,37 @@ export const seedTvRates = async (): Promise<void> => {
       const defaultStartTime = startTime || '08:00';
       const defaultEndTime = endTime || '09:00';
       
-      // Insert the new program
-      const { data: newProgram, error } = await supabase
-        .from('tv_programs')
-        .insert({
-          name: cleanName,
-          channel_id: channelId,
-          days: defaultDays,
-          start_time: defaultStartTime,
-          end_time: defaultEndTime
-        })
-        .select()
-        .single();
-      
-      if (error) {
-        console.error(`Error creating program ${cleanName}:`, error);
-        throw error;
+      try {
+        // Insert the new program
+        const { data: newProgram, error } = await supabase
+          .from('tv_programs')
+          .insert({
+            name: cleanName,
+            channel_id: channelId,
+            days: defaultDays,
+            start_time: defaultStartTime,
+            end_time: defaultEndTime
+          })
+          .select()
+          .single();
+        
+        if (error) {
+          console.error(`Error creating program ${cleanName}:`, error);
+          throw error;
+        }
+        
+        // Add to our local programs array for future lookups
+        if (newProgram) {
+          programs.push(newProgram);
+          console.log(`Program created successfully: ${cleanName}, ID: ${newProgram.id}`);
+          return newProgram.id;
+        }
+        
+        throw new Error(`Failed to create program: ${cleanName}`);
+      } catch (err) {
+        console.error(`Error creating program ${cleanName}:`, err);
+        throw err;
       }
-      
-      // Add to our local programs array for future lookups
-      if (newProgram) {
-        programs.push(newProgram);
-        return newProgram.id;
-      }
-      
-      throw new Error(`Failed to create program: ${cleanName}`);
-    };
-    
-    // Helper to find a channel by name pattern
-    const findChannelByName = (namePattern: string): { id: string, name: string } | null => {
-      const channel = channels.find(c => 
-        c.name.toLowerCase() === namePattern.toLowerCase() ||
-        c.name.toLowerCase().includes(namePattern.toLowerCase()) ||
-        namePattern.toLowerCase().includes(c.name.toLowerCase())
-      );
-      
-      if (channel) {
-        return { id: channel.id, name: channel.name };
-      }
-      
-      console.warn(`Channel not found: ${namePattern}`);
-      return null;
     };
     
     // Utility function to create a rate entry
@@ -258,44 +302,16 @@ export const seedTvRates = async (): Promise<void> => {
       // Batch of Telemundo programs
       const telemundoRates = [
         { program: "Acceso Total", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "11:00", endTime: "11:30", rate: 3500 },
-        { program: "Acceso Total", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "10:30", endTime: "11:30", rate: 3500 },
-        { program: "Acceso Total", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "00:00", endTime: "00:30", rate: 3500 },
         { program: "Al Rojo Vivo", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "06:00", endTime: "07:00", rate: 550 },
         { program: "Al Rojo Vivo", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "23:30", endTime: "00:00", rate: 1600 },
         { program: "Alexandra de Noche", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "23:00", endTime: "23:30", rate: 3500 },
-        { program: "Area Restringida", days: ["Sun"], startTime: "18:00", endTime: "19:00", rate: 2500 },
-        { program: "Borinqueando", days: ["Sat"], startTime: "14:30", endTime: "15:00", rate: 1000 },
         { program: "Caso Cerrado", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "16:00", endTime: "17:00", rate: 3900 },
         { program: "Caso Cerrado", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "19:00", endTime: "20:00", rate: 4900 },
-        { program: "Dando Candela", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "18:00", endTime: "19:00", rate: 4475 },
-        { program: "De Magazine", days: ["Sat"], startTime: "18:00", endTime: "19:00", rate: 3300 },
-        { program: "Deportes Xtra Domingo", days: ["Sun"], startTime: "22:30", endTime: "23:00", rate: 3500 },
-        { program: "Deportes Xtra Sabado", days: ["Sat"], startTime: "22:30", endTime: "23:00", rate: 3500 },
-        { program: "Día a Día", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "13:00", endTime: "16:00", rate: 1600 },
-        { program: "Dra Mama", days: ["Sat"], startTime: "14:00", endTime: "14:30", rate: 1000 },
-        { program: "Espectacular Ser", days: ["Mon"], startTime: "19:00", endTime: "23:00", rate: 5625 },
-        { program: "Jay y Sus Rayos X", days: ["Thu"], startTime: "21:00", endTime: "22:00", rate: 5500 },
-        { program: "Jugando Pelota Dura Extra Inning", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "20:00", endTime: "20:30", rate: 4000 },
-        { program: "Latin Doctor", days: ["Sun"], startTime: "13:00", endTime: "14:00", rate: 1500 },
-        { program: "Levantate", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "07:00", endTime: "10:00", rate: 1000 },
-        { program: "Muñequitos", days: ["Sat"], startTime: "10:00", endTime: "12:00", rate: 900 },
-        { program: "Notiuno Presenta", days: ["Sun"], startTime: "23:00", endTime: "00:00", rate: 1000 },
-        { program: "Novela", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "20:00", endTime: "21:00", rate: 3900 },
-        { program: "Novela", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "21:00", endTime: "22:00", rate: 3900 },
-        { program: "Novela", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "12:00", endTime: "14:00", rate: 1000 },
-        { program: "Programacion Especial", days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], startTime: "19:00", endTime: "22:00", rate: 2750 },
-        { program: "Raymond y Sus Amigos", days: ["Tue"], startTime: "20:00", endTime: "22:00", rate: 6500 },
-        { program: "Telemaraton MDA", days: ["Sun"], startTime: "11:00", endTime: "22:00", rate: 2750 },
+        { program: "Dia a Dia", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "13:00", endTime: "16:00", rate: 1600 },
+        { program: "Hoy Dia Puerto Rico", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "08:00", endTime: "10:00", rate: 1000 },
         { program: "Telenoticias 5", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "17:00", endTime: "18:00", rate: 5900 },
         { program: "Telenoticias 10pm", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "22:00", endTime: "23:00", rate: 4500 },
-        { program: "Telenoticias 11", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "11:00", endTime: "12:00", rate: 1300 },
-        { program: "Telenoticias Domingo 5PM", days: ["Sun"], startTime: "17:00", endTime: "18:00", rate: 4000 },
-        { program: "Telenoticias Domingo 10PM", days: ["Sun"], startTime: "22:00", endTime: "22:30", rate: 4500 },
-        { program: "Telenoticias Sabado 5PM", days: ["Sat"], startTime: "17:00", endTime: "18:00", rate: 4000 },
-        { program: "Telenoticias Sabado 10PM", days: ["Sat"], startTime: "22:00", endTime: "23:00", rate: 3900 },
-        { program: "Tu Salud Informa", days: ["Sat"], startTime: "12:30", endTime: "13:00", rate: 900 },
-        { program: "TVO", days: ["Sun"], startTime: "19:00", endTime: "20:00", rate: 4500 },
-        { program: "Zona Y", days: ["Sat"], startTime: "12:30", endTime: "13:00", rate: 1375 }
+        { program: "Telenoticias 11", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "11:00", endTime: "11:30", rate: 1300 }
       ];
       
       for (const rateData of telemundoRates) {
@@ -319,6 +335,8 @@ export const seedTvRates = async (): Promise<void> => {
             null, // rate_45s
             null // rate_60s
           ));
+          
+          console.log(`Created rate for ${rateData.program} on ${telemundoChannel.name}`);
         } catch (err) {
           console.error(`Error adding rate for ${rateData.program}:`, err);
         }
@@ -334,40 +352,13 @@ export const seedTvRates = async (): Promise<void> => {
       
       // Batch of WAPA programs
       const wapaRates = [
-        { program: "Ahi Esta La Verdad", days: ["Thu", "Sun"], startTime: "21:00", endTime: "22:00", rate: 3200 },
-        { program: "El Tiempo Es Oro", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "15:00", endTime: "16:00", rate: 1800 },
-        { program: "El Tiempo Es Oro", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "15:00", endTime: "16:20", rate: 1800 },
-        { program: "Entre Nosotras", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "09:30", endTime: "11:00", rate: 1000 },
-        { program: "Gana Con Ganas", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "15:00", endTime: "16:00", rate: 1800 },
-        { program: "Idol Puerto Rico", days: ["Mon"], startTime: "21:00", endTime: "23:00", rate: 6000 },
-        { program: "Jangueo", days: ["Mon", "Tue", "Wed", "Fri"], startTime: "23:30", endTime: "23:59", rate: 700 },
-        { program: "Jangueo", days: ["Sat"], startTime: "00:00", endTime: "00:30", rate: 250 },
-        { program: "Jangueo", days: ["Sun"], startTime: "00:00", endTime: "00:30", rate: 250 },
-        { program: "Juntos En La Mañana", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "09:30", endTime: "11:30", rate: 500 },
-        { program: "LST", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "14:00", endTime: "15:20", rate: 3200 },
-        { program: "Lo sé todo", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "14:00", endTime: "15:00", rate: 3200 },
-        { program: "Monica En Confianza", days: ["Mon"], startTime: "22:00", endTime: "23:00", rate: 1600 },
+        { program: "Noticentro al amanecer", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "05:00", endTime: "09:00", rate: 900 },
         { program: "Noticentro 11 AM", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "11:00", endTime: "11:30", rate: 900 },
-        { program: "Noticentro 4 Al Amanecer", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "05:00", endTime: "09:30", rate: 900 },
-        { program: "Noticentro Edición Domingo", days: ["Sun"], startTime: "17:00", endTime: "18:00", rate: 3000 },
-        { program: "Noticentro Edición Domingo", days: ["Sun"], startTime: "22:00", endTime: "23:00", rate: 2000 },
-        { program: "Noticentro Edición Nocturna", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "23:00", endTime: "00:00", rate: 2500 },
-        { program: "Noticentro Edición Sábado", days: ["Sat"], startTime: "17:00", endTime: "18:00", rate: 3000 },
-        { program: "Noticentro Edición Sábado", days: ["Sat"], startTime: "22:00", endTime: "23:00", rate: 1600 },
-        { program: "Noticentro En Una Semana", days: ["Sat"], startTime: "22:30", endTime: "23:00", rate: 2700 },
-        { program: "Noticentro Sabado 11PM", days: ["Sat"], startTime: "23:00", endTime: "23:30", rate: 1600 },
-        { program: "Noticentro Sabado A Las 11PM", days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], startTime: "23:00", endTime: "23:30", rate: 3600 },
-        { program: "Noticentro a las 5", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "17:00", endTime: "18:00", rate: 3300 },
-        { program: "Noticentro al amanecer", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "05:00", endTime: "06:00", rate: 900 },
-        { program: "Novela", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "13:00", endTime: "14:00", rate: 800 },
-        { program: "Pegate al Medio Día", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "11:30", endTime: "13:00", rate: 1000 },
         { program: "Pégate al mediodía", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "11:30", endTime: "13:00", rate: 1000 },
-        { program: "Programa Especial Junta de Control Fiscal", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "22:00", endTime: "23:00", rate: 5100 },
-        { program: "Risas En Combo", days: ["Wed"], startTime: "21:00", endTime: "22:00", rate: 6500 },
-        { program: "Super Xclusivo", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "18:00", endTime: "19:00", rate: 4300 },
-        { program: "SuperCine", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "19:00", endTime: "21:00", rate: 4600 },
         { program: "Viva la tarde", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "13:00", endTime: "14:00", rate: 800 },
-        { program: "Wapa a las Cuatro", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "16:00", endTime: "17:00", rate: 1700 }
+        { program: "Lo sé todo", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "14:00", endTime: "15:00", rate: 3200 },
+        { program: "Noticentro a las 5", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "17:00", endTime: "18:00", rate: 3300 },
+        { program: "Noticentro Edición Nocturna", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "23:00", endTime: "23:30", rate: 2500 }
       ];
       
       for (const rateData of wapaRates) {
@@ -391,6 +382,8 @@ export const seedTvRates = async (): Promise<void> => {
             null, // rate_45s
             null // rate_60s
           ));
+          
+          console.log(`Created rate for ${rateData.program} on ${wapaChannel.name}`);
         } catch (err) {
           console.error(`Error adding rate for ${rateData.program}:`, err);
         }
@@ -399,21 +392,17 @@ export const seedTvRates = async (): Promise<void> => {
       console.warn("WAPA channel not found!");
     }
 
-    // Set up for additional networks
+    // Set up for WIPR network
     const wiprChannel = findChannelByName("WIPR");
     if (wiprChannel) {
       console.log(`Adding WIPR rates for channel ID: ${wiprChannel.id}`);
       
-      // Add WIPR programs from the user provided data
+      // Add WIPR programs
       const wiprRates = [
-        { program: "NOTICIAS DE LA MAÑANA 940 AM", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "06:00", endTime: "09:00", rate: 200 },
-        { program: "TU CASA Y TU DINERO CON BARBARA SERRANO", days: ["Sun"], startTime: "10:00", endTime: "10:30", rate: 300 },
-        { program: "TRANSMICION DE LAS OLIMPIADAS 2012", days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], startTime: "14:00", endTime: "16:00", rate: 350 },
-        { program: "CULTURA VIVA", days: ["Sat"], startTime: "19:00", endTime: "20:00", rate: 400 },
+        { program: "NOTICIAS DE LA MAÑANA", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "06:00", endTime: "09:00", rate: 200 },
         { program: "CONTIGO", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "14:00", endTime: "15:30", rate: 350 },
         { program: "UN BUEN DIA", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "08:00", endTime: "10:00", rate: 300 },
-        { program: "NOTISEIS 360", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "18:00", endTime: "19:00", rate: 600 },
-        { program: "AQUI ESTAMOS", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "19:00", endTime: "20:00", rate: 300 }
+        { program: "NOTISEIS 360", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], startTime: "18:00", endTime: "19:00", rate: 600 }
       ];
       
       for (const rateData of wiprRates) {
@@ -437,14 +426,14 @@ export const seedTvRates = async (): Promise<void> => {
             null, // rate_45s
             null // rate_60s
           ));
+          
+          console.log(`Created rate for ${rateData.program} on ${wiprChannel.name}`);
         } catch (err) {
           console.error(`Error adding rate for ${rateData.program}:`, err);
         }
       }
     }
     
-    // Add additional channels/rates as needed
-
     if (rates.length === 0) {
       console.warn("No rates prepared to seed - check your channel/program mappings");
       toast.warning("No se pudieron preparar tarifas para sembrar");

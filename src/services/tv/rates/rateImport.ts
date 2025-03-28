@@ -191,69 +191,119 @@ export const importRatesFromCSV = async (file: File): Promise<void> => {
             const channels = channelsData || [];
             const programs = programsData || [];
             
-            // Helper to find a channel by name
-            const findChannelId = (channelName: string): string | null => {
-              const channel = channels.find(c => 
-                c.name.toLowerCase() === channelName.toLowerCase() ||
-                c.name.toLowerCase().includes(channelName.toLowerCase()) ||
-                channelName.toLowerCase().includes(c.name.toLowerCase())
-              );
+            // Helper function for more flexible name matching
+            const fuzzyMatch = (name1: string, name2: string): boolean => {
+              if (!name1 || !name2) return false;
               
-              return channel ? channel.id : null;
+              // Normalize both strings: lowercase, remove accents, remove special chars
+              const normalize = (str: string): string => {
+                return str.toLowerCase()
+                  .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
+                  .replace(/[^\w\s]/gi, ''); // Remove special characters
+              };
+              
+              const norm1 = normalize(name1);
+              const norm2 = normalize(name2);
+              
+              // Direct match
+              if (norm1 === norm2) return true;
+              
+              // Substring match (one contains the other)
+              if (norm1.includes(norm2) || norm2.includes(norm1)) return true;
+              
+              // Words match (check if all words from one string appear in the other)
+              const words1 = norm1.split(/\s+/).filter(w => w.length > 2); // Only words longer than 2 chars
+              const words2 = norm2.split(/\s+/).filter(w => w.length > 2);
+              
+              // If all significant words from the shorter list are in the longer one
+              if (words1.length <= words2.length) {
+                return words1.every(word => norm2.includes(word));
+              } else {
+                return words2.every(word => norm1.includes(word));
+              }
             };
             
-            // Helper to find a program by name and channel
-            const findProgramId = (programName: string, channelId: string): string | null => {
-              const program = programs.find(p => 
-                p.channel_id === channelId && (
-                  p.name.toLowerCase() === programName.toLowerCase() ||
-                  p.name.toLowerCase().includes(programName.toLowerCase()) ||
-                  programName.toLowerCase().includes(p.name.toLowerCase())
-                )
+            // Helper to find a channel by name with improved matching
+            const findChannelId = (channelName: string): string | null => {
+              // Try exact match first
+              const exactMatch = channels.find(c => 
+                c.name.toLowerCase() === channelName.toLowerCase()
               );
               
-              return program ? program.id : null;
+              if (exactMatch) return exactMatch.id;
+              
+              // Try fuzzy match next
+              const fuzzyMatched = channels.find(c => fuzzyMatch(c.name, channelName));
+              
+              return fuzzyMatched ? fuzzyMatched.id : null;
+            };
+            
+            // Helper to find a program by name and channel with improved matching
+            const findProgramId = (programName: string, channelId: string): string | null => {
+              // Try exact match first
+              const exactMatch = programs.find(p => 
+                p.channel_id === channelId && 
+                p.name.toLowerCase() === programName.toLowerCase()
+              );
+              
+              if (exactMatch) return exactMatch.id;
+              
+              // Try fuzzy match next
+              const fuzzyMatched = programs.find(p => 
+                p.channel_id === channelId && 
+                fuzzyMatch(p.name, programName)
+              );
+              
+              return fuzzyMatched ? fuzzyMatched.id : null;
             };
             
             // Helper to create a program if it doesn't exist
             const createProgram = async (name: string, channelId: string, days: string[], startTime: string, endTime: string): Promise<string> => {
-              const { data, error } = await supabase
-                .from('tv_programs')
-                .insert({
-                  name,
-                  channel_id: channelId,
-                  days,
-                  start_time: startTime,
-                  end_time: endTime
-                })
-                .select()
-                .single();
+              try {
+                const { data, error } = await supabase
+                  .from('tv_programs')
+                  .insert({
+                    name,
+                    channel_id: channelId,
+                    days,
+                    start_time: startTime,
+                    end_time: endTime
+                  })
+                  .select()
+                  .single();
+                  
+                if (error) {
+                  console.error("Error creating program:", error);
+                  throw error;
+                }
                 
-              if (error) {
-                console.error("Error creating program:", error);
+                // Add to our local cache
+                programs.push(data);
+                
+                return data.id;
+              } catch (error) {
+                console.error("Error in createProgram:", error);
                 throw error;
               }
-              
-              // Add to our local cache
-              programs.push(data);
-              
-              return data.id;
             };
             
             // Process each row to create rate entries
             const rates: any[] = [];
+            let skippedRows = 0;
             
             for (let i = 0; i < results.data.length; i++) {
               const row = results.data[i];
               
               // Skip rows with no data
               if (!row.medio && !row.channel_id && !row.programa && !row.program_id) {
+                skippedRows++;
                 continue;
               }
               
-              // Check if rate30s has "No disponible"
-              const rateString = (row.rate_30s || row["30s"] || "").toString().trim();
-              if (rateString.toLowerCase() === "no disponible") {
+              // Check if rates have "No disponible"
+              const rateStringCheck = (row.rate_30s || row["30s"] || "").toString().trim();
+              if (rateStringCheck.toLowerCase() === "no disponible") {
+                skippedRows++;
                 continue;
               }
               
@@ -263,6 +313,7 @@ export const importRatesFromCSV = async (file: File): Promise<void> => {
                 channelId = findChannelId(row.medio);
                 if (!channelId) {
                   console.warn(`Channel not found for row ${i+1}: ${row.medio}`);
+                  skippedRows++;
                   continue; // Skip this row
                 }
               }
@@ -301,10 +352,11 @@ export const importRatesFromCSV = async (file: File): Promise<void> => {
                     const startTime = formatTimeString(row.start_time || row.hora_ini || "08:00");
                     const endTime = formatTimeString(row.end_time || row.hora_fin || "09:00");
                     
-                    programId = await createProgram(row.programa, channelId, days, startTime, endTime);
+                    programId = await createProgram(row.programa!, channelId, days, startTime, endTime);
                     console.log(`Created new program: ${row.programa} with ID: ${programId}`);
                   } catch (err) {
                     console.error(`Error creating program for row ${i+1}:`, err);
+                    skippedRows++;
                     continue; // Skip this row
                   }
                 }
@@ -312,6 +364,7 @@ export const importRatesFromCSV = async (file: File): Promise<void> => {
               
               if (!channelId || !programId) {
                 console.warn(`Missing channel or program ID for row ${i+1}`);
+                skippedRows++;
                 continue;
               }
               
@@ -343,10 +396,11 @@ export const importRatesFromCSV = async (file: File): Promise<void> => {
               
               if (!startTime || !endTime) {
                 console.warn(`Missing time information for row ${i+1}`);
+                skippedRows++;
                 continue;
               }
               
-              // Process rates
+              // Process rates - Fix: Renamed variable to avoid redefinition
               const rate15s = parseFloat(row.rate_15s || row["15s"] || "0") || null;
               const rate30s = parseFloat(row.rate_30s || row["30s"] || "0") || null;
               const rate45s = parseFloat(row.rate_45s || row["45s"] || "0") || null;
@@ -373,7 +427,7 @@ export const importRatesFromCSV = async (file: File): Promise<void> => {
               return;
             }
             
-            console.log(`Prepared ${rates.length} TV rates for import`);
+            console.log(`Prepared ${rates.length} TV rates for import (skipped ${skippedRows} rows)`);
 
             // Insert rates into the database
             const { error } = await supabase
