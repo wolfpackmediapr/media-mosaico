@@ -80,6 +80,12 @@ export async function migrateLocalStorageToDatabase(): Promise<RadioMigration> {
 }
 
 /**
+ * Explicitly export migrateToDatabase as an alias for migrateLocalStorageToDatabase
+ * This resolves the import error in RadioMigrationPanel
+ */
+export const migrateToDatabase = migrateLocalStorageToDatabase;
+
+/**
  * Run the necessary migrations for radio data
  */
 export async function runMigrations(): Promise<RadioMigration[]> {

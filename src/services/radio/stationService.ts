@@ -10,13 +10,18 @@ export async function fetchStations(): Promise<StationType[]> {
   try {
     const { data, error } = await supabase
       .from('media_outlets')
-      .select('id, name, code')
+      .select('id, name, folder')
       .eq('type', 'radio')
       .order('name');
     
     if (error) throw error;
     
-    return data as StationType[];
+    // Convert the data to StationType format using the folder field as code
+    return data.map(station => ({
+      id: station.id,
+      name: station.name,
+      code: station.folder || station.name.substring(0, 4).toUpperCase() // Use folder as code or fallback to first 4 chars
+    })) as StationType[];
   } catch (error) {
     console.error('Error fetching radio stations:', error);
     return [];
@@ -30,14 +35,19 @@ export async function getStation(id: string): Promise<StationType | null> {
   try {
     const { data, error } = await supabase
       .from('media_outlets')
-      .select('id, name, code')
+      .select('id, name, folder')
       .eq('id', id)
       .eq('type', 'radio')
       .single();
     
     if (error) throw error;
     
-    return data as StationType;
+    // Convert to StationType
+    return {
+      id: data.id,
+      name: data.name,
+      code: data.folder || data.name.substring(0, 4).toUpperCase() // Use folder as code or fallback
+    };
   } catch (error) {
     console.error('Error getting radio station:', error);
     return null;
@@ -53,7 +63,7 @@ export async function createStation(stationData: Omit<StationType, 'id'>): Promi
       .from('media_outlets')
       .insert({
         name: stationData.name,
-        code: stationData.code,
+        folder: stationData.code, // Store code in the folder field
         type: 'radio'
       })
       .select()
@@ -61,7 +71,12 @@ export async function createStation(stationData: Omit<StationType, 'id'>): Promi
     
     if (error) throw error;
     
-    return data as StationType;
+    // Convert to StationType
+    return {
+      id: data.id,
+      name: data.name,
+      code: data.folder || stationData.code // Use the original code as fallback
+    };
   } catch (error) {
     console.error('Error creating radio station:', error);
     throw error;
@@ -77,7 +92,7 @@ export async function updateStation(stationData: StationType): Promise<StationTy
       .from('media_outlets')
       .update({
         name: stationData.name,
-        code: stationData.code
+        folder: stationData.code // Store code in the folder field
       })
       .eq('id', stationData.id)
       .eq('type', 'radio')
@@ -86,7 +101,12 @@ export async function updateStation(stationData: StationType): Promise<StationTy
     
     if (error) throw error;
     
-    return data as StationType;
+    // Convert to StationType
+    return {
+      id: data.id,
+      name: data.name,
+      code: data.folder || stationData.code // Use the original code as fallback
+    };
   } catch (error) {
     console.error('Error updating radio station:', error);
     throw error;
