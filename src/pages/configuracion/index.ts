@@ -6,4 +6,4 @@ export { default as ClientsSettings } from "./ClientsSettings";
 export { default as NotificationMonitoring } from "./NotificationMonitoring";
 export { default as RadioSettings } from "./RadioSettings";
 export { default as PressSettings } from "./PressSettings";
-
+export { default as TvSettings } from "./TvSettings";

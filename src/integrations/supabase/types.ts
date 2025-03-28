@@ -683,6 +683,101 @@ export type Database = {
         }
         Relationships: []
       }
+      radio_data_version: {
+        Row: {
+          id: number
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          id?: number
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          id?: number
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      radio_migrations: {
+        Row: {
+          applied_at: string
+          applied_by: string | null
+          description: string | null
+          id: string
+          name: string
+          rollback_info: Json | null
+          status: string
+          version: string
+        }
+        Insert: {
+          applied_at?: string
+          applied_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          rollback_info?: Json | null
+          status?: string
+          version: string
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          rollback_info?: Json | null
+          status?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      radio_programs: {
+        Row: {
+          created_at: string
+          days: string[]
+          end_time: string
+          host: string | null
+          id: string
+          name: string
+          start_time: string
+          station_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          days: string[]
+          end_time: string
+          host?: string | null
+          id?: string
+          name: string
+          start_time: string
+          station_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          days?: string[]
+          end_time?: string
+          host?: string | null
+          id?: string
+          name?: string
+          start_time?: string
+          station_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radio_programs_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "media_outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radio_transcriptions: {
         Row: {
           analysis_result: Json | null
