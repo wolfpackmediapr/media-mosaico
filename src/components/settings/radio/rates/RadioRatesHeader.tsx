@@ -11,9 +11,9 @@ export function RadioRatesHeader({ onAddClick, onImportClick }: RadioRatesHeader
   return (
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
       <div>
-        <h2 className="text-lg font-semibold">Tarifas de Radio</h2>
+        <h2 className="text-lg font-semibold">Configuración de tarifas</h2>
         <p className="text-sm text-muted-foreground">
-          Gestione las tarifas de publicidad de radio
+          Añada, importe o modifique las tarifas publicitarias
         </p>
       </div>
       <div className="flex space-x-2 mt-3 sm:mt-0">
