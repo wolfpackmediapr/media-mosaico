@@ -1,5 +1,4 @@
 
-import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChannelsManagement } from "./ChannelsManagement";
 import { ProgramsManagement } from "./ProgramsManagement";
@@ -7,14 +6,14 @@ import { TvTarifasSettings } from "@/pages/configuracion/tv/TvTarifasSettings";
 
 interface TvSettingsTabsProps {
   activeTab: string;
-  onTabChange: (tab: string) => void;
+  onTabChange: (value: string) => void;
   loading?: boolean;
 }
 
 export function TvSettingsTabs({ activeTab, onTabChange, loading = false }: TvSettingsTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={onTabChange}>
-      <TabsList className="grid grid-cols-3 mb-8">
+      <TabsList className="mb-4">
         <TabsTrigger value="channels">Canales</TabsTrigger>
         <TabsTrigger value="programs">Programas</TabsTrigger>
         <TabsTrigger value="rates">Tarifas</TabsTrigger>

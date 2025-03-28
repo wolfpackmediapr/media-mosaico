@@ -1,128 +1,143 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { ChannelType, ProgramType } from "../types";
-import { getStoredPrograms, isUsingDatabase, getDataVersion } from "../utils";
-import { defaultTvChannelsData, CURRENT_TV_DATA_VERSION } from "./defaultTvData";
+import { defaultTvChannelsData, defaultTvProgramsData, CURRENT_TV_DATA_VERSION } from "./defaultTvData";
+import { getDataVersion } from "../utils";
 
 /**
- * Check if TV data needs to be seeded
+ * Check if TV data should be seeded
  */
-export async function shouldSeedTvData(forceRefresh = false): Promise<{
-  shouldSeedChannels: boolean;
-  shouldSeedPrograms: boolean;
-}> {
-  // Check if data version is current
-  const currentVersion = await getDataVersion();
-  
-  // First check if we already have channels
-  const { data: existingChannels } = await supabase
-    .from('media_outlets')
-    .select('count')
-    .eq('type', 'tv')
-    .single();
-    
-  // Check if we're using database or localStorage
-  const usingDatabase = await isUsingDatabase();
-  
-  // Check for programs in the appropriate storage
-  let programsCount = 0;
-  
-  if (usingDatabase) {
-    // Check database for programs
-    const { count, error } = await supabase
-      .from('tv_programs')
-      .select('*', { count: 'exact', head: true });
-      
-    if (!error && count !== null) {
-      programsCount = count;
+export async function shouldSeedTvData(
+  forceRefresh = false
+): Promise<{ shouldSeedChannels: boolean; shouldSeedPrograms: boolean }> {
+  try {
+    // If forcing a refresh, always return true
+    if (forceRefresh) {
+      return { shouldSeedChannels: true, shouldSeedPrograms: true };
     }
-  } else {
-    // Check localStorage for programs (legacy)
-    const storedPrograms = getStoredPrograms();
-    programsCount = storedPrograms.length;
+
+    // Check channels in database
+    const { data: channels, error: channelsError } = await supabase
+      .from('media_outlets')
+      .select('count')
+      .eq('type', 'tv');
+
+    if (channelsError) throw channelsError;
+
+    // Check programs in database
+    const { data: programs, error: programsError } = await supabase
+      .from('tv_programs')
+      .select('count');
+
+    if (programsError) throw programsError;
+
+    // Check data version
+    const version = await getDataVersion();
+    const needsVersionUpdate = version !== CURRENT_TV_DATA_VERSION;
+
+    // Determine if seeding is needed
+    const shouldSeedChannels = channels.length === 0 || needsVersionUpdate;
+    const shouldSeedPrograms = programs.length === 0 || needsVersionUpdate;
+
+    return { shouldSeedChannels, shouldSeedPrograms };
+  } catch (error) {
+    console.error('Error checking if TV data should be seeded:', error);
+    // Default to true if there's an error, to ensure data exists
+    return { shouldSeedChannels: true, shouldSeedPrograms: true };
   }
-  
-  // Determine if seeding is needed
-  const shouldSeedChannels = !existingChannels || existingChannels.count === 0;
-  const shouldSeedPrograms = forceRefresh || 
-                           programsCount === 0 || 
-                           currentVersion !== CURRENT_TV_DATA_VERSION;
-  
-  return { shouldSeedChannels, shouldSeedPrograms };
 }
 
 /**
- * Creates channels in the database
+ * Create channels in the database
  */
 export async function createChannels(): Promise<Record<string, string>> {
-  const channelMap: Record<string, string> = {};
-  
-  for (const channelData of defaultTvChannelsData) {
-    // Create channel
-    const { data: channel } = await supabase
-      .from('media_outlets')
-      .insert([
-        { name: channelData.name, type: 'tv', folder: channelData.code }
-      ])
-      .select()
-      .single();
-    
-    if (channel) {
-      channelMap[channel.name] = channel.id;
+  try {
+    // Create a map of channel names to IDs
+    const channelMap: Record<string, string> = {};
+
+    // Insert channels into the database
+    for (const channel of defaultTvChannelsData) {
+      const { data, error } = await supabase
+        .from('media_outlets')
+        .insert({
+          name: channel.name,
+          type: 'tv',
+          folder: channel.code
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error(`Error creating channel ${channel.name}:`, error);
+        continue;
+      }
+
+      // Add the channel ID to the map
+      channelMap[channel.name] = data.id;
     }
+
+    return channelMap;
+  } catch (error) {
+    console.error('Error creating channels:', error);
+    throw error;
   }
-  
-  return channelMap;
 }
 
 /**
- * Fetches existing channels from the database
+ * Fetch existing channels from the database
  */
 export async function fetchExistingChannels(): Promise<Record<string, string>> {
-  const channelMap: Record<string, string> = {};
-  
-  const { data } = await supabase
-    .from('media_outlets')
-    .select('*')
-    .eq('type', 'tv');
-  
-  if (data) {
-    data.forEach(channel => {
-      channelMap[channel.name] = channel.id;
-    });
+  try {
+    const { data, error } = await supabase
+      .from('media_outlets')
+      .select('id, name')
+      .eq('type', 'tv');
+
+    if (error) throw error;
+
+    // Create a map of channel names to IDs
+    const channelMap: Record<string, string> = {};
+    
+    if (data) {
+      data.forEach((channel) => {
+        channelMap[channel.name] = channel.id;
+      });
+    }
+
+    return channelMap;
+  } catch (error) {
+    console.error('Error fetching existing channels:', error);
+    throw error;
   }
-  
-  return channelMap;
 }
 
 /**
- * Creates program data based on channel mapping
+ * Create program data
  */
 export function createProgramsData(channelMap: Record<string, string>): ProgramType[] {
-  const programsToAdd: ProgramType[] = [];
-  
-  // Process all channel data
-  for (const channelData of defaultTvChannelsData) {
-    const channelId = channelMap[channelData.name];
-    
-    // Skip if we couldn't find the channel
-    if (!channelId) continue;
-    
-    // Add programs for this channel
-    if (channelData.programs && channelData.programs.length > 0) {
-      channelData.programs.forEach(prog => {
-        programsToAdd.push({
-          id: crypto.randomUUID(),
-          name: prog.name,
-          channel_id: channelId,
-          start_time: prog.start_time,
-          end_time: prog.end_time,
-          days: prog.days,
-          created_at: new Date().toISOString()
-        });
-      });
-    }
+  try {
+    // Map the default programs to include the channel IDs
+    return defaultTvProgramsData.map((program) => {
+      // Get the channel ID from the map
+      const channelId = channelMap[program.channel];
+
+      if (!channelId) {
+        console.warn(`No channel ID found for ${program.channel}`);
+        return null;
+      }
+
+      // Create the program object
+      return {
+        id: program.id,
+        name: program.name,
+        channel_id: channelId,
+        start_time: program.start_time,
+        end_time: program.end_time,
+        days: program.days
+      };
+    }).filter(Boolean) as ProgramType[];
+  } catch (error) {
+    console.error('Error creating programs data:', error);
+    throw error;
   }
-  
-  return programsToAdd;
 }
