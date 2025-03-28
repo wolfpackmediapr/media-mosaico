@@ -6,7 +6,7 @@ import { seedTvData, resetTvData } from "@/services/tv/seedService";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TvMigrationPanel } from "@/components/settings/tv/TvMigrationPanel";
 
 export default function TvSettings() {

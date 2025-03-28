@@ -16,6 +16,7 @@ import {
 } from "./migration/migrationService";
 import { migrateLocalStorageToDatabase, runMigrations } from "./migration/tvDataMigrations";
 import { CURRENT_TV_DATA_VERSION } from "./data/defaultTvData";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Updates the data version in the appropriate storage

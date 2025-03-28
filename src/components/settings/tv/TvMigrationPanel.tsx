@@ -116,7 +116,7 @@ export function TvMigrationPanel() {
                 </div>
                 
                 {dataStorage === 'localStorage' && (
-                  <Alert variant="warning">
+                  <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Datos almacenados localmente</AlertTitle>
                     <AlertDescription>
@@ -152,7 +152,7 @@ export function TvMigrationPanel() {
                       <h4 className="font-medium">{migration.name}</h4>
                       <Badge 
                         variant={
-                          migration.status === 'completed' ? "success" : 
+                          migration.status === 'completed' ? "default" : 
                           migration.status === 'failed' ? "destructive" : 
                           "outline"
                         }
