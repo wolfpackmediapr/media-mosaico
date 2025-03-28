@@ -39,3 +39,20 @@ export interface RadioDataVersion {
   version: string;
   updated_at: string;
 }
+
+export interface RadioRateType {
+  id?: string;
+  station_id: string;
+  station_name?: string;
+  program_id: string;
+  program_name?: string;
+  days: string[];
+  start_time: string;
+  end_time: string;
+  rate_15s?: number | null;
+  rate_30s?: number | null;
+  rate_45s?: number | null;
+  rate_60s?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}

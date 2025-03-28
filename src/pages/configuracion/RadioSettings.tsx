@@ -67,7 +67,7 @@ export default function RadioSettings() {
   return (
     <SettingsLayout
       title="Radio"
-      description="Administra las estaciones y programas de radio"
+      description="Administra las estaciones, programas y tarifas de radio"
       action={
         <div className="flex gap-2 items-center">
           {storageType && (

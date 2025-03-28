@@ -1,8 +1,58 @@
 
 import { useState } from "react";
-import { CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { RadioRatesHeader } from "@/components/settings/radio/rates/RadioRatesHeader";
+import { RadioRatesContent } from "@/components/settings/radio/rates/RadioRatesContent";
+import { RadioRatesFooter } from "@/components/settings/radio/rates/RadioRatesFooter";
+import { useRadioRatesManagement } from "@/hooks/radio/useRadioRatesManagement";
+import { toast } from "sonner";
 
 export function RadioTarifasSettings() {
+  const {
+    isLoading,
+    searchTerm,
+    selectedStation,
+    selectedProgram,
+    isAddingNew,
+    editingId,
+    paginatedRates,
+    currentPage,
+    totalPages,
+    itemsPerPage,
+    stations,
+    programs,
+    setSearchTerm,
+    setSelectedStation,
+    setSelectedProgram,
+    setIsAddingNew,
+    setCurrentPage,
+    setEditingId,
+    handleAddRate,
+    handleEditRate,
+    handleSaveEdit,
+    handleDeleteRate,
+    loadData
+  } = useRadioRatesManagement();
+
+  const handleSearchChange = (term: string) => {
+    setSearchTerm(term);
+  };
+
+  const handleShowAll = () => {
+    setSearchTerm("");
+    setSelectedStation("all");
+    setSelectedProgram("all");
+    toast.info("Mostrando todas las tarifas");
+  };
+
+  const handleCancelAdd = () => {
+    setIsAddingNew(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+  };
+
   return (
     <>
       <CardHeader>
@@ -12,18 +62,41 @@ export function RadioTarifasSettings() {
         </CardDescription>
       </CardHeader>
       
-      <div className="p-6">
-        <div className="flex items-center justify-center h-56 border-2 border-dashed rounded-md">
-          <div className="text-center space-y-2">
-            <p className="text-muted-foreground">
-              Gestión de tarifas de radio en desarrollo
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Esta funcionalidad estará disponible próximamente
-            </p>
-          </div>
-        </div>
-      </div>
+      <CardContent>
+        <RadioRatesContent
+          isLoading={isLoading}
+          searchTerm={searchTerm}
+          selectedStation={selectedStation}
+          selectedProgram={selectedProgram}
+          onSearchChange={handleSearchChange}
+          onStationChange={setSelectedStation}
+          onProgramChange={setSelectedProgram}
+          onShowAll={handleShowAll}
+          isAddingNew={isAddingNew}
+          onAddRate={handleAddRate}
+          onCancelAdd={handleCancelAdd}
+          paginatedRates={paginatedRates}
+          onEdit={handleEditRate}
+          onDelete={handleDeleteRate}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={handleCancelEdit}
+          editingId={editingId}
+          stations={stations}
+          programs={programs}
+        />
+      </CardContent>
+      
+      <CardFooter>
+        <RadioRatesFooter
+          onRefresh={loadData}
+          isLoading={isLoading}
+          totalRates={paginatedRates.length}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+        />
+      </CardFooter>
     </>
   );
 }
