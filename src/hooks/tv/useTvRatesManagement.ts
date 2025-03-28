@@ -37,6 +37,8 @@ export function useTvRatesManagement() {
         fetchPrograms()
       ]);
       
+      console.log('Loaded rates:', ratesData.length, 'Channels:', channelsData.length, 'Programs:', programsData.length);
+      
       setRates(ratesData);
       setChannels(channelsData);
       setPrograms(programsData);
@@ -54,7 +56,7 @@ export function useTvRatesManagement() {
 
   // Filter rates based on search term and selected channel/program
   const filteredRates = useMemo(() => {
-    return rates.filter(rate => {
+    const filtered = rates.filter(rate => {
       const matchesSearch = 
         searchTerm === '' || 
         rate.channel_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -65,6 +67,9 @@ export function useTvRatesManagement() {
       
       return matchesSearch && matchesChannel && matchesProgram;
     });
+    
+    console.log('Filtered rates:', filtered.length, 'from total:', rates.length);
+    return filtered;
   }, [rates, searchTerm, selectedChannel, selectedProgram]);
 
   // Get total number of pages
@@ -73,7 +78,9 @@ export function useTvRatesManagement() {
   // Get current page rates
   const paginatedRates = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredRates.slice(startIndex, startIndex + itemsPerPage);
+    const paginated = filteredRates.slice(startIndex, startIndex + itemsPerPage);
+    console.log('Paginated rates:', paginated.length, 'Page:', currentPage, 'of', totalPages);
+    return paginated;
   }, [filteredRates, currentPage, itemsPerPage]);
 
   // Reset page when filters change
