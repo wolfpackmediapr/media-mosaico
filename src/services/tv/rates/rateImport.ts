@@ -251,9 +251,9 @@ export const importRatesFromCSV = async (file: File): Promise<void> => {
                 continue;
               }
               
-              // Skip rows with "No disponible" in rate columns
-              const rate30s = (row.rate_30s || row["30s"] || "").toString().trim();
-              if (rate30s.toLowerCase() === "no disponible") {
+              // Check if rate30s has "No disponible"
+              const rateString = (row.rate_30s || row["30s"] || "").toString().trim();
+              if (rateString.toLowerCase() === "no disponible") {
                 continue;
               }
               
