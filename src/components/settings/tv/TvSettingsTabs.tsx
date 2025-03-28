@@ -28,7 +28,7 @@ export function TvSettingsTabs({ activeTab, onTabChange, loading = false }: TvSe
       </TabsContent>
       
       <TabsContent value="rates">
-        <TvTarifasSettings />
+        <TvTarifasSettings isLoading={loading} />
       </TabsContent>
     </Tabs>
   );
