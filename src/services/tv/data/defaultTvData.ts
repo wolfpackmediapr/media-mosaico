@@ -99,5 +99,17 @@ export const defaultTvChannelsData = [
   }
 ];
 
+// Create flattened program data from channels
+export const defaultTvProgramsData = defaultTvChannelsData.flatMap(channel => 
+  channel.programs.map((program, index) => ({
+    id: `${channel.code}-${index}`,
+    name: program.name,
+    channel: channel.name,
+    start_time: program.start_time,
+    end_time: program.end_time,
+    days: program.days
+  }))
+);
+
 // Current data version for versioning control
 export const CURRENT_TV_DATA_VERSION = "1.0";

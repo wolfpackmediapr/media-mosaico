@@ -64,8 +64,15 @@ export async function seedTvData(forceRefresh = false) {
       
       // Save programs to the appropriate storage
       if (usingDatabase) {
-        // Format programs for database insert (remove id and created_at)
-        const programsForDb = programsToAdd.map(({ id, created_at, ...rest }) => rest);
+        // Format programs for database insert (remove id field if it's a generated one)
+        const programsForDb = programsToAdd.map(({ id, ...rest }) => {
+          // If the ID starts with a code (from defaultTvProgramsData), generate a new UUID
+          if (typeof id === 'string' && id.includes('-')) {
+            return rest;
+          }
+          return { id, ...rest };
+        });
+        
         await saveProgramsToDatabase(programsForDb);
       } else {
         // Save to localStorage (legacy)
