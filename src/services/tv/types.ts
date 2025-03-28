@@ -1,10 +1,7 @@
-
-// Types for TV channels and programs
 export interface ChannelType {
   id: string;
   name: string;
   code: string;
-  created_at?: string;
 }
 
 export interface ProgramType {
@@ -14,24 +11,20 @@ export interface ProgramType {
   start_time: string;
   end_time: string;
   days: string[];
-  created_at?: string;
 }
 
-// New migration related types
-export enum MigrationStatus {
-  PENDING = 'pending',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-  ROLLED_BACK = 'rolled_back'
-}
-
-export interface TVMigration {
+export interface TvRateType {
   id: string;
-  version: string;
-  name: string;
-  description?: string;
-  applied_at: string;
-  applied_by?: string | null;
-  status: string;
-  rollback_info?: any | null;
+  channel_id: string;
+  program_id: string;
+  days: string[];
+  start_time: string;
+  end_time: string;
+  rate_15s: number | null;
+  rate_30s: number | null;
+  rate_45s: number | null;
+  rate_60s: number | null;
+  created_at?: string;
+  channel_name?: string;
+  program_name?: string;
 }

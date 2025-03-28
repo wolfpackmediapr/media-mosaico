@@ -7,3 +7,5 @@ export * from './programService';
 export * from './seedService';
 export * from './data/defaultTvData';
 export * from './data/seedUtils';
+export * from './rates';
+export * from './rates/rateImport';

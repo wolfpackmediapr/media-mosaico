@@ -1152,6 +1152,66 @@ export type Database = {
           },
         ]
       }
+      tv_rates: {
+        Row: {
+          channel_id: string
+          created_at: string
+          days: string[]
+          end_time: string
+          id: string
+          program_id: string
+          rate_15s: number | null
+          rate_30s: number | null
+          rate_45s: number | null
+          rate_60s: number | null
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          days: string[]
+          end_time: string
+          id?: string
+          program_id: string
+          rate_15s?: number | null
+          rate_30s?: number | null
+          rate_45s?: number | null
+          rate_60s?: number | null
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          days?: string[]
+          end_time?: string
+          id?: string
+          program_id?: string
+          rate_15s?: number | null
+          rate_30s?: number | null
+          rate_45s?: number | null
+          rate_60s?: number | null
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tv_rates_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "media_outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tv_rates_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "tv_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profiles: {
         Row: {
           created_at: string

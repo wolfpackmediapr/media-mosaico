@@ -39,6 +39,7 @@ import { GenresSettings } from "./pages/configuracion/press/GenresSettings";
 import { SourcesSettings } from "./pages/configuracion/press/SourcesSettings";
 import { SectionsSettings } from "./pages/configuracion/press/SectionsSettings";
 import { RatesSettings } from "./pages/configuracion/press/RatesSettings";
+import { TvTarifasSettings } from "./pages/configuracion/tv/TvTarifasSettings";
 
 import "./App.css";
 
@@ -105,6 +106,7 @@ function App() {
                   <Route path="notificaciones" element={<NotificationsSettings />} />
                   <Route path="monitoreo-notificaciones" element={<NotificationMonitoring />} />
                   <Route path="tv" element={<TvSettings />} />
+                  <Route path="tv/tarifas" element={<TvTarifasSettings />} />
                   <Route path="tv/*" element={<TvSettings />} />
                   <Route path="radio" element={<RadioSettings />} />
                   <Route path="radio/*" element={<RadioSettings />} />
