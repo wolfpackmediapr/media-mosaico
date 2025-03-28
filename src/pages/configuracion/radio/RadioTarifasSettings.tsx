@@ -4,7 +4,6 @@ import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from 
 import { RadioRatesContent } from "@/components/settings/radio/rates/RadioRatesContent";
 import { RadioRatesFooter } from "@/components/settings/radio/rates/RadioRatesFooter";
 import { RadioRatesImport } from "@/components/settings/radio/rates/RadioRatesImport";
-import { RadioRatesHeader } from "@/components/settings/radio/rates/RadioRatesHeader";
 import { useRadioRatesManagement } from "@/hooks/radio/useRadioRatesManagement";
 import { toast } from "sonner";
 
@@ -73,11 +72,6 @@ export function RadioTarifasSettings() {
       </CardHeader>
       
       <CardContent>
-        <RadioRatesHeader 
-          onAddClick={() => setIsAddingNew(true)} 
-          onImportClick={() => setShowImportDialog(true)} 
-        />
-        
         <RadioRatesContent
           isLoading={isLoading}
           searchTerm={searchTerm}
@@ -103,6 +97,7 @@ export function RadioTarifasSettings() {
           totalPages={totalPages}
           onPageChange={setCurrentPage}
           itemsPerPage={itemsPerPage}
+          onImportClick={() => setShowImportDialog(true)}
         />
       </CardContent>
       

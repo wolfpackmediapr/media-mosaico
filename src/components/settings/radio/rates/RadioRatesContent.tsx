@@ -32,6 +32,7 @@ interface RadioRatesContentProps {
   totalPages: number; // Add total pages
   onPageChange: (page: number) => void; // Add page change handler
   itemsPerPage: number; // Add items per page
+  onImportClick: () => void; // Added this prop to fix the error
 }
 
 export function RadioRatesContent({
@@ -58,7 +59,8 @@ export function RadioRatesContent({
   currentPage, // Add current page
   totalPages, // Add total pages
   onPageChange, // Add page change handler
-  itemsPerPage // Add items per page
+  itemsPerPage, // Add items per page
+  onImportClick // Added this prop to fix the error
 }: RadioRatesContentProps) {
   if (isLoading) {
     return <RadioRatesLoadingState />;
@@ -67,12 +69,15 @@ export function RadioRatesContent({
   return (
     <div className="space-y-4">
       {/* Header with add button */}
-      <RadioRatesHeader onAddClick={() => {
-        // Check if a station is selected for better UX
-        if (selectedStation !== 'all') {
-          onStationChange(selectedStation);
-        }
-      }} />
+      <RadioRatesHeader 
+        onAddClick={() => {
+          // Check if a station is selected for better UX
+          if (selectedStation !== 'all') {
+            onStationChange(selectedStation);
+          }
+        }} 
+        onImportClick={onImportClick}
+      />
       
       {/* Filter section */}
       <RadioRatesFilter 

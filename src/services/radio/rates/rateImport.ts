@@ -1,8 +1,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { RadioRateType, StationType, ProgramType } from "./types";
-import { fetchStations } from "./stationService";
-import { fetchPrograms, createProgram } from "./programService";
+import { RadioRateType, StationType, ProgramType } from "../types";
+import { fetchStations } from "../stationService";
+import { fetchPrograms, createProgram } from "../programService";
 import { toast } from "sonner";
 
 // This interface defines the expected structure of imported rate data

@@ -1,8 +1,8 @@
 
 import { Button } from "@/components/ui/button";
-import { Plus, Upload, UploadCloud } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 
-interface RadioRatesHeaderProps {
+export interface RadioRatesHeaderProps {
   onAddClick: () => void;
   onImportClick: () => void;
 }

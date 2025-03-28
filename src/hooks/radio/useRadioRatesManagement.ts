@@ -6,9 +6,8 @@ import {
   createRate,
   updateRate,
   deleteRate,
-  getRatesByFilter,
   seedInitialRates
-} from "@/services/radio/rateService";
+} from "@/services/radio/rates";
 import { fetchStations } from "@/services/radio/stationService";
 import { fetchPrograms } from "@/services/radio/programService";
 import { RadioRateType, StationType, ProgramType } from "@/services/radio/types";
@@ -19,8 +18,6 @@ export function useRadioRatesManagement() {
   const [stations, setStations] = useState<StationType[]>([]);
   const [programs, setPrograms] = useState<ProgramType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editingRate, setEditingRate] = useState<RadioRateType | null>(null);
   const [selectedStation, setSelectedStation] = useState<string>('all');
   const [selectedProgram, setSelectedProgram] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,7 +27,7 @@ export function useRadioRatesManagement() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const ITEMS_PER_PAGE = 50; // Increased from 10 to 50
+  const ITEMS_PER_PAGE = 50;
 
   const loadData = async () => {
     setLoading(true);
@@ -164,8 +161,6 @@ export function useRadioRatesManagement() {
     programs,
     loading,
     isLoading: loading,
-    showAddDialog,
-    editingRate,
     selectedStation,
     selectedProgram,
     searchTerm,
