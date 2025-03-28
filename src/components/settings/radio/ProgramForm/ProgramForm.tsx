@@ -9,9 +9,10 @@ import { StationSelector } from "./StationSelector";
 import { TimeSelectors } from "./TimeSelectors";
 import { DaysSelector } from "./DaysSelector";
 import { ProgramInfoFields } from "./ProgramInfoFields";
-import { StationType } from "@/services/radio/types";
 
-export function ProgramForm({ program, stations, onSubmit }: ProgramFormProps & { stations: StationType[] }) {
+export function ProgramForm({ program, stations, onSubmit }: ProgramFormProps) {
+  console.log("ProgramForm received stations:", stations);
+  
   const form = useForm<ProgramFormValues>({
     resolver: zodResolver(programFormSchema),
     defaultValues: {

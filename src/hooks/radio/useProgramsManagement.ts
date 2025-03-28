@@ -28,10 +28,14 @@ export function useProgramsManagement() {
   const loadData = async () => {
     setLoading(true);
     try {
+      // First, fetch stations
       const stationsData = await fetchStations();
+      console.log("Fetched stations:", stationsData);
       setStations(stationsData);
       
+      // Then fetch programs
       const programsData = await fetchPrograms();
+      console.log("Fetched programs:", programsData);
       setPrograms(programsData);
       
       // Initialize filtered programs with all programs

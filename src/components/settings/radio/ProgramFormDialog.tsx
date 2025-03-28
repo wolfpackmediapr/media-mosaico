@@ -1,21 +1,13 @@
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { ProgramType, StationType } from "@/services/radio/types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ProgramFormProps } from "./ProgramForm/types";
 import { ProgramForm } from "./ProgramForm";
 
-interface ProgramFormDialogProps {
+interface ProgramFormDialogProps extends Omit<ProgramFormProps, 'onSubmit'> {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: ProgramFormProps['onSubmit'];
   title: string;
-  program?: ProgramType;
-  stations: StationType[];
 }
 
 export function ProgramFormDialog({
@@ -24,21 +16,20 @@ export function ProgramFormDialog({
   onSubmit,
   title,
   program,
-  stations,
+  stations
 }: ProgramFormDialogProps) {
+  console.log("ProgramFormDialog received stations:", stations);
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Completa los campos para {program ? "actualizar el" : "crear un nuevo"} programa de radio.
-          </DialogDescription>
         </DialogHeader>
         <ProgramForm 
-          program={program}
-          stations={stations}
-          onSubmit={onSubmit}
+          program={program} 
+          stations={stations} 
+          onSubmit={onSubmit} 
         />
       </DialogContent>
     </Dialog>

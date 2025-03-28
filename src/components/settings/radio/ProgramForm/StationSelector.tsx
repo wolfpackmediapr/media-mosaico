@@ -11,6 +11,8 @@ interface StationSelectorProps {
 }
 
 export function StationSelector({ form, stations }: StationSelectorProps) {
+  console.log("StationSelector received stations:", stations);
+  
   return (
     <FormField
       control={form.control}

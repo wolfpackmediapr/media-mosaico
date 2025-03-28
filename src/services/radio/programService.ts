@@ -7,13 +7,18 @@ import { ProgramType } from "./types";
  */
 export async function fetchPrograms(): Promise<ProgramType[]> {
   try {
+    console.log("Fetching radio programs from database...");
     const { data, error } = await supabase
       .from('radio_programs')
       .select('*')
       .order('name');
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching radio programs:', error);
+      throw error;
+    }
     
+    console.log("Radio programs data:", data);
     return data as ProgramType[];
   } catch (error) {
     console.error('Error fetching radio programs:', error);

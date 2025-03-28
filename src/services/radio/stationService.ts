@@ -8,20 +8,29 @@ import { toast } from "sonner";
  */
 export async function fetchStations(): Promise<StationType[]> {
   try {
+    console.log("Fetching radio stations from database...");
     const { data, error } = await supabase
       .from('media_outlets')
       .select('id, name, folder')
       .eq('type', 'radio')
       .order('name');
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching radio stations:', error);
+      throw error;
+    }
+    
+    console.log("Raw stations data:", data);
     
     // Convert the data to StationType format using the folder field as code
-    return data.map(station => ({
+    const formattedStations = data.map(station => ({
       id: station.id,
       name: station.name,
       code: station.folder || station.name.substring(0, 4).toUpperCase() // Use folder as code or fallback to first 4 chars
     })) as StationType[];
+    
+    console.log("Formatted stations:", formattedStations);
+    return formattedStations;
   } catch (error) {
     console.error('Error fetching radio stations:', error);
     return [];
