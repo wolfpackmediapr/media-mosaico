@@ -19,7 +19,8 @@ interface RadioRatesContentProps {
   isAddingNew: boolean;
   onAddRate: (rate: Omit<RadioRateType, 'id' | 'created_at' | 'station_name' | 'program_name'>) => void;
   onCancelAdd: () => void;
-  paginatedRates: RadioRateType[];
+  filteredRates: RadioRateType[]; // Changed from paginatedRates to filteredRates
+  totalRates: number; // Add total count
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onSaveEdit: (rate: RadioRateType) => void;
@@ -27,6 +28,10 @@ interface RadioRatesContentProps {
   editingId: string | null;
   stations: StationType[];
   programs: ProgramType[];
+  currentPage: number; // Add current page
+  totalPages: number; // Add total pages
+  onPageChange: (page: number) => void; // Add page change handler
+  itemsPerPage: number; // Add items per page
 }
 
 export function RadioRatesContent({
@@ -41,14 +46,19 @@ export function RadioRatesContent({
   isAddingNew,
   onAddRate,
   onCancelAdd,
-  paginatedRates,
+  filteredRates, // Changed from paginatedRates to filteredRates
+  totalRates, // Add total count
   onEdit,
   onDelete,
   onSaveEdit,
   onCancelEdit,
   editingId,
   stations,
-  programs
+  programs,
+  currentPage, // Add current page
+  totalPages, // Add total pages
+  onPageChange, // Add page change handler
+  itemsPerPage // Add items per page
 }: RadioRatesContentProps) {
   if (isLoading) {
     return <RadioRatesLoadingState />;
@@ -88,7 +98,7 @@ export function RadioRatesContent({
       )}
 
       {/* Rates table or empty state */}
-      {paginatedRates.length === 0 ? (
+      {filteredRates.length === 0 ? (
         <RadioRatesEmptyState 
           searchTerm={searchTerm} 
           selectedStation={selectedStation}
@@ -103,7 +113,7 @@ export function RadioRatesContent({
         />
       ) : (
         <RadioRatesTable
-          rates={paginatedRates}
+          rates={filteredRates}
           onEdit={onEdit}
           onDelete={onDelete}
           onSaveEdit={onSaveEdit}

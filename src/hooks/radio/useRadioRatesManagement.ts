@@ -30,7 +30,7 @@ export function useRadioRatesManagement() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const ITEMS_PER_PAGE = 50; // Increased from 10 to 50
 
   const loadData = async () => {
     setLoading(true);
@@ -162,7 +162,7 @@ export function useRadioRatesManagement() {
     filteredRates,
     stations,
     programs,
-    loading: loading,
+    loading,
     isLoading: loading,
     showAddDialog,
     editingRate,
@@ -185,6 +185,7 @@ export function useRadioRatesManagement() {
     handleEditRate,
     handleSaveEdit,
     handleDeleteRate,
-    loadData
+    loadData,
+    totalRates: filteredRates.length
   };
 }

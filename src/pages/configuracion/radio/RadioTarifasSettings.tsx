@@ -1,7 +1,6 @@
 
 import { useState } from "react";
 import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { RadioRatesHeader } from "@/components/settings/radio/rates/RadioRatesHeader";
 import { RadioRatesContent } from "@/components/settings/radio/rates/RadioRatesContent";
 import { RadioRatesFooter } from "@/components/settings/radio/rates/RadioRatesFooter";
 import { useRadioRatesManagement } from "@/hooks/radio/useRadioRatesManagement";
@@ -19,6 +18,8 @@ export function RadioTarifasSettings() {
     currentPage,
     totalPages,
     itemsPerPage,
+    totalRates,
+    filteredRates,
     stations,
     programs,
     setSearchTerm,
@@ -75,7 +76,8 @@ export function RadioTarifasSettings() {
           isAddingNew={isAddingNew}
           onAddRate={handleAddRate}
           onCancelAdd={handleCancelAdd}
-          paginatedRates={paginatedRates}
+          filteredRates={paginatedRates}
+          totalRates={totalRates}
           onEdit={handleEditRate}
           onDelete={handleDeleteRate}
           onSaveEdit={handleSaveEdit}
@@ -83,6 +85,10 @@ export function RadioTarifasSettings() {
           editingId={editingId}
           stations={stations}
           programs={programs}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          itemsPerPage={itemsPerPage}
         />
       </CardContent>
       
@@ -90,7 +96,7 @@ export function RadioTarifasSettings() {
         <RadioRatesFooter
           onRefresh={loadData}
           isLoading={isLoading}
-          totalRates={paginatedRates.length}
+          totalRates={filteredRates.length}
           currentPage={currentPage}
           totalPages={totalPages}
           itemsPerPage={itemsPerPage}
