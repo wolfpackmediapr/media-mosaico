@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { ChannelType, ProgramType } from "../types";
-import { saveStoredPrograms, getStoredPrograms } from "../utils";
+import { getStoredPrograms, isUsingDatabase, getDataVersion } from "../utils";
 import { defaultTvChannelsData, CURRENT_TV_DATA_VERSION } from "./defaultTvData";
 
 /**
@@ -12,7 +12,7 @@ export async function shouldSeedTvData(forceRefresh = false): Promise<{
   shouldSeedPrograms: boolean;
 }> {
   // Check if data version is current
-  const currentVersion = localStorage.getItem('tv_data_version');
+  const currentVersion = await getDataVersion();
   
   // First check if we already have channels
   const { data: existingChannels } = await supabase
@@ -21,14 +21,32 @@ export async function shouldSeedTvData(forceRefresh = false): Promise<{
     .eq('type', 'tv')
     .single();
     
-  // Check for programs in localStorage
-  const storedPrograms = getStoredPrograms();
+  // Check if we're using database or localStorage
+  const usingDatabase = await isUsingDatabase();
+  
+  // Check for programs in the appropriate storage
+  let programsCount = 0;
+  
+  if (usingDatabase) {
+    // Check database for programs
+    const { count, error } = await supabase
+      .from('tv_programs')
+      .select('*', { count: 'exact', head: true });
+      
+    if (!error && count !== null) {
+      programsCount = count;
+    }
+  } else {
+    // Check localStorage for programs (legacy)
+    const storedPrograms = getStoredPrograms();
+    programsCount = storedPrograms.length;
+  }
   
   // Determine if seeding is needed
   const shouldSeedChannels = !existingChannels || existingChannels.count === 0;
   const shouldSeedPrograms = forceRefresh || 
-                            storedPrograms.length === 0 || 
-                            currentVersion !== CURRENT_TV_DATA_VERSION;
+                           programsCount === 0 || 
+                           currentVersion !== CURRENT_TV_DATA_VERSION;
   
   return { shouldSeedChannels, shouldSeedPrograms };
 }
@@ -107,11 +125,4 @@ export function createProgramsData(channelMap: Record<string, string>): ProgramT
   }
   
   return programsToAdd;
-}
-
-/**
- * Updates the data version in localStorage
- */
-export function updateDataVersion(): void {
-  localStorage.setItem('tv_data_version', CURRENT_TV_DATA_VERSION);
 }

@@ -905,6 +905,98 @@ export type Database = {
         }
         Relationships: []
       }
+      tv_data_version: {
+        Row: {
+          id: number
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          id?: number
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          id?: number
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      tv_migrations: {
+        Row: {
+          applied_at: string
+          applied_by: string | null
+          description: string | null
+          id: string
+          name: string
+          rollback_info: Json | null
+          status: string
+          version: string
+        }
+        Insert: {
+          applied_at?: string
+          applied_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          rollback_info?: Json | null
+          status?: string
+          version: string
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          rollback_info?: Json | null
+          status?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      tv_programs: {
+        Row: {
+          channel_id: string
+          created_at: string
+          days: string[]
+          end_time: string
+          id: string
+          name: string
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          days: string[]
+          end_time: string
+          id?: string
+          name: string
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          days?: string[]
+          end_time?: string
+          id?: string
+          name?: string
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tv_programs_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "media_outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profiles: {
         Row: {
           created_at: string

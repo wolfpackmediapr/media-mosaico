@@ -6,11 +6,14 @@ import { seedTvData, resetTvData } from "@/services/tv/seedService";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/card";
+import { TvMigrationPanel } from "@/components/settings/tv/TvMigrationPanel";
 
 export default function TvSettings() {
   const [activeTab, setActiveTab] = useState<string>("channels");
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<string>("data");
 
   useEffect(() => {
     // Initialize TV data when component loads
@@ -59,21 +62,33 @@ export default function TvSettings() {
       title="Televisión"
       description="Administra los canales y programas de televisión"
       action={
-        <Button 
-          variant="outline" 
-          onClick={handleResetData}
-          disabled={resetting}
-        >
-          {resetting ? (
-            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <AlertTriangle className="h-4 w-4 mr-2" />
-          )}
-          Restablecer datos
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setSettingsTab(settingsTab === "data" ? "migrations" : "data")}
+          >
+            {settingsTab === "data" ? "Ver migraciones" : "Ver datos"}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleResetData}
+            disabled={resetting}
+          >
+            {resetting ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 mr-2" />
+            )}
+            Restablecer datos
+          </Button>
+        </div>
       }
     >
-      <TvSettingsTabs activeTab={activeTab} onTabChange={setActiveTab} loading={loading || resetting} />
+      {settingsTab === "data" ? (
+        <TvSettingsTabs activeTab={activeTab} onTabChange={setActiveTab} loading={loading || resetting} />
+      ) : (
+        <TvMigrationPanel />
+      )}
     </SettingsLayout>
   );
 }

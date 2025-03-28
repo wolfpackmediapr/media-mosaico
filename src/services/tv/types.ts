@@ -16,3 +16,22 @@ export interface ProgramType {
   days: string[];
   created_at?: string;
 }
+
+// New migration related types
+export enum MigrationStatus {
+  PENDING = 'pending',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  ROLLED_BACK = 'rolled_back'
+}
+
+export interface TVMigration {
+  id: string;
+  version: string;
+  name: string;
+  description?: string;
+  applied_at: string;
+  applied_by?: string | null;
+  status: string;
+  rollback_info?: any | null;
+}
