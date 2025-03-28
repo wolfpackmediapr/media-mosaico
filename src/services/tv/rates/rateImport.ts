@@ -4,15 +4,27 @@ import { toast } from "sonner";
 import Papa from 'papaparse';
 import { TvRateType } from "../types";
 
+interface CSVRow {
+  channel_id: string;
+  program_id: string;
+  days: string;
+  start_time: string;
+  end_time: string;
+  rate_15s?: string;
+  rate_30s?: string;
+  rate_45s?: string;
+  rate_60s?: string;
+}
+
 export const importRatesFromCSV = async (file: File): Promise<void> => {
   try {
     return new Promise((resolve, reject) => {
-      Papa.parse(file, {
+      Papa.parse<CSVRow>(file, {
         header: true,
         skipEmptyLines: true,
         complete: async (results) => {
           try {
-            const rates = results.data.map((row: any) => ({
+            const rates = results.data.map((row: CSVRow) => ({
               channel_id: row.channel_id,
               program_id: row.program_id,
               days: typeof row.days === 'string' 

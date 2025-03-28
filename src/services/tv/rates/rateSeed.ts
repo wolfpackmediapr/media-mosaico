@@ -22,6 +22,7 @@ export const seedTvRates = async (): Promise<void> => {
     const telemundoRates = processTelemundoRates();
     const wapaRates = processWapaRates();
     const allRates = [...telemundoRates, ...wapaRates].filter(rate => 
+      // Filter out rates with no values
       rate.rate_30s !== null || 
       rate.rate_15s !== null || 
       rate.rate_45s !== null || 
@@ -33,9 +34,22 @@ export const seedTvRates = async (): Promise<void> => {
     for (let i = 0; i < allRates.length; i += batchSize) {
       const batch = allRates.slice(i, i + batchSize);
       
+      // Ensure all required properties are present in each rate
+      const validBatch = batch.map(rate => ({
+        channel_id: rate.channel_id || '',
+        program_id: rate.program_id || '',
+        days: rate.days || [],
+        start_time: rate.start_time || '',
+        end_time: rate.end_time || '',
+        rate_15s: rate.rate_15s,
+        rate_30s: rate.rate_30s,
+        rate_45s: rate.rate_45s,
+        rate_60s: rate.rate_60s
+      }));
+      
       const { error } = await supabase
         .from('tv_rates')
-        .insert(batch);
+        .insert(validBatch);
         
       if (error) {
         console.error(`Error inserting TV rates batch ${i}:`, error);
