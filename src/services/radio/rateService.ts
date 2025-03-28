@@ -13,8 +13,7 @@ export const fetchRates = async (): Promise<RadioRateType[]> => {
         station:station_id(name),
         program:program_id(name)
       `)
-      .order('station_name', { ascending: true })
-      .order('program_name', { ascending: true });
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error("Error fetching radio rates:", error);
@@ -56,8 +55,7 @@ export const getRatesByFilter = async (
     }
 
     const { data, error } = await query
-      .order('station_name', { ascending: true })
-      .order('program_name', { ascending: true });
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error("Error fetching filtered radio rates:", error);
@@ -78,7 +76,7 @@ export const getRatesByFilter = async (
 
 // Function to create a new rate
 export const createRate = async (
-  rateData: Omit<RadioRateType, 'id' | 'created_at'>
+  rateData: Omit<RadioRateType, 'id' | 'created_at' | 'station_name' | 'program_name'>
 ): Promise<RadioRateType> => {
   try {
     const { data, error } = await supabase
@@ -100,12 +98,27 @@ export const createRate = async (
 };
 
 // Function to update an existing rate
-export const updateRate = async (rateData: RadioRateType): Promise<void> => {
+export const updateRate = async (
+  rateData: Omit<RadioRateType, 'created_at' | 'station_name' | 'program_name'>
+): Promise<void> => {
   try {
+    // Create a new object without the station_name and program_name properties
+    const { id, station_id, program_id, days, start_time, end_time, rate_15s, rate_30s, rate_45s, rate_60s } = rateData;
+    
     const { error } = await supabase
       .from('radio_rates')
-      .update(rateData)
-      .eq('id', rateData.id);
+      .update({ 
+        station_id, 
+        program_id, 
+        days, 
+        start_time, 
+        end_time, 
+        rate_15s, 
+        rate_30s, 
+        rate_45s, 
+        rate_60s 
+      })
+      .eq('id', id);
 
     if (error) {
       console.error("Error updating radio rate:", error);
@@ -154,8 +167,9 @@ export const seedInitialRates = async (): Promise<void> => {
       
       // Get some stations and programs to use in the seed data
       const { data: stations, error: stationsError } = await supabase
-        .from('radio_stations')
+        .from('media_outlets')
         .select('id, name')
+        .eq('type', 'radio')
         .limit(5);
         
       if (stationsError) {
@@ -189,9 +203,7 @@ export const seedInitialRates = async (): Promise<void> => {
         
         return {
           station_id: program.station_id,
-          station_name: station?.name || 'Unknown Station',
           program_id: program.id,
-          program_name: program.name,
           days: ['L', 'M', 'X', 'J', 'V'],
           start_time: '07:00:00',
           end_time: '09:00:00',

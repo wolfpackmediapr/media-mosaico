@@ -98,8 +98,15 @@ export function RadioRatesFooter({
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious 
-                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (currentPage > 1) {
+                    onPageChange(currentPage - 1);
+                  }
+                }}
+                aria-disabled={currentPage === 1}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
               />
             </PaginationItem>
             
@@ -109,8 +116,12 @@ export function RadioRatesFooter({
                   <span className="px-2">...</span>
                 ) : (
                   <PaginationLink
+                    href="#"
                     isActive={page === currentPage}
-                    onClick={() => typeof page === 'number' && onPageChange(page)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      typeof page === 'number' && onPageChange(page);
+                    }}
                   >
                     {page}
                   </PaginationLink>
@@ -120,8 +131,15 @@ export function RadioRatesFooter({
             
             <PaginationItem>
               <PaginationNext 
-                onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (currentPage < totalPages) {
+                    onPageChange(currentPage + 1);
+                  }
+                }}
+                aria-disabled={currentPage === totalPages}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
               />
             </PaginationItem>
           </PaginationContent>

@@ -6,7 +6,8 @@ import {
   createRate,
   updateRate,
   deleteRate,
-  getRatesByFilter
+  getRatesByFilter,
+  seedInitialRates
 } from "@/services/radio/rateService";
 import { fetchStations } from "@/services/radio/stationService";
 import { fetchPrograms } from "@/services/radio/programService";
@@ -34,6 +35,9 @@ export function useRadioRatesManagement() {
   const loadData = async () => {
     setLoading(true);
     try {
+      // Try to seed initial data
+      await seedInitialRates();
+      
       // First, fetch stations
       const stationsData = await fetchStations();
       setStations(stationsData);
@@ -72,8 +76,8 @@ export function useRadioRatesManagement() {
         // Apply search filter if provided
         if (searchTerm) {
           filtered = filtered.filter(rate => 
-            rate.station_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            rate.program_name.toLowerCase().includes(searchTerm.toLowerCase())
+            rate.station_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            rate.program_name?.toLowerCase().includes(searchTerm.toLowerCase())
           );
         }
         
@@ -110,7 +114,7 @@ export function useRadioRatesManagement() {
     return filteredRates.slice(startIndex, endIndex);
   };
 
-  const handleAddRate = async (rateData: Omit<RadioRateType, 'id' | 'created_at'>) => {
+  const handleAddRate = async (rateData: Omit<RadioRateType, 'id' | 'created_at' | 'station_name' | 'program_name'>) => {
     try {
       await createRate(rateData);
       toast.success("Tarifa añadida correctamente");

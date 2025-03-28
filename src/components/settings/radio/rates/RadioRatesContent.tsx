@@ -17,7 +17,7 @@ interface RadioRatesContentProps {
   onProgramChange: (programId: string) => void;
   onShowAll: () => void;
   isAddingNew: boolean;
-  onAddRate: (rate: Omit<RadioRateType, 'id' | 'created_at'>) => void;
+  onAddRate: (rate: Omit<RadioRateType, 'id' | 'created_at' | 'station_name' | 'program_name'>) => void;
   onCancelAdd: () => void;
   paginatedRates: RadioRateType[];
   onEdit: (id: string) => void;
@@ -57,7 +57,12 @@ export function RadioRatesContent({
   return (
     <div className="space-y-4">
       {/* Header with add button */}
-      <RadioRatesHeader onAddClick={() => onStationChange(selectedStation)} />
+      <RadioRatesHeader onAddClick={() => {
+        // Check if a station is selected for better UX
+        if (selectedStation !== 'all') {
+          onStationChange(selectedStation);
+        }
+      }} />
       
       {/* Filter section */}
       <RadioRatesFilter 
@@ -89,7 +94,12 @@ export function RadioRatesContent({
           selectedStation={selectedStation}
           selectedProgram={selectedProgram}
           onClearSearch={onShowAll} 
-          onAddNew={() => onStationChange(selectedStation)}
+          onAddNew={() => {
+            // Check if a station is selected for better UX
+            if (selectedStation !== 'all') {
+              onStationChange(selectedStation);
+            }
+          }}
         />
       ) : (
         <RadioRatesTable

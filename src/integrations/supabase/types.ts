@@ -778,6 +778,66 @@ export type Database = {
           },
         ]
       }
+      radio_rates: {
+        Row: {
+          created_at: string
+          days: string[]
+          end_time: string
+          id: string
+          program_id: string
+          rate_15s: number | null
+          rate_30s: number | null
+          rate_45s: number | null
+          rate_60s: number | null
+          start_time: string
+          station_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          days: string[]
+          end_time: string
+          id?: string
+          program_id: string
+          rate_15s?: number | null
+          rate_30s?: number | null
+          rate_45s?: number | null
+          rate_60s?: number | null
+          start_time: string
+          station_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          days?: string[]
+          end_time?: string
+          id?: string
+          program_id?: string
+          rate_15s?: number | null
+          rate_30s?: number | null
+          rate_45s?: number | null
+          rate_60s?: number | null
+          start_time?: string
+          station_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radio_rates_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "radio_programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radio_rates_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "media_outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radio_transcriptions: {
         Row: {
           analysis_result: Json | null

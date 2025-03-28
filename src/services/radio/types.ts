@@ -9,7 +9,7 @@ export enum MigrationStatus {
 export interface StationType {
   id: string;
   name: string;
-  code: string;
+  code?: string;
 }
 
 export interface ProgramType {
