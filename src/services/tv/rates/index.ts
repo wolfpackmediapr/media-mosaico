@@ -1,5 +1,6 @@
 
-import { fetchRates, getRatesByFilter, createRate, updateRate, deleteRate } from './rateQueries';
+import { fetchRates, getRatesByFilter } from './rateQueries';
+import { createRate, updateRate, deleteRate } from './rateCommands';
 import { importRatesFromCSV } from './rateImport';
 import { seedTvRates } from './rateSeed';
 
