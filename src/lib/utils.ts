@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Add this function to generate UUIDs
+// Generate a UUID using the Web Crypto API
 export function uuid(): string {
-  return crypto.randomUUID();
+  return crypto.randomUUID()
 }
