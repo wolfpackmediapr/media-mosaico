@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { Upload, AlertCircle, CheckCircle2, FileWarning } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { importRatesFromCsv } from "@/services/radio/rates";
+import { importRatesFromCsv } from "@/services/radio/rates/rateImport";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -80,7 +80,7 @@ export function RadioRatesImport({
       if (result.success) {
         toast.success(`Importación completada. ${result.imported} tarifas importadas.`);
         if (result.errors.length > 0) {
-          toast.warning(`Hubo ${result.errors.length} errores durante la importación.`);
+          toast.error(`Hubo ${result.errors.length} errores durante la importación.`);
         }
       } else {
         toast.error("Error durante la importación. Revisa los detalles.");

@@ -114,8 +114,8 @@ export function RadioTarifasSettings() {
       </CardFooter>
       
       <RadioRatesImport 
-        open={showImportDialog}
-        onOpenChange={setShowImportDialog}
+        isOpen={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
         onImportComplete={handleImportComplete}
       />
     </>

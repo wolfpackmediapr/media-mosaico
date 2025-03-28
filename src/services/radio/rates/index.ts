@@ -3,3 +3,4 @@
 export * from './rateQueries';
 export * from './rateCommands';
 export * from './rateSeed';
+export * from './rateImport';
