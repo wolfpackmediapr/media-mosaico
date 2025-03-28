@@ -29,7 +29,7 @@ export const seedTvRates = async (): Promise<void> => {
     }
     
     // Create rates for each channel/program combination
-    const rates: Partial<TvRateType>[] = [];
+    const rates: Required<Pick<TvRateType, 'id' | 'channel_id' | 'program_id' | 'days' | 'start_time' | 'end_time' | 'rate_15s' | 'rate_30s' | 'rate_45s' | 'rate_60s'>>[] = [];
     
     // Function to find a program in a specific channel
     const findProgramInChannel = (channelId: string, programNamePattern: string) => {
@@ -57,7 +57,7 @@ export const seedTvRates = async (): Promise<void> => {
       rate30s: number,
       rate45s: number,
       rate60s: number
-    ): Partial<TvRateType> => {
+    ) => {
       return {
         id: uuid(),
         channel_id: channelId,
@@ -144,7 +144,12 @@ export const seedTvRates = async (): Promise<void> => {
       }
     }
     
-    // Insert the seed rates into the database
+    if (rates.length === 0) {
+      console.log("No rates to seed - couldn't find matching programs");
+      return;
+    }
+    
+    // Insert the seed rates into the database - fix the type issue
     const { error } = await supabase
       .from('tv_rates')
       .insert(rates);
