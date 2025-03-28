@@ -18,22 +18,24 @@ export function StationSelector({ form, stations }: StationSelectorProps) {
       render={({ field }) => (
         <FormItem>
           <FormLabel>Estación</FormLabel>
-          <Select
-            onValueChange={field.onChange}
-            defaultValue={field.value}
-            value={field.value}
-          >
+          <Select onValueChange={field.onChange} defaultValue={field.value}>
             <FormControl>
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona una estación" />
               </SelectTrigger>
             </FormControl>
             <SelectContent>
-              {stations.map((station) => (
-                <SelectItem key={station.id} value={station.id}>
-                  {station.name} ({station.code})
+              {stations && stations.length > 0 ? (
+                stations.map((station) => (
+                  <SelectItem key={station.id} value={station.id}>
+                    {station.name} ({station.code})
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="loading" disabled>
+                  No hay estaciones disponibles
                 </SelectItem>
-              ))}
+              )}
             </SelectContent>
           </Select>
           <FormMessage />

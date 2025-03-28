@@ -1,6 +1,6 @@
 
 import { z } from "zod";
-import { ProgramType } from "@/services/radio/types";
+import { ProgramType, StationType } from "@/services/radio/types";
 
 export const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
 
@@ -18,5 +18,6 @@ export type ProgramFormValues = z.infer<typeof programFormSchema>;
 
 export interface ProgramFormProps {
   program?: ProgramType;
+  stations: StationType[];
   onSubmit: (data: ProgramFormValues) => Promise<void>;
 }
