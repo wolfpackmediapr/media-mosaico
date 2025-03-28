@@ -120,3 +120,88 @@ export async function hasMigrationBeenApplied(version: string): Promise<boolean>
     return false;
   }
 }
+
+/**
+ * Validate if data is eligible for migration
+ */
+export async function validateMigrationEligibility(): Promise<{ 
+  eligible: boolean; 
+  programCount: number;
+  message: string; 
+}> {
+  try {
+    // Check if we're already using the database
+    const alreadyUsingDb = await isUsingDatabaseExclusively();
+    if (alreadyUsingDb) {
+      return {
+        eligible: false,
+        programCount: 0,
+        message: "Los datos ya están almacenados en la base de datos."
+      };
+    }
+    
+    // Check how many programs we have in localStorage
+    const localStoragePrograms = JSON.parse(localStorage.getItem('tv_programs') || '[]');
+    const programCount = localStoragePrograms.length;
+    
+    if (programCount === 0) {
+      return {
+        eligible: false,
+        programCount: 0,
+        message: "No se encontraron programas para migrar en el almacenamiento local."
+      };
+    }
+    
+    // Check if we already have programs in the database
+    const { count, error } = await supabase
+      .from('tv_programs')
+      .select('*', { count: 'exact', head: true });
+      
+    if (error) throw error;
+    
+    // If there are already programs in the database, we need to warn the user
+    if (count && count > 0) {
+      return {
+        eligible: true,
+        programCount,
+        message: `Se encontraron ${programCount} programas en localStorage, pero también hay ${count} programas en la base de datos. La migración podría causar duplicados.`
+      };
+    }
+    
+    return {
+      eligible: true,
+      programCount,
+      message: `Se encontraron ${programCount} programas listos para migrar.`
+    };
+  } catch (error) {
+    console.error('Error validating migration eligibility:', error);
+    return {
+      eligible: false,
+      programCount: 0,
+      message: "Error al validar los datos para migración."
+    };
+  }
+}
+
+/**
+ * Check if we're exclusively using the database (no localStorage fallback)
+ */
+async function isUsingDatabaseExclusively(): Promise<boolean> {
+  try {
+    // Check if we have any programs in the database
+    const { count: dbCount, error: dbError } = await supabase
+      .from('tv_programs')
+      .select('*', { count: 'exact', head: true });
+    
+    if (dbError) throw dbError;
+    
+    // Check if we have any programs in localStorage
+    const localStoragePrograms = JSON.parse(localStorage.getItem('tv_programs') || '[]');
+    
+    // If we have programs in the database but none in localStorage, we're exclusively using the database
+    return (dbCount && dbCount > 0) && localStoragePrograms.length === 0;
+  } catch (error) {
+    console.error('Error checking if using database exclusively:', error);
+    return false;
+  }
+}

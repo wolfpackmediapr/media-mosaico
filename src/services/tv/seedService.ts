@@ -9,7 +9,8 @@ import {
   saveStoredPrograms, 
   getStoredPrograms, 
   isUsingDatabase, 
-  saveProgramsToDatabase 
+  saveProgramsToDatabase,
+  getStorageStatus
 } from "./utils";
 import { 
   updateDataVersion as updateDatabaseVersion
@@ -87,6 +88,17 @@ export async function seedTvData(forceRefresh = false) {
  */
 export async function migrateToDatabase() {
   try {
+    // Check current storage status
+    const status = await getStorageStatus();
+    
+    // If we already have data in the database but not in localStorage,
+    // there's nothing to migrate
+    if (status.databaseProgramCount > 0 && status.localStorageProgramCount === 0) {
+      console.log('No localStorage data to migrate');
+      return false;
+    }
+    
+    // Run migrations and return success if any migrations were applied
     const migrations = await runMigrations();
     return migrations.length > 0;
   } catch (error) {

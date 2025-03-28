@@ -94,3 +94,45 @@ export async function getDataVersion(): Promise<string> {
     return localStorage.getItem('tv_data_version') || '0.0';
   }
 }
+
+// Get storage status with additional information
+export async function getStorageStatus(): Promise<{
+  usingDatabase: boolean;
+  databaseProgramCount: number;
+  localStorageProgramCount: number;
+  version: string;
+}> {
+  try {
+    // Check database program count
+    const { count: dbCount, error } = await supabase
+      .from('tv_programs')
+      .select('*', { count: 'exact', head: true });
+    
+    const databaseProgramCount = (error || dbCount === null) ? 0 : dbCount;
+    
+    // Check localStorage
+    const localPrograms = getStoredPrograms();
+    const localStorageProgramCount = localPrograms.length;
+    
+    // Get version
+    const version = await getDataVersion();
+    
+    // Determine which storage we're using
+    const usingDatabase = databaseProgramCount > 0;
+    
+    return {
+      usingDatabase,
+      databaseProgramCount,
+      localStorageProgramCount,
+      version
+    };
+  } catch (error) {
+    console.error('Error getting storage status:', error);
+    return {
+      usingDatabase: false,
+      databaseProgramCount: 0,
+      localStorageProgramCount: 0,
+      version: '0.0'
+    };
+  }
+}

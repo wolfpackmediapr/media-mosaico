@@ -95,3 +95,93 @@ export async function runMigrations(): Promise<TVMigration[]> {
     return [];
   }
 }
+
+/**
+ * Validate localStorage data before migration
+ */
+export async function validateLocalStorageData(): Promise<{
+  valid: boolean;
+  issues: string[];
+}> {
+  try {
+    const storedPrograms = getStoredPrograms();
+    const issues: string[] = [];
+    
+    // Check if we have any programs
+    if (storedPrograms.length === 0) {
+      issues.push("No se encontraron programas en localStorage");
+      return { valid: false, issues };
+    }
+    
+    // Validate each program
+    storedPrograms.forEach((program: ProgramType, index: number) => {
+      if (!program.name) {
+        issues.push(`Programa ${index+1}: Falta el nombre`);
+      }
+      if (!program.channel_id) {
+        issues.push(`Programa ${index+1} (${program.name || 'sin nombre'}): Falta el ID del canal`);
+      }
+      if (!program.start_time) {
+        issues.push(`Programa ${index+1} (${program.name || 'sin nombre'}): Falta la hora de inicio`);
+      }
+      if (!program.end_time) {
+        issues.push(`Programa ${index+1} (${program.name || 'sin nombre'}): Falta la hora de fin`);
+      }
+      if (!program.days || program.days.length === 0) {
+        issues.push(`Programa ${index+1} (${program.name || 'sin nombre'}): Faltan los días`);
+      }
+    });
+    
+    return {
+      valid: issues.length === 0,
+      issues
+    };
+  } catch (error) {
+    console.error('Error validating localStorage data:', error);
+    return {
+      valid: false,
+      issues: [`Error al validar datos: ${error}`]
+    };
+  }
+}
+
+/**
+ * Calculate migration stats
+ */
+export async function getMigrationStats(): Promise<{
+  programsToMigrate: number;
+  channelsNeeded: string[];
+  estimatedTimeSeconds: number;
+}> {
+  try {
+    const storedPrograms = getStoredPrograms();
+    const uniqueChannelIds = new Set(storedPrograms.map(p => p.channel_id));
+    
+    // Get channel names for the IDs
+    const channels = await fetchChannels();
+    const channelMap = channels.reduce((map, channel) => {
+      map[channel.id] = channel.name;
+      return map;
+    }, {} as Record<string, string>);
+    
+    const channelsNeeded = Array.from(uniqueChannelIds)
+      .map(id => channelMap[id] || `Canal ID: ${id}`)
+      .filter(Boolean);
+    
+    // Estimate time (roughly 100ms per program)
+    const estimatedTimeSeconds = Math.max(1, Math.ceil(storedPrograms.length * 0.1));
+    
+    return {
+      programsToMigrate: storedPrograms.length,
+      channelsNeeded,
+      estimatedTimeSeconds
+    };
+  } catch (error) {
+    console.error('Error getting migration stats:', error);
+    return {
+      programsToMigrate: 0,
+      channelsNeeded: [],
+      estimatedTimeSeconds: 0
+    };
+  }
+}

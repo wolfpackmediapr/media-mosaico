@@ -5,15 +5,18 @@ import { TvSettingsTabs } from "@/components/settings/tv/TvSettingsTabs";
 import { seedTvData, resetTvData } from "@/services/tv/seedService";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw, Database } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TvMigrationPanel } from "@/components/settings/tv/TvMigrationPanel";
+import { Badge } from "@/components/ui/badge";
+import { isUsingDatabase } from "@/services/tv/utils";
 
 export default function TvSettings() {
   const [activeTab, setActiveTab] = useState<string>("channels");
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
   const [settingsTab, setSettingsTab] = useState<string>("data");
+  const [storageType, setStorageType] = useState<"database" | "localStorage" | null>(null);
 
   useEffect(() => {
     // Initialize TV data when component loads
@@ -21,6 +24,8 @@ export default function TvSettings() {
       try {
         setLoading(true);
         await seedTvData();
+        const usingDb = await isUsingDatabase();
+        setStorageType(usingDb ? "database" : "localStorage");
         toast.success("Datos de TV inicializados correctamente");
       } catch (error) {
         console.error("Error initializing TV data:", error);
@@ -49,6 +54,9 @@ export default function TvSettings() {
         setTimeout(() => setActiveTab(current), 10);
         return prev === "channels" ? "programs" : "channels";
       });
+      // Update storage type after reset
+      const usingDb = await isUsingDatabase();
+      setStorageType(usingDb ? "database" : "localStorage");
     } catch (error) {
       console.error("Error resetting TV data:", error);
       toast.error("Error al restablecer los datos de TV");
@@ -62,7 +70,16 @@ export default function TvSettings() {
       title="Televisión"
       description="Administra los canales y programas de televisión"
       action={
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {storageType && (
+            <Badge 
+              variant={storageType === "database" ? "default" : "outline"}
+              className="gap-1 mr-2"
+            >
+              <Database className="h-3.5 w-3.5" />
+              {storageType === "database" ? "Base de datos" : "Local"}
+            </Badge>
+          )}
           <Button
             variant="secondary"
             onClick={() => setSettingsTab(settingsTab === "data" ? "migrations" : "data")}

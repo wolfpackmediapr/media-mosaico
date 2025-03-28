@@ -1,16 +1,34 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle, Database, HardDrive, RefreshCw } from "lucide-react";
+import { 
+  AlertCircle, 
+  CheckCircle, 
+  Database, 
+  HardDrive, 
+  RefreshCw, 
+  ShieldAlert, 
+  AlertTriangle,
+  Info
+} from "lucide-react";
 import { migrateToDatabase, resetTvData } from "@/services/tv/seedService";
-import { getDataVersion, isUsingDatabase } from "@/services/tv/utils";
-import { getAppliedMigrations } from "@/services/tv/migration/migrationService";
+import { getDataVersion, isUsingDatabase, getStoredPrograms } from "@/services/tv/utils";
+import { getAppliedMigrations, validateMigrationEligibility } from "@/services/tv/migration/migrationService";
 import { TVMigration } from "@/services/tv/types";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export function TvMigrationPanel() {
   const [loading, setLoading] = useState(false);
@@ -19,6 +37,13 @@ export function TvMigrationPanel() {
   const [version, setVersion] = useState<string>('');
   const [migrations, setMigrations] = useState<TVMigration[]>([]);
   const [activeTab, setActiveTab] = useState<string>("status");
+  const [validationResult, setValidationResult] = useState<{ 
+    eligible: boolean; 
+    programCount: number; 
+    message: string; 
+  } | null>(null);
+  const [migrationProgress, setMigrationProgress] = useState(0);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -31,6 +56,14 @@ export function TvMigrationPanel() {
       
       const migs = await getAppliedMigrations();
       setMigrations(migs);
+
+      // Validate migration eligibility if using localStorage
+      if (!usingDb) {
+        const validation = await validateMigrationEligibility();
+        setValidationResult(validation);
+      } else {
+        setValidationResult(null);
+      }
     } catch (error) {
       console.error("Error loading migration status:", error);
     } finally {
@@ -38,14 +71,37 @@ export function TvMigrationPanel() {
     }
   };
 
-  const handleMigrate = async () => {
-    if (!confirm("¿Está seguro que desea migrar los datos de localStorage a la base de datos? Esta acción no se puede deshacer.")) {
+  const startMigrationProcess = () => {
+    if (!validationResult?.eligible) {
+      toast.error("No se puede migrar debido a problemas con los datos");
       return;
     }
-    
+    setShowConfirmDialog(true);
+  };
+
+  const handleMigrate = async () => {
+    setShowConfirmDialog(false);
     setMigrating(true);
+    setMigrationProgress(10); // Starting progress
+    
     try {
+      // Simulate progress stages
+      const updateProgress = () => {
+        setMigrationProgress(prev => {
+          if (prev >= 90) return prev;
+          return prev + 10;
+        });
+      };
+      
+      // Progress updates every 500ms to simulate migration phases
+      const interval = setInterval(updateProgress, 500);
+      
+      // Do the actual migration
       const result = await migrateToDatabase();
+      
+      clearInterval(interval);
+      setMigrationProgress(100);
+      
       if (result) {
         toast.success("Datos migrados correctamente a la base de datos");
         await loadStatus();
@@ -57,13 +113,14 @@ export function TvMigrationPanel() {
       toast.error("Error al migrar los datos a la base de datos");
     } finally {
       setMigrating(false);
+      setTimeout(() => setMigrationProgress(0), 1000); // Reset progress after a delay
     }
   };
 
   // Load migration status on initial render
-  useState(() => {
+  useEffect(() => {
     loadStatus();
-  });
+  }, []);
 
   return (
     <Card>
@@ -74,6 +131,13 @@ export function TvMigrationPanel() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {migrating && (
+          <div className="mb-6">
+            <p className="text-sm font-medium mb-2">Migrando datos a la base de datos...</p>
+            <Progress value={migrationProgress} className="h-2" />
+          </div>
+        )}
+        
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-4">
             <TabsTrigger value="status">Estado</TabsTrigger>
@@ -115,6 +179,18 @@ export function TvMigrationPanel() {
                   <p className="text-sm text-muted-foreground">{version || 'Desconocida'}</p>
                 </div>
                 
+                {validationResult && (
+                  <div className="border p-4 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Info className="h-4 w-4 text-blue-500" />
+                      <p className="font-medium">Datos disponibles para migración</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {validationResult.programCount} programas encontrados en localStorage
+                    </p>
+                  </div>
+                )}
+                
                 {dataStorage === 'localStorage' && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -132,6 +208,16 @@ export function TvMigrationPanel() {
                     <AlertTitle>Datos almacenados en base de datos</AlertTitle>
                     <AlertDescription>
                       Sus datos de TV están almacenados correctamente en la base de datos Supabase.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {validationResult && !validationResult.eligible && (
+                  <Alert variant="destructive">
+                    <ShieldAlert className="h-4 w-4" />
+                    <AlertTitle>Migración no disponible</AlertTitle>
+                    <AlertDescription>
+                      {validationResult.message}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -182,7 +268,10 @@ export function TvMigrationPanel() {
         </Button>
         
         {dataStorage === 'localStorage' && (
-          <Button onClick={handleMigrate} disabled={migrating}>
+          <Button 
+            onClick={startMigrationProcess} 
+            disabled={migrating || (validationResult && !validationResult.eligible)}
+          >
             {migrating ? (
               <>
                 <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -194,6 +283,43 @@ export function TvMigrationPanel() {
           </Button>
         )}
       </CardFooter>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar migración de datos</DialogTitle>
+            <DialogDescription>
+              Está a punto de migrar {validationResult?.programCount || 0} programas de TV desde el 
+              almacenamiento local (localStorage) a la base de datos Supabase.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Información importante</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                  <li>Esta operación no se puede deshacer</li>
+                  <li>Los datos serán copiados a la base de datos</li>
+                  <li>Los datos en localStorage se mantendrán como respaldo</li>
+                  <li>Después de la migración, la aplicación usará la base de datos como fuente principal</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleMigrate}>
+              Continuar con la migración
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
