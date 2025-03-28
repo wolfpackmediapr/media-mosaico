@@ -943,6 +943,24 @@ export type Database = {
         }
         Relationships: []
       }
+      stations: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       transcriptions: {
         Row: {
           analysis_alerts: Json | null
@@ -1351,6 +1369,20 @@ export type Database = {
         }
         Returns: unknown
       }
+      insert_tv_rate: {
+        Args: {
+          channel_name: string
+          program_name: string
+          days: string[]
+          start_time: string
+          end_time: string
+          rate_15s: number
+          rate_30s: number
+          rate_45s: number
+          rate_60s: number
+        }
+        Returns: undefined
+      }
       ivfflat_bit_support: {
         Args: {
           "": unknown
@@ -1457,6 +1489,10 @@ export type Database = {
           "": unknown[]
         }
         Returns: number
+      }
+      update_tv_programs: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       vector_avg: {
         Args: {

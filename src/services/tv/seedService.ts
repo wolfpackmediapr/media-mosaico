@@ -123,9 +123,21 @@ export async function resetTvData() {
     const usingDatabase = await isUsingDatabase();
     
     if (usingDatabase) {
-      // Delete all programs from database
-      const { error } = await supabase.from('tv_programs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      if (error) throw error;
+      // First delete all rates from database (to avoid foreign key constraints)
+      const { error: ratesError } = await supabase
+        .from('tv_rates')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      
+      if (ratesError) console.error('Error deleting rates:', ratesError);
+      
+      // Then delete all programs from database
+      const { error: programsError } = await supabase
+        .from('tv_programs')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      
+      if (programsError) throw programsError;
     } else {
       // Clear programs from localStorage
       localStorage.removeItem('tv_programs');

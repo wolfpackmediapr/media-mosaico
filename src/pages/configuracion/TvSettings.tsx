@@ -6,7 +6,6 @@ import { seedTvData, resetTvData } from "@/services/tv/seedService";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw, Database } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TvMigrationPanel } from "@/components/settings/tv/TvMigrationPanel";
 import { Badge } from "@/components/ui/badge";
 import { isUsingDatabase } from "@/services/tv/utils";

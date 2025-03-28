@@ -112,4 +112,4 @@ export const defaultTvProgramsData = defaultTvChannelsData.flatMap(channel =>
 );
 
 // Current data version for versioning control
-export const CURRENT_TV_DATA_VERSION = "1.0";
+export const CURRENT_TV_DATA_VERSION = "1.1";
