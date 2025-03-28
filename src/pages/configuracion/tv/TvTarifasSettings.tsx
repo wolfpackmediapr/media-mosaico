@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { TvRatesContent } from "@/components/settings/tv/rates/TvRatesContent";
@@ -7,7 +6,6 @@ import { TvRatesImport } from "@/components/settings/tv/rates/TvRatesImport";
 import { useTvRatesManagement } from "@/hooks/tv/useTvRatesManagement";
 import { TvRatesLoadingState } from "@/components/settings/tv/rates/TvRatesLoadingState";
 import { toast } from "sonner";
-import { TvRateType } from "@/services/tv/types";
 
 interface TvTarifasSettingsProps {
   isLoading?: boolean;
@@ -44,7 +42,6 @@ export function TvTarifasSettings({ isLoading: externalLoading = false }: TvTari
 
   const [showImportDialog, setShowImportDialog] = useState(false);
   
-  // Combine external loading state with internal data loading state
   const isLoadingState = externalLoading || dataLoading;
 
   const handleSearchChange = (term: string) => {
