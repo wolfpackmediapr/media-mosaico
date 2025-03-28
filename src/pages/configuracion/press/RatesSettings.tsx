@@ -1,98 +1,47 @@
 
-import { useState, useEffect } from "react";
-import { CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { toast } from "sonner";
-import { Source } from "./types/press-types";
-import { RatesTable } from "./components/RatesTable";
-import { RatesSearch } from "./components/RatesSearch";
-import { AddRateForm } from "./components/AddRateForm";
-import { RatesPagination } from "./components/RatesPagination";
-import { getInitialRates } from "./components/initialRates";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader,
+  CardFooter
+} from "@/components/ui/card";
+import { RatesHeader } from "@/components/settings/press/rates/RatesHeader";
+import { RatesContent } from "@/components/settings/press/rates/RatesContent";
+import { RatesFooter } from "@/components/settings/press/rates/RatesFooter";
+import { useRatesManagement } from "@/hooks/press/useRatesManagement";
 
 export function RatesSettings() {
-  const [rates, setRates] = useState<Source[]>([]);
-  const [filteredRates, setFilteredRates] = useState<Source[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [newRateName, setNewRateName] = useState("");
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [editedName, setEditedName] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const {
+    isLoading,
+    searchTerm,
+    isAddingNew,
+    newRateName,
+    editingId,
+    editedName,
+    paginatedRates,
+    currentPage,
+    totalPages,
+    filteredRates,
+    itemsPerPage,
+    setSearchTerm,
+    setIsAddingNew,
+    setNewRateName,
+    setEditedName,
+    setCurrentPage,
+    setEditingId,
+    handleAddRate,
+    handleEditRate,
+    handleSaveEdit,
+    handleDeleteRate,
+    loadData
+  } = useRatesManagement();
 
-  useEffect(() => {
-    // Initial data - in a real app, this would come from the API
-    const initialRates = getInitialRates();
-    
-    setRates(initialRates);
-    setFilteredRates(initialRates);
-    setIsLoading(false);
-  }, []);
-
-  // Filter rates based on search term
-  useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredRates(rates);
-    } else {
-      const filtered = rates.filter(rate => 
-        rate.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredRates(filtered);
-    }
-    setCurrentPage(1); // Reset to first page on search
-  }, [searchTerm, rates]);
-
-  const handleAddRate = () => {
-    if (!newRateName.trim()) {
-      toast.error("El nombre de la tarifa no puede estar vacío");
-      return;
-    }
-
-    // In a real app, this would call an API
-    const newRate: Source = {
-      id: Date.now().toString(),
-      name: newRateName.trim().toUpperCase(),
-    };
-
-    setRates([...rates, newRate]);
-    setNewRateName("");
-    setIsAddingNew(false);
-    toast.success("Tarifa añadida correctamente");
+  const handleSearchChange = (term: string) => {
+    setSearchTerm(term);
   };
 
-  const handleEditRate = (id: string) => {
-    const rate = rates.find(r => r.id === id);
-    if (rate) {
-      setEditingId(id);
-      setEditedName(rate.name);
-    }
-  };
-
-  const handleSaveEdit = (id: string) => {
-    if (!editedName.trim()) {
-      toast.error("El nombre de la tarifa no puede estar vacío");
-      return;
-    }
-
-    // In a real app, this would call an API
-    setRates(rates.map(rate => 
-      rate.id === id ? { ...rate, name: editedName.trim().toUpperCase() } : rate
-    ));
-    setEditingId(null);
-    toast.success("Tarifa actualizada correctamente");
-  };
-
-  const handleDeleteRate = (id: string) => {
-    // In a real app, this would call an API
-    setRates(rates.filter(rate => rate.id !== id));
-    toast.success("Tarifa eliminada correctamente");
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
+  const handleShowAll = () => {
+    setSearchTerm("");
   };
 
   const handleCancelAdd = () => {
@@ -100,78 +49,49 @@ export function RatesSettings() {
     setNewRateName("");
   };
 
-  const handleShowAll = () => {
-    setSearchTerm("");
+  const handleCancelEdit = () => {
+    setEditingId(null);
   };
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredRates.length / itemsPerPage);
-  const paginatedRates = filteredRates.slice(
-    (currentPage - 1) * itemsPerPage, 
-    currentPage * itemsPerPage
-  );
-
-  if (isLoading) {
-    return (
-      <CardContent className="p-6">
-        <div className="flex items-center justify-center h-56">
-          <p className="text-muted-foreground">Cargando tarifas...</p>
-        </div>
-      </CardContent>
-    );
-  }
-
   return (
-    <CardContent className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-medium">Tarifas de Prensa</h3>
-        {!isAddingNew && (
-          <Button onClick={() => setIsAddingNew(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Agregar tarifa
-          </Button>
-        )}
-      </div>
+    <Card>
+      <CardHeader>
+        <RatesHeader onAddClick={() => setIsAddingNew(true)} />
+      </CardHeader>
       
-      {/* Search section */}
-      <RatesSearch 
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        handleShowAll={handleShowAll}
-      />
-      
-      {/* Add new rate form */}
-      {isAddingNew && (
-        <AddRateForm
+      <CardContent>
+        <RatesContent
+          isLoading={isLoading}
+          searchTerm={searchTerm}
+          onSearchChange={handleSearchChange}
+          onShowAll={handleShowAll}
+          isAddingNew={isAddingNew}
           newRateName={newRateName}
           setNewRateName={setNewRateName}
-          handleAddRate={handleAddRate}
-          handleCancelAdd={handleCancelAdd}
+          onAddRate={handleAddRate}
+          onCancelAdd={handleCancelAdd}
+          paginatedRates={paginatedRates}
+          onEdit={handleEditRate}
+          onDelete={handleDeleteRate}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={handleCancelEdit}
+          editingId={editingId}
+          editedName={editedName}
+          setEditedName={setEditedName}
         />
-      )}
-
-      {/* Rates table */}
-      <RatesTable
-        paginatedRates={paginatedRates}
-        onEdit={handleEditRate}
-        onDelete={handleDeleteRate}
-        onSaveEdit={handleSaveEdit}
-        onCancelEdit={handleCancelEdit}
-        editingId={editingId}
-        editedName={editedName}
-        setEditedName={setEditedName}
-      />
+      </CardContent>
       
-      {/* Pagination */}
-      {filteredRates.length > 0 && (
-        <RatesPagination
+      <CardFooter>
+        <RatesFooter
+          onRefresh={loadData}
+          isLoading={isLoading}
+          totalCount={filteredRates.length}
           currentPage={currentPage}
           totalPages={totalPages}
-          filteredItemsCount={filteredRates.length}
           itemsPerPage={itemsPerPage}
           onPageChange={setCurrentPage}
         />
-      )}
-    </CardContent>
+      </CardFooter>
+    </Card>
   );
 }
