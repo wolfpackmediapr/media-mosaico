@@ -13,7 +13,7 @@ export interface StationType {
 }
 
 export interface ProgramType {
-  id?: string;
+  id: string; // Changed from optional to required
   name: string;
   station_id: string;
   start_time: string;
@@ -41,7 +41,7 @@ export interface RadioDataVersion {
 }
 
 export interface RadioRateType {
-  id?: string;
+  id: string; // Changed from optional to required
   station_id: string;
   station_name?: string;
   program_id: string;

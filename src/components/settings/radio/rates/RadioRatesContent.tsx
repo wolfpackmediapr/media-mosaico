@@ -6,6 +6,7 @@ import { RadioRatesFilter } from "./RadioRatesFilter";
 import { RadioRatesEmptyState } from "./RadioRatesEmptyState";
 import { RadioRatesHeader } from "./RadioRatesHeader";
 import { RadioRateType, StationType, ProgramType } from "@/services/radio/types";
+import React from "react";
 
 interface RadioRatesContentProps {
   isLoading: boolean;
@@ -72,15 +73,36 @@ export function RadioRatesContent(props: RadioRatesContentProps) {
     />
   );
 
+  // Adapter for the RadioRateForm component
+  const RadioRateFormAdapter = ({ 
+    media, 
+    programs, 
+    onSave, 
+    onCancel, 
+    editMode, 
+    data 
+  }: any) => (
+    <RadioRateForm
+      stations={media}
+      programs={programs}
+      onSave={onSave}
+      onCancel={onCancel}
+      editMode={editMode}
+      data={data}
+    />
+  );
+
+  const RatesContentComponent = RatesContent<RadioRateType, StationType, ProgramType>;
+
   return (
-    <RatesContent<RadioRateType, StationType, ProgramType>
+    <RatesContentComponent
       {...props}
       selectedMedia={props.selectedStation}
       onMediaChange={props.onStationChange}
       media={props.stations}
       HeaderComponent={RadioRatesHeader}
       FilterComponent={FilterAdapter}
-      RateFormComponent={RadioRateForm}
+      RateFormComponent={RadioRateFormAdapter}
       TableComponent={RadioRatesTable}
       EmptyStateComponent={EmptyStateAdapter}
     />

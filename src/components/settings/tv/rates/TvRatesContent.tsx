@@ -1,3 +1,4 @@
+
 import { RatesContent } from "@/components/settings/common/rates/RatesContent";
 import { TvRatesHeader } from "./TvRatesHeader";
 import { TvRatesFilter } from "./TvRatesFilter";
@@ -5,6 +6,7 @@ import { TvRatesTable } from "./TvRatesTable";
 import { TvRatesEmptyState } from "./TvRatesEmptyState";
 import { TvRateForm } from "./TvRateForm";
 import { TvRateType, ChannelType, ProgramType } from "@/services/tv/types";
+import React from "react";
 
 interface TvRatesContentProps {
   isLoading: boolean;
@@ -70,6 +72,25 @@ export function TvRatesContent(props: TvRatesContentProps) {
     />
   );
 
+  // Adapter for the TvRateForm component to match the expected props in RatesContent
+  const TvRateFormAdapter = ({ 
+    media, 
+    programs, 
+    onSave, 
+    onCancel, 
+    editMode, 
+    data 
+  }: any) => (
+    <TvRateForm
+      channels={media}
+      programs={programs}
+      onSave={onSave}
+      onCancel={onCancel}
+      editMode={editMode}
+      data={data}
+    />
+  );
+
   const RatesContentComponent = RatesContent<TvRateType, ChannelType, ProgramType>;
 
   return (
@@ -80,7 +101,7 @@ export function TvRatesContent(props: TvRatesContentProps) {
       media={props.channels}
       HeaderComponent={TvRatesHeader}
       FilterComponent={FilterAdapter}
-      RateFormComponent={TvRateForm}
+      RateFormComponent={TvRateFormAdapter}
       TableComponent={TableAdapter}
       EmptyStateComponent={TvRatesEmptyState}
     />
