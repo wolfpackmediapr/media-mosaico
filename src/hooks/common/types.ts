@@ -1,4 +1,3 @@
-
 export interface RateType {
   id: string;
   days: string[];
@@ -19,7 +18,7 @@ export interface MediaType {
 }
 
 export interface ProgramType {
-  id: string;
+  id?: string; // Changed from required to optional to match radio service type
   name: string;
   [key: string]: any;
 }
