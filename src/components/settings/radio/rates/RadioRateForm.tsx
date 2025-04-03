@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,10 +23,12 @@ interface RadioRateFormProps {
   stations: StationType[];
   programs: ProgramType[];
   onCancel: () => void;
-  onSubmit: (rate: Omit<RadioRateType, 'id' | 'created_at'>) => void;
+  onSave: (rate: Omit<RadioRateType, 'id' | 'created_at'>) => void;
+  editMode?: boolean;
+  data?: RadioRateType;
 }
 
-export function RadioRateForm({ stations, programs, onCancel, onSubmit }: RadioRateFormProps) {
+export function RadioRateForm({ stations, programs, onCancel, onSave, editMode = false, data }: RadioRateFormProps) {
   const [stationId, setStationId] = useState<string>("");
   const [programId, setProgramId] = useState<string>("");
   const [startTime, setStartTime] = useState<string>("07:00");
@@ -43,6 +44,28 @@ export function RadioRateForm({ stations, programs, onCancel, onSubmit }: RadioR
   const [filteredPrograms, setFilteredPrograms] = useState<ProgramType[]>([]);
   const [stationName, setStationName] = useState<string>("");
   const [programName, setProgramName] = useState<string>("");
+
+  useEffect(() => {
+    if (editMode && data) {
+      setStationId(data.station_id);
+      setProgramId(data.program_id);
+      setStartTime(data.start_time);
+      setEndTime(data.end_time);
+      
+      const daysMapping: Record<string, boolean> = {
+        L: false, K: false, M: false, J: false, V: false, S: false, D: false
+      };
+      data.days.forEach(day => {
+        daysMapping[day] = true;
+      });
+      setDays(daysMapping);
+      
+      setRate15s(data.rate_15s !== null ? data.rate_15s.toString() : "");
+      setRate30s(data.rate_30s !== null ? data.rate_30s.toString() : "");
+      setRate45s(data.rate_45s !== null ? data.rate_45s.toString() : "");
+      setRate60s(data.rate_60s !== null ? data.rate_60s.toString() : "");
+    }
+  }, [editMode, data]);
 
   useEffect(() => {
     if (stationId) {
@@ -89,16 +112,24 @@ export function RadioRateForm({ stations, programs, onCancel, onSubmit }: RadioR
       rate_15s: rate15s ? Number(rate15s) : null,
       rate_30s: rate30s ? Number(rate30s) : null,
       rate_45s: rate45s ? Number(rate45s) : null,
-      rate_60s: rate60s ? Number(rate60s) : null
+      rate_60s: rate60s ? Number(rate60s) : null,
+      updated_at: new Date().toISOString()
     };
 
-    onSubmit(rateData);
+    if (editMode && data) {
+      onSave({
+        ...rateData,
+        id: data.id
+      } as any);
+    } else {
+      onSave(rateData);
+    }
   };
 
   return (
     <Card className="mb-6">
       <CardHeader>
-        <CardTitle>Agregar Nueva Tarifa</CardTitle>
+        <CardTitle>{editMode ? "Editar Tarifa" : "Agregar Nueva Tarifa"}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -133,7 +164,7 @@ export function RadioRateForm({ stations, programs, onCancel, onSubmit }: RadioR
               </SelectTrigger>
               <SelectContent>
                 {filteredPrograms.map((program) => (
-                  <SelectItem key={program.id} value={program.id!}>
+                  <SelectItem key={program.id} value={program.id}>
                     {program.name}
                   </SelectItem>
                 ))}
@@ -279,7 +310,7 @@ export function RadioRateForm({ stations, programs, onCancel, onSubmit }: RadioR
           Cancelar
         </Button>
         <Button onClick={handleSubmit}>
-          Guardar Tarifa
+          {editMode ? "Actualizar Tarifa" : "Guardar Tarifa"}
         </Button>
       </CardFooter>
     </Card>

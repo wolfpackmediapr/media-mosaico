@@ -13,7 +13,7 @@ export interface StationType {
 }
 
 export interface ProgramType {
-  id: string; 
+  id?: string;  // Make id optional for seed data
   name: string;
   station_id: string;
   start_time: string;
