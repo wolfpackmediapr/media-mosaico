@@ -18,13 +18,13 @@ interface RadioRatesContentProps {
   onProgramChange: (programId: string) => void;
   onShowAll: () => void;
   isAddingNew: boolean;
-  onAddRate: (rate: Omit<RadioRateType, 'id' | 'created_at' | 'station_name' | 'program_name'>) => void;
+  onAddRate: (rate: Omit<RadioRateType, 'id' | 'created_at' | 'station_name' | 'program_name'>) => Promise<void>;
   onCancelAdd: () => void;
   filteredRates: RadioRateType[];
   totalRates: number;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
-  onSaveEdit: (rate: RadioRateType) => void;
+  onSaveEdit: (rate: Omit<RadioRateType, 'created_at' | 'station_name' | 'program_name'>) => Promise<void>;
   onCancelEdit: () => void;
   editingId: string | null;
   stations: StationType[];
@@ -92,6 +92,7 @@ export function RadioRatesContent(props: RadioRatesContentProps) {
     />
   );
 
+  // Use a variable to properly type the generic component
   const RatesContentComponent = RatesContent<RadioRateType, StationType, ProgramType>;
 
   return (

@@ -13,7 +13,7 @@ export interface StationType {
 }
 
 export interface ProgramType {
-  id: string; // Changed from optional to required
+  id: string; 
   name: string;
   station_id: string;
   start_time: string;
@@ -41,7 +41,7 @@ export interface RadioDataVersion {
 }
 
 export interface RadioRateType {
-  id: string; // Changed from optional to required
+  id: string;
   station_id: string;
   station_name?: string;
   program_id: string;
@@ -49,10 +49,10 @@ export interface RadioRateType {
   days: string[];
   start_time: string;
   end_time: string;
-  rate_15s?: number | null;
-  rate_30s?: number | null;
-  rate_45s?: number | null;
-  rate_60s?: number | null;
+  rate_15s: number | null;
+  rate_30s: number | null;
+  rate_45s: number | null;
+  rate_60s: number | null;
   created_at?: string;
   updated_at?: string;
 }

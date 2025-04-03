@@ -1,11 +1,18 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { RateType, MediaType, ProgramType, UseRatesManagementProps, UseRatesManagementReturn } from "./types";
+import { 
+  RateType, 
+  MediaType, 
+  ProgramType, 
+  UseRatesManagementProps, 
+  UseRatesManagementReturn 
+} from "./types";
 import { useRatesFiltering } from "./useRatesFiltering";
 import { useRatesCrud } from "./useRatesCrud";
 
-export { RateType, MediaType, ProgramType };
+// Use 'export type' to re-export type definitions when isolatedModules is enabled
+export type { RateType, MediaType, ProgramType };
 
 export function useRatesManagement<
   T extends RateType,

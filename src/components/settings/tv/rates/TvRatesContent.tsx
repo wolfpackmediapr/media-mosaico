@@ -91,6 +91,7 @@ export function TvRatesContent(props: TvRatesContentProps) {
     />
   );
 
+  // Use a variable to properly type the generic component
   const RatesContentComponent = RatesContent<TvRateType, ChannelType, ProgramType>;
 
   return (
