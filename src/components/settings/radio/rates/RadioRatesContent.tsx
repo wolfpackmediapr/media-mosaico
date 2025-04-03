@@ -1,9 +1,9 @@
 
+import { RatesContent } from "@/components/settings/common/rates/RatesContent";
 import { RadioRatesTable } from "./RadioRatesTable";
 import { RadioRateForm } from "./RadioRateForm";
 import { RadioRatesFilter } from "./RadioRatesFilter";
 import { RadioRatesEmptyState } from "./RadioRatesEmptyState";
-import { RadioRatesLoadingState } from "./RadioRatesLoadingState";
 import { RadioRatesHeader } from "./RadioRatesHeader";
 import { RadioRateType, StationType, ProgramType } from "@/services/radio/types";
 
@@ -35,95 +35,54 @@ interface RadioRatesContentProps {
   onImportClick: () => void;
 }
 
-export function RadioRatesContent({
-  isLoading,
-  searchTerm,
-  selectedStation,
-  selectedProgram,
-  onSearchChange,
-  onStationChange,
-  onProgramChange,
-  onShowAll,
-  isAddingNew,
-  onAddRate,
-  onCancelAdd,
-  filteredRates,
-  totalRates,
-  onEdit,
-  onDelete,
-  onSaveEdit,
-  onCancelEdit,
-  editingId,
-  stations,
-  programs,
-  currentPage,
-  totalPages,
-  onPageChange,
-  itemsPerPage,
-  onImportClick
-}: RadioRatesContentProps) {
-  if (isLoading) {
-    return <RadioRatesLoadingState />;
-  }
+export function RadioRatesContent(props: RadioRatesContentProps) {
+  // Adapter for the RadioRatesFilter component
+  const FilterAdapter = ({ 
+    searchTerm, 
+    selectedMedia, 
+    selectedProgram, 
+    onSearchChange, 
+    onMediaChange, 
+    onProgramChange, 
+    onClearFilters, 
+    media, 
+    programs 
+  }: any) => (
+    <RadioRatesFilter 
+      searchTerm={searchTerm}
+      setSearchTerm={onSearchChange}
+      selectedStation={selectedMedia}
+      setSelectedStation={onMediaChange}
+      selectedProgram={selectedProgram}
+      setSelectedProgram={onProgramChange}
+      stations={media}
+      programs={programs}
+      handleShowAll={onClearFilters}
+    />
+  );
+
+  // Adapter for the RadioRatesEmptyState component
+  const EmptyStateAdapter = ({ onAddClick, ...rest }: any) => (
+    <RadioRatesEmptyState 
+      searchTerm={props.searchTerm}
+      selectedStation={props.selectedStation}
+      selectedProgram={props.selectedProgram}
+      onClearSearch={props.onShowAll}
+      onAddNew={onAddClick}
+    />
+  );
 
   return (
-    <div className="space-y-4">
-      {/* Header with add button */}
-      <RadioRatesHeader 
-        onAddClick={() => {
-          // Using isAddingNew instead of directly manipulating editingId
-          if (!isAddingNew && !editingId) {
-            onEdit("");
-          }
-        }} 
-        onImportClick={onImportClick}
-      />
-      
-      {/* Filter section */}
-      <RadioRatesFilter 
-        searchTerm={searchTerm}
-        setSearchTerm={onSearchChange}
-        selectedStation={selectedStation}
-        setSelectedStation={onStationChange}
-        selectedProgram={selectedProgram}
-        setSelectedProgram={onProgramChange}
-        stations={stations}
-        programs={programs}
-        handleShowAll={onShowAll}
-      />
-      
-      {/* Add new rate form */}
-      {isAddingNew && (
-        <RadioRateForm
-          stations={stations}
-          programs={programs}
-          onCancel={onCancelAdd}
-          onSubmit={onAddRate}
-        />
-      )}
-
-      {/* Rates table or empty state */}
-      {filteredRates.length === 0 ? (
-        <RadioRatesEmptyState 
-          searchTerm={searchTerm} 
-          selectedStation={selectedStation}
-          selectedProgram={selectedProgram}
-          onClearSearch={onShowAll} 
-          onAddNew={() => {
-            // For adding new, call onEdit with empty string
-            onEdit("");
-          }}
-        />
-      ) : (
-        <RadioRatesTable
-          rates={filteredRates}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onSaveEdit={onSaveEdit}
-          onCancelEdit={onCancelEdit}
-          editingId={editingId}
-        />
-      )}
-    </div>
+    <RatesContent<RadioRateType, StationType, ProgramType>
+      {...props}
+      selectedMedia={props.selectedStation}
+      onMediaChange={props.onStationChange}
+      media={props.stations}
+      HeaderComponent={RadioRatesHeader}
+      FilterComponent={FilterAdapter}
+      RateFormComponent={RadioRateForm}
+      TableComponent={RadioRatesTable}
+      EmptyStateComponent={EmptyStateAdapter}
+    />
   );
 }

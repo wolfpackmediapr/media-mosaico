@@ -1,4 +1,5 @@
 
+import { RatesContent } from "@/components/settings/common/rates/RatesContent";
 import { TvRatesHeader } from "./TvRatesHeader";
 import { TvRatesFilter } from "./TvRatesFilter";
 import { TvRatesTable } from "./TvRatesTable";
@@ -34,81 +35,53 @@ interface TvRatesContentProps {
   onImportClick: () => void;
 }
 
-export function TvRatesContent({
-  isLoading,
-  searchTerm,
-  selectedChannel,
-  selectedProgram,
-  onSearchChange,
-  onChannelChange,
-  onProgramChange,
-  onShowAll,
-  isAddingNew,
-  onAddRate,
-  onCancelAdd,
-  filteredRates,
-  totalRates,
-  onEdit,
-  onDelete,
-  onSaveEdit,
-  onCancelEdit,
-  editingId,
-  channels,
-  programs,
-  currentPage,
-  totalPages,
-  onPageChange,
-  itemsPerPage,
-  onImportClick,
-}: TvRatesContentProps) {
-  // Render empty state if there are no rates and we're not adding a new one
-  if (totalRates === 0 && !isAddingNew) {
-    return <TvRatesEmptyState onAddClick={() => onEdit("")} />;
-  }
+export function TvRatesContent(props: TvRatesContentProps) {
+  // Adapter function to make the filter component work with our generic component
+  const FilterAdapter = ({ 
+    searchTerm, 
+    selectedMedia, 
+    selectedProgram, 
+    onSearchChange, 
+    onMediaChange, 
+    onProgramChange, 
+    onClearFilters, 
+    media, 
+    programs 
+  }: any) => (
+    <TvRatesFilter
+      searchTerm={searchTerm}
+      selectedChannel={selectedMedia}
+      selectedProgram={selectedProgram}
+      onSearchChange={onSearchChange}
+      onChannelChange={onMediaChange}
+      onProgramChange={onProgramChange}
+      onClearFilters={onClearFilters}
+      channels={media}
+      programs={programs}
+    />
+  );
+
+  // Adapter function to make the table component work with our generic component
+  const TableAdapter = ({ rates, ...rest }: any) => (
+    <TvRatesTable
+      rates={rates}
+      channels={props.channels}
+      programs={props.programs}
+      {...rest}
+    />
+  );
 
   return (
-    <div className="space-y-4">
-      <TvRatesHeader 
-        onAddClick={() => {
-          // Using isAddingNew instead of directly manipulating editingId
-          if (!isAddingNew && !editingId) {
-            onEdit("");
-          }
-        }} 
-        onImportClick={onImportClick} 
-      />
-      
-      <TvRatesFilter
-        searchTerm={searchTerm}
-        selectedChannel={selectedChannel}
-        selectedProgram={selectedProgram}
-        onSearchChange={onSearchChange}
-        onChannelChange={onChannelChange}
-        onProgramChange={onProgramChange}
-        onClearFilters={onShowAll}
-        channels={channels}
-        programs={programs}
-      />
-      
-      {isAddingNew && (
-        <TvRateForm
-          channels={channels}
-          programs={programs}
-          onSave={onAddRate}
-          onCancel={onCancelAdd}
-        />
-      )}
-      
-      <TvRatesTable
-        rates={filteredRates}
-        channels={channels}
-        programs={programs}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        onSaveEdit={onSaveEdit}
-        onCancelEdit={onCancelEdit}
-        editingId={editingId}
-      />
-    </div>
+    <RatesContent<TvRateType, ChannelType, ProgramType>
+      {...props}
+      selectedMedia={props.selectedChannel}
+      onMediaChange={props.onChannelChange}
+      media={props.channels}
+      HeaderComponent={TvRatesHeader}
+      FilterComponent={FilterAdapter}
+      RateFormComponent={TvRateForm}
+      TableComponent={TableAdapter}
+      EmptyStateComponent={TvRatesEmptyState}
+    />
   );
 }
