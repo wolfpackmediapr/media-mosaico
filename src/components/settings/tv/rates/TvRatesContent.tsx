@@ -1,4 +1,3 @@
-
 import { RatesContent } from "@/components/settings/common/rates/RatesContent";
 import { TvRatesHeader } from "./TvRatesHeader";
 import { TvRatesFilter } from "./TvRatesFilter";
@@ -71,8 +70,10 @@ export function TvRatesContent(props: TvRatesContentProps) {
     />
   );
 
+  const RatesContentComponent = RatesContent<TvRateType, ChannelType, ProgramType>;
+
   return (
-    <RatesContent<TvRateType, ChannelType, ProgramType>
+    <RatesContentComponent
       {...props}
       selectedMedia={props.selectedChannel}
       onMediaChange={props.onChannelChange}
