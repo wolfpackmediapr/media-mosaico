@@ -1,5 +1,5 @@
 
-import { Home, Tv, Radio, Newspaper, Bell, BarChart2, Settings, HelpCircle, Send, Rss, Menu, Tablet, FileText } from "lucide-react";
+import { Home, Tv, Radio, Newspaper, Bell, BarChart2, Settings, HelpCircle, Send, Rss, Menu, Tablet, FileText, BookOpen } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Image } from "@/components/ui/image";
 import { useState } from "react";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 const mainMenuItems = [
   { icon: Home, label: "Inicio", path: "/" },
+  { icon: BookOpen, label: "Publiteca", path: "/publiteca/prensa" },
   { icon: Tv, label: "TV", path: "/tv" },
   { icon: Radio, label: "Radio", path: "/radio" },
   { icon: Tablet, label: "Prensa Digital", path: "/prensa" },
@@ -33,7 +34,8 @@ const Sidebar = () => {
 
   const MenuItem = ({ item }: { item: typeof mainMenuItems[0] }) => {
     const Icon = item.icon;
-    const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+    const isActive = location.pathname === item.path || 
+                    (item.path !== "/" && location.pathname.startsWith(`${item.path}`));
     
     return (
       <Link

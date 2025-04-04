@@ -48,6 +48,12 @@ import { InstitucionesGestionSettings } from "./pages/configuracion/institucione
 import { InstitucionesCategoriasSettings } from "./pages/configuracion/instituciones/InstitucionesCategoriasSettings";
 import { InstitucionesAgenciasSettings } from "./pages/configuracion/instituciones/InstitucionesAgenciasSettings";
 
+// Publiteca pages import
+import PublitecaPrensa from "./pages/publiteca/Prensa";
+import PublitecaRadio from "./pages/publiteca/Radio";
+import PublitecaTv from "./pages/publiteca/Tv";
+import PublitecaRedesSociales from "./pages/publiteca/RedesSociales";
+
 import "./App.css";
 
 function App() {
@@ -132,6 +138,14 @@ function App() {
                   <Route path="instituciones/agencias" element={<InstitucionesAgenciasSettings />} />
                 </Route>
                 <Route path="ayuda" element={<Ayuda />} />
+
+                {/* Publiteca routes */}
+                <Route path="publiteca">
+                  <Route path="prensa" element={<PublitecaPrensa />} />
+                  <Route path="radio" element={<PublitecaRadio />} />
+                  <Route path="tv" element={<PublitecaTv />} />
+                  <Route path="redes-sociales" element={<PublitecaRedesSociales />} />
+                </Route>
               </Route>
               <Route path="auth" element={<Auth />} />
               <Route path="registro" element={<Registro />} />
