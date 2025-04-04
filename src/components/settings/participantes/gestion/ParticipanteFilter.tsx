@@ -45,7 +45,7 @@ export function ParticipanteFilter({
           <SelectValue placeholder="Todas las categorías" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Todas las categorías</SelectItem>
+          <SelectItem value="all">Todas las categorías</SelectItem>
           {categories.map((category) => (
             <SelectItem key={category.id} value={category.name}>
               {category.name}
