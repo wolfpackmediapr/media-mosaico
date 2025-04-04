@@ -3,7 +3,7 @@ import { useState } from "react";
 import { CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import RatesTable from "./components/RatesTable";
+import { RatesTable } from "./components/RatesTable";
 import { AddRateForm } from "./components/AddRateForm";
 import { usePressSettings } from "@/hooks/use-press-settings";
 

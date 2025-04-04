@@ -3,7 +3,7 @@ import { useState } from "react";
 import { CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import GenresTable from "./components/GenresTable";
+import { GenresTable } from "./components/GenresTable";
 import { AddGenreForm } from "./components/AddGenreForm";
 import { usePressSettings } from "@/hooks/use-press-settings";
 
