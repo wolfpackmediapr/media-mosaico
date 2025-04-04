@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { fetchParticipants, createParticipant, updateParticipant, deleteParticipant } from '@/services/participantes/participantesService';
 import { ParticipantType } from '@/services/participantes/types';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 export const useParticipantesManagement = () => {
   const [participants, setParticipants] = useState<ParticipantType[]>([]);
@@ -25,11 +25,7 @@ export const useParticipantesManagement = () => {
         setParticipants(data);
       } catch (error) {
         console.error('Error loading participants:', error);
-        toast({
-          title: 'Error',
-          description: 'No se pudieron cargar los participantes.',
-          variant: 'destructive',
-        });
+        toast.error('No se pudieron cargar los participantes.');
       } finally {
         setLoading(false);
       }
@@ -88,18 +84,11 @@ export const useParticipantesManagement = () => {
     try {
       const newParticipant = await createParticipant(data);
       setParticipants([...participants, newParticipant]);
-      toast({
-        title: 'Éxito',
-        description: 'Participante agregado correctamente.',
-      });
+      toast.success('Participante agregado correctamente.');
       return true;
     } catch (error) {
       console.error('Error adding participant:', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudo agregar el participante.',
-        variant: 'destructive',
-      });
+      toast.error('No se pudo agregar el participante.');
       return false;
     }
   };
@@ -110,18 +99,11 @@ export const useParticipantesManagement = () => {
       setParticipants(
         participants.map(p => p.id === updatedParticipant.id ? updatedParticipant : p)
       );
-      toast({
-        title: 'Éxito',
-        description: 'Participante actualizado correctamente.',
-      });
+      toast.success('Participante actualizado correctamente.');
       return true;
     } catch (error) {
       console.error('Error updating participant:', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudo actualizar el participante.',
-        variant: 'destructive',
-      });
+      toast.error('No se pudo actualizar el participante.');
       return false;
     }
   };
@@ -131,18 +113,11 @@ export const useParticipantesManagement = () => {
       try {
         await deleteParticipant(id);
         setParticipants(participants.filter(p => p.id !== id));
-        toast({
-          title: 'Éxito',
-          description: 'Participante eliminado correctamente.',
-        });
+        toast.success('Participante eliminado correctamente.');
         return true;
       } catch (error) {
         console.error('Error deleting participant:', error);
-        toast({
-          title: 'Error',
-          description: 'No se pudo eliminar el participante.',
-          variant: 'destructive',
-        });
+        toast.error('No se pudo eliminar el participante.');
         return false;
       }
     }

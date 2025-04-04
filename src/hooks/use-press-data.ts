@@ -4,6 +4,7 @@ import { Source, Genre } from "@/pages/configuracion/press/types/press-types";
 import { ParticipantCategoryType, ParticipantType } from "@/services/participantes/types";
 import { MediaOutlet } from "@/services/media/mediaService";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 // Fixed categories for news
 export const NEWS_CATEGORIES = [
@@ -115,17 +116,18 @@ export function usePressData() {
   const fetchParticipants = async () => {
     setLoadingParticipants(true);
     try {
-      // In a real implementation, this would be an API call
-      setTimeout(() => {
-        setParticipants([
-          { id: "1", name: "Juan Pérez" },
-          { id: "2", name: "María Rodríguez" },
-          { id: "3", name: "Carlos Sánchez" },
-          { id: "4", name: "Ana González" },
-          { id: "5", name: "Pedro Martínez" }
-        ]);
-        setLoadingParticipants(false);
-      }, 700);
+      // Get participants from Supabase
+      const { data, error } = await supabase
+        .from('participants')
+        .select('id, name')
+        .order('name');
+      
+      if (error) {
+        throw error;
+      }
+      
+      setParticipants(data || []);
+      setLoadingParticipants(false);
     } catch (error) {
       console.error("Error fetching participants:", error);
       toast.error("Error al cargar los participantes");

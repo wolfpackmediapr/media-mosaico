@@ -533,6 +533,54 @@ export type Database = {
           },
         ]
       }
+      participant_categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      participants: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          name: string
+          position: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          name: string
+          position: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pdf_processing_jobs: {
         Row: {
           created_at: string | null
