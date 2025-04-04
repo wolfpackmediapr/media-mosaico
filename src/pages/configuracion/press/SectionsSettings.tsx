@@ -11,6 +11,7 @@ export function SectionsSettings() {
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [editedName, setEditedName] = useState("");
   
   const { 
     sections, 
@@ -30,18 +31,31 @@ export function SectionsSettings() {
     }
   };
   
-  const handleUpdateSection = async (id: string, name: string) => {
-    await updateSection(id, name);
+  const handleEditSection = (id: string) => {
+    const section = sections.find(s => s.id === id);
+    if (section) {
+      setEditingSectionId(id);
+      setEditedName(section.name);
+    }
+  };
+  
+  const handleUpdateSection = async (id: string) => {
+    await updateSection(id, editedName);
     setEditingSectionId(null);
   };
   
   const handleDeleteSection = async (id: string) => {
-    await removeSection(id);
+    return await removeSection(id);
   };
   
   const handleCancelAdd = () => {
     setNewSectionName("");
     setIsAddingSection(false);
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingSectionId(null);
+    setEditedName("");
   };
 
   return (
@@ -69,13 +83,14 @@ export function SectionsSettings() {
       <SectionsTable
         sections={sections}
         loading={loadingSections}
-        onEdit={(id) => {
-          const section = sections.find(s => s.id === id);
-          if (section) setEditingSectionId(id);
-        }}
+        onEdit={handleEditSection}
         onDelete={handleDeleteSection}
         editingId={editingSectionId}
         setEditingId={setEditingSectionId}
+        onSaveEdit={handleUpdateSection}
+        onCancelEdit={handleCancelEdit}
+        editedName={editedName}
+        setEditedName={setEditedName}
       />
     </CardContent>
   );

@@ -7,13 +7,14 @@ import { PressGenreType } from "@/services/press/types";
 import { Dispatch, SetStateAction } from "react";
 
 export interface GenresTableProps {
-  genres: PressGenreType[];
-  loading: boolean;
+  paginatedGenres?: PressGenreType[];
+  genres?: PressGenreType[];
+  loading?: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
   editingId: string | null;
-  setEditingId: Dispatch<SetStateAction<string | null>>;
-  onSaveEdit?: (id: string, name: string) => Promise<void>;
+  setEditingId?: Dispatch<SetStateAction<string | null>>;
+  onSaveEdit?: (id: string) => Promise<void>;
   onCancelEdit?: () => void;
   editedName?: string;
   setEditedName?: (name: string) => void;
@@ -21,7 +22,8 @@ export interface GenresTableProps {
 
 export function GenresTable({
   genres,
-  loading,
+  paginatedGenres,
+  loading = false,
   onEdit,
   onDelete,
   editingId,
@@ -31,6 +33,9 @@ export function GenresTable({
   editedName = "",
   setEditedName = () => {}
 }: GenresTableProps) {
+  // Use paginatedGenres if provided, otherwise fall back to genres
+  const displayGenres = paginatedGenres || genres || [];
+
   return (
     <div className="border rounded-md">
       <Table>
@@ -47,14 +52,14 @@ export function GenresTable({
                 Cargando géneros...
               </TableCell>
             </TableRow>
-          ) : genres.length === 0 ? (
+          ) : displayGenres.length === 0 ? (
             <TableRow>
               <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
                 No hay géneros configurados
               </TableCell>
             </TableRow>
           ) : (
-            genres.map((genre) => (
+            displayGenres.map((genre) => (
               <TableRow key={genre.id}>
                 <TableCell>
                   {editingId === genre.id ? (
@@ -71,7 +76,7 @@ export function GenresTable({
                   {editingId === genre.id ? (
                     <div className="flex justify-end gap-2">
                       <Button 
-                        onClick={() => onSaveEdit && onSaveEdit(genre.id, editedName)}
+                        onClick={() => onSaveEdit && onSaveEdit(genre.id)}
                         size="sm" 
                         variant="default"
                       >

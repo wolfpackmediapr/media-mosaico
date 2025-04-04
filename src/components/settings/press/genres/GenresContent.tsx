@@ -16,8 +16,8 @@ interface GenresContentProps {
   onCancelAdd: () => void;
   paginatedGenres: Genre[];
   onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  onSaveEdit: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
+  onSaveEdit: (id: string) => Promise<void>;
   onCancelEdit: () => void;
   editingId: string | null;
   editedName: string;

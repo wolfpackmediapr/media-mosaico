@@ -7,13 +7,14 @@ import { PressSourceType } from "@/services/press/types";
 import { Dispatch, SetStateAction, memo } from "react";
 
 export interface SourcesTableProps {
-  sources: PressSourceType[];
-  loading: boolean;
+  paginatedSources?: PressSourceType[];
+  sources?: PressSourceType[];
+  loading?: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
   editingId: string | null;
-  setEditingId: Dispatch<SetStateAction<string | null>>;
-  onSaveEdit?: (id: string, name: string) => Promise<void>;
+  setEditingId?: Dispatch<SetStateAction<string | null>>;
+  onSaveEdit?: (id: string) => Promise<void>;
   onCancelEdit?: () => void;
   editedName?: string;
   setEditedName?: (name: string) => void;
@@ -21,7 +22,8 @@ export interface SourcesTableProps {
 
 export const SourcesTable = memo(function SourcesTable({
   sources,
-  loading,
+  paginatedSources,
+  loading = false,
   onEdit,
   onDelete,
   editingId,
@@ -31,6 +33,9 @@ export const SourcesTable = memo(function SourcesTable({
   editedName = "",
   setEditedName = () => {}
 }: SourcesTableProps) {
+  // Use paginatedSources if provided, otherwise fall back to sources
+  const displaySources = paginatedSources || sources || [];
+
   return (
     <div className="border rounded-md">
       <Table>
@@ -47,14 +52,14 @@ export const SourcesTable = memo(function SourcesTable({
                 Cargando fuentes...
               </TableCell>
             </TableRow>
-          ) : sources.length === 0 ? (
+          ) : displaySources.length === 0 ? (
             <TableRow>
               <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
                 No hay fuentes encontradas
               </TableCell>
             </TableRow>
           ) : (
-            sources.map((source) => (
+            displaySources.map((source) => (
               <TableRow key={source.id}>
                 <TableCell>
                   {editingId === source.id ? (
@@ -71,7 +76,7 @@ export const SourcesTable = memo(function SourcesTable({
                   {editingId === source.id ? (
                     <div className="flex justify-end gap-2">
                       <Button 
-                        onClick={() => onSaveEdit && onSaveEdit(source.id, editedName)} 
+                        onClick={() => onSaveEdit && onSaveEdit(source.id)} 
                         size="sm" 
                         variant="default"
                       >

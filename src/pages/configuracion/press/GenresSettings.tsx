@@ -11,6 +11,7 @@ export function GenresSettings() {
   const [isAddingGenre, setIsAddingGenre] = useState(false);
   const [newGenreName, setNewGenreName] = useState("");
   const [editingGenreId, setEditingGenreId] = useState<string | null>(null);
+  const [editedName, setEditedName] = useState("");
   
   const { 
     genres, 
@@ -30,18 +31,31 @@ export function GenresSettings() {
     }
   };
   
-  const handleUpdateGenre = async (id: string, name: string) => {
-    await updateGenre(id, name);
+  const handleEditGenre = (id: string) => {
+    const genre = genres.find(g => g.id === id);
+    if (genre) {
+      setEditingGenreId(id);
+      setEditedName(genre.name);
+    }
+  };
+  
+  const handleUpdateGenre = async (id: string) => {
+    await updateGenre(id, editedName);
     setEditingGenreId(null);
   };
   
   const handleDeleteGenre = async (id: string) => {
-    await removeGenre(id);
+    return await removeGenre(id);
   };
   
   const handleCancelAdd = () => {
     setNewGenreName("");
     setIsAddingGenre(false);
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingGenreId(null);
+    setEditedName("");
   };
 
   return (
@@ -69,13 +83,14 @@ export function GenresSettings() {
       <GenresTable
         genres={genres}
         loading={loadingGenres}
-        onEdit={(id) => {
-          const genre = genres.find(g => g.id === id);
-          if (genre) setEditingGenreId(id);
-        }}
+        onEdit={handleEditGenre}
         onDelete={handleDeleteGenre}
         editingId={editingGenreId}
         setEditingId={setEditingGenreId}
+        onSaveEdit={handleUpdateGenre}
+        onCancelEdit={handleCancelEdit}
+        editedName={editedName}
+        setEditedName={setEditedName}
       />
     </CardContent>
   );

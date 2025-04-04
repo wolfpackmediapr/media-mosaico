@@ -11,6 +11,7 @@ export function SourcesSettings() {
   const [isAddingSource, setIsAddingSource] = useState(false);
   const [newSourceName, setNewSourceName] = useState("");
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
+  const [editedName, setEditedName] = useState("");
   
   const { 
     sources, 
@@ -30,18 +31,31 @@ export function SourcesSettings() {
     }
   };
   
-  const handleUpdateSource = async (id: string, name: string) => {
-    await updateSource(id, name);
+  const handleEditSource = (id: string) => {
+    const source = sources.find(s => s.id === id);
+    if (source) {
+      setEditingSourceId(id);
+      setEditedName(source.name);
+    }
+  };
+  
+  const handleUpdateSource = async (id: string) => {
+    await updateSource(id, editedName);
     setEditingSourceId(null);
   };
   
   const handleDeleteSource = async (id: string) => {
-    await removeSource(id);
+    return await removeSource(id);
   };
   
   const handleCancelAdd = () => {
     setNewSourceName("");
     setIsAddingSource(false);
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingSourceId(null);
+    setEditedName("");
   };
 
   return (
@@ -69,13 +83,14 @@ export function SourcesSettings() {
       <SourcesTable
         sources={sources}
         loading={loadingSources}
-        onEdit={(id) => {
-          const source = sources.find(s => s.id === id);
-          if (source) setEditingSourceId(id);
-        }}
+        onEdit={handleEditSource}
         onDelete={handleDeleteSource}
         editingId={editingSourceId}
         setEditingId={setEditingSourceId}
+        onSaveEdit={handleUpdateSource}
+        onCancelEdit={handleCancelEdit}
+        editedName={editedName}
+        setEditedName={setEditedName}
       />
     </CardContent>
   );

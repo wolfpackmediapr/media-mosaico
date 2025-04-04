@@ -11,6 +11,7 @@ export function RatesSettings() {
   const [isAddingRate, setIsAddingRate] = useState(false);
   const [newRateName, setNewRateName] = useState("");
   const [editingRateId, setEditingRateId] = useState<string | null>(null);
+  const [editedName, setEditedName] = useState("");
   
   const { 
     rates, 
@@ -30,18 +31,31 @@ export function RatesSettings() {
     }
   };
   
-  const handleUpdateRate = async (id: string, name: string) => {
-    await updateRate(id, name);
+  const handleEditRate = (id: string) => {
+    const rate = rates.find(r => r.id === id);
+    if (rate) {
+      setEditingRateId(id);
+      setEditedName(rate.name);
+    }
+  };
+  
+  const handleUpdateRate = async (id: string) => {
+    await updateRate(id, editedName);
     setEditingRateId(null);
   };
   
   const handleDeleteRate = async (id: string) => {
-    await removeRate(id);
+    return await removeRate(id);
   };
   
   const handleCancelAdd = () => {
     setNewRateName("");
     setIsAddingRate(false);
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingRateId(null);
+    setEditedName("");
   };
 
   return (
@@ -69,13 +83,14 @@ export function RatesSettings() {
       <RatesTable
         rates={rates}
         loading={loadingRates}
-        onEdit={(id) => {
-          const rate = rates.find(r => r.id === id);
-          if (rate) setEditingRateId(id);
-        }}
+        onEdit={handleEditRate}
         onDelete={handleDeleteRate}
         editingId={editingRateId}
         setEditingId={setEditingRateId}
+        onSaveEdit={handleUpdateRate}
+        onCancelEdit={handleCancelEdit}
+        editedName={editedName}
+        setEditedName={setEditedName}
       />
     </CardContent>
   );

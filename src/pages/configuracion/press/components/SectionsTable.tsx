@@ -7,13 +7,14 @@ import { PressSectionType } from "@/services/press/types";
 import { Dispatch, SetStateAction } from "react";
 
 export interface SectionsTableProps {
-  sections: PressSectionType[];
-  loading: boolean;
+  paginatedSections?: PressSectionType[];
+  sections?: PressSectionType[];
+  loading?: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
   editingId: string | null;
-  setEditingId: Dispatch<SetStateAction<string | null>>;
-  onSaveEdit?: (id: string, name: string) => Promise<void>;
+  setEditingId?: Dispatch<SetStateAction<string | null>>;
+  onSaveEdit?: (id: string) => Promise<void>;
   onCancelEdit?: () => void;
   editedName?: string;
   setEditedName?: (name: string) => void;
@@ -21,7 +22,8 @@ export interface SectionsTableProps {
 
 export function SectionsTable({
   sections,
-  loading,
+  paginatedSections,
+  loading = false,
   onEdit,
   onDelete,
   editingId,
@@ -31,6 +33,9 @@ export function SectionsTable({
   editedName = "",
   setEditedName = () => {}
 }: SectionsTableProps) {
+  // Use paginatedSections if provided, otherwise fall back to sections
+  const displaySections = paginatedSections || sections || [];
+
   return (
     <div className="border rounded-md">
       <Table>
@@ -47,14 +52,14 @@ export function SectionsTable({
                 Cargando secciones...
               </TableCell>
             </TableRow>
-          ) : sections.length === 0 ? (
+          ) : displaySections.length === 0 ? (
             <TableRow>
               <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
                 No hay secciones encontradas
               </TableCell>
             </TableRow>
           ) : (
-            sections.map((section) => (
+            displaySections.map((section) => (
               <TableRow key={section.id}>
                 <TableCell>
                   {editingId === section.id ? (
@@ -71,7 +76,7 @@ export function SectionsTable({
                   {editingId === section.id ? (
                     <div className="flex justify-end gap-2">
                       <Button 
-                        onClick={() => onSaveEdit && onSaveEdit(section.id, editedName)} 
+                        onClick={() => onSaveEdit && onSaveEdit(section.id)} 
                         size="sm" 
                         variant="default"
                       >

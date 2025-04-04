@@ -7,13 +7,14 @@ import { PressRateType } from "@/services/press/types";
 import { Dispatch, SetStateAction } from "react";
 
 export interface RatesTableProps {
-  rates: PressRateType[];
-  loading: boolean;
+  paginatedRates?: PressRateType[];
+  rates?: PressRateType[];
+  loading?: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
   editingId: string | null;
-  setEditingId: Dispatch<SetStateAction<string | null>>;
-  onSaveEdit?: (id: string, name: string) => Promise<void>;
+  setEditingId?: Dispatch<SetStateAction<string | null>>;
+  onSaveEdit?: (id: string) => Promise<void>;
   onCancelEdit?: () => void;
   editedName?: string;
   setEditedName?: (name: string) => void;
@@ -21,7 +22,8 @@ export interface RatesTableProps {
 
 export function RatesTable({
   rates,
-  loading,
+  paginatedRates,
+  loading = false,
   onEdit,
   onDelete,
   editingId,
@@ -31,6 +33,9 @@ export function RatesTable({
   editedName = "",
   setEditedName = () => {}
 }: RatesTableProps) {
+  // Use paginatedRates if provided, otherwise fall back to rates
+  const displayRates = paginatedRates || rates || [];
+
   return (
     <div className="border rounded-md">
       <Table>
@@ -47,14 +52,14 @@ export function RatesTable({
                 Cargando tarifas...
               </TableCell>
             </TableRow>
-          ) : rates.length === 0 ? (
+          ) : displayRates.length === 0 ? (
             <TableRow>
               <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
                 No hay tarifas encontradas
               </TableCell>
             </TableRow>
           ) : (
-            rates.map((rate) => (
+            displayRates.map((rate) => (
               <TableRow key={rate.id}>
                 <TableCell>
                   {editingId === rate.id ? (
@@ -71,7 +76,7 @@ export function RatesTable({
                   {editingId === rate.id ? (
                     <div className="flex justify-end gap-2">
                       <Button 
-                        onClick={() => onSaveEdit && onSaveEdit(rate.id, editedName)} 
+                        onClick={() => onSaveEdit && onSaveEdit(rate.id)} 
                         size="sm" 
                         variant="default"
                       >
