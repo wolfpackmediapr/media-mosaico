@@ -10,3 +10,7 @@ export { default as TvSettings } from "./TvSettings";
 export { ParticipantesSettings } from "./participantes/ParticipantesSettings";
 export { ParticipantesGestionSettings } from "./participantes/ParticipantesGestionSettings";
 export { ParticipantesCategoriasSettings } from "./participantes/ParticipantesCategoriasSettings";
+export { InstitucionesSettings } from "./instituciones/InstitucionesSettings";
+export { InstitucionesGestionSettings } from "./instituciones/InstitucionesGestionSettings";
+export { InstitucionesCategoriasSettings } from "./instituciones/InstitucionesCategoriasSettings";
+export { InstitucionesAgenciasSettings } from "./instituciones/InstitucionesAgenciasSettings";

@@ -13,7 +13,6 @@ const Ajustes = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Initialize TV data if needed
   useEffect(() => {
     const initTvData = async () => {
       try {

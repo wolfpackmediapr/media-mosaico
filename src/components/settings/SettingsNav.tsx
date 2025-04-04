@@ -71,7 +71,7 @@ export function SettingsNav({ currentPath }: SettingsNavProps) {
       label: 'Instituciones',
       path: '/ajustes/instituciones',
       subsections: [
-        { label: 'Gestión', path: '/ajustes/instituciones/gestion' },
+        { label: 'Instituciones', path: '/ajustes/instituciones/gestion' },
         { label: 'Categorías', path: '/ajustes/instituciones/categorias' },
         { label: 'Agencias', path: '/ajustes/instituciones/agencias' }
       ]

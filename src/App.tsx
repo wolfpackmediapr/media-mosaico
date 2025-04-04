@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -42,6 +43,10 @@ import { TvTarifasSettings } from "./pages/configuracion/tv/TvTarifasSettings";
 import { ParticipantesSettings } from "./pages/configuracion/participantes/ParticipantesSettings";
 import { ParticipantesGestionSettings } from "./pages/configuracion/participantes/ParticipantesGestionSettings";
 import { ParticipantesCategoriasSettings } from "./pages/configuracion/participantes/ParticipantesCategoriasSettings";
+import { InstitucionesSettings } from "./pages/configuracion/instituciones/InstitucionesSettings";
+import { InstitucionesGestionSettings } from "./pages/configuracion/instituciones/InstitucionesGestionSettings";
+import { InstitucionesCategoriasSettings } from "./pages/configuracion/instituciones/InstitucionesCategoriasSettings";
+import { InstitucionesAgenciasSettings } from "./pages/configuracion/instituciones/InstitucionesAgenciasSettings";
 
 import "./App.css";
 
@@ -121,6 +126,10 @@ function App() {
                   <Route path="participantes" element={<ParticipantesSettings />} />
                   <Route path="participantes/gestion" element={<ParticipantesGestionSettings />} />
                   <Route path="participantes/categorias" element={<ParticipantesCategoriasSettings />} />
+                  <Route path="instituciones" element={<InstitucionesSettings />} />
+                  <Route path="instituciones/gestion" element={<InstitucionesGestionSettings />} />
+                  <Route path="instituciones/categorias" element={<InstitucionesCategoriasSettings />} />
+                  <Route path="instituciones/agencias" element={<InstitucionesAgenciasSettings />} />
                 </Route>
                 <Route path="ayuda" element={<Ayuda />} />
               </Route>
