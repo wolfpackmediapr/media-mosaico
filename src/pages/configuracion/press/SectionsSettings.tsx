@@ -69,7 +69,10 @@ export function SectionsSettings() {
       <SectionsTable
         sections={sections}
         loading={loadingSections}
-        onEdit={handleUpdateSection}
+        onEdit={(id) => {
+          const section = sections.find(s => s.id === id);
+          if (section) setEditingSectionId(id);
+        }}
         onDelete={handleDeleteSection}
         editingId={editingSectionId}
         setEditingId={setEditingSectionId}

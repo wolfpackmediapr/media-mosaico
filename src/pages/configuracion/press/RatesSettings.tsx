@@ -69,7 +69,10 @@ export function RatesSettings() {
       <RatesTable
         rates={rates}
         loading={loadingRates}
-        onEdit={handleUpdateRate}
+        onEdit={(id) => {
+          const rate = rates.find(r => r.id === id);
+          if (rate) setEditingRateId(id);
+        }}
         onDelete={handleDeleteRate}
         editingId={editingRateId}
         setEditingId={setEditingRateId}

@@ -69,7 +69,10 @@ export function GenresSettings() {
       <GenresTable
         genres={genres}
         loading={loadingGenres}
-        onEdit={handleUpdateGenre}
+        onEdit={(id) => {
+          const genre = genres.find(g => g.id === id);
+          if (genre) setEditingGenreId(id);
+        }}
         onDelete={handleDeleteGenre}
         editingId={editingGenreId}
         setEditingId={setEditingGenreId}

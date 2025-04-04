@@ -69,7 +69,10 @@ export function SourcesSettings() {
       <SourcesTable
         sources={sources}
         loading={loadingSources}
-        onEdit={handleUpdateSource}
+        onEdit={(id) => {
+          const source = sources.find(s => s.id === id);
+          if (source) setEditingSourceId(id);
+        }}
         onDelete={handleDeleteSource}
         editingId={editingSourceId}
         setEditingId={setEditingSourceId}
