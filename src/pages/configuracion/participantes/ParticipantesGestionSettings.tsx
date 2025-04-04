@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ParticipantesTable } from "@/components/settings/participantes/gestion/ParticipantesTable";
@@ -37,7 +37,7 @@ export function ParticipantesGestionSettings() {
   } = useParticipantesManagement();
 
   // Load categories for the dropdown
-  useState(() => {
+  useEffect(() => {
     const loadCategories = async () => {
       try {
         const data = await fetchCategories();
@@ -47,7 +47,7 @@ export function ParticipantesGestionSettings() {
       }
     };
     loadCategories();
-  });
+  }, []);
 
   return (
     <CardContent className="p-6">

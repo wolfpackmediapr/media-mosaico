@@ -126,7 +126,7 @@ export const useParticipantesManagement = () => {
     }
   };
 
-  const handleDeleteParticipant = async (id: string) => {
+  const handleDeleteParticipant = async (id: string): Promise<boolean> => {
     if (window.confirm('¿Está seguro de eliminar este participante?')) {
       try {
         await deleteParticipant(id);
@@ -135,6 +135,7 @@ export const useParticipantesManagement = () => {
           title: 'Éxito',
           description: 'Participante eliminado correctamente.',
         });
+        return true;
       } catch (error) {
         console.error('Error deleting participant:', error);
         toast({
@@ -142,8 +143,10 @@ export const useParticipantesManagement = () => {
           description: 'No se pudo eliminar el participante.',
           variant: 'destructive',
         });
+        return false;
       }
     }
+    return false;
   };
 
   return {

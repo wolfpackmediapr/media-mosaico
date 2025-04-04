@@ -46,10 +46,12 @@ export function ParticipanteFilter({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Todas las categorías</SelectItem>
-          {categories.map((category) => (
-            <SelectItem key={category.id} value={category.name}>
-              {category.name}
-            </SelectItem>
+          {categories
+            .filter(category => category && category.id && category.name && category.name.trim() !== '')
+            .map((category) => (
+              <SelectItem key={category.id} value={category.name}>
+                {category.name}
+              </SelectItem>
           ))}
         </SelectContent>
       </Select>
