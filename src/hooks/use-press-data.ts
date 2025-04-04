@@ -4,6 +4,12 @@ import { Source, Genre } from "@/pages/configuracion/press/types/press-types";
 import { ParticipantCategoryType, ParticipantType } from "@/services/participantes/types";
 import { MediaOutlet } from "@/services/media/mediaService";
 import { toast } from "sonner";
+import {
+  fetchMediaSources,
+  fetchInstitutions,
+  fetchInstitutionCategories,
+  fetchParticipants
+} from "@/services/press/pressService";
 
 // Fixed categories for news
 export const NEWS_CATEGORIES = [
@@ -46,89 +52,54 @@ export function usePressData() {
   const fetchSources = async () => {
     setLoadingSources(true);
     try {
-      // In a real implementation, this would be an API call
-      // For now we'll use mock data
-      setTimeout(() => {
-        setSources([
-          { id: "1", name: "El Nuevo Día" },
-          { id: "2", name: "Primera Hora" },
-          { id: "3", name: "El Vocero" },
-          { id: "4", name: "Caribbean Business" },
-          { id: "5", name: "Metro" }
-        ]);
-        setLoadingSources(false);
-      }, 500);
+      const sourcesData = await fetchMediaSources();
+      setSources(sourcesData);
     } catch (error) {
       console.error("Error fetching sources:", error);
       toast.error("Error al cargar los medios");
+    } finally {
       setLoadingSources(false);
     }
   };
 
   // Fetch institutions
-  const fetchInstitutions = async () => {
+  const fetchInstitutionsData = async () => {
     setLoadingInstitutions(true);
     try {
-      // In a real implementation, this would be an API call
-      setTimeout(() => {
-        setInstitutions([
-          { id: "1", name: "Gobierno de Puerto Rico" },
-          { id: "2", name: "Universidad de Puerto Rico" },
-          { id: "3", name: "Departamento de Salud" },
-          { id: "4", name: "Fondo Monetario Internacional" },
-          { id: "5", name: "Banco Popular" }
-        ]);
-        setLoadingInstitutions(false);
-      }, 600);
+      const institutionsData = await fetchInstitutions();
+      setInstitutions(institutionsData);
     } catch (error) {
       console.error("Error fetching institutions:", error);
       toast.error("Error al cargar las instituciones");
+    } finally {
       setLoadingInstitutions(false);
     }
   };
 
   // Fetch institution categories
-  const fetchInstitutionCategories = async () => {
+  const fetchInstitutionCategoriesData = async () => {
     setLoadingCategories(true);
     try {
-      // In a real implementation, this would be an API call
-      setTimeout(() => {
-        setInstitutionCategories([
-          { id: "1", name: "Gobierno" },
-          { id: "2", name: "Educación" },
-          { id: "3", name: "Salud" },
-          { id: "4", name: "Finanzas" },
-          { id: "5", name: "Bancos" },
-          { id: "6", name: "Aseguradoras" },
-          { id: "7", name: "Organizaciones Sin Fines de Lucro" }
-        ]);
-        setLoadingCategories(false);
-      }, 550);
+      const categoriesData = await fetchInstitutionCategories();
+      setInstitutionCategories(categoriesData);
     } catch (error) {
       console.error("Error fetching institution categories:", error);
       toast.error("Error al cargar las categorías de instituciones");
+    } finally {
       setLoadingCategories(false);
     }
   };
 
   // Fetch participants
-  const fetchParticipants = async () => {
+  const fetchParticipantsData = async () => {
     setLoadingParticipants(true);
     try {
-      // In a real implementation, this would be an API call
-      setTimeout(() => {
-        setParticipants([
-          { id: "1", name: "Juan Pérez" },
-          { id: "2", name: "María Rodríguez" },
-          { id: "3", name: "Carlos Sánchez" },
-          { id: "4", name: "Ana González" },
-          { id: "5", name: "Pedro Martínez" }
-        ]);
-        setLoadingParticipants(false);
-      }, 700);
+      const participantsData = await fetchParticipants();
+      setParticipants(participantsData);
     } catch (error) {
       console.error("Error fetching participants:", error);
       toast.error("Error al cargar los participantes");
+    } finally {
       setLoadingParticipants(false);
     }
   };
@@ -136,9 +107,9 @@ export function usePressData() {
   // Fetch all data on component mount
   useEffect(() => {
     fetchSources();
-    fetchInstitutions();
-    fetchInstitutionCategories();
-    fetchParticipants();
+    fetchInstitutionsData();
+    fetchInstitutionCategoriesData();
+    fetchParticipantsData();
   }, []);
 
   return {
@@ -151,8 +122,8 @@ export function usePressData() {
     loadingCategories,
     loadingParticipants,
     refetchSources: fetchSources,
-    refetchInstitutions: fetchInstitutions,
-    refetchCategories: fetchInstitutionCategories,
-    refetchParticipants: fetchParticipants
+    refetchInstitutions: fetchInstitutionsData,
+    refetchCategories: fetchInstitutionCategoriesData,
+    refetchParticipants: fetchParticipantsData
   };
 }
