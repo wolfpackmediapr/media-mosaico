@@ -1,11 +1,11 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseTyped } from '@/integrations/supabase/enhanced-client';
 import { ParticipantType, ParticipantCategoryType } from './types';
 
 // Participant functions
 export const fetchParticipants = async (): Promise<ParticipantType[]> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseTyped
       .from('participants')
       .select('*')
       .order('name');
@@ -23,7 +23,7 @@ export const fetchParticipants = async (): Promise<ParticipantType[]> => {
 
 export const createParticipant = async (participantData: Omit<ParticipantType, 'id'>): Promise<ParticipantType> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseTyped
       .from('participants')
       .insert(participantData)
       .select()
@@ -42,7 +42,7 @@ export const createParticipant = async (participantData: Omit<ParticipantType, '
 
 export const updateParticipant = async (participantData: ParticipantType): Promise<ParticipantType> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseTyped
       .from('participants')
       .update({
         name: participantData.name,
@@ -66,7 +66,7 @@ export const updateParticipant = async (participantData: ParticipantType): Promi
 
 export const deleteParticipant = async (id: string): Promise<void> => {
   try {
-    const { error } = await supabase
+    const { error } = await supabaseTyped
       .from('participants')
       .delete()
       .eq('id', id);
@@ -83,7 +83,7 @@ export const deleteParticipant = async (id: string): Promise<void> => {
 // Category functions
 export const fetchCategories = async (): Promise<ParticipantCategoryType[]> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseTyped
       .from('participant_categories')
       .select('*')
       .order('name');
@@ -101,7 +101,7 @@ export const fetchCategories = async (): Promise<ParticipantCategoryType[]> => {
 
 export const createCategory = async (categoryData: Omit<ParticipantCategoryType, 'id'>): Promise<ParticipantCategoryType> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseTyped
       .from('participant_categories')
       .insert(categoryData)
       .select()
@@ -120,7 +120,7 @@ export const createCategory = async (categoryData: Omit<ParticipantCategoryType,
 
 export const updateCategory = async (categoryData: ParticipantCategoryType): Promise<ParticipantCategoryType> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseTyped
       .from('participant_categories')
       .update({ name: categoryData.name })
       .eq('id', categoryData.id)
@@ -141,7 +141,7 @@ export const updateCategory = async (categoryData: ParticipantCategoryType): Pro
 export const deleteCategory = async (id: string): Promise<void> => {
   try {
     // First check if the category is being used by any participants
-    const { data: participants, error: checkError } = await supabase
+    const { data: participants, error: checkError } = await supabaseTyped
       .from('participants')
       .select('id')
       .eq('category', id)
@@ -156,7 +156,7 @@ export const deleteCategory = async (id: string): Promise<void> => {
     }
     
     // If not in use, proceed with deletion
-    const { error } = await supabase
+    const { error } = await supabaseTyped
       .from('participant_categories')
       .delete()
       .eq('id', id);

@@ -4,7 +4,7 @@ import { Source, Genre } from "@/pages/configuracion/press/types/press-types";
 import { ParticipantCategoryType, ParticipantType } from "@/services/participantes/types";
 import { MediaOutlet } from "@/services/media/mediaService";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseTyped } from "@/integrations/supabase/enhanced-client";
 
 // Fixed categories for news
 export const NEWS_CATEGORIES = [
@@ -117,7 +117,7 @@ export function usePressData() {
     setLoadingParticipants(true);
     try {
       // Get participants from Supabase
-      const { data, error } = await supabase
+      const { data, error } = await supabaseTyped
         .from('participants')
         .select('id, name')
         .order('name');
