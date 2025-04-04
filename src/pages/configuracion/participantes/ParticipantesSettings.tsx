@@ -6,7 +6,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ParticipantesTabs } from "@/components/settings/participantes/ParticipantesTabs";
 import { RefreshCw } from "lucide-react";
 
-export default function ParticipantesSettings() {
+export function ParticipantesSettings() {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("gestion");
@@ -76,3 +76,6 @@ export default function ParticipantesSettings() {
     </SettingsLayout>
   );
 }
+
+// For backward compatibility
+export default ParticipantesSettings;
