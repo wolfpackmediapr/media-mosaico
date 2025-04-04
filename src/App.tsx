@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -40,6 +39,9 @@ import { SourcesSettings } from "./pages/configuracion/press/SourcesSettings";
 import { SectionsSettings } from "./pages/configuracion/press/SectionsSettings";
 import { RatesSettings } from "./pages/configuracion/press/RatesSettings";
 import { TvTarifasSettings } from "./pages/configuracion/tv/TvTarifasSettings";
+import { ParticipantesSettings } from "./pages/configuracion/participantes/ParticipantesSettings";
+import { ParticipantesGestionSettings } from "./pages/configuracion/participantes/ParticipantesGestionSettings";
+import { ParticipantesCategoriasSettings } from "./pages/configuracion/participantes/ParticipantesCategoriasSettings";
 
 import "./App.css";
 
@@ -116,6 +118,9 @@ function App() {
                   <Route path="prensa/secciones" element={<SectionsSettings />} />
                   <Route path="prensa/tarifas" element={<RatesSettings />} />
                   <Route path="prensa/*" element={<PressSettings />} />
+                  <Route path="participantes" element={<ParticipantesSettings />} />
+                  <Route path="participantes/gestion" element={<ParticipantesGestionSettings />} />
+                  <Route path="participantes/categorias" element={<ParticipantesCategoriasSettings />} />
                 </Route>
                 <Route path="ayuda" element={<Ayuda />} />
               </Route>
