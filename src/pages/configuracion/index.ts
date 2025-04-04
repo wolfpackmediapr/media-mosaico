@@ -1,5 +1,4 @@
 
-
 export { GeneralSettings } from "./GeneralSettings";
 export { default as NotificationsSettings } from "./NotificationsSettings";
 export { default as UsersSettings } from "./UsersSettings";
@@ -11,4 +10,3 @@ export { default as TvSettings } from "./TvSettings";
 export { default as ParticipantesSettings } from "./participantes/ParticipantesSettings";
 export { ParticipantesGestionSettings } from "./participantes/ParticipantesGestionSettings";
 export { ParticipantesCategoriasSettings } from "./participantes/ParticipantesCategoriasSettings";
-
