@@ -44,8 +44,9 @@ export function SectionsSettings() {
     setEditingSectionId(null);
   };
   
-  const handleDeleteSection = async (id: string) => {
-    return await removeSection(id);
+  const handleDeleteSection = async (id: string): Promise<void> => {
+    await removeSection(id);
+    // Ignore the boolean return value to match Promise<void> return type
   };
   
   const handleCancelAdd = () => {

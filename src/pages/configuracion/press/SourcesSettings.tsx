@@ -44,8 +44,9 @@ export function SourcesSettings() {
     setEditingSourceId(null);
   };
   
-  const handleDeleteSource = async (id: string) => {
-    return await removeSource(id);
+  const handleDeleteSource = async (id: string): Promise<void> => {
+    await removeSource(id);
+    // Ignore the boolean return value to match Promise<void> return type
   };
   
   const handleCancelAdd = () => {

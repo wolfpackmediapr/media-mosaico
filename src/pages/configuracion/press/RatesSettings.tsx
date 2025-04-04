@@ -44,8 +44,9 @@ export function RatesSettings() {
     setEditingRateId(null);
   };
   
-  const handleDeleteRate = async (id: string) => {
-    return await removeRate(id);
+  const handleDeleteRate = async (id: string): Promise<void> => {
+    await removeRate(id);
+    // Ignore the boolean return value to match Promise<void> return type
   };
   
   const handleCancelAdd = () => {

@@ -1,10 +1,9 @@
-
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pencil, Trash2, Save, X } from "lucide-react";
 import { PressSourceType } from "@/services/press/types";
-import { Dispatch, SetStateAction, memo } from "react";
+import { Dispatch, SetStateAction } from "react";
 
 export interface SourcesTableProps {
   paginatedSources?: PressSourceType[];
@@ -20,7 +19,7 @@ export interface SourcesTableProps {
   setEditedName?: (name: string) => void;
 }
 
-export const SourcesTable = memo(function SourcesTable({
+export function SourcesTable({
   sources,
   paginatedSources,
   loading = false,
@@ -113,4 +112,4 @@ export const SourcesTable = memo(function SourcesTable({
       </Table>
     </div>
   );
-});
+}

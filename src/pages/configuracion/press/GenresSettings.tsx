@@ -44,8 +44,9 @@ export function GenresSettings() {
     setEditingGenreId(null);
   };
   
-  const handleDeleteGenre = async (id: string) => {
-    return await removeGenre(id);
+  const handleDeleteGenre = async (id: string): Promise<void> => {
+    await removeGenre(id);
+    // Ignore the boolean return value to match Promise<void> return type
   };
   
   const handleCancelAdd = () => {
