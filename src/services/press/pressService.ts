@@ -6,37 +6,31 @@ import { MediaOutlet } from "@/services/media/mediaService";
 import { ParticipantType, ParticipantCategoryType } from "@/services/participantes/types";
 
 /**
- * Fetches media sources from the press configuration
+ * Fetches media sources from the media_outlets table
  * @returns List of media sources
  */
 export async function fetchMediaSources(): Promise<Source[]> {
   try {
-    // In a real implementation, this would fetch from the "medios" table
-    // For example:
-    // const { data, error } = await supabase
-    //   .from("press_media_sources")
-    //   .select("*");
-
-    // For now, using the imported data from the press configuration settings
-    const { data: genres, error } = await supabase
-      .from("press_genres")
-      .select("*");
+    // Fetch from media_outlets table with type filter for press
+    const { data, error } = await supabase
+      .from("media_outlets")
+      .select("id, name")
+      .eq("type", "press");
     
     if (error) {
       console.error("Error fetching media sources:", error);
       throw new Error(error.message);
     }
 
-    // If we have real data, return it
-    if (genres) {
-      return genres.map(genre => ({
-        id: genre.id,
-        name: genre.name
+    // Return data if it exists and has entries
+    if (data && data.length > 0) {
+      return data.map(source => ({
+        id: String(source.id), // Ensure id is string
+        name: source.name
       }));
     }
 
-    // Fallback to imported mock data if the table doesn't exist yet
-    // In a production app, we'd ensure the table exists
+    // Fallback to imported mock data if the table doesn't have data
     const { getInitialSources } = await import("@/pages/configuracion/press/components/initialSources");
     return getInitialSources();
   } catch (error) {
@@ -46,24 +40,26 @@ export async function fetchMediaSources(): Promise<Source[]> {
 }
 
 /**
- * Fetches press genres from the configuration
+ * Fetches press genres - uses the feed_sources table as a fallback
  * @returns List of genres
  */
 export async function fetchGenres(): Promise<Genre[]> {
   try {
+    // Try to use feed_sources with a filter for genre types
     const { data, error } = await supabase
-      .from("press_genres")
-      .select("*");
+      .from("feed_sources")
+      .select("id, name")
+      .eq("platform", "genre");
     
     if (error) {
       console.error("Error fetching genres:", error);
       throw new Error(error.message);
     }
 
-    // If we have real data, return it
+    // If we have data, return it
     if (data && data.length > 0) {
       return data.map(genre => ({
-        id: genre.id,
+        id: String(genre.id), // Ensure id is string
         name: genre.name
       }));
     }
@@ -78,15 +74,16 @@ export async function fetchGenres(): Promise<Genre[]> {
 }
 
 /**
- * Fetches institutions from the configuration
+ * Fetches institutions from the clients table (institutions are clients in this context)
  * @returns List of institutions
  */
 export async function fetchInstitutions(): Promise<Array<{id: string, name: string}>> {
   try {
-    // In a real setup, this would be the institutions table
+    // Use the clients table as institutions
     const { data, error } = await supabase
-      .from("institutions")
-      .select("id, name");
+      .from("clients")
+      .select("id, name")
+      .eq("category", "institution");
     
     if (error) {
       console.error("Error fetching institutions:", error);
@@ -95,7 +92,10 @@ export async function fetchInstitutions(): Promise<Array<{id: string, name: stri
 
     // If we have data, return it
     if (data && data.length > 0) {
-      return data;
+      return data.map(institution => ({
+        id: String(institution.id), // Ensure id is string
+        name: institution.name
+      }));
     }
 
     // Fallback to mock data
@@ -113,24 +113,32 @@ export async function fetchInstitutions(): Promise<Array<{id: string, name: stri
 }
 
 /**
- * Fetches institution categories from the configuration
+ * Fetches institution categories from the clients table with a groupBy category
  * @returns List of institution categories
  */
 export async function fetchInstitutionCategories(): Promise<Array<{id: string, name: string}>> {
   try {
-    // In a real setup, this would be the institution categories table
+    // In a real setup, we'd use a dedicated table. Here, we'll extract unique categories
+    // from the clients table and format them into the expected shape
     const { data, error } = await supabase
-      .from("institution_categories")
-      .select("id, name");
+      .from("clients")
+      .select("category");
     
     if (error) {
       console.error("Error fetching institution categories:", error);
       throw new Error(error.message);
     }
 
-    // If we have data, return it
+    // If we have data, transform it to the expected format
     if (data && data.length > 0) {
-      return data;
+      // Get unique categories
+      const uniqueCategories = [...new Set(data.map(client => client.category))].filter(Boolean);
+      
+      // Transform to required format
+      return uniqueCategories.map((category, index) => ({
+        id: String(index + 1),
+        name: category
+      }));
     }
 
     // Fallback to mock data
@@ -150,15 +158,15 @@ export async function fetchInstitutionCategories(): Promise<Array<{id: string, n
 }
 
 /**
- * Fetches participants from the configuration
+ * Fetches participants from the profiles table
  * @returns List of participants
  */
 export async function fetchParticipants(): Promise<Array<{id: string, name: string}>> {
   try {
-    // In a real setup, this would be the participants table
+    // Use the profiles table for participants
     const { data, error } = await supabase
-      .from("participants")
-      .select("id, name");
+      .from("profiles")
+      .select("id, username");
     
     if (error) {
       console.error("Error fetching participants:", error);
@@ -167,7 +175,10 @@ export async function fetchParticipants(): Promise<Array<{id: string, name: stri
 
     // If we have data, return it
     if (data && data.length > 0) {
-      return data;
+      return data.map(profile => ({
+        id: String(profile.id), // Ensure id is string
+        name: profile.username || 'Unknown User'
+      }));
     }
 
     // Fallback to mock data
