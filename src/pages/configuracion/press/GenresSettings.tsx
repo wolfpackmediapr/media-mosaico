@@ -1,97 +1,79 @@
 
-import { 
-  Card, 
-  CardContent, 
-  CardHeader,
-  CardFooter
-} from "@/components/ui/card";
-import { GenresHeader } from "@/components/settings/press/genres/GenresHeader";
-import { GenresContent } from "@/components/settings/press/genres/GenresContent";
-import { GenresFooter } from "@/components/settings/press/genres/GenresFooter";
-import { useGenresManagement } from "@/hooks/press/useGenresManagement";
+import { useState } from "react";
+import { CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import GenresTable from "./components/GenresTable";
+import { AddGenreForm } from "./components/AddGenreForm";
+import { usePressSettings } from "@/hooks/use-press-settings";
 
 export function GenresSettings() {
-  const {
-    isLoading,
-    searchTerm,
-    isAddingNew,
-    newGenreName,
-    editingId,
-    editedName,
-    paginatedGenres,
-    currentPage,
-    totalPages,
-    filteredGenres,
-    itemsPerPage,
-    setSearchTerm,
-    setIsAddingNew,
-    setNewGenreName,
-    setEditedName,
-    setCurrentPage,
-    setEditingId,
-    handleAddGenre,
-    handleEditGenre,
-    handleSaveEdit,
-    handleDeleteGenre,
-    loadData
-  } = useGenresManagement();
-
-  const handleSearchChange = (term: string) => {
-    setSearchTerm(term);
+  const [isAddingGenre, setIsAddingGenre] = useState(false);
+  const [newGenreName, setNewGenreName] = useState("");
+  const [editingGenreId, setEditingGenreId] = useState<string | null>(null);
+  
+  const { 
+    genres, 
+    loadingGenres, 
+    addGenre, 
+    updateGenre, 
+    removeGenre 
+  } = usePressSettings();
+  
+  const handleAddGenre = async () => {
+    if (!newGenreName.trim()) return;
+    
+    const success = await addGenre(newGenreName);
+    if (success) {
+      setNewGenreName("");
+      setIsAddingGenre(false);
+    }
   };
-
-  const handleShowAll = () => {
-    setSearchTerm("");
+  
+  const handleUpdateGenre = async (id: string, name: string) => {
+    await updateGenre(id, name);
+    setEditingGenreId(null);
   };
-
+  
+  const handleDeleteGenre = async (id: string) => {
+    await removeGenre(id);
+  };
+  
   const handleCancelAdd = () => {
-    setIsAddingNew(false);
     setNewGenreName("");
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
+    setIsAddingGenre(false);
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <GenresHeader onAddClick={() => setIsAddingNew(true)} />
-      </CardHeader>
+    <CardContent className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-lg font-medium">Géneros de Prensa</h3>
+        
+        {!isAddingGenre && (
+          <Button onClick={() => setIsAddingGenre(true)} variant="outline" size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Agregar Género
+          </Button>
+        )}
+      </div>
       
-      <CardContent>
-        <GenresContent
-          isLoading={isLoading}
-          searchTerm={searchTerm}
-          onSearchChange={handleSearchChange}
-          onShowAll={handleShowAll}
-          isAddingNew={isAddingNew}
+      {isAddingGenre && (
+        <AddGenreForm
           newGenreName={newGenreName}
           setNewGenreName={setNewGenreName}
-          onAddGenre={handleAddGenre}
-          onCancelAdd={handleCancelAdd}
-          paginatedGenres={paginatedGenres}
-          onEdit={handleEditGenre}
-          onDelete={handleDeleteGenre}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={handleCancelEdit}
-          editingId={editingId}
-          editedName={editedName}
-          setEditedName={setEditedName}
+          handleAddGenre={handleAddGenre}
+          handleCancelAdd={handleCancelAdd}
         />
-      </CardContent>
+      )}
       
-      <CardFooter>
-        <GenresFooter
-          onRefresh={loadData}
-          isLoading={isLoading}
-          totalCount={filteredGenres.length}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setCurrentPage}
-        />
-      </CardFooter>
-    </Card>
+      <GenresTable
+        genres={genres}
+        loading={loadingGenres}
+        onEdit={handleUpdateGenre}
+        onDelete={handleDeleteGenre}
+        editingId={editingGenreId}
+        setEditingId={setEditingGenreId}
+      />
+    </CardContent>
   );
 }

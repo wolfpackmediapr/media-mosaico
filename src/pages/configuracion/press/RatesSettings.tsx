@@ -1,99 +1,79 @@
 
-import { 
-  Card, 
-  CardContent, 
-  CardHeader,
-  CardFooter
-} from "@/components/ui/card";
-import { RatesHeader } from "@/components/settings/press/rates/RatesHeader";
-import { RatesContent } from "@/components/settings/press/rates/RatesContent";
-import { RatesFooter } from "@/components/settings/press/rates/RatesFooter";
-import { useRatesManagement } from "@/hooks/press/useRatesManagement";
-import { toast } from "sonner";
+import { useState } from "react";
+import { CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import RatesTable from "./components/RatesTable";
+import { AddRateForm } from "./components/AddRateForm";
+import { usePressSettings } from "@/hooks/use-press-settings";
 
 export function RatesSettings() {
-  const {
-    isLoading,
-    searchTerm,
-    isAddingNew,
-    newRateName,
-    editingId,
-    editedName,
-    paginatedRates,
-    currentPage,
-    totalPages,
-    filteredRates,
-    itemsPerPage,
-    setSearchTerm,
-    setIsAddingNew,
-    setNewRateName,
-    setEditedName,
-    setCurrentPage,
-    setEditingId,
-    handleAddRate,
-    handleEditRate,
-    handleSaveEdit,
-    handleDeleteRate,
-    loadData
-  } = useRatesManagement();
-
-  const handleSearchChange = (term: string) => {
-    setSearchTerm(term);
+  const [isAddingRate, setIsAddingRate] = useState(false);
+  const [newRateName, setNewRateName] = useState("");
+  const [editingRateId, setEditingRateId] = useState<string | null>(null);
+  
+  const { 
+    rates, 
+    loadingRates, 
+    addRate, 
+    updateRate, 
+    removeRate 
+  } = usePressSettings();
+  
+  const handleAddRate = async () => {
+    if (!newRateName.trim()) return;
+    
+    const success = await addRate(newRateName);
+    if (success) {
+      setNewRateName("");
+      setIsAddingRate(false);
+    }
   };
-
-  const handleShowAll = () => {
-    setSearchTerm("");
-    toast.info("Mostrando todas las tarifas");
+  
+  const handleUpdateRate = async (id: string, name: string) => {
+    await updateRate(id, name);
+    setEditingRateId(null);
   };
-
+  
+  const handleDeleteRate = async (id: string) => {
+    await removeRate(id);
+  };
+  
   const handleCancelAdd = () => {
-    setIsAddingNew(false);
     setNewRateName("");
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
+    setIsAddingRate(false);
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-4">
-        <RatesHeader onAddClick={() => setIsAddingNew(true)} />
-      </CardHeader>
+    <CardContent className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-lg font-medium">Tarifas de Prensa</h3>
+        
+        {!isAddingRate && (
+          <Button onClick={() => setIsAddingRate(true)} variant="outline" size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Agregar Tarifa
+          </Button>
+        )}
+      </div>
       
-      <CardContent>
-        <RatesContent
-          isLoading={isLoading}
-          searchTerm={searchTerm}
-          onSearchChange={handleSearchChange}
-          onShowAll={handleShowAll}
-          isAddingNew={isAddingNew}
+      {isAddingRate && (
+        <AddRateForm
           newRateName={newRateName}
           setNewRateName={setNewRateName}
-          onAddRate={handleAddRate}
-          onCancelAdd={handleCancelAdd}
-          paginatedRates={paginatedRates}
-          onEdit={handleEditRate}
-          onDelete={handleDeleteRate}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={handleCancelEdit}
-          editingId={editingId}
-          editedName={editedName}
-          setEditedName={setEditedName}
+          handleAddRate={handleAddRate}
+          handleCancelAdd={handleCancelAdd}
         />
-      </CardContent>
+      )}
       
-      <CardFooter>
-        <RatesFooter
-          onRefresh={loadData}
-          isLoading={isLoading}
-          totalCount={filteredRates.length}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setCurrentPage}
-        />
-      </CardFooter>
-    </Card>
+      <RatesTable
+        rates={rates}
+        loading={loadingRates}
+        onEdit={handleUpdateRate}
+        onDelete={handleDeleteRate}
+        editingId={editingRateId}
+        setEditingId={setEditingRateId}
+      />
+    </CardContent>
   );
 }
