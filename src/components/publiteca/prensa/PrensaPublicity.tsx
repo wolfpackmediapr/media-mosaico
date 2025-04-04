@@ -1,11 +1,8 @@
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Search, Check, CheckCheck, Filter } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { 
   Select,
   SelectContent,
@@ -13,377 +10,252 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Form, FormField, FormItem, FormLabel, FormControl } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { usePressData } from "@/hooks/use-press-data";
 
-interface MedioOption {
-  id: string;
-  name: string;
-  checked: boolean;
-}
-
-interface CategoriaOption {
-  id: string;
-  name: string;
-}
-
-interface InstitucionOption {
-  id: string;
-  name: string;
-  categoryId: string;
+interface PrensaPublicityFormValues {
+  selectedMedia: string[];
+  fechaDesde?: Date;
+  fechaHasta?: Date;
+  institucion: string;
+  showAnalysis: boolean;
+  selectedCategory: string;
 }
 
 export function PrensaPublicity() {
-  const [mediosOptions, setMediosOptions] = useState<MedioOption[]>([]);
-  const [categorias, setCategorias] = useState<CategoriaOption[]>([]);
-  const [instituciones, setInstituciones] = useState<InstitucionOption[]>([]);
-  const [filteredInstituciones, setFilteredInstituciones] = useState<InstitucionOption[]>([]);
-  const [selectedCategoriaId, setSelectedCategoriaId] = useState<string>("");
-  const [selectedInstitucionId, setSelectedInstitucionId] = useState<string>("");
-  const [fechaDesde, setFechaDesde] = useState<Date | undefined>(new Date());
-  const [fechaHasta, setFechaHasta] = useState<Date | undefined>(new Date());
-  const [showAnalysis, setShowAnalysis] = useState<boolean>(false);
-  const [searchText, setSearchText] = useState<string>("");
+  const { sources, institutions, institutionCategories, loadingSources, loadingInstitutions, loadingCategories } = usePressData();
+  
+  // State for selected sources (media outlets)
+  const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
+  const [filteredInstitutions, setFilteredInstitutions] = useState<Array<{id: string, name: string}>>([]);
+  
+  // Form initialization
+  const form = useForm<PrensaPublicityFormValues>({
+    defaultValues: {
+      selectedMedia: [],
+      institucion: "",
+      showAnalysis: false,
+      selectedCategory: ""
+    }
+  });
 
-  // Load initial data
+  // Watch for category changes to filter institutions
+  const selectedCategory = form.watch("selectedCategory");
+
   useEffect(() => {
-    // In a real implementation, these would be API calls
-    const mockMedios: MedioOption[] = [
-      { id: "1", name: "EL NUEVO DIA", checked: false },
-      { id: "2", name: "EL VOCERO", checked: false },
-      { id: "3", name: "PRIMERA HORA", checked: false },
-      { id: "4", name: "THE SAN JUAN STAR INGLES", checked: false },
-      { id: "5", name: "CARIBBEAN BUSINESS", checked: false },
-      { id: "6", name: "EL ORIENTAL", checked: false },
-      { id: "7", name: "LA SEMANA", checked: false },
-      { id: "8", name: "LA PERLA DEL SUR", checked: false },
-      { id: "9", name: "EL REGIONAL DE GUAYAMA", checked: false },
-      { id: "10", name: "PUERTO RICO DAILY SUN", checked: false },
-      { id: "11", name: "CLARIDAD", checked: false },
-      { id: "12", name: "METRO", checked: false },
-      // Add more media outlets as needed
-    ];
-    setMediosOptions(mockMedios);
-
-    const mockCategorias: CategoriaOption[] = [
-      { id: "1", name: "ABOGADOS" },
-      { id: "2", name: "AGENCIAS GUBERNAMENTALES" },
-      { id: "3", name: "AGRICULTURA" },
-      { id: "4", name: "ALCALDIAS" },
-      { id: "5", name: "AMBIENTE" },
-      { id: "6", name: "ASOCIACIONES" },
-      { id: "7", name: "BANCOS" },
-      { id: "8", name: "EDUCACION" },
-      { id: "9", name: "GOBIERNO" },
-      { id: "10", name: "SALUD" },
-      // Add more categories as needed
-    ];
-    setCategorias(mockCategorias);
-
-    const mockInstituciones: InstitucionOption[] = [
-      { id: "1", name: "Departamento de Salud", categoryId: "10" },
-      { id: "2", name: "Hospital Universitario", categoryId: "10" },
-      { id: "3", name: "Universidad de Puerto Rico", categoryId: "8" },
-      { id: "4", name: "Departamento de Educación", categoryId: "8" },
-      { id: "5", name: "Fortaleza", categoryId: "9" },
-      { id: "6", name: "Municipio de San Juan", categoryId: "4" },
-      { id: "7", name: "Departamento de Recursos Naturales", categoryId: "5" },
-      { id: "8", name: "Bufete Legal Rodríguez", categoryId: "1" },
-      { id: "9", name: "Banco Popular", categoryId: "7" },
-      { id: "10", name: "Asociación de Maestros", categoryId: "6" },
-      // Add more institutions as needed
-    ];
-    setInstituciones(mockInstituciones);
-    setFilteredInstituciones(mockInstituciones);
-  }, []);
-
-  // Filter institutions when category changes
-  useEffect(() => {
-    if (selectedCategoriaId) {
-      setFilteredInstituciones(
-        instituciones.filter(inst => inst.categoryId === selectedCategoriaId)
-      );
+    if (selectedCategory) {
+      // In a real app, you would filter based on actual category relationships
+      // Here we're just simulating filtering
+      setFilteredInstitutions(institutions.filter((_, index) => index % 2 === 0));
     } else {
-      setFilteredInstituciones(instituciones);
+      setFilteredInstitutions(institutions);
     }
-  }, [selectedCategoriaId, instituciones]);
+  }, [selectedCategory, institutions]);
 
-  // Handle search filter
-  useEffect(() => {
-    if (searchText) {
-      const filtered = mediosOptions.filter(medio => 
-        medio.name.toLowerCase().includes(searchText.toLowerCase())
-      );
-      setMediosOptions(prevState => 
-        prevState.map(medio => ({
-          ...medio,
-          visible: filtered.some(f => f.id === medio.id)
-        }))
-      );
-    }
-  }, [searchText]);
+  const onSubmit = (data: PrensaPublicityFormValues) => {
+    // Add the selectedMedia to the form data
+    data.selectedMedia = selectedMedia;
+    console.log("Form submitted:", data);
+    // Here we would implement the actual submission logic
+  };
+
+  const handleClear = () => {
+    form.reset();
+    setSelectedMedia([]);
+  };
+
+  const handleMediaToggle = (mediaId: string) => {
+    setSelectedMedia(prev => {
+      if (prev.includes(mediaId)) {
+        return prev.filter(id => id !== mediaId);
+      } else {
+        return [...prev, mediaId];
+      }
+    });
+  };
 
   const handleSelectAll = () => {
-    setMediosOptions(mediosOptions.map(medio => ({
-      ...medio,
-      checked: true
-    })));
+    const allMediaIds = sources.map(source => source.id);
+    setSelectedMedia(allMediaIds);
   };
 
   const handleDeselectAll = () => {
-    setMediosOptions(mediosOptions.map(medio => ({
-      ...medio,
-      checked: false
-    })));
-  };
-
-  const handleMedioChange = (id: string, checked: boolean) => {
-    setMediosOptions(mediosOptions.map(medio => 
-      medio.id === id ? { ...medio, checked } : medio
-    ));
-  };
-
-  const handleSearch = () => {
-    console.log("Search with params:", {
-      medios: mediosOptions.filter(m => m.checked).map(m => m.id),
-      fechaDesde,
-      fechaHasta,
-      institucion: selectedInstitucionId,
-      showAnalysis
-    });
-    // Here we would implement actual search logic
+    setSelectedMedia([]);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column - Media selection */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex justify-between items-center">
-                <span>MEDIO</span>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleSelectAll}
-                    className="text-xs h-8"
-                  >
-                    <CheckCheck className="h-4 w-4 mr-1" />
-                    Seleccionar Todos
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleDeselectAll}
-                    className="text-xs h-8"
-                  >
-                    Deseleccionar Todos
-                  </Button>
-                </div>
-              </CardTitle>
-              <div className="mt-2">
-                <Input
-                  placeholder="Buscar medio..."
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="max-w-sm"
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[300px] pr-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {mediosOptions.map((medio) => (
-                    <div key={medio.id} className="flex items-center space-x-2">
-                      <Checkbox 
-                        id={`medio-${medio.id}`} 
-                        checked={medio.checked}
-                        onCheckedChange={(checked) => 
-                          handleMedioChange(medio.id, checked === true)
-                        }
-                      />
-                      <Label
-                        htmlFor={`medio-${medio.id}`}
-                        className="text-sm"
-                      >
-                        {medio.name}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right column - Search controls */}
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Criterios de búsqueda</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Fecha */}
-              <div className="space-y-2">
-                <Label className="font-medium">FECHA</Label>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium w-16">DESDE</span>
-                    <DatePicker
-                      date={fechaDesde}
-                      onDateChange={setFechaDesde}
-                      placeholder=""
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium w-16">HASTA</span>
-                    <DatePicker
-                      date={fechaHasta}
-                      onDateChange={setFechaHasta}
-                      placeholder=""
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Institución */}
-              <div className="space-y-2">
-                <Label className="font-medium">INSTITUCIÓN</Label>
-                <Select 
-                  value={selectedInstitucionId} 
-                  onValueChange={setSelectedInstitucionId}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 gap-6">
+          {/* Media Selection */}
+          <div>
+            <div className="flex justify-between mb-2">
+              <FormLabel className="font-medium">MEDIO</FormLabel>
+              <div className="space-x-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleSelectAll}
+                  disabled={loadingSources}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Por favor seleccione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredInstituciones.map(institucion => (
-                      <SelectItem key={institucion.id} value={institucion.id}>
-                        {institucion.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  Seleccionar Todos
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleDeselectAll}
+                  disabled={loadingSources}
+                >
+                  Deseleccionar Todos
+                </Button>
               </div>
-
-              {/* Análisis */}
-              <div className="flex items-center space-x-2 pt-2">
-                <Checkbox 
-                  id="analysis" 
-                  checked={showAnalysis}
-                  onCheckedChange={(checked) => setShowAnalysis(checked === true)}
-                />
-                <Label htmlFor="analysis" className="font-medium">MOSTRAR DATOS Y GRÁFICAS</Label>
-              </div>
-
-              <Button className="w-full mt-4" onClick={handleSearch}>
-                <Search className="mr-2 h-4 w-4" />
-                Buscar
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Bottom section - Categories and Institutions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Filtros adicionales</CardTitle>
-          <CardDescription>Seleccione categorías e instituciones para filtrar los resultados</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Categories Column */}
-            <div>
-              <h3 className="font-medium mb-2">CATEGORÍAS</h3>
-              <ScrollArea className="h-[300px]">
-                <Accordion type="multiple" className="w-full">
-                  {categorias.map((categoria) => (
-                    <AccordionItem key={categoria.id} value={categoria.id}>
-                      <AccordionTrigger className="py-2">
-                        <div className="flex items-center">
-                          <Checkbox 
-                            id={`cat-${categoria.id}`}
-                            checked={selectedCategoriaId === categoria.id}
-                            onCheckedChange={(checked) => 
-                              setSelectedCategoriaId(checked ? categoria.id : "")
-                            }
-                            className="mr-2"
-                          />
-                          <span>{categoria.name}</span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="pl-6 space-y-2">
-                          {instituciones
-                            .filter(inst => inst.categoryId === categoria.id)
-                            .map(institucion => (
-                              <div key={institucion.id} className="flex items-center space-x-2">
-                                <Checkbox 
-                                  id={`inst-${institucion.id}`} 
-                                  checked={selectedInstitucionId === institucion.id}
-                                  onCheckedChange={(checked) => 
-                                    setSelectedInstitucionId(checked ? institucion.id : "")
-                                  }
-                                />
-                                <Label
-                                  htmlFor={`inst-${institucion.id}`}
-                                  className="text-sm"
-                                >
-                                  {institucion.name}
-                                </Label>
-                              </div>
-                            ))}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              </ScrollArea>
             </div>
-
-            {/* Institutions Column */}
-            <div>
-              <h3 className="font-medium mb-2">INSTITUCIONES (SELECT ALL)</h3>
-              <ScrollArea className="h-[300px]">
+            <ScrollArea className="h-40 border rounded-md p-2">
+              {loadingSources ? (
+                <div className="p-4 text-center text-muted-foreground">Cargando medios...</div>
+              ) : sources.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground">No hay medios disponibles</div>
+              ) : (
                 <div className="space-y-2">
-                  {filteredInstituciones.map((institucion) => (
-                    <div key={institucion.id} className="flex items-center space-x-2">
+                  {sources.map(source => (
+                    <div key={source.id} className="flex items-center space-x-2">
                       <Checkbox 
-                        id={`inst-list-${institucion.id}`} 
-                        checked={selectedInstitucionId === institucion.id}
-                        onCheckedChange={(checked) => 
-                          setSelectedInstitucionId(checked ? institucion.id : "")
-                        }
+                        id={`media-${source.id}`} 
+                        checked={selectedMedia.includes(source.id)} 
+                        onCheckedChange={() => handleMediaToggle(source.id)}
                       />
-                      <Label
-                        htmlFor={`inst-list-${institucion.id}`}
-                        className="text-sm"
+                      <label 
+                        htmlFor={`media-${source.id}`}
+                        className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                       >
-                        {institucion.name}
-                      </Label>
+                        {source.name}
+                      </label>
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              )}
+            </ScrollArea>
+          </div>
+
+          {/* Fecha */}
+          <div className="space-y-2">
+            <FormLabel className="font-medium">FECHA</FormLabel>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">DESDE</span>
+                <DatePicker
+                  date={form.watch("fechaDesde")}
+                  onDateChange={(date) => form.setValue("fechaDesde", date)}
+                  placeholder=""
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">HASTA</span>
+                <DatePicker
+                  date={form.watch("fechaHasta")}
+                  onDateChange={(date) => form.setValue("fechaHasta", date)}
+                  placeholder=""
+                />
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+
+          {/* Categories and Institution */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Category Filter */}
+            <FormField
+              control={form.control}
+              name="selectedCategory"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="font-medium">CATEGORÍAS</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Por favor seleccione" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {loadingCategories ? (
+                        <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                      ) : (
+                        institutionCategories.map(category => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+
+            {/* Institution */}
+            <FormField
+              control={form.control}
+              name="institucion"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="font-medium">INSTITUCIÓN</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Por favor seleccione" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {loadingInstitutions ? (
+                        <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                      ) : (
+                        filteredInstitutions.map(institution => (
+                          <SelectItem key={institution.id} value={institution.id}>
+                            {institution.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+          </div>
+          
+          {/* Analysis Checkbox */}
+          <FormField
+            control={form.control}
+            name="showAnalysis"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormLabel className="font-normal cursor-pointer">
+                  MOSTRAR DATOS Y GRÁFICAS
+                </FormLabel>
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button type="submit" className="gap-2">
+            <Search className="h-4 w-4" />
+            Buscar
+          </Button>
+          <Button type="button" variant="outline" onClick={handleClear}>
+            Cancelar
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }

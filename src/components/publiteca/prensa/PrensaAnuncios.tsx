@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Form, FormField, FormItem, FormLabel, FormControl } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
+import { usePressData } from "@/hooks/use-press-data";
 
 const COLOR_OPTIONS = ["Blanco y negro", "Un color", "Dos Colores", "Full color"];
 
@@ -29,9 +30,16 @@ interface PrensaAnunciosFormValues {
 }
 
 export function PrensaAnuncios() {
-  const [sources, setSources] = useState<Array<{id: string, name: string}>>([]);
-  const [institutions, setInstitutions] = useState<Array<{id: string, name: string}>>([]);
-  const [institutionCategories, setInstitutionCategories] = useState<Array<{id: string, name: string}>>([]);
+  const { 
+    sources, 
+    institutions, 
+    institutionCategories, 
+    loadingSources, 
+    loadingInstitutions, 
+    loadingCategories 
+  } = usePressData();
+  
+  const [filteredInstitutions, setFilteredInstitutions] = useState<Array<{id: string, name: string}>>([]);
   
   // Form initialization
   const form = useForm<PrensaAnunciosFormValues>({
@@ -46,6 +54,22 @@ export function PrensaAnuncios() {
     }
   });
 
+  // Watch for category changes
+  const selectedCategory = form.watch("categoriaInstitucion");
+
+  // Filter institutions when category changes
+  React.useEffect(() => {
+    if (selectedCategory) {
+      // In a real implementation, this would filter based on actual relationships
+      // For now, we'll just simulate filtering
+      setFilteredInstitutions(
+        institutions.filter((_, index) => index % 2 === (selectedCategory === "1" ? 0 : 1))
+      );
+    } else {
+      setFilteredInstitutions(institutions);
+    }
+  }, [selectedCategory, institutions]);
+
   const onSubmit = (data: PrensaAnunciosFormValues) => {
     console.log("Form submitted:", data);
     // Here we would implement the actual submission logic
@@ -54,29 +78,6 @@ export function PrensaAnuncios() {
   const handleClear = () => {
     form.reset();
   };
-
-  // Fetch data from API
-  React.useEffect(() => {
-    // In a real implementation, these would be API calls
-    // Simulated data for now
-    setSources([
-      { id: "1", name: "El Nuevo Día" },
-      { id: "2", name: "Primera Hora" },
-      { id: "3", name: "El Vocero" },
-    ]);
-
-    setInstitutionCategories([
-      { id: "1", name: "Gobierno" },
-      { id: "2", name: "Educación" },
-      { id: "3", name: "Salud" },
-    ]);
-
-    setInstitutions([
-      { id: "1", name: "Gobierno de Puerto Rico" },
-      { id: "2", name: "Universidad de Puerto Rico" },
-      { id: "3", name: "Departamento de Salud" },
-    ]);
-  }, []);
 
   return (
     <Form {...form}>
@@ -96,11 +97,15 @@ export function PrensaAnuncios() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {sources.map(source => (
-                      <SelectItem key={source.id} value={source.id}>
-                        {source.name}
-                      </SelectItem>
-                    ))}
+                    {loadingSources ? (
+                      <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                    ) : (
+                      sources.map(source => (
+                        <SelectItem key={source.id} value={source.id}>
+                          {source.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </FormItem>
@@ -158,11 +163,15 @@ export function PrensaAnuncios() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {institutionCategories.map(category => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
+                    {loadingCategories ? (
+                      <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                    ) : (
+                      institutionCategories.map(category => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </FormItem>
@@ -183,11 +192,15 @@ export function PrensaAnuncios() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {institutions.map(institution => (
-                      <SelectItem key={institution.id} value={institution.id}>
-                        {institution.name}
-                      </SelectItem>
-                    ))}
+                    {loadingInstitutions ? (
+                      <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                    ) : (
+                      filteredInstitutions.map(institution => (
+                        <SelectItem key={institution.id} value={institution.id}>
+                          {institution.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </FormItem>

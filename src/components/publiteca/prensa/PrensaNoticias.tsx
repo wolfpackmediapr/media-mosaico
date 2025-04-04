@@ -1,7 +1,7 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Search, Calendar } from "lucide-react";
+import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -14,20 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Form, FormField, FormItem, FormLabel, FormControl } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
-
-const NEWS_CATEGORIES = [
-  "Accidentes", "Agencias de Gobierno", "Ambiente", "Ambiente & El Tiempo", 
-  "Ciencia & Tecnología", "Comunidad", "Crimen", "Deportes", "Economía & Negocios", 
-  "Educación & Cultura", "EE.UU. & Internacionales", "Entretenimiento", "Gobierno", 
-  "Otras", "Política", "Religión", "Salud", "Tribunales"
-];
-
-const GENRE_OPTIONS = [
-  "Artículo", "Columna", "Comentario", "Crítica", "Editorial", "Encuesta", 
-  "Entrevista", "Nota Comentada", "Nota Informativa", "Reportaje", "Reseña", "Salud"
-];
-
-const HEADLINE_OPTIONS = ["Llamativo", "Informativo"];
+import { usePressData, NEWS_CATEGORIES, GENRE_OPTIONS, HEADLINE_OPTIONS } from "@/hooks/use-press-data";
 
 interface PrensaNoticiasFormValues {
   medio: string;
@@ -45,9 +32,14 @@ interface PrensaNoticiasFormValues {
 }
 
 export function PrensaNoticias() {
-  const [sources, setSources] = useState<Array<{id: string, name: string}>>([]);
-  const [institutions, setInstitutions] = useState<Array<{id: string, name: string}>>([]);
-  const [participants, setParticipants] = useState<Array<{id: string, name: string}>>([]);
+  const { 
+    sources, 
+    institutions, 
+    participants, 
+    loadingSources, 
+    loadingInstitutions, 
+    loadingParticipants 
+  } = usePressData();
   
   // Form initialization
   const form = useForm<PrensaNoticiasFormValues>({
@@ -74,29 +66,6 @@ export function PrensaNoticias() {
     form.reset();
   };
 
-  // Fetch data from API
-  React.useEffect(() => {
-    // In a real implementation, these would be API calls
-    // Simulated data for now
-    setSources([
-      { id: "1", name: "El Nuevo Día" },
-      { id: "2", name: "Primera Hora" },
-      { id: "3", name: "El Vocero" },
-    ]);
-
-    setInstitutions([
-      { id: "1", name: "Gobierno de Puerto Rico" },
-      { id: "2", name: "Universidad de Puerto Rico" },
-      { id: "3", name: "Departamento de Salud" },
-    ]);
-
-    setParticipants([
-      { id: "1", name: "Juan Pérez" },
-      { id: "2", name: "María Rodríguez" },
-      { id: "3", name: "Carlos Sánchez" },
-    ]);
-  }, []);
-
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -115,11 +84,15 @@ export function PrensaNoticias() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {sources.map(source => (
-                      <SelectItem key={source.id} value={source.id}>
-                        {source.name}
-                      </SelectItem>
-                    ))}
+                    {loadingSources ? (
+                      <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                    ) : (
+                      sources.map(source => (
+                        <SelectItem key={source.id} value={source.id}>
+                          {source.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </FormItem>
@@ -177,11 +150,15 @@ export function PrensaNoticias() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {institutions.map(institution => (
-                      <SelectItem key={institution.id} value={institution.id}>
-                        {institution.name}
-                      </SelectItem>
-                    ))}
+                    {loadingInstitutions ? (
+                      <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                    ) : (
+                      institutions.map(institution => (
+                        <SelectItem key={institution.id} value={institution.id}>
+                          {institution.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </FormItem>
@@ -202,11 +179,15 @@ export function PrensaNoticias() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {participants.map(participant => (
-                      <SelectItem key={participant.id} value={participant.id}>
-                        {participant.name}
-                      </SelectItem>
-                    ))}
+                    {loadingParticipants ? (
+                      <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                    ) : (
+                      participants.map(participant => (
+                        <SelectItem key={participant.id} value={participant.id}>
+                          {participant.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </FormItem>
