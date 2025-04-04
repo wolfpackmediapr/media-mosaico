@@ -46,7 +46,7 @@ const categorias = [
 
 export function InstitucionesGestionSettings() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategoria, setSelectedCategoria] = useState("");
+  const [selectedCategoria, setSelectedCategoria] = useState("todas");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -54,7 +54,7 @@ export function InstitucionesGestionSettings() {
   const filteredInstituciones = sampleInstituciones.filter(institucion => {
     const matchesSearch = searchTerm === "" || 
       institucion.nombre.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategoria = selectedCategoria === "" || 
+    const matchesCategoria = selectedCategoria === "todas" || 
       institucion.categoria === selectedCategoria;
     return matchesSearch && matchesCategoria;
   });
@@ -91,7 +91,7 @@ export function InstitucionesGestionSettings() {
                   <SelectValue placeholder="Categoría" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas las categorías</SelectItem>
+                  <SelectItem value="todas">Todas las categorías</SelectItem>
                   {categorias.map((categoria) => (
                     <SelectItem key={categoria} value={categoria}>
                       {categoria}
@@ -176,7 +176,7 @@ export function InstitucionesGestionSettings() {
           <div className="bg-gray-50 p-10 text-center rounded-md border border-dashed border-gray-300">
             <h3 className="font-medium text-gray-900 mb-1">No hay instituciones</h3>
             <p className="text-sm text-gray-500 mb-4">
-              {searchTerm || selectedCategoria 
+              {searchTerm || selectedCategoria !== "todas" 
                 ? "No se encontraron instituciones con los filtros aplicados" 
                 : "Agregue instituciones para comenzar a gestionarlas"}
             </p>
