@@ -57,5 +57,6 @@ export interface CustomDatabase extends OriginalDatabase {
     Views: OriginalDatabase['public']['Views'];
     Functions: OriginalDatabase['public']['Functions'];
     Enums: OriginalDatabase['public']['Enums'];
+    CompositeTypes: OriginalDatabase['public']['CompositeTypes'];
   };
 }
