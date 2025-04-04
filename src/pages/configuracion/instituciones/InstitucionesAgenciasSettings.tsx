@@ -1,15 +1,27 @@
 
+import { useState } from "react";
 import { CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 export function InstitucionesAgenciasSettings() {
+  const [searchTerm, setSearchTerm] = useState("");
+
   return (
     <CardContent className="p-6">
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-3">
           <div className="relative flex-1">
-            {/* Search filter will go here */}
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Buscar agencia..."
+              className="pl-10 w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
           
           <Button className="sm:w-auto">
