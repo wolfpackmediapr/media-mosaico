@@ -3,28 +3,33 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pencil, Trash2, Save, X } from "lucide-react";
-import { Genre } from "../types/press-types";
+import { PressGenreType } from "@/services/press/types";
+import { Dispatch, SetStateAction } from "react";
 
-interface GenresTableProps {
-  paginatedGenres: Genre[];
+export interface GenresTableProps {
+  genres: PressGenreType[];
+  loading: boolean;
   onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  onSaveEdit: (id: string) => void;
-  onCancelEdit: () => void;
+  onDelete: (id: string) => Promise<void>;
   editingId: string | null;
-  editedName: string;
-  setEditedName: (name: string) => void;
+  setEditingId: Dispatch<SetStateAction<string | null>>;
+  onSaveEdit?: (id: string, name: string) => Promise<void>;
+  onCancelEdit?: () => void;
+  editedName?: string;
+  setEditedName?: (name: string) => void;
 }
 
 export function GenresTable({
-  paginatedGenres,
+  genres,
+  loading,
   onEdit,
   onDelete,
+  editingId,
+  setEditingId,
   onSaveEdit,
   onCancelEdit,
-  editingId,
-  editedName,
-  setEditedName
+  editedName = "",
+  setEditedName = () => {}
 }: GenresTableProps) {
   return (
     <div className="border rounded-md">
@@ -36,14 +41,20 @@ export function GenresTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {paginatedGenres.length === 0 ? (
+          {loading ? (
             <TableRow>
               <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
-                No hay géneros periodísticos configurados
+                Cargando géneros...
+              </TableCell>
+            </TableRow>
+          ) : genres.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
+                No hay géneros configurados
               </TableCell>
             </TableRow>
           ) : (
-            paginatedGenres.map((genre) => (
+            genres.map((genre) => (
               <TableRow key={genre.id}>
                 <TableCell>
                   {editingId === genre.id ? (
@@ -59,10 +70,18 @@ export function GenresTable({
                 <TableCell className="text-right">
                   {editingId === genre.id ? (
                     <div className="flex justify-end gap-2">
-                      <Button onClick={() => onSaveEdit(genre.id)} size="sm" variant="default">
+                      <Button 
+                        onClick={() => onSaveEdit && onSaveEdit(genre.id, editedName)}
+                        size="sm" 
+                        variant="default"
+                      >
                         <Save className="h-4 w-4" />
                       </Button>
-                      <Button onClick={onCancelEdit} size="sm" variant="outline">
+                      <Button 
+                        onClick={onCancelEdit} 
+                        size="sm" 
+                        variant="outline"
+                      >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>

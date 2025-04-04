@@ -3,29 +3,33 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pencil, Trash2, Save, X } from "lucide-react";
-import { Source } from "../types/press-types";
-import { memo } from "react";
+import { PressSourceType } from "@/services/press/types";
+import { Dispatch, SetStateAction, memo } from "react";
 
-interface SourcesTableProps {
-  paginatedSources: Source[];
+export interface SourcesTableProps {
+  sources: PressSourceType[];
+  loading: boolean;
   onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  onSaveEdit: (id: string) => void;
-  onCancelEdit: () => void;
+  onDelete: (id: string) => Promise<void>;
   editingId: string | null;
-  editedName: string;
-  setEditedName: (name: string) => void;
+  setEditingId: Dispatch<SetStateAction<string | null>>;
+  onSaveEdit?: (id: string, name: string) => Promise<void>;
+  onCancelEdit?: () => void;
+  editedName?: string;
+  setEditedName?: (name: string) => void;
 }
 
 export const SourcesTable = memo(function SourcesTable({
-  paginatedSources,
+  sources,
+  loading,
   onEdit,
   onDelete,
+  editingId,
+  setEditingId,
   onSaveEdit,
   onCancelEdit,
-  editingId,
-  editedName,
-  setEditedName
+  editedName = "",
+  setEditedName = () => {}
 }: SourcesTableProps) {
   return (
     <div className="border rounded-md">
@@ -37,14 +41,20 @@ export const SourcesTable = memo(function SourcesTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {paginatedSources.length === 0 ? (
+          {loading ? (
+            <TableRow>
+              <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
+                Cargando fuentes...
+              </TableCell>
+            </TableRow>
+          ) : sources.length === 0 ? (
             <TableRow>
               <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
                 No hay fuentes encontradas
               </TableCell>
             </TableRow>
           ) : (
-            paginatedSources.map((source) => (
+            sources.map((source) => (
               <TableRow key={source.id}>
                 <TableCell>
                   {editingId === source.id ? (
@@ -60,10 +70,18 @@ export const SourcesTable = memo(function SourcesTable({
                 <TableCell className="text-right">
                   {editingId === source.id ? (
                     <div className="flex justify-end gap-2">
-                      <Button onClick={() => onSaveEdit(source.id)} size="sm" variant="default">
+                      <Button 
+                        onClick={() => onSaveEdit && onSaveEdit(source.id, editedName)} 
+                        size="sm" 
+                        variant="default"
+                      >
                         <Save className="h-4 w-4" />
                       </Button>
-                      <Button onClick={onCancelEdit} size="sm" variant="outline">
+                      <Button 
+                        onClick={onCancelEdit} 
+                        size="sm" 
+                        variant="outline"
+                      >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>

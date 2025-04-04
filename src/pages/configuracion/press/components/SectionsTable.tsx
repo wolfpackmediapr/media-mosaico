@@ -3,28 +3,33 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pencil, Trash2, Save, X } from "lucide-react";
-import { Source } from "../types/press-types";
+import { PressSectionType } from "@/services/press/types";
+import { Dispatch, SetStateAction } from "react";
 
-interface SectionsTableProps {
-  paginatedSections: Source[];
+export interface SectionsTableProps {
+  sections: PressSectionType[];
+  loading: boolean;
   onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  onSaveEdit: (id: string) => void;
-  onCancelEdit: () => void;
+  onDelete: (id: string) => Promise<void>;
   editingId: string | null;
-  editedName: string;
-  setEditedName: (name: string) => void;
+  setEditingId: Dispatch<SetStateAction<string | null>>;
+  onSaveEdit?: (id: string, name: string) => Promise<void>;
+  onCancelEdit?: () => void;
+  editedName?: string;
+  setEditedName?: (name: string) => void;
 }
 
 export function SectionsTable({
-  paginatedSections,
+  sections,
+  loading,
   onEdit,
   onDelete,
+  editingId,
+  setEditingId,
   onSaveEdit,
   onCancelEdit,
-  editingId,
-  editedName,
-  setEditedName
+  editedName = "",
+  setEditedName = () => {}
 }: SectionsTableProps) {
   return (
     <div className="border rounded-md">
@@ -36,14 +41,20 @@ export function SectionsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {paginatedSections.length === 0 ? (
+          {loading ? (
+            <TableRow>
+              <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
+                Cargando secciones...
+              </TableCell>
+            </TableRow>
+          ) : sections.length === 0 ? (
             <TableRow>
               <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
                 No hay secciones encontradas
               </TableCell>
             </TableRow>
           ) : (
-            paginatedSections.map((section) => (
+            sections.map((section) => (
               <TableRow key={section.id}>
                 <TableCell>
                   {editingId === section.id ? (
@@ -59,10 +70,18 @@ export function SectionsTable({
                 <TableCell className="text-right">
                   {editingId === section.id ? (
                     <div className="flex justify-end gap-2">
-                      <Button onClick={() => onSaveEdit(section.id)} size="sm" variant="default">
+                      <Button 
+                        onClick={() => onSaveEdit && onSaveEdit(section.id, editedName)} 
+                        size="sm" 
+                        variant="default"
+                      >
                         <Save className="h-4 w-4" />
                       </Button>
-                      <Button onClick={onCancelEdit} size="sm" variant="outline">
+                      <Button 
+                        onClick={onCancelEdit} 
+                        size="sm" 
+                        variant="outline"
+                      >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
