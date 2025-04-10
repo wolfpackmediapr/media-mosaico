@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import AudioFileItem from "./AudioFileItem";
+import { AudioFileItem } from "./audio-file";
 
 interface UploadedFile extends File {
   preview?: string;
