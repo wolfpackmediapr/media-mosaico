@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { FileAudio, Play, Trash2, Volume2 } from "lucide-react";
+import { FileAudio, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAudioProcessingWithAuth } from './AudioProcessing';
@@ -47,12 +46,10 @@ const AudioFileItem = ({
         if (setProgress) setProgress(100);
         setProcessingComplete(true);
         
-        // Signal that processing is complete by calling onProcess
         onProcess(file);
       });
       
       if (!success) {
-        // User was redirected to login
         if (setIsProcessing) setIsProcessing(false);
         if (setProgress) setProgress(0);
         return;
