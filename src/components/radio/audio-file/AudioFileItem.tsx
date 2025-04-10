@@ -34,10 +34,16 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
       
       // Process the file
       const success = await processWithAuth(file, (text) => {
+        // Pass the transcription text to the parent component
         onTranscriptionComplete?.(text);
         setProcessingComplete(true);
         clearInterval(progressInterval);
         if (setProgress) setProgress(100);
+        
+        // Show a toast notification that the text is ready for editing
+        toast.success("Transcripción completada. Puede editar el texto.", {
+          description: "Haga clic en el área de texto para editar la transcripción."
+        });
       });
       
       if (!success) {

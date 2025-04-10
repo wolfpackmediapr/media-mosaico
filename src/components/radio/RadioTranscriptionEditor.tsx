@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { Copy, CheckCheck } from "lucide-react";
+import { Copy, CheckCheck, Edit } from "lucide-react";
 
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
@@ -23,6 +23,7 @@ const RadioTranscriptionEditor = ({
 }: RadioTranscriptionEditorProps) => {
   const { toast } = useToast();
   const [isCopied, setIsCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   
   // Use persistent state with session storage for unsaved content
   const [localText, setLocalText] = usePersistentState(
@@ -55,8 +56,6 @@ const RadioTranscriptionEditor = ({
           .eq('id', data.id);
 
         if (error) throw error;
-        
-        // No mostramos el toast aquí directamente
         return;
       } catch (error) {
         console.error('Error saving transcription:', error);
@@ -72,7 +71,7 @@ const RadioTranscriptionEditor = ({
     enabled: !!transcriptionId,
   });
 
-  // Mostrar toast solo cuando saveSuccess cambie a true
+  // Show toast only when saveSuccess changes to true
   useEffect(() => {
     if (saveSuccess === true) {
       toast({
@@ -86,6 +85,11 @@ const RadioTranscriptionEditor = ({
     const newText = e.target.value;
     setLocalText(newText);
     onTranscriptionChange(newText);
+    
+    // Automatically enter edit mode when the user starts typing
+    if (!isEditing) {
+      setIsEditing(true);
+    }
   };
 
   const handleCopyText = async () => {
@@ -111,16 +115,40 @@ const RadioTranscriptionEditor = ({
     }
   };
 
+  const toggleEditMode = () => {
+    setIsEditing(!isEditing);
+    // Focus the textarea when entering edit mode
+    if (!isEditing) {
+      setTimeout(() => {
+        const textarea = document.querySelector('textarea');
+        if (textarea) textarea.focus();
+      }, 0);
+    }
+  };
+
   return (
     <div className="relative">
       <Textarea
         placeholder="Aquí aparecerá el texto transcrito..."
-        className="min-h-[200px] resize-y pr-12"
+        className={`min-h-[200px] resize-y pr-12 ${isEditing ? 'border-primary' : ''} focus:border-primary focus-visible:ring-1`}
         value={localText}
         onChange={handleTextChange}
         disabled={isProcessing}
+        onClick={() => !isEditing && toggleEditMode()}
       />
       <div className="absolute top-2 right-2 flex flex-col gap-2">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          onClick={toggleEditMode}
+          disabled={isProcessing}
+          className="hover:bg-primary/10"
+          aria-label={isEditing ? "Finalizar edición" : "Editar texto"}
+          title={isEditing ? "Finalizar edición" : "Editar texto"}
+        >
+          <Edit className={`h-4 w-4 ${isEditing ? 'text-primary' : ''}`} />
+        </Button>
         <Button
           type="button"
           size="icon"
@@ -143,6 +171,11 @@ const RadioTranscriptionEditor = ({
           </span>
         )}
       </div>
+      {!localText && !isProcessing && (
+        <p className="text-sm text-muted-foreground mt-2">
+          Procese un archivo de audio para ver la transcripción aquí. Podrá editar el texto una vez transcrito.
+        </p>
+      )}
     </div>
   );
 };
