@@ -38,7 +38,10 @@ serve(async (req) => {
       throw new Error('AssemblyAI API key not configured');
     }
 
+    console.log('AssemblyAI API key retrieved successfully');
+
     // Upload to AssemblyAI
+    console.log('Uploading file to AssemblyAI...');
     const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
       method: 'POST',
       headers: {
@@ -50,14 +53,16 @@ serve(async (req) => {
     });
 
     if (!uploadResponse.ok) {
-      console.error('Upload failed:', await uploadResponse.text());
-      throw new Error('Failed to upload audio to AssemblyAI');
+      const errorText = await uploadResponse.text();
+      console.error('Upload failed:', errorText);
+      throw new Error(`Failed to upload audio to AssemblyAI: ${errorText}`);
     }
 
     const uploadResult = await uploadResponse.json();
     console.log('File uploaded successfully:', uploadResult);
 
     // Start transcription
+    console.log('Starting AssemblyAI transcription...');
     const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
@@ -71,8 +76,9 @@ serve(async (req) => {
     });
 
     if (!transcribeResponse.ok) {
-      console.error('Transcription request failed:', await transcribeResponse.text());
-      throw new Error('Failed to start transcription');
+      const errorText = await transcribeResponse.text();
+      console.error('Transcription request failed:', errorText);
+      throw new Error(`Failed to start transcription: ${errorText}`);
     }
 
     const transcribeResult = await transcribeResponse.json();
@@ -81,6 +87,7 @@ serve(async (req) => {
     // Poll for completion
     let transcript;
     for (let i = 0; i < 60; i++) {
+      console.log(`Polling AssemblyAI (attempt ${i+1}/60)...`);
       const pollingResponse = await fetch(
         `https://api.assemblyai.com/v2/transcript/${transcribeResult.id}`,
         {
@@ -91,18 +98,21 @@ serve(async (req) => {
       );
 
       if (!pollingResponse.ok) {
-        console.error('Polling failed:', await pollingResponse.text());
-        throw new Error('Failed to check transcription status');
+        const errorText = await pollingResponse.text();
+        console.error('Polling failed:', errorText);
+        throw new Error(`Failed to check transcription status: ${errorText}`);
       }
 
       transcript = await pollingResponse.json();
       console.log('Polling status:', transcript.status);
 
       if (transcript.status === 'completed') {
+        console.log('Transcription completed successfully');
         break;
       }
 
       if (transcript.status === 'error') {
+        console.error('Transcription failed with error:', transcript.error);
         throw new Error(`Transcription failed: ${transcript.error}`);
       }
 
@@ -111,6 +121,26 @@ serve(async (req) => {
 
     if (!transcript || transcript.status !== 'completed') {
       throw new Error('Transcription timed out');
+    }
+
+    // Store the transcription in the database
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+
+      await supabase
+        .from('radio_transcriptions')
+        .insert({
+          user_id: userId,
+          transcription_text: transcript.text
+        });
+
+      console.log('Transcription saved to database');
+    } catch (dbError) {
+      console.error('Error saving to database:', dbError);
+      // Continue execution even if database save fails
     }
 
     return new Response(

@@ -49,29 +49,65 @@ export const processAudioFile = async (
       userId: user.id
     });
 
-    // Call Supabase Edge Function with proper headers
-    const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-      body: formData,
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
+    // First try AssemblyAI through our edge function
+    try {
+      console.log('Attempting transcription with AssemblyAI...');
+      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
 
-    if (error) {
-      console.error('Transcription error:', error);
-      throw new Error(error.message || "Error al procesar la transcripción");
+      if (error) {
+        console.error('AssemblyAI transcription error:', error);
+        throw new Error(error.message || "Error with AssemblyAI transcription");
+      }
+
+      if (data?.text) {
+        console.log('AssemblyAI transcription successful');
+        onTranscriptionComplete?.(data.text);
+        toast({
+          title: "Transcripción completada",
+          description: "El archivo ha sido procesado exitosamente con AssemblyAI",
+        });
+        return;
+      }
+      
+      console.warn('No text received from AssemblyAI, falling back to OpenAI');
+    } catch (assemblyError) {
+      console.error('AssemblyAI transcription failed, falling back to OpenAI:', assemblyError);
     }
 
-    console.log('Transcription response:', data);
-
-    if (data?.text) {
-      onTranscriptionComplete?.(data.text);
-      toast({
-        title: "Transcripción completada",
-        description: "El archivo ha sido procesado exitosamente",
+    // Fallback to OpenAI Whisper
+    try {
+      console.log('Attempting transcription with OpenAI Whisper...');
+      const { data, error } = await supabase.functions.invoke('secure-transcribe', {
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
       });
-    } else {
-      throw new Error("No se recibió texto de transcripción");
+
+      if (error) {
+        console.error('OpenAI transcription error:', error);
+        throw new Error(error.message || "Error al procesar la transcripción con OpenAI");
+      }
+
+      if (data?.text) {
+        console.log('OpenAI transcription successful');
+        onTranscriptionComplete?.(data.text);
+        toast({
+          title: "Transcripción completada",
+          description: "El archivo ha sido procesado exitosamente con OpenAI Whisper",
+        });
+        return;
+      }
+      
+      throw new Error("No se recibió texto de transcripción de ningún proveedor");
+    } catch (openaiError) {
+      console.error('OpenAI transcription failed:', openaiError);
+      throw openaiError;
     }
   } catch (error: any) {
     console.error('Error processing file:', error);

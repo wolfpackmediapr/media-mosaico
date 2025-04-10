@@ -52,54 +52,93 @@ export const processVideoFile = async (
         description: "Convirtiendo el archivo MOV a un formato compatible...",
       });
       
-      const { data, error } = await supabase.functions.invoke('convert-to-audio', {
-        body: { 
-          videoPath: filePath,
-          transcriptionId: transcription.id 
-        }
-      });
-
-      if (error) {
-        console.error('Conversion error:', error);
-        throw error;
-      }
-
-      if (data?.audioPath) {
-        toast({
-          title: "Conversión completada",
-          description: "Iniciando transcripción del audio...",
+      try {
+        const { data, error } = await supabase.functions.invoke('convert-to-audio', {
+          body: { 
+            videoPath: filePath,
+            transcriptionId: transcription.id 
+          }
         });
 
-        const { data: transcriptionData, error: transcriptionError } = await supabase.functions.invoke('transcribe-video', {
-          body: { videoPath: data.audioPath }
-        });
-
-        if (transcriptionError) {
-          console.error('Transcription error:', transcriptionError);
-          throw transcriptionError;
+        if (error) {
+          console.error('Conversion error:', error);
+          throw error;
         }
 
-        if (transcriptionData?.text) {
-          onTranscriptionComplete?.(transcriptionData.text);
+        if (data?.audioPath) {
           toast({
-            title: "Transcripción completada",
-            description: "El archivo ha sido procesado exitosamente",
+            title: "Conversión completada",
+            description: "Iniciando transcripción del audio...",
           });
-          
-          // Create notification for the transcription completion
-          await createNotification({
-            client_id: user.id,
-            title: "Nueva transcripción completada",
-            description: `Transcripción de archivo ${file.name} completada exitosamente`,
-            content_type: "tv",
-            importance_level: 3,
-            metadata: {
-              fileName: file.name,
-              fileType: file.type,
-              transcriptionLength: transcriptionData.text.length
+
+          try {
+            console.log('Attempting transcription with transcribe-video function...');
+            const { data: transcriptionData, error: transcriptionError } = await supabase.functions.invoke('transcribe-video', {
+              body: { videoPath: data.audioPath }
+            });
+
+            if (transcriptionError) {
+              console.error('Primary transcription error:', transcriptionError);
+              throw new Error(`Transcription error: ${transcriptionError.message}`);
             }
-          });
+
+            if (transcriptionData?.text) {
+              onTranscriptionComplete?.(transcriptionData.text);
+              toast({
+                title: "Transcripción completada",
+                description: "El archivo ha sido procesado exitosamente",
+              });
+              
+              // Create notification for the transcription completion
+              await createNotification({
+                client_id: user.id,
+                title: "Nueva transcripción completada",
+                description: `Transcripción de archivo ${file.name} completada exitosamente`,
+                content_type: "tv",
+                importance_level: 3,
+                metadata: {
+                  fileName: file.name,
+                  fileType: file.type,
+                  transcriptionLength: transcriptionData.text.length
+                }
+              });
+              return;
+            } else {
+              throw new Error('No transcription text received');
+            }
+          } catch (transcribeError) {
+            console.error('Transcription failed, trying fallback method:', transcribeError);
+            
+            // Fallback to analyze-content
+            try {
+              const { data: analyzeData, error: analyzeError } = await supabase.functions.invoke('analyze-content', {
+                body: { videoPath: data.audioPath }
+              });
+              
+              if (analyzeError) {
+                console.error('Fallback analysis error:', analyzeError);
+                throw analyzeError;
+              }
+              
+              if (analyzeData?.text) {
+                onTranscriptionComplete?.(analyzeData.text);
+                toast({
+                  title: "Transcripción completada (método alternativo)",
+                  description: "El archivo ha sido procesado con un método alternativo",
+                });
+                return;
+              }
+              
+              throw new Error('No transcription text received from fallback method');
+            } catch (fallbackError) {
+              console.error('All transcription methods failed:', fallbackError);
+              throw new Error('No se pudo transcribir el archivo con ningún método disponible');
+            }
+          }
         }
+      } catch (error) {
+        console.error('Error processing MOV file:', error);
+        throw error;
       }
     } 
     // For large non-MOV files, convert to audio first
@@ -111,35 +150,83 @@ export const processVideoFile = async (
         description: "El archivo es grande, se está convirtiendo a audio primero...",
       });
       
-      const { data, error } = await supabase.functions.invoke('convert-to-audio', {
-        body: { 
-          videoPath: filePath,
-          transcriptionId: transcription.id
-        }
-      });
+      try {
+        const { data, error } = await supabase.functions.invoke('convert-to-audio', {
+          body: { 
+            videoPath: filePath,
+            transcriptionId: transcription.id
+          }
+        });
 
-      if (error) {
-        console.error('Conversion error:', error);
+        if (error) {
+          console.error('Conversion error:', error);
+          throw error;
+        }
+
+        if (data?.audioPath) {
+          toast({
+            title: "Conversión completada",
+            description: "Iniciando transcripción del audio...",
+          });
+
+          try {
+            const { data: transcriptionData, error: transcriptionError } = await supabase.functions.invoke('transcribe-video', {
+              body: { videoPath: data.audioPath }
+            });
+
+            if (transcriptionError) {
+              console.error('Primary transcription error:', transcriptionError);
+              throw transcriptionError;
+            }
+
+            if (transcriptionData?.text) {
+              onTranscriptionComplete?.(transcriptionData.text);
+              toast({
+                title: "Transcripción completada",
+                description: "El archivo ha sido procesado exitosamente",
+              });
+              
+              // Create notification for the transcription completion
+              await createNotification({
+                client_id: user.id,
+                title: "Nueva transcripción completada",
+                description: `Transcripción de archivo ${file.name} completada exitosamente`,
+                content_type: "tv",
+                importance_level: 3,
+                metadata: {
+                  fileName: file.name,
+                  fileType: file.type,
+                  transcriptionLength: transcriptionData.text.length
+                }
+              });
+              return;
+            } else {
+              throw new Error('No transcription text received');
+            }
+          } catch (error) {
+            console.error('All transcription methods failed:', error);
+            throw new Error('No se pudo transcribir el archivo con ningún método disponible');
+          }
+        }
+      } catch (error) {
+        console.error('Error in conversion process:', error);
         throw error;
       }
-
-      if (data?.audioPath) {
-        toast({
-          title: "Conversión completada",
-          description: "Iniciando transcripción del audio...",
+    } 
+    // For smaller, non-MOV files, process directly
+    else {
+      try {
+        const { data, error } = await supabase.functions.invoke('transcribe-video', {
+          body: { videoPath: filePath }
         });
 
-        const { data: transcriptionData, error: transcriptionError } = await supabase.functions.invoke('transcribe-video', {
-          body: { videoPath: data.audioPath }
-        });
-
-        if (transcriptionError) {
-          console.error('Transcription error:', transcriptionError);
-          throw transcriptionError;
+        if (error) {
+          console.error('Transcription error:', error);
+          throw error;
         }
 
-        if (transcriptionData?.text) {
-          onTranscriptionComplete?.(transcriptionData.text);
+        if (data?.text) {
+          onTranscriptionComplete?.(data.text);
           toast({
             title: "Transcripción completada",
             description: "El archivo ha sido procesado exitosamente",
@@ -155,51 +242,54 @@ export const processVideoFile = async (
             metadata: {
               fileName: file.name,
               fileType: file.type,
-              transcriptionLength: transcriptionData.text.length
+              transcriptionLength: data.text.length
             }
           });
+          return;
+        } else {
+          throw new Error('No transcription text received');
+        }
+      } catch (primaryError) {
+        console.error('Primary transcription method failed:', primaryError);
+        
+        // Try fallback transcription method
+        try {
+          console.log('Trying fallback transcription method...');
+          const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('secure-transcribe', {
+            body: { 
+              videoPath: filePath,
+              userId: user.id
+            }
+          });
+          
+          if (fallbackError) {
+            console.error('Fallback transcription error:', fallbackError);
+            throw fallbackError;
+          }
+          
+          if (fallbackData?.text) {
+            onTranscriptionComplete?.(fallbackData.text);
+            toast({
+              title: "Transcripción completada (método alternativo)",
+              description: "El archivo ha sido procesado con un método alternativo",
+            });
+            return;
+          }
+          
+          throw new Error('No transcription text received from fallback method');
+        } catch (fallbackError) {
+          console.error('All transcription methods failed:', fallbackError);
+          throw new Error('No se pudo transcribir el archivo con ningún método disponible');
         }
       }
-    } 
-    // For smaller, non-MOV files, process directly
-    else {
-      const { data, error } = await supabase.functions.invoke('transcribe-video', {
-        body: { videoPath: filePath }
-      });
-
-      if (error) {
-        console.error('Transcription error:', error);
-        throw error;
-      }
-
-      if (data?.text) {
-        onTranscriptionComplete?.(data.text);
-        toast({
-          title: "Transcripción completada",
-          description: "El archivo ha sido procesado exitosamente",
-        });
-        
-        // Create notification for the transcription completion
-        await createNotification({
-          client_id: user.id,
-          title: "Nueva transcripción completada",
-          description: `Transcripción de archivo ${file.name} completada exitosamente`,
-          content_type: "tv",
-          importance_level: 3,
-          metadata: {
-            fileName: file.name,
-            fileType: file.type,
-            transcriptionLength: data.text.length
-          }
-        });
-      }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error processing file:', error);
     toast({
       title: "Error",
-      description: "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+      description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
       variant: "destructive",
     });
+    throw error;
   }
 };
