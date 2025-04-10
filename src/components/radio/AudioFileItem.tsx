@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { FileAudio, Play, Trash2, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -105,7 +104,7 @@ const AudioFileItem = ({
       </div>
 
       {showPlayer && (
-        <div className="mt-2">
+        <div className="mt-2 block">
           <AudioPlayer file={file} />
         </div>
       )}
