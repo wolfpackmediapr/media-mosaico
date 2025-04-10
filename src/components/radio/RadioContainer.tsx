@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
-import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
+import { RadioTranscriptionSlot } from "./transcription";
 import RadioNewsSegmentsContainer, { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -30,13 +29,11 @@ const RadioContainer = () => {
   const [newsSegments, setNewsSegments] = useState<RadioNewsSegment[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
       setIsAuthenticated(!!data.session);
 
-      // Set up auth state change listener
       const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
         setIsAuthenticated(!!session);
       });
@@ -81,7 +78,6 @@ const RadioContainer = () => {
     toast.success('Metadata actualizada');
   };
 
-  // Clear segments when transcription is cleared
   useEffect(() => {
     if (!transcriptionText || transcriptionText.length < 50) {
       setNewsSegments([]);
@@ -89,7 +85,6 @@ const RadioContainer = () => {
   }, [transcriptionText]);
 
   useEffect(() => {
-    // Load Typeform embed script
     const script = document.createElement('script');
     script.src = "//embed.typeform.com/next/embed.js";
     script.async = true;
@@ -101,7 +96,6 @@ const RadioContainer = () => {
   }, []);
 
   if (isAuthenticated === false) {
-    // Show login prompt if not authenticated
     return (
       <div className="w-full h-[calc(100vh-200px)] flex flex-col items-center justify-center text-center p-8">
         <h2 className="text-2xl font-bold mb-4">Iniciar sesión requerido</h2>
@@ -120,7 +114,6 @@ const RadioContainer = () => {
   }
 
   if (isAuthenticated === null) {
-    // Show loading state while checking auth
     return (
       <div className="w-full h-[calc(100vh-200px)] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
