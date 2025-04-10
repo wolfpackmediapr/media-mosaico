@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
 import RadioNewsSegmentsContainer, { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
@@ -36,6 +36,7 @@ const RadioContainer = () => {
   const [volume, setVolume] = useState<number[]>([50]);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const typeformScriptRef = useRef<HTMLScriptElement | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -82,6 +83,34 @@ const RadioContainer = () => {
       URL.revokeObjectURL(audio.src);
     };
   }, [files, currentFileIndex]);
+
+  useEffect(() => {
+    if (isAuthenticated === false) return;
+    
+    if (!typeformScriptRef.current) {
+      const script = document.createElement('script');
+      script.src = "//embed.typeform.com/next/embed.js";
+      script.async = true;
+      document.body.appendChild(script);
+      typeformScriptRef.current = script;
+      
+      script.onload = () => {
+        console.log("Typeform script loaded successfully");
+        if (window.tf && typeof window.tf.createWidget === 'function') {
+          setTimeout(() => {
+            window.tf.createWidget && window.tf.createWidget();
+          }, 500);
+        }
+      };
+      
+      script.onerror = () => {
+        console.error("Failed to load Typeform script");
+      };
+    }
+
+    return () => {
+    };
+  }, [isAuthenticated]);
 
   const handleTranscriptionChange = (newText: string) => {
     setTranscriptionText(newText);
@@ -176,19 +205,6 @@ const RadioContainer = () => {
     setPlaybackRate(newRate);
     toast.info(`Velocidad: ${newRate}x`);
   };
-
-  useEffect(() => {
-    if (files.length === 0 || currentFileIndex >= files.length) return;
-
-    const script = document.createElement('script');
-    script.src = "//embed.typeform.com/next/embed.js";
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
 
   if (isAuthenticated === false) {
     return (
