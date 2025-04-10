@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { Copy, CheckCheck, Edit } from "lucide-react";
+import { Copy, CheckCheck, Edit, Check } from "lucide-react";
 
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
@@ -143,11 +143,15 @@ const RadioTranscriptionEditor = ({
           variant="ghost"
           onClick={toggleEditMode}
           disabled={isProcessing}
-          className="hover:bg-primary/10"
+          className="hover:bg-primary/10 transition-colors"
           aria-label={isEditing ? "Finalizar edición" : "Editar texto"}
           title={isEditing ? "Finalizar edición" : "Editar texto"}
         >
-          <Edit className={`h-4 w-4 ${isEditing ? 'text-primary' : ''}`} />
+          {isEditing ? (
+            <Check className="h-4 w-4 text-green-500" />
+          ) : (
+            <Edit className={`h-4 w-4 ${isEditing ? 'text-primary' : ''}`} />
+          )}
         </Button>
         <Button
           type="button"
@@ -155,7 +159,7 @@ const RadioTranscriptionEditor = ({
           variant="ghost"
           onClick={handleCopyText}
           disabled={!localText || isProcessing}
-          className="hover:bg-primary/10"
+          className="hover:bg-primary/10 transition-colors"
           aria-label="Copiar texto"
           title="Copiar texto"
         >
