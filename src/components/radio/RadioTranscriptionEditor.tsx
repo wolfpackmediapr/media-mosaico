@@ -1,10 +1,12 @@
 
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { Copy, CheckCheck } from "lucide-react";
 
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
@@ -20,6 +22,7 @@ const RadioTranscriptionEditor = ({
   transcriptionId,
 }: RadioTranscriptionEditorProps) => {
   const { toast } = useToast();
+  const [isCopied, setIsCopied] = useState(false);
   
   // Use persistent state with session storage for unsaved content
   const [localText, setLocalText] = usePersistentState(
@@ -85,22 +88,61 @@ const RadioTranscriptionEditor = ({
     onTranscriptionChange(newText);
   };
 
+  const handleCopyText = async () => {
+    try {
+      await navigator.clipboard.writeText(localText);
+      setIsCopied(true);
+      toast({
+        title: "Texto copiado",
+        description: "El texto ha sido copiado al portapapeles",
+      });
+      
+      // Reset the copied state after 2 seconds
+      setTimeout(() => {
+        setIsCopied(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+      toast({
+        title: "Error al copiar",
+        description: "No se pudo copiar el texto. Intente de nuevo.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="relative">
       <Textarea
         placeholder="Aquí aparecerá el texto transcrito..."
-        className="min-h-[200px] resize-y"
+        className="min-h-[200px] resize-y pr-12"
         value={localText}
         onChange={handleTextChange}
         disabled={isProcessing}
       />
-      {isSaving && (
-        <div className="absolute top-2 right-2">
-          <span className="text-sm text-primary animate-pulse">
+      <div className="absolute top-2 right-2 flex flex-col gap-2">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          onClick={handleCopyText}
+          disabled={!localText || isProcessing}
+          className="hover:bg-primary/10"
+          aria-label="Copiar texto"
+          title="Copiar texto"
+        >
+          {isCopied ? (
+            <CheckCheck className="h-4 w-4 text-green-500" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+        </Button>
+        {isSaving && (
+          <span className="text-xs text-primary animate-pulse whitespace-nowrap">
             Guardando...
           </span>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
