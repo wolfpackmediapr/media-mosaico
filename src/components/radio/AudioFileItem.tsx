@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { FileAudio, Play, Trash2, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -90,7 +91,7 @@ const AudioFileItem = ({
             onClick={() => setShowPlayer(!showPlayer)}
             title="Play/Preview Audio"
           >
-            <Volume2 className="w-4 h-4 text-primary" />
+            <Play className="w-4 h-4 text-primary" />
           </Button>
           <Button 
             size="icon" 
