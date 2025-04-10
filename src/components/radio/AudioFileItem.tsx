@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
-import { FileAudio, Play, Trash2 } from "lucide-react";
+import { FileAudio, Play, Trash2, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAudioProcessingWithAuth } from './AudioProcessing';
+import { AudioPlayer } from './AudioPlayer';
 
 interface UploadedFile extends File {
   preview?: string;
@@ -15,6 +16,10 @@ interface AudioFileItemProps {
   onProcess: (file: UploadedFile) => void;
   onTranscriptionComplete?: (text: string) => void;
   onRemove?: (index: number) => void;
+  isProcessing?: boolean;
+  progress?: number;
+  setIsProcessing?: React.Dispatch<React.SetStateAction<boolean>>;
+  setProgress?: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const AudioFileItem = ({
@@ -23,20 +28,24 @@ const AudioFileItem = ({
   onProcess,
   onTranscriptionComplete,
   onRemove,
+  isProcessing = false,
+  progress = 0,
+  setIsProcessing,
+  setProgress
 }: AudioFileItemProps) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [showPlayer, setShowPlayer] = useState(false);
+  const [processingComplete, setProcessingComplete] = useState(false);
   const processWithAuth = useAudioProcessingWithAuth();
 
   const handleProcess = async () => {
-    setIsProcessing(true);
-    setProgress(10);
+    if (setIsProcessing) setIsProcessing(true);
+    if (setProgress) setProgress(10);
     
     try {
-      setProgress(30);
       const success = await processWithAuth(file, (text) => {
         onTranscriptionComplete?.(text);
-        setProgress(100);
+        if (setProgress) setProgress(100);
+        setProcessingComplete(true);
         
         // Signal that processing is complete by calling onProcess
         onProcess(file);
@@ -44,22 +53,22 @@ const AudioFileItem = ({
       
       if (!success) {
         // User was redirected to login
-        setIsProcessing(false);
-        setProgress(0);
+        if (setIsProcessing) setIsProcessing(false);
+        if (setProgress) setProgress(0);
         return;
       }
       
-      setProgress(100);
+      if (setProgress) setProgress(100);
     } catch (error) {
       console.error('Error processing audio:', error);
-      setIsProcessing(false);
-      setProgress(0);
+      if (setIsProcessing) setIsProcessing(false);
+      if (setProgress) setProgress(0);
     }
   };
 
   const getButtonText = () => {
-    if (!isProcessing) return "Procesar Transcripción";
-    if (progress === 100) return "Procesamiento completado";
+    if (!isProcessing && !processingComplete) return "Procesar Transcripción";
+    if (processingComplete) return "Procesamiento completado";
     return `Procesando: ${progress}%`;
   };
 
@@ -75,15 +84,31 @@ const AudioFileItem = ({
             </p>
           </div>
         </div>
-        <Button 
-          size="icon" 
-          variant="ghost" 
-          onClick={() => onRemove?.(index)}
-          className="text-destructive hover:text-destructive/90"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            size="icon" 
+            variant="ghost"
+            onClick={() => setShowPlayer(!showPlayer)}
+            title="Play/Preview Audio"
+          >
+            <Volume2 className="w-4 h-4 text-primary" />
+          </Button>
+          <Button 
+            size="icon" 
+            variant="ghost" 
+            onClick={() => onRemove?.(index)}
+            className="text-destructive hover:text-destructive/90"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
+
+      {showPlayer && (
+        <div className="mt-2">
+          <AudioPlayer file={file} />
+        </div>
+      )}
 
       <div className="space-y-2">
         {isProcessing && (
@@ -92,8 +117,8 @@ const AudioFileItem = ({
         <Button
           className="w-full relative"
           onClick={handleProcess}
-          disabled={isProcessing}
-          variant={progress === 100 ? "secondary" : "default"}
+          disabled={isProcessing || processingComplete}
+          variant={processingComplete ? "secondary" : "default"}
         >
           {getButtonText()}
         </Button>

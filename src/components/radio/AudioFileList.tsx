@@ -53,6 +53,10 @@ const AudioFileList = ({
                 onProcess={onProcess}
                 onTranscriptionComplete={onTranscriptionComplete}
                 onRemove={onRemoveFile}
+                isProcessing={isProcessing && currentFileIndex === index}
+                progress={progress}
+                setIsProcessing={setIsProcessing}
+                setProgress={setProgress}
               />
             ))
           )}

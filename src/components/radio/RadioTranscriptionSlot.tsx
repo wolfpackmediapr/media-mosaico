@@ -1,9 +1,10 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileBarChart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
 import RadioAnalysis from "./RadioAnalysis";
@@ -21,6 +22,12 @@ interface RadioTranscriptionSlotProps {
   };
   onTranscriptionChange: (text: string) => void;
   onSegmentsReceived?: (segments: RadioNewsSegment[]) => void;
+  onMetadataChange?: (metadata: {
+    emisora: string;
+    programa: string;
+    horario: string;
+    categoria: string;
+  }) => void;
 }
 
 const RadioTranscriptionSlot = ({
@@ -30,13 +37,16 @@ const RadioTranscriptionSlot = ({
   metadata,
   onTranscriptionChange,
   onSegmentsReceived,
+  onMetadataChange
 }: RadioTranscriptionSlotProps) => {
   // Use a ref to track if we've already generated segments to prevent infinite loops
   const segmentsGeneratedRef = useRef(false);
   const transcriptionLength = useRef(0);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const handleGenerateReport = async () => {
     try {
+      setIsGeneratingReport(true);
       toast.loading('Generando reporte...');
       
       const { data, error } = await supabase.functions.invoke('generate-radio-report', {
@@ -56,6 +66,8 @@ const RadioTranscriptionSlot = ({
       console.error('Error generating report:', error);
       toast.dismiss();
       toast.error('Error al generar el reporte');
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
@@ -199,7 +211,7 @@ const RadioTranscriptionSlot = ({
   return (
     <div className="space-y-4 md:space-y-6 h-full w-full">
       <Card className="overflow-hidden w-full">
-        <RadioTranscriptionMetadata metadata={metadata} />
+        <RadioTranscriptionMetadata metadata={metadata} onMetadataChange={onMetadataChange} />
         <CardContent className="p-4 space-y-4">
           <RadioTranscriptionEditor
             transcriptionText={transcriptionText}
@@ -211,11 +223,11 @@ const RadioTranscriptionSlot = ({
             <Button
               variant="outline"
               onClick={handleGenerateReport}
-              disabled={isProcessing || !transcriptionText}
+              disabled={isProcessing || !transcriptionText || isGeneratingReport}
               className="w-full sm:w-auto"
             >
               <FileBarChart className="mr-2 h-4 w-4" />
-              Generar Reporte
+              {isGeneratingReport ? 'Generando...' : 'Generar Reporte'}
             </Button>
           </div>
         </CardContent>

@@ -1,15 +1,20 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
-import { CirclePlay, CirclePause, SkipForward, SkipBack } from 'lucide-react';
+import { CirclePlay, CirclePause, SkipForward, SkipBack, Volume1, Volume2, VolumeX } from 'lucide-react';
 import { useMediaSession } from '@/hooks/use-media-session';
 import { usePersistentState } from '@/hooks/use-persistent-state';
+import { Slider } from '@/components/ui/slider';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface AudioPlayerProps {
   file: File;
   onEnded?: () => void;
+  onError?: (error: string) => void;
 }
 
-export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
+export function AudioPlayer({ file, onEnded, onError }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -21,6 +26,13 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
   );
   
   const [isMuted, setIsMuted] = useState(false);
+  const [playbackRate, setPlaybackRate] = usePersistentState<number>(
+    'audio-player-playback-rate',
+    1,
+    { storage: 'localStorage' }
+  );
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  
   const howler = useRef<Howl | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval>>();
   
@@ -38,65 +50,139 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
       }
     }
 
-    const fileUrl = URL.createObjectURL(file);
-    const sound = new Howl({
-      src: [fileUrl],
-      format: ['mp3', 'wav', 'ogg', 'm4a'],
-      onload: () => {
-        setDuration(sound.duration());
-        
+    try {
+      const fileUrl = URL.createObjectURL(file);
+      const sound = new Howl({
+        src: [fileUrl],
+        format: ['mp3', 'wav', 'ogg', 'm4a'],
+        onload: () => {
+          setDuration(sound.duration());
+          
+          const fileId = file.name + '-' + file.size;
+          if (lastPosition[fileId]) {
+            sound.seek(lastPosition[fileId]);
+            setProgress(lastPosition[fileId]);
+          }
+        },
+        onplay: () => {
+          setIsPlaying(true);
+          updateProgress();
+          sound.rate(playbackRate);
+        },
+        onpause: () => {
+          setIsPlaying(false);
+          if (progressInterval.current) {
+            clearInterval(progressInterval.current);
+          }
+        },
+        onend: () => {
+          setIsPlaying(false);
+          setProgress(0);
+          if (progressInterval.current) {
+            clearInterval(progressInterval.current);
+          }
+          if (onEnded) onEnded();
+        },
+        onstop: () => {
+          setIsPlaying(false);
+          setProgress(0);
+          if (progressInterval.current) {
+            clearInterval(progressInterval.current);
+          }
+        },
+        onloaderror: (id, error) => {
+          console.error('Audio loading error:', error);
+          toast.error('Error loading audio file');
+          if (onError) onError(`Error loading audio: ${error}`);
+        },
+        onplayerror: (id, error) => {
+          console.error('Audio playback error:', error);
+          toast.error('Error playing audio file');
+          if (onError) onError(`Error playing audio: ${error}`);
+        }
+      });
+
+      sound.volume(volume[0] / 100);
+
+      howler.current = sound;
+
+      // Add keyboard shortcuts for audio control
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (!howler.current) return;
+
+        // Only capture keystrokes if this component is focused
+        // or media keys which work globally
+        switch(e.key) {
+          case ' ': // Space key
+            e.preventDefault();
+            handlePlayPause();
+            break;
+          case 'ArrowLeft': // Left arrow key
+            handleSkip('backward');
+            break;
+          case 'ArrowRight': // Right arrow key
+            handleSkip('forward');
+            break;
+          case 'ArrowUp': // Up arrow key
+            if (e.ctrlKey) { // Only if Ctrl is pressed
+              e.preventDefault();
+              const newVolume = Math.min(100, volume[0] + 5);
+              setVolume([newVolume]);
+              if (howler.current) {
+                howler.current.volume(newVolume / 100);
+              }
+            }
+            break;
+          case 'ArrowDown': // Down arrow key
+            if (e.ctrlKey) { // Only if Ctrl is pressed
+              e.preventDefault();
+              const newVolume = Math.max(0, volume[0] - 5);
+              setVolume([newVolume]);
+              if (howler.current) {
+                howler.current.volume(newVolume / 100);
+              }
+            }
+            break;
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        if (progressInterval.current) {
+          clearInterval(progressInterval.current);
+        }
+        window.removeEventListener('keydown', handleKeyDown);
         const fileId = file.name + '-' + file.size;
-        if (lastPosition[fileId]) {
-          sound.seek(lastPosition[fileId]);
-          setProgress(lastPosition[fileId]);
+        if (sound) {
+          const currentPos = sound.seek() as number;
+          if (currentPos > 0) {
+            setLastPosition({...lastPosition, [fileId]: currentPos});
+          }
         }
-      },
-      onplay: () => {
-        setIsPlaying(true);
-        updateProgress();
-      },
-      onpause: () => {
-        setIsPlaying(false);
-        if (progressInterval.current) {
-          clearInterval(progressInterval.current);
-        }
-      },
-      onend: () => {
-        setIsPlaying(false);
-        setProgress(0);
-        if (progressInterval.current) {
-          clearInterval(progressInterval.current);
-        }
-        if (onEnded) onEnded();
-      },
-      onstop: () => {
-        setIsPlaying(false);
-        setProgress(0);
-        if (progressInterval.current) {
-          clearInterval(progressInterval.current);
-        }
-      },
-    });
+        URL.revokeObjectURL(fileUrl);
+        sound.unload();
+      };
+    } catch (error) {
+      console.error('Error initializing audio player:', error);
+      toast.error('Error setting up audio player');
+      if (onError) onError(`Error initializing audio: ${error}`);
+    }
+  }, [file, onEnded, onError]);
 
-    sound.volume(volume[0] / 100);
+  // Apply volume changes to the Howler instance
+  useEffect(() => {
+    if (howler.current) {
+      howler.current.volume(isMuted ? 0 : volume[0] / 100);
+    }
+  }, [volume, isMuted]);
 
-    howler.current = sound;
-
-    return () => {
-      if (progressInterval.current) {
-        clearInterval(progressInterval.current);
-      }
-      const fileId = file.name + '-' + file.size;
-      if (sound) {
-        const currentPos = sound.seek() as number;
-        if (currentPos > 0) {
-          setLastPosition({...lastPosition, [fileId]: currentPos});
-        }
-      }
-      URL.revokeObjectURL(fileUrl);
-      sound.unload();
-    };
-  }, [file, onEnded]);
+  // Apply playback rate changes
+  useEffect(() => {
+    if (howler.current && isPlaying) {
+      howler.current.rate(playbackRate);
+    }
+  }, [playbackRate, isPlaying]);
 
   useMediaSession({
     title: file.name,
@@ -170,11 +256,35 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
     setProgress(newTime);
   };
 
+  const handleVolumeChange = (value: number[]) => {
+    setVolume(value);
+    if (value[0] === 0) {
+      setIsMuted(true);
+    } else if (isMuted) {
+      setIsMuted(false);
+    }
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
+
+  const changePlaybackRate = () => {
+    // Cycle through common playback rates: 0.5, 1.0, 1.5, 2.0
+    const rates = [0.5, 1.0, 1.5, 2.0];
+    const currentIndex = rates.indexOf(playbackRate);
+    const nextIndex = (currentIndex + 1) % rates.length;
+    setPlaybackRate(rates[nextIndex]);
+    toast.info(`Velocidad: ${rates[nextIndex]}x`);
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const VolumeIcon = isMuted ? VolumeX : volume[0] < 50 ? Volume1 : Volume2;
 
   return (
     <div className="w-full bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl p-4 shadow-xl transition-all duration-300">
@@ -205,34 +315,76 @@ export function AudioPlayer({ file, onEnded }: AudioPlayerProps) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-4">
-        <button
-          onClick={() => handleSkip('backward')}
-          className="p-2 text-gray-600 dark:text-gray-400 
-            hover:text-primary dark:hover:text-primary 
-            transition-colors"
-          title="Retroceder 10 segundos"
-        >
-          <SkipBack className="w-6 h-6" />
-        </button>
-        <button
-          onClick={handlePlayPause}
-          className="p-2 text-primary hover:opacity-80 transition-colors"
-        >
-          {isPlaying ?
-            <CirclePause className="w-8 h-8" /> :
-            <CirclePlay className="w-8 h-8" />
-          }
-        </button>
-        <button
-          onClick={() => handleSkip('forward')}
-          className="p-2 text-gray-600 dark:text-gray-400 
-            hover:text-primary dark:hover:text-primary 
-            transition-colors"
-          title="Adelantar 10 segundos"
-        >
-          <SkipForward className="w-6 h-6" />
-        </button>
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => handleSkip('backward')}
+            className="p-2 text-gray-600 dark:text-gray-400 
+              hover:text-primary dark:hover:text-primary 
+              transition-colors"
+            title="Retroceder 10 segundos"
+          >
+            <SkipBack className="w-5 h-5" />
+          </button>
+          <button
+            onClick={handlePlayPause}
+            className="p-2 text-primary hover:opacity-80 transition-colors"
+          >
+            {isPlaying ?
+              <CirclePause className="w-8 h-8" /> :
+              <CirclePlay className="w-8 h-8" />
+            }
+          </button>
+          <button
+            onClick={() => handleSkip('forward')}
+            className="p-2 text-gray-600 dark:text-gray-400 
+              hover:text-primary dark:hover:text-primary 
+              transition-colors"
+            title="Adelantar 10 segundos"
+          >
+            <SkipForward className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={changePlaybackRate}
+            className="px-1 h-8"
+          >
+            {playbackRate}x
+          </Button>
+          
+          <div className="relative" onMouseEnter={() => setShowVolumeSlider(true)} onMouseLeave={() => setShowVolumeSlider(false)}>
+            <button
+              onClick={toggleMute}
+              className="p-2 text-gray-600 dark:text-gray-400 
+                hover:text-primary dark:hover:text-primary 
+                transition-colors"
+            >
+              <VolumeIcon className="w-5 h-5" />
+            </button>
+            
+            {showVolumeSlider && (
+              <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-background border border-border rounded-lg shadow-lg p-3 w-24">
+                <Slider
+                  defaultValue={volume}
+                  max={100}
+                  step={1}
+                  value={volume}
+                  onValueChange={handleVolumeChange}
+                  orientation="vertical"
+                  className="h-24"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-2 px-2 text-xs text-center text-gray-500">
+        <p>Teclas: Espacio (Play/Pausa), ← → (Avanzar/Retroceder)</p>
       </div>
     </div>
   );

@@ -96,6 +96,13 @@ const FileUploadSection = ({
           }}
           onTranscriptionComplete={setTranscriptionText}
           onRemoveFile={handleRemoveFile}
+          currentFileIndex={currentFileIndex}
+          setCurrentFileIndex={setCurrentFileIndex}
+          isProcessing={isProcessing}
+          progress={progress}
+          setIsProcessing={setIsProcessing}
+          setProgress={setProgress}
+          setTranscriptionId={setTranscriptionId}
         />
       )}
     </>

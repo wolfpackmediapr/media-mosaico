@@ -1,112 +1,140 @@
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Clock, Edit2, Save, Tag } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Clock, Edit2, Save, Play, X } from "lucide-react";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 
 interface RadioNewsSegmentCardProps {
   segment: RadioNewsSegment;
   index: number;
-  onEdit: (index: number, text: string) => void;
+  onEdit?: (index: number, text: string) => void;
   onSeek?: (timestamp: number) => void;
   isReadOnly?: boolean;
 }
 
-const RadioNewsSegmentCard = ({ 
-  segment, 
-  index, 
-  onEdit, 
+const RadioNewsSegmentCard = ({
+  segment,
+  index,
+  onEdit,
   onSeek,
   isReadOnly = false
 }: RadioNewsSegmentCardProps) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [text, setText] = useState(segment.text);
+  const [editText, setEditText] = useState(segment.text);
 
-  const formatTime = (milliseconds: number) => {
-    if (!milliseconds && milliseconds !== 0) return "00:00";
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const handleEdit = () => {
-    if (isEditing) {
-      onEdit(index, text);
+  const handleEditToggle = () => {
+    if (isEditing && onEdit) {
+      onEdit(index, editText);
     }
     setIsEditing(!isEditing);
   };
 
-  const handleSeek = () => {
-    if (onSeek && segment.start !== undefined) {
-      onSeek(segment.start);
-    }
+  const handleCancel = () => {
+    setEditText(segment.text);
+    setIsEditing(false);
+  };
+
+  const formatTime = (milliseconds: number) => {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   return (
-    <Card className={`mb-4 ${isReadOnly ? 'opacity-50' : ''} h-full flex flex-col`}>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold line-clamp-1">
-            {segment.headline || `Segmento ${index + 1}`}
+    <Card className={`overflow-hidden ${isReadOnly ? 'opacity-70' : ''}`}>
+      <CardHeader className="bg-muted py-3">
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-md font-bold truncate">
+            {segment.headline}
           </CardTitle>
-          <div className="flex items-center gap-2">
-            {!isReadOnly && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleEdit}
-              >
-                {isEditing ? <Save className="h-4 w-4 mr-1" /> : <Edit2 className="h-4 w-4 mr-1" />}
-                {isEditing ? "Guardar" : "Editar"}
-              </Button>
-            )}
-            {segment.start !== undefined && segment.start > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSeek}
-                className="text-muted-foreground"
-              >
-                <Clock className="h-4 w-4 mr-1" />
-                {formatTime(segment.start)}
-              </Button>
-            )}
+          <div className="flex items-center gap-1 text-sm text-gray-500">
+            <Clock className="w-3 h-3" />
+            <span>
+              {formatTime(segment.start)} - {formatTime(segment.end)}
+            </span>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col">
+      <CardContent className="py-3">
         {isEditing ? (
           <Textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="min-h-[120px] flex-1"
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            className="min-h-[120px] text-sm"
           />
         ) : (
-          <div className="flex flex-col h-full">
-            <p className="text-sm text-gray-700 whitespace-pre-wrap flex-1 mb-3">
-              {segment.text || "No hay análisis disponible para este segmento."}
-            </p>
-            {segment.keywords && segment.keywords.length > 0 && (
-              <div className="mt-auto">
-                <div className="flex items-center gap-1 text-xs text-gray-500 font-semibold mb-1">
-                  <Tag className="h-3 w-3" />
-                  <span>Palabras clave:</span>
-                </div>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {segment.keywords.map((keyword, idx) => (
-                    <span key={idx} className="text-xs bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full">
-                      {keyword}
-                    </span>
-                  ))}
-                </div>
-              </div>
+          <div className="text-sm max-h-[150px] overflow-y-auto">
+            {segment.text.length > 300 ? (
+              <>{segment.text.substring(0, 300)}... <span className="text-primary cursor-pointer">(ver más)</span></>
+            ) : (
+              segment.text
             )}
           </div>
         )}
       </CardContent>
+      <CardFooter className="pt-0 pb-3 flex-col items-start gap-3">
+        {segment.keywords && segment.keywords.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {segment.keywords.map((keyword, i) => (
+              <Badge key={i} variant="outline" className="text-xs">
+                {keyword}
+              </Badge>
+            ))}
+          </div>
+        )}
+        
+        <div className="flex justify-between w-full">
+          {!isReadOnly && (
+            <div>
+              {isEditing ? (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleCancel}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={handleEditToggle}
+                  >
+                    <Save className="h-4 w-4 mr-1" />
+                    Guardar
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleEditToggle}
+                >
+                  <Edit2 className="h-4 w-4 mr-1" />
+                  Editar
+                </Button>
+              )}
+            </div>
+          )}
+          
+          {onSeek && !isReadOnly && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="ml-auto"
+              onClick={() => onSeek(segment.start)}
+            >
+              <Play className="h-4 w-4 mr-1" />
+              Reproducir
+            </Button>
+          )}
+        </div>
+      </CardFooter>
     </Card>
   );
 };
