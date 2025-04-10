@@ -1,17 +1,21 @@
 import { RadioNewsSegment } from "../RadioNewsSegmentsContainer";
 
-interface RadioSegmentGeneratorProps {
+interface RadioSegmentGeneratorOptions {
   transcriptionText: string;
   onSegmentsGenerated: (segments: RadioNewsSegment[]) => void;
 }
 
-const RadioSegmentGenerator = ({ 
-  transcriptionText, 
-  onSegmentsGenerated 
-}: RadioSegmentGeneratorProps) => {
+class RadioSegmentGenerator {
+  transcriptionText: string;
+  onSegmentsGenerated: (segments: RadioNewsSegment[]) => void;
   
-  const generateRadioSegments = (text: string) => {
-    if (!text || text.length < 100 || !onSegmentsGenerated) return;
+  constructor(options: RadioSegmentGeneratorOptions) {
+    this.transcriptionText = options.transcriptionText;
+    this.onSegmentsGenerated = options.onSegmentsGenerated;
+  }
+  
+  generateRadioSegments = (text: string) => {
+    if (!text || text.length < 100 || !this.onSegmentsGenerated) return;
     
     console.log("Starting segment generation process");
     
@@ -22,7 +26,7 @@ const RadioSegmentGenerator = ({
     // If natural segmentation gives us good chunks, use them
     if (naturalSegments.length >= 2) {
       console.log(`Found ${naturalSegments.length} natural segments`);
-      createSegmentsFromChunks(naturalSegments);
+      this.createSegmentsFromChunks(naturalSegments);
       return;
     }
     
@@ -32,7 +36,7 @@ const RadioSegmentGenerator = ({
       
     if (paragraphs.length >= 2) {
       console.log(`Found ${paragraphs.length} paragraph segments`);
-      createSegmentsFromChunks(paragraphs);
+      this.createSegmentsFromChunks(paragraphs);
       return;
     }
     
@@ -59,41 +63,41 @@ const RadioSegmentGenerator = ({
       
       const segmentText = text.substring(start, end).trim();
       if (segmentText.length > 0) {
-        const headline = extractHeadline(segmentText);
+        const headline = this.extractHeadline(segmentText);
         
         segments.push({
           headline: headline || `Segmento ${i + 1}`,
           text: segmentText,
           start: i * 60000, // Spread timestamps evenly (60s per segment)
           end: (i + 1) * 60000,
-          keywords: extractKeywords(segmentText)
+          keywords: this.extractKeywords(segmentText)
         });
       }
     }
     
     if (segments.length > 0) {
-      onSegmentsGenerated(segments);
+      this.onSegmentsGenerated(segments);
     }
   };
   
-  const createSegmentsFromChunks = (chunks: string[]) => {
-    if (!onSegmentsGenerated) return;
+  createSegmentsFromChunks = (chunks: string[]) => {
+    if (!this.onSegmentsGenerated) return;
     
     const segments: RadioNewsSegment[] = chunks.map((chunk, index) => {
-      const headline = extractHeadline(chunk);
+      const headline = this.extractHeadline(chunk);
       return {
         headline: headline || `Segmento ${index + 1}`,
         text: chunk,
         start: index * 60000,
         end: (index + 1) * 60000,
-        keywords: extractKeywords(chunk)
+        keywords: this.extractKeywords(chunk)
       };
     });
     
-    onSegmentsGenerated(segments);
+    this.onSegmentsGenerated(segments);
   };
   
-  const extractHeadline = (text: string): string => {
+  extractHeadline = (text: string): string => {
     // Find the first sentence or part to use as headline
     const firstSentence = text.split(/[.!?]/, 1)[0];
     return firstSentence.length > 50 
@@ -101,7 +105,7 @@ const RadioSegmentGenerator = ({
       : firstSentence;
   };
   
-  const extractKeywords = (text: string): string[] => {
+  extractKeywords = (text: string): string[] => {
     // Simple keyword extraction based on word frequency
     const words = text.toLowerCase()
       .replace(/[^\wáéíóúüñ\s]/g, '')
@@ -122,9 +126,6 @@ const RadioSegmentGenerator = ({
       .slice(0, 5)
       .map(([word]) => word);
   };
-
-  // This component doesn't render anything by itself
-  return null;
-};
+}
 
 export default RadioSegmentGenerator;

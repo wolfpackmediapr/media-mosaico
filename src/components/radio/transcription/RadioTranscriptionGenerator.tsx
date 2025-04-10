@@ -34,13 +34,15 @@ const RadioTranscriptionGenerator = ({
                "Previous length:", transcriptionLength.current,
                "Already generated:", segmentsGeneratedRef.current);
       
-      // Use our RadioSegmentGenerator logic
+      // Use our RadioSegmentGenerator logic - now correctly instantiating the class
       const segmentGenerator = new RadioSegmentGenerator({
         transcriptionText,
         onSegmentsGenerated: (segments) => {
-          onSegmentsReceived(segments);
-          segmentsGeneratedRef.current = true;
-          transcriptionLength.current = currentLength;
+          if (onSegmentsReceived) {
+            onSegmentsReceived(segments);
+            segmentsGeneratedRef.current = true;
+            transcriptionLength.current = currentLength;
+          }
         }
       });
       
