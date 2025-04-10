@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
@@ -8,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { MusicCard } from "@/components/ui/music-card";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -29,14 +29,19 @@ const RadioContainer = () => {
   }>({});
   const [newsSegments, setNewsSegments] = useState<RadioNewsSegment[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState<number[]>([50]);
+  const [isMuted, setIsMuted] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
-  // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
       setIsAuthenticated(!!data.session);
 
-      // Set up auth state change listener
       const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
         setIsAuthenticated(!!session);
       });
@@ -49,16 +54,44 @@ const RadioContainer = () => {
     checkAuth();
   }, []);
 
+  useEffect(() => {
+    if (files.length === 0 || currentFileIndex >= files.length) return;
+
+    const audio = new Audio(URL.createObjectURL(files[currentFileIndex]));
+    
+    audio.onloadedmetadata = () => {
+      setDuration(audio.duration);
+    };
+    
+    audio.ontimeupdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+    
+    audio.onended = () => {
+      setIsPlaying(false);
+    };
+    
+    audio.volume = volume[0] / 100;
+    audio.muted = isMuted;
+    audio.playbackRate = playbackRate;
+    
+    setAudioElement(audio);
+    
+    return () => {
+      audio.pause();
+      URL.revokeObjectURL(audio.src);
+    };
+  }, [files, currentFileIndex]);
+
   const handleTranscriptionChange = (newText: string) => {
     setTranscriptionText(newText);
   };
 
   const handleSeekToTimestamp = (timestamp: number) => {
-    const audioElements = document.querySelectorAll('audio');
-    if (audioElements.length > 0) {
-      const audioElement = audioElements[0];
+    if (audioElement) {
       audioElement.currentTime = timestamp / 1000;
       audioElement.play();
+      setIsPlaying(true);
     } else {
       console.warn('No audio element found to seek');
     }
@@ -81,15 +114,72 @@ const RadioContainer = () => {
     toast.success('Metadata actualizada');
   };
 
-  // Clear segments when transcription is cleared
-  useEffect(() => {
-    if (!transcriptionText || transcriptionText.length < 50) {
-      setNewsSegments([]);
+  const handlePlayPause = () => {
+    if (!audioElement) return;
+    
+    if (isPlaying) {
+      audioElement.pause();
+    } else {
+      audioElement.play();
     }
-  }, [transcriptionText]);
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleSeek = (seconds: number) => {
+    if (!audioElement) return;
+    audioElement.currentTime = seconds;
+    setCurrentTime(seconds);
+  };
+
+  const handleSkip = (direction: 'forward' | 'backward', amount: number = 10) => {
+    if (!audioElement) return;
+    
+    const newTime = direction === 'forward' 
+      ? Math.min(audioElement.duration, audioElement.currentTime + amount)
+      : Math.max(0, audioElement.currentTime - amount);
+      
+    audioElement.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleToggleMute = () => {
+    if (!audioElement) return;
+    
+    audioElement.muted = !isMuted;
+    setIsMuted(!isMuted);
+  };
+
+  const handleVolumeChange = (newVolume: number[]) => {
+    if (!audioElement) return;
+    
+    audioElement.volume = newVolume[0] / 100;
+    setVolume(newVolume);
+    
+    if (newVolume[0] === 0) {
+      setIsMuted(true);
+      audioElement.muted = true;
+    } else if (isMuted) {
+      setIsMuted(false);
+      audioElement.muted = false;
+    }
+  };
+
+  const handlePlaybackRateChange = () => {
+    if (!audioElement) return;
+    
+    const rates = [0.5, 1.0, 1.5, 2.0];
+    const currentIndex = rates.indexOf(playbackRate);
+    const nextIndex = (currentIndex + 1) % rates.length;
+    const newRate = rates[nextIndex];
+    
+    audioElement.playbackRate = newRate;
+    setPlaybackRate(newRate);
+    toast.info(`Velocidad: ${newRate}x`);
+  };
 
   useEffect(() => {
-    // Load Typeform embed script
+    if (files.length === 0 || currentFileIndex >= files.length) return;
+
     const script = document.createElement('script');
     script.src = "//embed.typeform.com/next/embed.js";
     script.async = true;
@@ -101,7 +191,6 @@ const RadioContainer = () => {
   }, []);
 
   if (isAuthenticated === false) {
-    // Show login prompt if not authenticated
     return (
       <div className="w-full h-[calc(100vh-200px)] flex flex-col items-center justify-center text-center p-8">
         <h2 className="text-2xl font-bold mb-4">Iniciar sesión requerido</h2>
@@ -120,7 +209,6 @@ const RadioContainer = () => {
   }
 
   if (isAuthenticated === null) {
-    // Show loading state while checking auth
     return (
       <div className="w-full h-[calc(100vh-200px)] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -145,6 +233,28 @@ const RadioContainer = () => {
             setTranscriptionText={setTranscriptionText}
             setTranscriptionId={setTranscriptionId}
           />
+          
+          {files.length > 0 && currentFileIndex < files.length && (
+            <MusicCard
+              file={files[currentFileIndex]}
+              title={files[currentFileIndex].name}
+              artist={metadata?.emisora || 'Radio Transcription'}
+              mainColor="#8B5CF6"
+              customControls={true}
+              isPlaying={isPlaying}
+              currentTime={currentTime}
+              duration={duration}
+              isMuted={isMuted}
+              volume={volume}
+              playbackRate={playbackRate}
+              onPlayPause={handlePlayPause}
+              onSeek={handleSeek}
+              onSkip={handleSkip}
+              onToggleMute={handleToggleMute}
+              onVolumeChange={handleVolumeChange}
+              onPlaybackRateChange={handlePlaybackRateChange}
+            />
+          )}
         </div>
         <div className="w-full">
           <RadioTranscriptionSlot
