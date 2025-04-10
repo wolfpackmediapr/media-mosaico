@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { useRouter } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -141,7 +141,7 @@ export const processAudioFile = async (
 
 // Helper function to handle auth redirection from components
 export const useAudioProcessingWithAuth = () => {
-  const router = useRouter();
+  const navigate = useNavigate();
   
   const processWithAuth = async (
     file: UploadedFile,
@@ -154,7 +154,7 @@ export const useAudioProcessingWithAuth = () => {
       if (error.message === "AUTH_REQUIRED") {
         // Store the current path to return after login
         sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
-        router.navigate('/auth');
+        navigate('/auth');
         return false;
       }
       // Let other errors bubble up

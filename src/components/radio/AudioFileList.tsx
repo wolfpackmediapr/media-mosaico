@@ -12,6 +12,13 @@ interface AudioFileListProps {
   onProcess: (file: UploadedFile) => void;
   onTranscriptionComplete?: (text: string) => void;
   onRemoveFile?: (index: number) => void;
+  currentFileIndex?: number;
+  setCurrentFileIndex?: React.Dispatch<React.SetStateAction<number>>;
+  isProcessing?: boolean;
+  progress?: number;
+  setIsProcessing?: React.Dispatch<React.SetStateAction<boolean>>;
+  setProgress?: React.Dispatch<React.SetStateAction<number>>;
+  setTranscriptionId?: React.Dispatch<React.SetStateAction<string | undefined>>;
 }
 
 const AudioFileList = ({
@@ -19,6 +26,13 @@ const AudioFileList = ({
   onProcess,
   onTranscriptionComplete,
   onRemoveFile,
+  currentFileIndex,
+  setCurrentFileIndex,
+  isProcessing,
+  progress,
+  setIsProcessing,
+  setProgress,
+  setTranscriptionId
 }: AudioFileListProps) => {
   return (
     <Card>

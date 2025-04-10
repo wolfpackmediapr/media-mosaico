@@ -1,3 +1,4 @@
+
 import { Dispatch, SetStateAction } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileList from "./AudioFileList";
@@ -87,16 +88,14 @@ const FileUploadSection = ({
       
       {files.length > 0 && (
         <AudioFileList
-          files={files}
-          currentFileIndex={currentFileIndex}
-          setCurrentFileIndex={setCurrentFileIndex}
-          isProcessing={isProcessing}
-          progress={progress}
-          handleRemoveFile={handleRemoveFile}
-          setIsProcessing={setIsProcessing}
-          setProgress={setProgress}
-          setTranscriptionText={setTranscriptionText}
-          setTranscriptionId={setTranscriptionId}
+          uploadedFiles={files}
+          onProcess={(file) => {
+            setIsProcessing(true);
+            setProgress(10);
+            // The actual processing happens in AudioFileItem
+          }}
+          onTranscriptionComplete={setTranscriptionText}
+          onRemoveFile={handleRemoveFile}
         />
       )}
     </>
