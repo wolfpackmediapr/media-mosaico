@@ -4,7 +4,7 @@ import { FileAudio, Play, Trash2, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAudioProcessingWithAuth } from './AudioProcessing';
-import { AudioPlayer } from './AudioPlayer';
+import { AudioPlayer } from './audio-player';
 
 interface UploadedFile extends File {
   preview?: string;

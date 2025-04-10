@@ -1,20 +1,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
-import { CirclePlay, CirclePause, SkipForward, SkipBack, Volume1, Volume2, VolumeX } from 'lucide-react';
+import { toast } from 'sonner';
 import { useMediaSession } from '@/hooks/use-media-session';
 import { usePersistentState } from '@/hooks/use-persistent-state';
-import { Slider } from '@/components/ui/slider';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { AudioPlayerHookReturn } from './types';
 
-interface AudioPlayerProps {
-  file: File;
-  onEnded?: () => void;
-  onError?: (error: string) => void;
-}
-
-export function AudioPlayer({ file, onEnded, onError }: AudioPlayerProps) {
+export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (error: string) => void): AudioPlayerHookReturn {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -31,7 +23,6 @@ export function AudioPlayer({ file, onEnded, onError }: AudioPlayerProps) {
     1,
     { storage: 'localStorage' }
   );
-  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   
   const howler = useRef<Howl | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval>>();
@@ -284,108 +275,28 @@ export function AudioPlayer({ file, onEnded, onError }: AudioPlayerProps) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const VolumeIcon = isMuted ? VolumeX : volume[0] < 50 ? Volume1 : Volume2;
-
-  return (
-    <div className="w-full bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl p-4 shadow-xl transition-all duration-300">
-      <div className="mb-4 px-2">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">
-          {file.name}
-        </h3>
-      </div>
-
-      <div className="mb-4 px-2">
-        <div
-          className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full cursor-pointer group"
-          onClick={handleSeek}
-        >
-          <div
-            className="h-full bg-primary rounded-full relative"
-            style={{ width: `${(progress / duration) * 100}%` }}
-          >
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 
-              bg-primary rounded-full shadow-md transform scale-0 
-              group-hover:scale-100 transition-transform"
-            />
-          </div>
-        </div>
-        <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
-          <span>{formatTime(progress)}</span>
-          <span>{formatTime(duration)}</span>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => handleSkip('backward')}
-            className="p-2 text-gray-600 dark:text-gray-400 
-              hover:text-primary dark:hover:text-primary 
-              transition-colors"
-            title="Retroceder 10 segundos"
-          >
-            <SkipBack className="w-5 h-5" />
-          </button>
-          <button
-            onClick={handlePlayPause}
-            className="p-2 text-primary hover:opacity-80 transition-colors"
-          >
-            {isPlaying ?
-              <CirclePause className="w-8 h-8" /> :
-              <CirclePlay className="w-8 h-8" />
-            }
-          </button>
-          <button
-            onClick={() => handleSkip('forward')}
-            className="p-2 text-gray-600 dark:text-gray-400 
-              hover:text-primary dark:hover:text-primary 
-              transition-colors"
-            title="Adelantar 10 segundos"
-          >
-            <SkipForward className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={changePlaybackRate}
-            className="px-1 h-8"
-          >
-            {playbackRate}x
-          </Button>
-          
-          <div className="relative" onMouseEnter={() => setShowVolumeSlider(true)} onMouseLeave={() => setShowVolumeSlider(false)}>
-            <button
-              onClick={toggleMute}
-              className="p-2 text-gray-600 dark:text-gray-400 
-                hover:text-primary dark:hover:text-primary 
-                transition-colors"
-            >
-              <VolumeIcon className="w-5 h-5" />
-            </button>
-            
-            {showVolumeSlider && (
-              <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-background border border-border rounded-lg shadow-lg p-3 w-24">
-                <Slider
-                  defaultValue={volume}
-                  max={100}
-                  step={1}
-                  value={volume}
-                  onValueChange={handleVolumeChange}
-                  orientation="vertical"
-                  className="h-24"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      <div className="mt-2 px-2 text-xs text-center text-gray-500">
-        <p>Teclas: Espacio (Play/Pausa), ← → (Avanzar/Retroceder)</p>
-      </div>
-    </div>
-  );
+  return {
+    howler,
+    playbackState: {
+      isPlaying,
+      progress,
+      duration,
+      isMuted
+    },
+    playbackRate,
+    setPlaybackRate,
+    volumeControls: {
+      isMuted,
+      volume,
+      handleVolumeChange,
+      toggleMute
+    },
+    playbackControls: {
+      handlePlayPause,
+      handleSkip,
+      handleSeek
+    },
+    formatTime,
+    changePlaybackRate
+  };
 }
