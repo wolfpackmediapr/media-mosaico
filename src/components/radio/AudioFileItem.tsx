@@ -1,57 +1,66 @@
-import { FileAudio, Trash2 } from "lucide-react";
+
+import React, { useState } from 'react';
+import { FileAudio, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useAudioProcessingWithAuth } from './AudioProcessing';
 
 interface UploadedFile extends File {
   preview?: string;
-  name: string;
-  size: number;
 }
 
 interface AudioFileItemProps {
   file: UploadedFile;
   index: number;
-  isProcessing: boolean;
-  progress: number;
   onProcess: (file: UploadedFile) => void;
+  onTranscriptionComplete?: (text: string) => void;
   onRemove?: (index: number) => void;
 }
 
 const AudioFileItem = ({
   file,
   index,
-  isProcessing,
-  progress,
   onProcess,
+  onTranscriptionComplete,
   onRemove,
 }: AudioFileItemProps) => {
-  // Safely calculate file size in MB with additional error checking
-  const getFileSize = (file: UploadedFile) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const processWithAuth = useAudioProcessingWithAuth();
+
+  const handleProcess = async () => {
+    setIsProcessing(true);
+    setProgress(10);
+    
     try {
-      if (typeof file.size !== 'number' || isNaN(file.size)) {
-        console.error('Invalid file size:', file.size);
-        return '0.00';
+      setProgress(30);
+      const success = await processWithAuth(file, (text) => {
+        onTranscriptionComplete?.(text);
+        setProgress(100);
+        
+        // Signal that processing is complete by calling onProcess
+        onProcess(file);
+      });
+      
+      if (!success) {
+        // User was redirected to login
+        setIsProcessing(false);
+        setProgress(0);
+        return;
       }
-      const sizeInMB = file.size / (1024 * 1024);
-      return sizeInMB.toFixed(2);
+      
+      setProgress(100);
     } catch (error) {
-      console.error('Error calculating file size:', error);
-      return '0.00';
+      console.error('Error processing audio:', error);
+      setIsProcessing(false);
+      setProgress(0);
     }
   };
 
-  // Safely get file name with additional error checking
-  const getFileName = (file: UploadedFile) => {
-    try {
-      if (!file.name || typeof file.name !== 'string') {
-        console.error('Invalid file name:', file.name);
-        return 'Unknown file';
-      }
-      return file.name;
-    } catch (error) {
-      console.error('Error getting file name:', error);
-      return 'Unknown file';
-    }
+  const getButtonText = () => {
+    if (!isProcessing) return "Procesar Transcripción";
+    if (progress === 100) return "Procesamiento completado";
+    return `Procesando: ${progress}%`;
   };
 
   return (
@@ -60,9 +69,9 @@ const AudioFileItem = ({
         <div className="flex items-center gap-3">
           <FileAudio className="w-5 h-5" />
           <div>
-            <p className="text-sm font-medium">{getFileName(file)}</p>
+            <p className="text-sm font-medium">{file.name}</p>
             <p className="text-xs text-gray-500">
-              {getFileSize(file)} MB
+              {(file.size / (1024 * 1024)).toFixed(2)} MB
             </p>
           </div>
         </div>
@@ -76,22 +85,19 @@ const AudioFileItem = ({
         </Button>
       </div>
 
-      {isProcessing && (
-        <div className="space-y-2">
-          <Progress value={progress} className="w-full" />
-          <p className="text-xs text-center text-gray-500">
-            {progress === 100 ? 'Procesamiento completado' : `Procesando: ${progress}%`}
-          </p>
-        </div>
-      )}
-
-      <Button
-        className="w-full"
-        onClick={() => onProcess(file)}
-        disabled={isProcessing}
-      >
-        {isProcessing ? 'Procesando...' : 'Procesar Transcripción'}
-      </Button>
+      <div className="space-y-2">
+        {isProcessing && (
+          <Progress value={progress} className="h-2" />
+        )}
+        <Button
+          className="w-full relative"
+          onClick={handleProcess}
+          disabled={isProcessing}
+          variant={progress === 100 ? "secondary" : "default"}
+        >
+          {getButtonText()}
+        </Button>
+      </div>
     </div>
   );
 };

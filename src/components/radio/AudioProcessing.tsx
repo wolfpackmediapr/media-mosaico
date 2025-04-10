@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useRouter } from "react-router-dom";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -11,14 +12,24 @@ export const processAudioFile = async (
   onTranscriptionComplete?: (text: string) => void
 ) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    // Check authentication first
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError) {
+      console.error('Authentication error:', authError);
+      throw new Error("Error verificando la autenticación: " + authError.message);
+    }
+    
     if (!user) {
+      console.log('User not authenticated, redirecting to login');
       toast({
-        title: "Error",
-        description: "Debes iniciar sesión para procesar transcripciones",
+        title: "Autenticación requerida",
+        description: "Debes iniciar sesión para procesar transcripciones. Serás redirigido a la página de login.",
         variant: "destructive",
       });
-      return;
+      
+      // We'll handle the redirect in the component that calls this function
+      throw new Error("AUTH_REQUIRED");
     }
 
     // Validate file type
@@ -31,7 +42,8 @@ export const processAudioFile = async (
     console.log('Processing file:', {
       name: validFile.name,
       size: validFile.size,
-      type: validFile.type
+      type: validFile.type,
+      userId: user.id
     });
 
     if (validFile.size > 25 * 1024 * 1024) {
@@ -111,6 +123,13 @@ export const processAudioFile = async (
     }
   } catch (error: any) {
     console.error('Error processing file:', error);
+    
+    // Special handling for authentication errors
+    if (error.message === "AUTH_REQUIRED") {
+      // This will be handled by the component
+      throw error;
+    }
+    
     toast({
       title: "Error",
       description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
@@ -118,4 +137,30 @@ export const processAudioFile = async (
     });
     throw error;
   }
+};
+
+// Helper function to handle auth redirection from components
+export const useAudioProcessingWithAuth = () => {
+  const router = useRouter();
+  
+  const processWithAuth = async (
+    file: UploadedFile,
+    onTranscriptionComplete?: (text: string) => void
+  ) => {
+    try {
+      await processAudioFile(file, onTranscriptionComplete);
+      return true;
+    } catch (error: any) {
+      if (error.message === "AUTH_REQUIRED") {
+        // Store the current path to return after login
+        sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+        router.navigate('/auth');
+        return false;
+      }
+      // Let other errors bubble up
+      throw error;
+    }
+  };
+  
+  return processWithAuth;
 };
