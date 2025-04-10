@@ -133,7 +133,7 @@ const RadioTranscriptionEditor = ({
         className={`min-h-[200px] resize-y pr-12 ${isEditing ? 'border-primary' : ''} focus:border-primary focus-visible:ring-1`}
         value={localText}
         onChange={handleTextChange}
-        disabled={isProcessing}
+        readOnly={isProcessing || !isEditing}
         onClick={() => !isEditing && toggleEditMode()}
       />
       <div className="absolute top-2 right-2 flex flex-col gap-2">
