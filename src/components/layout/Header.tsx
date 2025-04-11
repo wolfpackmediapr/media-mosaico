@@ -10,8 +10,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { NotificationPopover } from "@/components/notifications/NotificationPopover";
+import { useAuth } from "@/context/AuthContext";
+import LogoutButton from "../auth/LogoutButton";
 
 const Header = () => {
+  const { user } = useAuth();
+  const userEmail = user?.email || "";
+  const username = user?.user_metadata?.username || userEmail.split('@')[0];
+
   return (
     <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 md:px-6 lg:px-8 sticky top-0 z-10">
       <div className="flex items-center max-w-[70%]">
@@ -26,12 +32,15 @@ const Header = () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+            <DropdownMenuLabel className="flex flex-col">
+              <span className="font-bold">{username}</span>
+              <span className="text-xs text-muted-foreground">{userEmail}</span>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Perfil</DropdownMenuItem>
             <DropdownMenuItem>Configuración</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Cerrar Sesión</DropdownMenuItem>
+            <LogoutButton variant="ghost" showIcon={false} />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
