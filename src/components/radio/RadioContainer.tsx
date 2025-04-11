@@ -64,24 +64,27 @@ const RadioContainer = () => {
     seekToTimestamp(timestamp);
   };
 
-  // Prepare sections for layout
+  // File upload section (now left column only)
   const leftSection = (
+    <FileUploadSection 
+      files={files}
+      setFiles={setFiles}
+      currentFileIndex={currentFileIndex}
+      setCurrentFileIndex={setCurrentFileIndex}
+      isProcessing={isProcessing}
+      setIsProcessing={setIsProcessing}
+      progress={progress}
+      setProgress={setProgress}
+      transcriptionText={transcriptionText}
+      setTranscriptionText={setTranscriptionText}
+      setTranscriptionId={setTranscriptionId}
+      onTranscriptionComplete={handleTranscriptionReceived}
+    />
+  );
+
+  // Media controls and audio file list (now right column)
+  const rightSection = (
     <>
-      <FileUploadSection 
-        files={files}
-        setFiles={setFiles}
-        currentFileIndex={currentFileIndex}
-        setCurrentFileIndex={setCurrentFileIndex}
-        isProcessing={isProcessing}
-        setIsProcessing={setIsProcessing}
-        progress={progress}
-        setProgress={setProgress}
-        transcriptionText={transcriptionText}
-        setTranscriptionText={setTranscriptionText}
-        setTranscriptionId={setTranscriptionId}
-        onTranscriptionComplete={handleTranscriptionReceived}
-      />
-      
       {currentFile && (
         <MediaControls
           currentFile={currentFile}
@@ -103,8 +106,8 @@ const RadioContainer = () => {
     </>
   );
 
-  // Transcription section - now will be rendered as full width
-  const rightSection = (
+  // Transcription section - full width below the two columns
+  const transcriptionSection = (
     <RadioTranscriptionSlot
       isProcessing={isProcessing}
       transcriptionText={transcriptionText}
@@ -141,6 +144,7 @@ const RadioContainer = () => {
       isAuthenticated={isAuthenticated}
       leftSection={leftSection}
       rightSection={rightSection}
+      transcriptionSection={transcriptionSection}
       analysisSection={analysisSection}
       newsSegmentsSection={newsSegmentsSection}
     />

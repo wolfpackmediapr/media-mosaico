@@ -7,6 +7,7 @@ interface RadioLayoutProps {
   isAuthenticated: boolean | null;
   leftSection: ReactNode;
   rightSection: ReactNode;
+  transcriptionSection: ReactNode;  // Renamed for clarity
   analysisSection: ReactNode;
   newsSegmentsSection?: ReactNode;
 }
@@ -18,6 +19,7 @@ const RadioLayout = ({
   isAuthenticated,
   leftSection,
   rightSection,
+  transcriptionSection,
   analysisSection,
   newsSegmentsSection
 }: RadioLayoutProps) => {
@@ -30,16 +32,19 @@ const RadioLayout = ({
     <div className="w-full space-y-6">
       {/* First row - Controls section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left section with file upload and media controls */}
+        {/* Left section with file upload */}
         <div className="space-y-4 w-full">
           {leftSection}
         </div>
-        {/* Media controls will be on the right side on larger screens */}
+        {/* Right section with audio files and media controls */}
+        <div className="space-y-4 w-full">
+          {rightSection}
+        </div>
       </div>
       
       {/* Second row - Transcription section (full width) */}
       <div className="w-full">
-        {rightSection}
+        {transcriptionSection}
       </div>
 
       {/* Analysis section (already full width) */}
