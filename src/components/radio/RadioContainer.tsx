@@ -8,6 +8,7 @@ import { useAudioPlayer } from "@/hooks/radio/use-audio-player";
 import AuthCheck from "./AuthCheck";
 import MediaControls from "./MediaControls";
 import TypeformAlert from "./TypeformAlert";
+import RadioAnalysis from "./RadioAnalysis";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -134,6 +135,13 @@ const RadioContainer = () => {
           />
         </div>
       </div>
+
+      {/* Analysis section now full width - moved outside the grid */}
+      <RadioAnalysis 
+        transcriptionText={transcriptionText} 
+        transcriptionId={transcriptionId}
+        onSegmentsGenerated={handleSegmentsReceived}
+      />
 
       {newsSegments.length > 0 && (
         <RadioNewsSegmentsContainer
