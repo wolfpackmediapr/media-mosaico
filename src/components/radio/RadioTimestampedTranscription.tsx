@@ -1,10 +1,11 @@
 
 import { useState, useMemo } from "react";
-import { TranscriptionResult, SentenceTimestamp, WordTimestamp } from "@/services/audio/transcriptionService";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import TimestampControls from "./timestamped/TimestampControls";
+import TimestampedList from "./timestamped/TimestampedList";
+import EmptyTimestampState from "./timestamped/EmptyTimestampState";
+import { formatTime } from "./timestamped/timeUtils";
+import { useTimestampedDownload } from "./timestamped/useTimestampedDownload";
 
 interface RadioTimestampedTranscriptionProps {
   transcriptionResult?: TranscriptionResult;
@@ -24,10 +25,11 @@ const RadioTimestampedTranscription = ({
   text,
   onTimestampClick
 }: RadioTimestampedTranscriptionProps) => {
-  const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'sentence' | 'word'>(
     transcriptionResult?.sentences?.length ? 'sentence' : 'word'
   );
+  
+  const { downloadSRT } = useTimestampedDownload();
   
   // Generate timestamped items based on available data
   const timestampedItems = useMemo(() => {
@@ -55,25 +57,6 @@ const RadioTimestampedTranscription = ({
     
     return [];
   }, [transcriptionResult, viewMode]);
-
-  // Format time in appropriate format (MM:SS or MM:SS.ms)
-  const formatTime = (msTime: number, includeMilliseconds = false) => {
-    // Convert to seconds first
-    const seconds = msTime / 1000;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    const milliseconds = Math.floor((seconds % 1) * 1000);
-    
-    const formattedMinutes = String(minutes).padStart(2, '0');
-    const formattedSeconds = String(remainingSeconds).padStart(2, '0');
-    
-    if (includeMilliseconds) {
-      const formattedMs = String(milliseconds).padStart(3, '0');
-      return `${formattedMinutes}:${formattedSeconds}.${formattedMs}`;
-    }
-    
-    return `${formattedMinutes}:${formattedSeconds}`;
-  };
   
   const handleItemClick = (timestamp: number) => {
     if (onTimestampClick) {
@@ -89,113 +72,29 @@ const RadioTimestampedTranscription = ({
     }
   };
 
-  const downloadSRT = () => {
-    if (timestampedItems.length === 0) {
-      toast({
-        title: "Error al descargar",
-        description: "No hay datos de timestamping disponibles",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    let srtContent = '';
-    timestampedItems.forEach((item, index) => {
-      const startTime = formatSrtTime(item.start);
-      const endTime = formatSrtTime(item.end);
-      
-      // SRT format: index, time range, text, blank line
-      srtContent += `${index + 1}\n`;
-      srtContent += `${startTime} --> ${endTime}\n`;
-      srtContent += `${item.text}\n\n`;
-    });
-    
-    const blob = new Blob([srtContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transcripcion-${Date.now()}.srt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    toast({
-      title: "Descarga completada",
-      description: "Archivo SRT de subtítulos creado correctamente",
-    });
-  };
-  
-  // Format time specifically for SRT format: 00:00:00,000
-  const formatSrtTime = (msTime: number) => {
-    const seconds = msTime / 1000;
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    const milliseconds = Math.floor((seconds % 1) * 1000);
-    
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')},${String(milliseconds).padStart(3, '0')}`;
-  };
-  
   const canToggleViewMode = Boolean(
     transcriptionResult?.sentences?.length && 
     transcriptionResult?.words?.length
   );
   
   if (timestampedItems.length === 0) {
-    return (
-      <div className="p-4 border rounded-md bg-muted/20 min-h-[200px] flex items-center justify-center">
-        <p className="text-muted-foreground">No hay datos de timestamps disponibles</p>
-      </div>
-    );
+    return <EmptyTimestampState />;
   }
 
   return (
     <div className="border rounded-md">
-      <div className="p-2 bg-muted/20 flex justify-between items-center">
-        <div className="flex gap-2">
-          <span className="text-sm font-medium text-muted-foreground">
-            {viewMode === 'sentence' ? 'Vista por Oraciones' : 'Vista por Palabras'}
-          </span>
-          {canToggleViewMode && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={toggleViewMode}
-              className="h-7 text-xs"
-            >
-              {viewMode === 'sentence' ? 'Cambiar a Palabras' : 'Cambiar a Oraciones'}
-            </Button>
-          )}
-        </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={downloadSRT}
-          className="h-7"
-          title="Descargar como subtítulos SRT"
-        >
-          <Download className="h-3 w-3 mr-1" /> SRT
-        </Button>
-      </div>
-      <ScrollArea className="h-[200px] rounded-md">
-        <div className="space-y-1 p-2">
-          {timestampedItems.map((item, index) => (
-            <div 
-              key={`${item.type}-${index}`} 
-              className="flex hover:bg-muted/50 rounded-sm p-1 cursor-pointer group"
-              onClick={() => handleItemClick(item.start)}
-            >
-              <span className="text-xs font-mono bg-primary/10 text-primary px-1 rounded mr-2 min-w-14 text-center group-hover:bg-primary group-hover:text-white">
-                {formatTime(item.start, viewMode === 'word')}
-              </span>
-              <span className={`text-sm flex-1 ${viewMode === 'word' ? 'mr-1' : ''}`}>
-                {item.text}
-              </span>
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
+      <TimestampControls
+        viewMode={viewMode}
+        canToggleViewMode={canToggleViewMode}
+        onToggleViewMode={toggleViewMode}
+        onDownloadSRT={() => downloadSRT(timestampedItems)}
+      />
+      <TimestampedList
+        items={timestampedItems}
+        viewMode={viewMode}
+        formatTime={formatTime}
+        onItemClick={handleItemClick}
+      />
     </div>
   );
 };
