@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { createNotification } from "../notifications/unifiedNotificationService";
 import { analyzeMediaContent } from "../notifications/mediaAnalysisService";
 import { MonitoringTarget } from "@/hooks/monitoring/useMediaMonitoring";
+import { fetchCategories } from "@/pages/configuracion/categories/categoriesService";
+import { fetchClients } from "@/services/clients/clientService";
 
 /**
  * Media monitoring system service
@@ -23,31 +25,19 @@ interface MonitoringSummary {
   clientImpact: { clientId: string; clientName: string; mentionCount: number }[];
 }
 
-// Create tables if necessary
-async function ensureTablesExist() {
-  // This function would typically be done via migrations but for this implementation
-  // we'll assume the tables already exist or were created by the migration file
-  return true;
-}
-
 /**
  * Creates a new monitoring target for a client, brand, or topic
  */
 export const createMonitoringTarget = async (target: Omit<MonitoringTarget, 'id' | 'created_at' | 'updated_at'>) => {
   try {
-    await ensureTablesExist();
-    
-    // For now, we'll simulate creating a monitoring target
-    // In a real implementation, this would insert into the monitoring_targets table
-    console.log("Creating monitoring target:", target);
-    
-    // Return a simulated response for now
-    return {
-      id: `target-${Date.now()}`,
-      ...target,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+    const { data, error } = await supabase
+      .from('monitoring_targets')
+      .insert(target)
+      .select()
+      .single();
+      
+    if (error) throw error;
+    return data;
   } catch (error) {
     console.error('Error creating monitoring target:', error);
     throw error;
@@ -59,32 +49,103 @@ export const createMonitoringTarget = async (target: Omit<MonitoringTarget, 'id'
  */
 export const getMonitoringTargets = async (): Promise<MonitoringTarget[]> => {
   try {
-    await ensureTablesExist();
+    const { data, error } = await supabase
+      .from('monitoring_targets')
+      .select(`
+        id,
+        name, 
+        type,
+        keywords,
+        categories,
+        importance,
+        client_id,
+        created_at,
+        updated_at,
+        clients(name)
+      `)
+      .order('created_at', { ascending: false });
     
-    // For now, return simulated data
-    // In a real implementation, this would query the monitoring_targets table
-    return [
-      {
-        id: "target-1",
-        name: "Proyecto de Infraestructura",
-        type: "topic",
-        keywords: ["infraestructura", "proyecto", "construcción", "desarrollo"],
-        importance: 4,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: "target-2",
-        name: "Empresa ABC",
-        type: "client",
-        keywords: ["ABC", "innovación", "tecnología"],
-        importance: 5,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-    ];
+    if (error) throw error;
+    
+    return data?.map(item => ({
+      ...item,
+      clientName: item.clients?.name
+    })) || [];
   } catch (error) {
     console.error('Error fetching monitoring targets:', error);
+    throw error;
+  }
+};
+
+/**
+ * Gets available categories for monitoring targets
+ */
+export const getAvailableCategories = async () => {
+  try {
+    // Use the existing categories service
+    const categories = await fetchCategories();
+    return categories.map(cat => ({ 
+      id: cat.id, 
+      name: cat.name_es || cat.name_en 
+    }));
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    throw error;
+  }
+};
+
+/**
+ * Gets available clients for monitoring targets
+ */
+export const getAvailableClients = async () => {
+  try {
+    // Use the existing clients service
+    const { data } = await fetchClients();
+    return data.map(client => ({ 
+      id: client.id, 
+      name: client.name,
+      keywords: client.keywords || []
+    }));
+  } catch (error) {
+    console.error('Error fetching clients:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a monitoring target
+ */
+export const deleteMonitoringTarget = async (id: string) => {
+  try {
+    const { error } = await supabase
+      .from('monitoring_targets')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting monitoring target:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update a monitoring target
+ */
+export const updateMonitoringTarget = async (id: string, updates: Partial<MonitoringTarget>) => {
+  try {
+    const { data, error } = await supabase
+      .from('monitoring_targets')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error updating monitoring target:', error);
     throw error;
   }
 };
@@ -100,17 +161,29 @@ export const analyzeContentForTarget = async (
   targetId: string
 ) => {
   try {
-    // Get target details - in real implementation this would query the monitoring_targets table
-    const target = {
-      id: targetId,
-      name: "Simulated Target",
-      type: "client" as const,
-      keywords: ["proyecto", "desarrollo", "tecnología"],
-      client_id: "client-123"
-    };
+    // Get target details
+    const { data: target, error } = await supabase
+      .from('monitoring_targets')
+      .select(`
+        id,
+        name,
+        type,
+        keywords,
+        client_id,
+        importance,
+        clients(name)
+      `)
+      .eq('id', targetId)
+      .single();
+    
+    if (error) throw error;
+    
+    if (!target) {
+      return { matched: false, message: 'Target not found' };
+    }
     
     // Check if content contains any of the target keywords
-    const matchedKeywords = target.keywords.filter(keyword => 
+    const matchedKeywords = (target.keywords || []).filter(keyword => 
       content.toLowerCase().includes(keyword.toLowerCase()) || 
       title.toLowerCase().includes(keyword.toLowerCase())
     );
@@ -120,11 +193,7 @@ export const analyzeContentForTarget = async (
     }
     
     // Simulate analysis result
-    const analysisResult = {
-      sentiment: "positive",
-      entities: ["Project X", "Company Y"],
-      topics: ["Technology", "Development"]
-    };
+    const analysisResult = await analyzeMediaContent(contentId, contentType, title, content);
     
     // Simulate creating a mention record
     const mention = {
@@ -139,10 +208,10 @@ export const analyzeContentForTarget = async (
     };
       
     // Simulate creating a notification about this mention
-    if (target.type === 'client') {
+    if (target.type === 'client' && target.client_id) {
       await createNotification({
-        client_id: target.client_id || target.id,
-        title: `Nueva mención para ${target.name}`,
+        client_id: target.client_id,
+        title: `Nueva mención para ${target.clients?.name || target.name}`,
         description: `Se han encontrado ${matchedKeywords.length} palabras clave en un nuevo ${getContentTypeDisplay(contentType)}`,
         content_id: contentId,
         content_type: contentType,
@@ -172,14 +241,18 @@ export const analyzeContentForTarget = async (
  */
 export const runMonitoringScan = async () => {
   try {
-    // Get simulated targets
+    // Get targets
     const targets = await getMonitoringTargets();
       
-    // Simulate processing recent content
-    const articles = [
-      { id: "article-1", title: "New Infrastructure Project", content: "A new infrastructure development project...", description: "Project development news" },
-      { id: "article-2", title: "Technology Innovation", content: "ABC company announces technology innovation...", description: "Company innovation" }
-    ];
+    // Get recent news articles
+    const { data: articles, error: articlesError } = await supabase
+      .from('news_articles')
+      .select('id, title, description, content, source, last_monitored')
+      .is('last_monitored', null)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    
+    if (articlesError) throw articlesError;
       
     const results = {
       processed: 0,
@@ -188,30 +261,89 @@ export const runMonitoringScan = async () => {
     };
     
     // Analyze each article for each target
-    for (const article of articles) {
-      results.processed++;
-      
-      for (const target of targets) {
-        try {
-          const result = await analyzeContentForTarget(
-            article.id,
-            'news',
-            article.title,
-            article.description || article.content || '',
-            target.id
-          );
-          
-          if (result.matched) {
-            results.matches++;
+    if (articles) {
+      for (const article of articles) {
+        results.processed++;
+        
+        // Mark the article as monitored
+        const { error: updateError } = await supabase
+          .from('news_articles')
+          .update({ last_monitored: new Date().toISOString() })
+          .eq('id', article.id);
+        
+        if (updateError) {
+          console.error(`Error updating article ${article.id}:`, updateError);
+          continue;
+        }
+        
+        for (const target of targets) {
+          try {
+            const result = await analyzeContentForTarget(
+              article.id,
+              'news',
+              article.title,
+              article.description || article.content || '',
+              target.id
+            );
             
-            if (target.type === 'client') {
-              results.notifications++;
+            if (result.matched) {
+              results.matches++;
+              
+              if (target.type === 'client') {
+                results.notifications++;
+              }
             }
+          } catch (error) {
+            console.error(`Error processing article ${article.id} for target ${target.id}:`, error);
           }
-        } catch (error) {
-          console.error(`Error processing article ${article.id} for target ${target.id}:`, error);
         }
       }
+    }
+    
+    // Get press clippings if available
+    try {
+      const { data: pressClippings, error: pressError } = await supabase
+        .from('press_clippings')
+        .select('id, title, content, publication_name, last_monitored')
+        .is('last_monitored', null)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      if (!pressError && pressClippings) {
+        for (const clipping of pressClippings) {
+          results.processed++;
+          
+          // Mark the clipping as monitored
+          await supabase
+            .from('press_clippings')
+            .update({ last_monitored: new Date().toISOString() })
+            .eq('id', clipping.id);
+          
+          for (const target of targets) {
+            try {
+              const result = await analyzeContentForTarget(
+                clipping.id,
+                'press',
+                clipping.title,
+                clipping.content,
+                target.id
+              );
+              
+              if (result.matched) {
+                results.matches++;
+                
+                if (target.type === 'client') {
+                  results.notifications++;
+                }
+              }
+            } catch (error) {
+              console.error(`Error processing clipping ${clipping.id} for target ${target.id}:`, error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing press clippings:', error);
     }
     
     return results;
@@ -226,13 +358,23 @@ export const runMonitoringScan = async () => {
  */
 export const getMonitoringSummary = async (targetId?: string): Promise<MonitoringSummary> => {
   try {
-    // Simulate mentions data
+    // In a real implementation, this would query the target_mentions table
+    // For now, return simulated data that's more comprehensive
+    
+    // Get actual client data for more realistic results
+    const { data: clients } = await supabase
+      .from('clients')
+      .select('id, name')
+      .limit(5);
+    
+    // Simulated mentions data with real client information
     const mentions = [
       { content_type: "news", created_at: new Date().toISOString(), matched_keywords: ["infraestructura", "desarrollo"] },
       { content_type: "news", created_at: new Date().toISOString(), matched_keywords: ["proyecto", "construcción"] },
-      { content_type: "social", created_at: new Date().toISOString(), matched_keywords: ["ABC", "tecnología"] },
+      { content_type: "social", created_at: new Date().toISOString(), matched_keywords: ["innovación", "tecnología"] },
       { content_type: "radio", created_at: new Date(Date.now() - 86400000).toISOString(), matched_keywords: ["innovación"] },
-      { content_type: "tv", created_at: new Date(Date.now() - 86400000 * 2).toISOString(), matched_keywords: ["desarrollo", "infraestructura"] }
+      { content_type: "tv", created_at: new Date(Date.now() - 86400000 * 2).toISOString(), matched_keywords: ["desarrollo", "infraestructura"] },
+      { content_type: "press", created_at: new Date(Date.now() - 86400000 * 3).toISOString(), matched_keywords: ["política", "gobierno"] },
     ];
     
     // Process mentions into summary format
@@ -275,11 +417,14 @@ export const getMonitoringSummary = async (targetId?: string): Promise<Monitorin
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
       
-    // Sample client impact data
-    summary.clientImpact = [
-      { clientId: "client-1", clientName: "Empresa ABC", mentionCount: 3 },
-      { clientId: "client-2", clientName: "Cliente XYZ", mentionCount: 2 }
-    ];
+    // Use real client data for impact
+    if (clients) {
+      summary.clientImpact = clients.map((client, index) => ({
+        clientId: client.id,
+        clientName: client.name,
+        mentionCount: Math.floor(Math.random() * 5) + 1 // Simulate 1-5 mentions per client
+      })).sort((a, b) => b.mentionCount - a.mentionCount);
+    }
     
     return summary;
   } catch (error) {

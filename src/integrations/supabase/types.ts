@@ -398,6 +398,50 @@ export type Database = {
         }
         Relationships: []
       }
+      monitoring_targets: {
+        Row: {
+          categories: string[] | null
+          client_id: string | null
+          created_at: string
+          id: string
+          importance: number | null
+          keywords: string[] | null
+          name: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          categories?: string[] | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          importance?: number | null
+          keywords?: string[] | null
+          name: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          categories?: string[] | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          importance?: number | null
+          keywords?: string[] | null
+          name?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_targets_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       news_articles: {
         Row: {
           category: string | null

@@ -7,7 +7,11 @@ import {
   getMonitoringTargets, 
   runMonitoringScan, 
   getMonitoringSummary,
-  analyzeContentForTarget
+  analyzeContentForTarget,
+  deleteMonitoringTarget,
+  updateMonitoringTarget,
+  getAvailableCategories,
+  getAvailableClients
 } from "@/services/monitoring/mediaMonitoringService";
 
 // Define proper types for monitoring data
@@ -18,6 +22,8 @@ export interface MonitoringTarget {
   keywords?: string[];
   categories?: string[];
   importance?: number;
+  client_id?: string;
+  clientName?: string;
   created_at: string;
   updated_at: string;
 }
@@ -28,6 +34,17 @@ export interface MonitoringSummary {
   mentionsByDay: { date: string; count: number }[];
   topKeywords: { keyword: string; count: number }[];
   clientImpact?: { clientId: string; clientName: string; mentionCount: number }[];
+}
+
+export interface CategoryOption {
+  id: string;
+  name: string;
+}
+
+export interface ClientOption {
+  id: string;
+  name: string;
+  keywords?: string[];
 }
 
 export function useMediaMonitoring() {
@@ -54,6 +71,24 @@ export function useMediaMonitoring() {
     queryFn: () => getMonitoringSummary(),
   });
   
+  // Query to get available categories
+  const {
+    data: categories = [],
+    isLoading: isLoadingCategories
+  } = useQuery({
+    queryKey: ["monitoring-categories"],
+    queryFn: getAvailableCategories,
+  });
+  
+  // Query to get available clients
+  const {
+    data: clients = [],
+    isLoading: isLoadingClients
+  } = useQuery({
+    queryKey: ["monitoring-clients"],
+    queryFn: getAvailableClients,
+  });
+  
   // Mutation to create a new monitoring target
   const { 
     mutateAsync: createTarget,
@@ -67,6 +102,39 @@ export function useMediaMonitoring() {
     onError: (error) => {
       console.error("Error creating monitoring target:", error);
       toast.error("Error al crear objetivo de monitoreo");
+    }
+  });
+  
+  // Mutation to update a monitoring target
+  const {
+    mutateAsync: updateTarget,
+    isPending: isUpdatingTarget
+  } = useMutation({
+    mutationFn: ({ id, updates }: { id: string, updates: Partial<MonitoringTarget> }) =>
+      updateMonitoringTarget(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["monitoring-targets"] });
+      toast.success("Objetivo de monitoreo actualizado con éxito");
+    },
+    onError: (error) => {
+      console.error("Error updating monitoring target:", error);
+      toast.error("Error al actualizar objetivo de monitoreo");
+    }
+  });
+  
+  // Mutation to delete a monitoring target
+  const {
+    mutateAsync: deleteTarget,
+    isPending: isDeletingTarget
+  } = useMutation({
+    mutationFn: deleteMonitoringTarget,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["monitoring-targets"] });
+      toast.success("Objetivo de monitoreo eliminado con éxito");
+    },
+    onError: (error) => {
+      console.error("Error deleting monitoring target:", error);
+      toast.error("Error al eliminar objetivo de monitoreo");
     }
   });
 
@@ -122,16 +190,24 @@ export function useMediaMonitoring() {
     // Data
     monitoringTargets,
     monitoringSummary,
+    categories,
+    clients,
     
     // Loading states
     isLoadingTargets,
     isLoadingSummary,
+    isLoadingCategories,
+    isLoadingClients,
     isCreatingTarget,
+    isUpdatingTarget,
+    isDeletingTarget,
     isRunningMonitoring: isRunningMonitoring || isRunningScanning,
     isAnalyzingContent,
     
     // Actions
     createTarget,
+    updateTarget,
+    deleteTarget,
     runScan,
     analyzeContent,
     refetchTargets,
