@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 export const makeUserAdmin = async (email: string) => {
   try {
-    // We can't directly query auth.users, so we'll use a custom RPC function
+    // First, check if the user exists in auth.users (we can only do this via our custom RPC function)
     const { data: users, error: userError } = await supabase
       .rpc('get_users_email', { 
         user_ids: [] // This will return all users since we can't directly filter by email
@@ -25,16 +25,47 @@ export const makeUserAdmin = async (email: string) => {
       return false;
     }
 
-    // Update the user's role to administrator
-    const { error: updateError } = await supabase
+    // Check if the user already has a profile
+    const { data: existingProfile, error: profileError } = await supabase
       .from('user_profiles')
-      .update({ role: 'administrator' })
-      .eq('id', user.id);
+      .select('*')
+      .eq('id', user.id)
+      .single();
 
-    if (updateError) {
-      console.error("Error updating user role:", updateError);
-      toast.error("Error al actualizar el rol del usuario");
+    if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows returned
+      console.error("Error checking user profile:", profileError);
+      toast.error("Error al verificar el perfil del usuario");
       return false;
+    }
+
+    // If the profile exists, update it to administrator role
+    if (existingProfile) {
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({ role: 'administrator' })
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error("Error updating user role:", updateError);
+        toast.error("Error al actualizar el rol del usuario");
+        return false;
+      }
+    } 
+    // If the profile doesn't exist, create it with administrator role
+    else {
+      const { error: insertError } = await supabase
+        .from('user_profiles')
+        .insert({ 
+          id: user.id, 
+          username: email.split('@')[0], 
+          role: 'administrator' 
+        });
+
+      if (insertError) {
+        console.error("Error creating user profile:", insertError);
+        toast.error("Error al crear el perfil del usuario");
+        return false;
+      }
     }
 
     console.log(`User ${email} successfully set as administrator`);

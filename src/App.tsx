@@ -55,6 +55,7 @@ import { InstitucionesSettings } from "./pages/configuracion/instituciones/Insti
 import { InstitucionesGestionSettings } from "./pages/configuracion/instituciones/InstitucionesGestionSettings";
 import { InstitucionesCategoriasSettings } from "./pages/configuracion/instituciones/InstitucionesCategoriasSettings";
 import { InstitucionesAgenciasSettings } from "./pages/configuracion/instituciones/InstitucionesAgenciasSettings";
+import Admin from "./pages/Admin";
 
 // Publiteca pages import
 import PublitecaPrensa from "./pages/publiteca/Prensa";
@@ -132,6 +133,7 @@ function App() {
                     </Layout>
                   </ProtectedRoute>
                 }>
+                  <Route path="admin" element={<Admin />} />
                   <Route path="tv" element={<Tv />} />
                   <Route path="radio" element={<Radio />} />
                   <Route path="prensa" element={<Prensa />} />
