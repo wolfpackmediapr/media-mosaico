@@ -10,6 +10,17 @@ import { Badge } from "@/components/ui/badge";
 import { useMediaMonitoring } from "@/hooks/monitoring/useMediaMonitoring";
 import { Plus, Tag, UserCircle, Target, Edit, Trash, Loader2 } from "lucide-react";
 
+// Define the interface for monitoring targets
+interface MonitoringTarget {
+  id: string;
+  name: string;
+  type: 'client' | 'topic' | 'brand';
+  keywords?: string[];
+  importance?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export function MonitoringTargetsManager() {
   const { monitoringTargets, isLoadingTargets, createTarget, isCreatingTarget } = useMediaMonitoring();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -169,7 +180,7 @@ export function MonitoringTargetsManager() {
             No hay objetivos de monitoreo definidos. Añada uno para comenzar.
           </div>
         ) : (
-          monitoringTargets.map((target) => (
+          monitoringTargets.map((target: MonitoringTarget) => (
             <div key={target.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-md">
               <div className="space-y-2 mb-2 sm:mb-0">
                 <div className="flex items-center space-x-2">
@@ -182,7 +193,7 @@ export function MonitoringTargetsManager() {
                   <h3 className="font-medium">{target.name}</h3>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {target.keywords?.length > 0 && (
+                  {target.keywords && target.keywords?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {target.keywords.map((keyword: string, idx: number) => (
                         <Badge 

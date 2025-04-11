@@ -10,6 +10,26 @@ import {
   analyzeContentForTarget
 } from "@/services/monitoring/mediaMonitoringService";
 
+// Define proper types for monitoring data
+export interface MonitoringTarget {
+  id: string;
+  name: string;
+  type: 'client' | 'topic' | 'brand';
+  keywords: string[];
+  categories?: string[];
+  importance?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MonitoringSummary {
+  totalMentions: number;
+  mentionsBySource: Record<string, number>;
+  mentionsByDay: { date: string; count: number }[];
+  topKeywords: { keyword: string; count: number }[];
+  clientImpact?: { clientId: string; clientName: string; mentionCount: number }[];
+}
+
 export function useMediaMonitoring() {
   const queryClient = useQueryClient();
   const [isRunningMonitoring, setIsRunningMonitoring] = useState(false);

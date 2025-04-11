@@ -3,9 +3,9 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MediaMonitoringProcess } from "@/components/monitoring/MediaMonitoringProcess";
-import { MonitoringHeader } from "@/components/monitoring/MonitoringHeader";
-import { ProcessingJobsTable } from "@/components/monitoring/ProcessingJobsTable";
-import { DeliveryLogsTable } from "@/components/monitoring/DeliveryLogsTable";
+import MonitoringHeader from "@/components/monitoring/MonitoringHeader";
+import ProcessingJobsTable from "@/components/monitoring/ProcessingJobsTable";
+import DeliveryLogsTable from "@/components/monitoring/DeliveryLogsTable";
 import { MediaMonitoringDashboard } from "@/components/monitoring/MediaMonitoringDashboard";
 import { MonitoringTargetsManager } from "@/components/monitoring/MonitoringTargetsManager";
 

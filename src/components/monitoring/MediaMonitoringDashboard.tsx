@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useMediaMonitoring } from "@/hooks/monitoring/useMediaMonitoring";
 import { Play, AlertCircle, Loader2 } from "lucide-react";
-import { SourceDistributionChart } from "@/components/notifications/charts/SourceDistributionChart";
-import { NotificationVolumeChart } from "@/components/notifications/charts/NotificationVolumeChart";
-import { KeywordsFrequencyChart } from "@/components/notifications/charts/KeywordsFrequencyChart";
+import SourceDistributionChart from "@/components/notifications/charts/SourceDistributionChart";
+import NotificationVolumeChart from "@/components/notifications/charts/NotificationVolumeChart";
+import KeywordsFrequencyChart from "@/components/notifications/charts/KeywordsFrequencyChart";
 
 export function MediaMonitoringDashboard() {
   const { 
