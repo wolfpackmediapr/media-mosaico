@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -136,7 +135,8 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
       <CardContent className="space-y-4 p-4">
         <div className="flex justify-between">
           <Button 
-            variant="outline" 
+            className="bg-black text-white hover:bg-black/90"
+            variant="default"
             onClick={analyzeContent}
             disabled={isAnalyzing || !transcriptionText}
           >
