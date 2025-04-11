@@ -30,9 +30,8 @@ interface MonitoringSummary {
  */
 export const createMonitoringTarget = async (target: Omit<MonitoringTarget, 'id' | 'created_at' | 'updated_at'>) => {
   try {
-    // Usamos el método any para evitar errores de tipo ya que la tabla aún no está en el esquema
     const { data, error } = await supabase
-      .from('monitoring_targets' as any)
+      .from('monitoring_targets')
       .insert(target)
       .select()
       .single();
@@ -50,9 +49,8 @@ export const createMonitoringTarget = async (target: Omit<MonitoringTarget, 'id'
  */
 export const getMonitoringTargets = async (): Promise<MonitoringTarget[]> => {
   try {
-    // Usamos el método any para evitar errores de tipo
     const { data, error } = await supabase
-      .from('monitoring_targets' as any)
+      .from('monitoring_targets')
       .select(`
         id,
         name, 
@@ -62,21 +60,41 @@ export const getMonitoringTargets = async (): Promise<MonitoringTarget[]> => {
         importance,
         client_id,
         created_at,
-        updated_at,
-        clients:client_id (name)
+        updated_at
       `)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
     
-    // Aseguramos una respuesta segura si data es undefined
+    // If no data, return empty array
     if (!data) return [];
     
-    // Transformamos los datos para incluir el nombre del cliente
-    return data.map(item => ({
-      ...item,
-      clientName: item.clients?.name || null
-    }));
+    // Get client names for targets with client_id
+    const targetsWithClients = [];
+    
+    for (const target of data) {
+      let clientName = null;
+      
+      if (target.client_id) {
+        // Fetch client info
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('name')
+          .eq('id', target.client_id)
+          .single();
+          
+        if (clientData) {
+          clientName = clientData.name;
+        }
+      }
+      
+      targetsWithClients.push({
+        ...target,
+        clientName
+      });
+    }
+    
+    return targetsWithClients;
   } catch (error) {
     console.error('Error fetching monitoring targets:', error);
     throw error;
@@ -124,7 +142,7 @@ export const getAvailableClients = async () => {
 export const deleteMonitoringTarget = async (id: string) => {
   try {
     const { error } = await supabase
-      .from('monitoring_targets' as any)
+      .from('monitoring_targets')
       .delete()
       .eq('id', id);
     
@@ -142,7 +160,7 @@ export const deleteMonitoringTarget = async (id: string) => {
 export const updateMonitoringTarget = async (id: string, updates: Partial<MonitoringTarget>) => {
   try {
     const { data, error } = await supabase
-      .from('monitoring_targets' as any)
+      .from('monitoring_targets')
       .update(updates)
       .eq('id', id)
       .select()
@@ -169,15 +187,14 @@ export const analyzeContentForTarget = async (
   try {
     // Get target details
     const { data: target, error } = await supabase
-      .from('monitoring_targets' as any)
+      .from('monitoring_targets')
       .select(`
         id,
         name,
         type,
         keywords,
         client_id,
-        importance,
-        clients:client_id (name)
+        importance
       `)
       .eq('id', targetId)
       .single();
@@ -215,20 +232,29 @@ export const analyzeContentForTarget = async (
       
     // Simulate creating a notification about this mention
     if (target.type === 'client' && target.client_id) {
-      await createNotification({
-        client_id: target.client_id,
-        title: `Nueva mención para ${target.clients?.name || target.name}`,
-        description: `Se han encontrado ${matchedKeywords.length} palabras clave en un nuevo ${getContentTypeDisplay(contentType)}`,
-        content_id: contentId,
-        content_type: contentType,
-        keyword_matched: matchedKeywords,
-        importance_level: calculateImportance(matchedKeywords.length),
-        metadata: {
-          contentTitle: title,
-          matchCount: matchedKeywords.length,
-          targetId: targetId
-        }
-      });
+      // Get client name
+      const { data: clientData } = await supabase
+        .from('clients')
+        .select('name')
+        .eq('id', target.client_id)
+        .single();
+      
+      if (clientData) {
+        await createNotification({
+          client_id: target.client_id,
+          title: `Nueva mención para ${clientData.name || target.name}`,
+          description: `Se han encontrado ${matchedKeywords.length} palabras clave en un nuevo ${getContentTypeDisplay(contentType)}`,
+          content_id: contentId,
+          content_type: contentType,
+          keyword_matched: matchedKeywords,
+          importance_level: calculateImportance(matchedKeywords.length),
+          metadata: {
+            contentTitle: title,
+            matchCount: matchedKeywords.length,
+            targetId: targetId
+          }
+        });
+      }
     }
     
     return { 
@@ -270,9 +296,7 @@ export const runMonitoringScan = async () => {
       for (const article of articles) {
         results.processed++;
         
-        // Marcar el artículo como monitoreado
-        // En lugar de usar last_monitored que no está en el esquema,
-        // podríamos usar last_processed que sí existe
+        // Marcar el artículo como procesado
         const { error: updateError } = await supabase
           .from('news_articles')
           .update({ last_processed: new Date().toISOString() })
@@ -319,8 +343,7 @@ export const runMonitoringScan = async () => {
         for (const clipping of pressClippings) {
           results.processed++;
           
-          // Marcar el recorte como monitoreado
-          // Usamos updated_at para registrar cuándo fue monitoreado
+          // Marcar el recorte como procesado
           await supabase
             .from('press_clippings')
             .update({ updated_at: new Date().toISOString() })
