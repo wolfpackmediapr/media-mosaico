@@ -1,67 +1,77 @@
 
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
-import { createSegmentsFromTextChunks, createLengthBasedSegments } from "./textBasedSegmentation";
 import { createSegmentsFromSentences, createSegmentsFromWords, createSegmentsFromWhisperSegments } from "./timestampedSegmentation";
+import { createSegmentsFromTextChunks, createLengthBasedSegments } from "./textBasedSegmentation";
 
 /**
- * Generate radio segments from transcription, using timestamps if available
+ * Generate radio segments from transcription data
  */
 export const generateRadioSegments = (
-  transcriptionData: TranscriptionResult | string,
+  transcriptionResult: TranscriptionResult | string,
   onSegmentsReceived?: (segments: RadioNewsSegment[]) => void
-): boolean => {
-  if (!onSegmentsReceived) return false;
+) => {
+  // Return early if no result, no callback, or text too short
+  if (!transcriptionResult || !onSegmentsReceived) return;
   
-  // Log what we're using for segmentation
-  console.log("Generating segments from:", 
-    typeof transcriptionData === 'string' ? 'Text only' : 'Transcription result with timestamps');
+  const text = typeof transcriptionResult === 'string' ? transcriptionResult : transcriptionResult.text;
   
-  // If we have a TranscriptionResult with timestamps, use them
-  if (typeof transcriptionData !== 'string') {
-    const result = transcriptionData;
-    const text = result.text || '';
-    
-    // Try different timestamp data sources in order of preference
-    
-    // 1. First try with sentences (best user experience)
-    if (result.sentences && result.sentences.length > 0) {
-      console.log(`Using ${result.sentences.length} sentences with timestamps`);
-      if (createSegmentsFromSentences(result.sentences, text, result.audio_duration, onSegmentsReceived)) {
-        return true;
+  // If text is too short, don't process
+  if (!text || text.length < 100) return;
+  
+  console.log("Starting segment generation process");
+  
+  // If we have a TranscriptionResult object with timestamps, use that
+  if (typeof transcriptionResult !== 'string') {
+    // APPROACH 1: Use sentence-level timestamps if available
+    if (transcriptionResult.sentences && transcriptionResult.sentences.length >= 2) {
+      console.log(`Using ${transcriptionResult.sentences.length} sentences with timestamps`);
+      if (createSegmentsFromSentences(transcriptionResult.sentences, text, transcriptionResult.audio_duration, onSegmentsReceived)) {
+        return;
       }
     }
     
-    // 2. Then try with whisper segments if available
-    if (result.segments && result.segments.length > 0) {
-      console.log(`Using ${result.segments.length} Whisper segments with timestamps`);
-      if (createSegmentsFromWhisperSegments(result.segments, text, result.audio_duration, onSegmentsReceived)) {
-        return true;
+    // APPROACH 2: Use word-level timestamps if available to create clustered segments
+    if (transcriptionResult.words && transcriptionResult.words.length > 0) {
+      console.log(`Using ${transcriptionResult.words.length} words with timestamps to create segments`);
+      if (createSegmentsFromWords(transcriptionResult.words, text, transcriptionResult.audio_duration, onSegmentsReceived)) {
+        return;
       }
     }
     
-    // 3. Then try with individual words
-    if (result.words && result.words.length > 0) {
-      console.log(`Using ${result.words.length} words with timestamps`);
-      if (createSegmentsFromWords(result.words, text, result.audio_duration, onSegmentsReceived)) {
-        return true;
+    // APPROACH 3: Use Whisper segments if available
+    if (transcriptionResult.segments && transcriptionResult.segments.length >= 2) {
+      console.log(`Using ${transcriptionResult.segments.length} Whisper segments`);
+      if (createSegmentsFromWhisperSegments(transcriptionResult.segments, text, transcriptionResult.audio_duration, onSegmentsReceived)) {
+        return;
       }
     }
-    
-    // 4. Fallback to text-based segmentation using the full text
-    console.log(`Falling back to length-based segmentation with ${text.length} chars`);
-    return createLengthBasedSegments(text, onSegmentsReceived);
   }
   
-  // Simple text-based segmentation for string input
-  // Split the text into chunks at paragraph breaks
-  const chunks = transcriptionData.split(/\n\s*\n/).filter(chunk => chunk.trim().length > 0);
-  
-  if (chunks.length > 1) {
-    console.log(`Creating segments from ${chunks.length} text chunks`);
-    return createSegmentsFromTextChunks(chunks, onSegmentsReceived);
-  } else {
-    console.log(`Using length-based segmentation for single text block`);
-    return createLengthBasedSegments(transcriptionData, onSegmentsReceived);
+  // Fallback to text-based segmentation approaches
+
+  // APPROACH 4: Try natural sentence splitting
+  const naturalSegments = text.split(/(?:\.\s+)(?=[A-Z])/g)
+    .filter(seg => seg.trim().length > 100);
+    
+  if (naturalSegments.length >= 2) {
+    console.log(`Found ${naturalSegments.length} natural segments`);
+    if (createSegmentsFromTextChunks(naturalSegments, onSegmentsReceived)) {
+      return;
+    }
   }
+  
+  // APPROACH 5: Try paragraph splitting
+  const paragraphs = text.split(/\n\s*\n/)
+    .filter(p => p.trim().length > 50);
+    
+  if (paragraphs.length >= 2) {
+    console.log(`Found ${paragraphs.length} paragraph segments`);
+    if (createSegmentsFromTextChunks(paragraphs, onSegmentsReceived)) {
+      return;
+    }
+  }
+  
+  // APPROACH 6: Last resort - create evenly sized segments
+  createLengthBasedSegments(text, onSegmentsReceived);
 };

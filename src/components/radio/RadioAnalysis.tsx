@@ -2,33 +2,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
-import { Loader2, Clock } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import { createNotification } from "@/services/notifications/unifiedNotificationService";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
-import RadioTimestampedTranscription from "./RadioTimestampedTranscription";
 
 interface RadioAnalysisProps {
   transcriptionText?: string;
-  transcriptionId?: string;
+  transcriptionId?: string; // Added this prop to match what's being passed in RadioContainer
   transcriptionResult?: TranscriptionResult;
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
-  onTimestampClick?: (timestamp: number) => void;
 }
 
-const RadioAnalysis = ({ 
-  transcriptionText, 
-  transcriptionId, 
-  transcriptionResult, 
-  onSegmentsGenerated,
-  onTimestampClick 
-}: RadioAnalysisProps) => {
+const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult, onSegmentsGenerated }: RadioAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState("");
-  const [showTimestamps, setShowTimestamps] = useState(false);
   const { generateRadioSegments } = useRadioSegmentGenerator(onSegmentsGenerated);
 
   const analyzeContent = async () => {
@@ -52,21 +43,27 @@ const RadioAnalysis = ({
         setAnalysis(data.analysis);
         toast.success("El contenido ha sido analizado exitosamente.");
         
+        // Generate radio segments based on analysis result
         if (onSegmentsGenerated) {
           if (transcriptionResult) {
+            // Pass full result object for timestamp-aware segmentation
             generateRadioSegments(transcriptionResult);
           } else {
+            // Fallback to text-only segmentation
             generateRadioSegments(transcriptionText);
           }
         }
         
+        // Create notification for radio content analysis
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
+            // Extract category and keywords from analysis text if available
             let category = "";
             let keywords: string[] = [];
             let matchedClients: string[] = [];
             
+            // Try to parse category, keywords and clients from the analysis text
             const categoryMatch = data.analysis.match(/Categoría:?\s*([A-Z\s&]+)/i);
             if (categoryMatch && categoryMatch[1]) {
               category = categoryMatch[1].trim();
@@ -82,6 +79,7 @@ const RadioAnalysis = ({
               matchedClients = clientsMatch[1].split(',').map((c: string) => c.trim()).filter(Boolean);
             }
             
+            // Only create notification if we found some useful info
             if (category || keywords.length > 0 || matchedClients.length > 0) {
               await createNotification({
                 client_id: user.id,
@@ -119,22 +117,15 @@ const RadioAnalysis = ({
     }
 
     if (transcriptionResult) {
+      // Use the full result object for timestamp-aware segmentation
       generateRadioSegments(transcriptionResult);
     } else if (transcriptionText) {
+      // Fallback to text-only segmentation
       generateRadioSegments(transcriptionText);
     }
     
     toast.success("Segmentos generados con timestamping mejorado");
   };
-
-  const toggleTimestampView = () => {
-    setShowTimestamps(!showTimestamps);
-  };
-
-  const hasTimestampData = Boolean(
-    transcriptionResult?.sentences?.length || 
-    transcriptionResult?.words?.length
-  );
 
   return (
     <Card>
@@ -159,41 +150,17 @@ const RadioAnalysis = ({
             )}
           </Button>
           
-          <div className="flex gap-2">
-            {hasTimestampData && (
-              <Button
-                variant={showTimestamps ? "default" : "outline"}
-                className={`${showTimestamps ? 'bg-black text-white hover:bg-black/90' : ''}`}
-                onClick={toggleTimestampView}
-                disabled={isAnalyzing || !transcriptionResult}
-              >
-                <Clock className="h-4 w-4 mr-2" />
-                {showTimestamps ? 'Ocultar Timestamps' : 'Ver Timestamps (SRT)'}
-              </Button>
-            )}
-            
-            <Button
-              variant="default"
-              className="bg-black text-white hover:bg-black/90"
-              onClick={generateImprovedSegments}
-              disabled={isAnalyzing || (!transcriptionText && !transcriptionResult)}
-            >
-              Generar Segmentos con Timestamping
-            </Button>
-          </div>
+          <Button
+            variant="default"
+            className="bg-black text-white hover:bg-black/90"
+            onClick={generateImprovedSegments}
+            disabled={isAnalyzing || (!transcriptionText && !transcriptionResult)}
+          >
+            Generar Segmentos con Timestamping
+          </Button>
         </div>
         
-        {showTimestamps && hasTimestampData && (
-          <div className="mt-4 border rounded-md p-1">
-            <RadioTimestampedTranscription 
-              transcriptionResult={transcriptionResult}
-              text={transcriptionText || ""}
-              onTimestampClick={onTimestampClick}
-            />
-          </div>
-        )}
-        
-        {analysis && !showTimestamps && (
+        {analysis && (
           <div className="mt-4">
             <h3 className="text-lg font-medium mb-2">Resultado del Análisis:</h3>
             <Textarea 
