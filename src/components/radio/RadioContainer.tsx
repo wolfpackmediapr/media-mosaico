@@ -26,6 +26,8 @@ const RadioContainer = () => {
     programa?: string;
     horario?: string;
     categoria?: string;
+    station_id?: string;
+    program_id?: string;
   }>({});
   const [newsSegments, setNewsSegments] = useState<RadioNewsSegment[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -138,9 +140,27 @@ const RadioContainer = () => {
     programa: string;
     horario: string;
     categoria: string;
+    station_id: string;
+    program_id: string;
   }) => {
     setMetadata(newMetadata);
     toast.success('Metadata actualizada');
+    
+    if (transcriptionId) {
+      supabase
+        .from('radio_transcriptions')
+        .update({
+          emisora: newMetadata.emisora,
+          programa: newMetadata.programa,
+          horario: newMetadata.horario
+        })
+        .eq('id', transcriptionId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('Error updating metadata in database:', error);
+          }
+        });
+    }
   };
 
   const handlePlayPause = () => {

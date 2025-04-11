@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileBarChart } from "lucide-react";
@@ -19,6 +18,8 @@ interface RadioTranscriptionSlotProps {
     programa?: string;
     horario?: string;
     categoria?: string;
+    station_id?: string;
+    program_id?: string;
   };
   onTranscriptionChange: (text: string) => void;
   onSegmentsReceived?: (segments: RadioNewsSegment[]) => void;
@@ -27,6 +28,8 @@ interface RadioTranscriptionSlotProps {
     programa: string;
     horario: string;
     categoria: string;
+    station_id: string;
+    program_id: string;
   }) => void;
 }
 
@@ -39,7 +42,6 @@ const RadioTranscriptionSlot = ({
   onSegmentsReceived,
   onMetadataChange
 }: RadioTranscriptionSlotProps) => {
-  // Use a ref to track if we've already generated segments to prevent infinite loops
   const segmentsGeneratedRef = useRef(false);
   const transcriptionLength = useRef(0);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -71,12 +73,7 @@ const RadioTranscriptionSlot = ({
     }
   };
 
-  // Use useEffect to generate segments when transcription text changes significantly
   useEffect(() => {
-    // Only attempt to generate segments automatically if:
-    // 1. We have transcription text of sufficient length
-    // 2. We have a way to send segments back
-    // 3. We haven't already generated segments OR the text has changed significantly
     const currentLength = transcriptionText?.length || 0;
     const lengthChanged = Math.abs(currentLength - transcriptionLength.current) > 100;
     
@@ -100,18 +97,15 @@ const RadioTranscriptionSlot = ({
     
     console.log("Starting segment generation process");
     
-    // Look for natural breakpoints like periods followed by new sentences
     const naturalSegments = text.split(/(?:\.\s+)(?=[A-Z])/g)
       .filter(seg => seg.trim().length > 100);
       
-    // If natural segmentation gives us good chunks, use them
     if (naturalSegments.length >= 2) {
       console.log(`Found ${naturalSegments.length} natural segments`);
       createSegmentsFromChunks(naturalSegments);
       return;
     }
     
-    // Otherwise try paragraph-based segmentation
     const paragraphs = text.split(/\n\s*\n/)
       .filter(p => p.trim().length > 50);
       
@@ -121,8 +115,6 @@ const RadioTranscriptionSlot = ({
       return;
     }
     
-    // If still no good chunks, use time-based segmentation
-    // Divide into roughly equal segments based on text length
     const textLength = text.length;
     const targetSegmentCount = Math.max(2, Math.min(5, Math.floor(textLength / 400)));
     console.log(`Using time-based segmentation with ${targetSegmentCount} segments`);
@@ -134,7 +126,6 @@ const RadioTranscriptionSlot = ({
       const start = i * segmentSize;
       let end = (i === targetSegmentCount - 1) ? textLength : (i + 1) * segmentSize;
       
-      // Try to find a sentence break near the calculated end point
       const searchText = text.substring(start, Math.min(end + 100, textLength));
       const sentenceMatch = searchText.match(/[.!?]\s+/);
       
@@ -149,7 +140,7 @@ const RadioTranscriptionSlot = ({
         segments.push({
           headline: headline || `Segmento ${i + 1}`,
           text: segmentText,
-          start: i * 60000, // Spread timestamps evenly (60s per segment)
+          start: i * 60000,
           end: (i + 1) * 60000,
           keywords: extractKeywords(segmentText)
         });
@@ -179,7 +170,6 @@ const RadioTranscriptionSlot = ({
   };
   
   const extractHeadline = (text: string): string => {
-    // Find the first sentence or part to use as headline
     const firstSentence = text.split(/[.!?]/, 1)[0];
     return firstSentence.length > 50 
       ? firstSentence.substring(0, 47) + '...'
@@ -187,7 +177,6 @@ const RadioTranscriptionSlot = ({
   };
   
   const extractKeywords = (text: string): string[] => {
-    // Simple keyword extraction based on word frequency
     const words = text.toLowerCase()
       .replace(/[^\wáéíóúüñ\s]/g, '')
       .split(/\s+/)

@@ -1,10 +1,21 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Edit, Save, X } from 'lucide-react';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import { fetchStations } from '@/services/radio/stationService';
+import { getProgramsByStation } from '@/services/radio/programService';
+import { StationType, ProgramType } from '@/services/radio/types';
+import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 
 interface RadioTranscriptionMetadataProps {
   metadata?: {
@@ -12,29 +23,102 @@ interface RadioTranscriptionMetadataProps {
     programa?: string;
     horario?: string;
     categoria?: string;
+    station_id?: string;
+    program_id?: string;
   };
   onMetadataChange?: (metadata: {
     emisora: string;
     programa: string;
     horario: string;
     categoria: string;
+    station_id: string;
+    program_id: string;
   }) => void;
 }
 
 const RadioTranscriptionMetadata = ({ metadata, onMetadataChange }: RadioTranscriptionMetadataProps) => {
   const [isEditing, setIsEditing] = useState(!metadata?.emisora);
+  const [stations, setStations] = useState<StationType[]>([]);
+  const [programs, setPrograms] = useState<ProgramType[]>([]);
+  const [loading, setLoading] = useState(false);
   const [localMetadata, setLocalMetadata] = useState({
     emisora: metadata?.emisora || '',
     programa: metadata?.programa || '',
     horario: metadata?.horario || '',
-    categoria: metadata?.categoria || ''
+    categoria: metadata?.categoria || '',
+    station_id: metadata?.station_id || '',
+    program_id: metadata?.program_id || ''
   });
+
+  // Load stations on component mount
+  useEffect(() => {
+    const loadStations = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchStations();
+        setStations(data);
+      } catch (error) {
+        console.error('Error loading stations:', error);
+        toast.error('No se pudieron cargar las emisoras');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadStations();
+  }, []);
+
+  // Load programs when station is selected
+  useEffect(() => {
+    const loadPrograms = async () => {
+      if (!localMetadata.station_id) {
+        setPrograms([]);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const data = await getProgramsByStation(localMetadata.station_id);
+        setPrograms(data);
+      } catch (error) {
+        console.error('Error loading programs:', error);
+        toast.error('No se pudieron cargar los programas');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadPrograms();
+  }, [localMetadata.station_id]);
 
   const handleSave = () => {
     setIsEditing(false);
     if (onMetadataChange) {
       onMetadataChange(localMetadata);
     }
+  };
+
+  const handleStationChange = (stationId: string) => {
+    const selectedStation = stations.find(station => station.id === stationId);
+    
+    setLocalMetadata(prev => ({
+      ...prev,
+      station_id: stationId,
+      emisora: selectedStation?.name || '',
+      // Reset program when station changes
+      program_id: '',
+      programa: ''
+    }));
+  };
+
+  const handleProgramChange = (programId: string) => {
+    const selectedProgram = programs.find(program => program.id === programId);
+    
+    setLocalMetadata(prev => ({
+      ...prev,
+      program_id: programId,
+      programa: selectedProgram?.name || ''
+    }));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,7 +156,9 @@ const RadioTranscriptionMetadata = ({ metadata, onMetadataChange }: RadioTranscr
                   emisora: metadata?.emisora || '',
                   programa: metadata?.programa || '',
                   horario: metadata?.horario || '',
-                  categoria: metadata?.categoria || ''
+                  categoria: metadata?.categoria || '',
+                  station_id: metadata?.station_id || '',
+                  program_id: metadata?.program_id || ''
                 });
               }}
               className="flex items-center gap-1"
@@ -97,23 +183,45 @@ const RadioTranscriptionMetadata = ({ metadata, onMetadataChange }: RadioTranscr
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div className="space-y-1">
             <Label htmlFor="emisora">Emisora</Label>
-            <Input
-              id="emisora"
-              name="emisora"
-              value={localMetadata.emisora}
-              onChange={handleInputChange}
-              placeholder="Nombre de la emisora"
-            />
+            <Select
+              value={localMetadata.station_id}
+              onValueChange={handleStationChange}
+              disabled={loading}
+            >
+              <SelectTrigger id="emisora">
+                <SelectValue placeholder="Seleccionar emisora" />
+              </SelectTrigger>
+              <SelectContent>
+                {stations.map((station) => (
+                  <SelectItem key={station.id} value={station.id}>
+                    {station.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="programa">Programa</Label>
-            <Input
-              id="programa"
-              name="programa"
-              value={localMetadata.programa}
-              onChange={handleInputChange}
-              placeholder="Nombre del programa"
-            />
+            <Select
+              value={localMetadata.program_id}
+              onValueChange={handleProgramChange}
+              disabled={loading || !localMetadata.station_id}
+            >
+              <SelectTrigger id="programa">
+                <SelectValue placeholder={!localMetadata.station_id ? "Selecciona emisora primero" : "Seleccionar programa"} />
+              </SelectTrigger>
+              <SelectContent>
+                {programs.length > 0 ? programs.map((program) => (
+                  <SelectItem key={program.id} value={program.id!}>
+                    {program.name}
+                  </SelectItem>
+                )) : (
+                  <SelectItem value="no-programs" disabled>
+                    {loading ? "Cargando..." : "No hay programas disponibles"}
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="horario">Horario</Label>
