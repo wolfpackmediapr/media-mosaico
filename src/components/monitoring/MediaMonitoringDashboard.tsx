@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useMediaMonitoring } from "@/hooks/monitoring/useMediaMonitoring";
 import { Play, AlertCircle, Loader2 } from "lucide-react";
-import SourceDistributionChart from "@/components/notifications/charts/SourceDistributionChart";
-import NotificationVolumeChart from "@/components/notifications/charts/NotificationVolumeChart";
-import KeywordsFrequencyChart from "@/components/notifications/charts/KeywordsFrequencyChart";
+import { SourceDistributionChart } from "@/components/notifications/charts";
+import { NotificationVolumeChart } from "@/components/notifications/charts";
+import { KeywordsFrequencyChart } from "@/components/notifications/charts";
 
 export function MediaMonitoringDashboard() {
   const { 
@@ -36,7 +36,7 @@ export function MediaMonitoringDashboard() {
     try {
       await runScan();
     } catch (error) {
-      console.error("Error running monitoring scan:", error);
+      console.error("Error al ejecutar escaneo de monitoreo:", error);
     }
   };
 

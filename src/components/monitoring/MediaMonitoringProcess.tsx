@@ -5,48 +5,48 @@ import { Card, CardContent } from "@/components/ui/card";
 const steps = [
   {
     number: "01",
-    title: "Identify Brand or Topic",
-    description: "Selecting the focus for monitoring",
+    title: "Identificar Marca o Tema",
+    description: "Seleccionar el enfoque para el monitoreo",
     icon: <Search className="h-8 w-8 text-blue-500" />,
     color: "text-blue-500",
     bgColor: "bg-blue-100",
   },
   {
     number: "02",
-    title: "Track Mentions Across Channels",
-    description: "Scanning various media platforms for mentions",
+    title: "Rastrear Menciones en Canales",
+    description: "Escaneo de diversas plataformas de medios",
     icon: <MessageSquare className="h-8 w-8 text-cyan-500" />,
     color: "text-cyan-500",
     bgColor: "bg-cyan-100",
   },
   {
     number: "03",
-    title: "Collect Data",
-    description: "Gathering and storing relevant media mentions",
+    title: "Recopilar Datos",
+    description: "Recolección de menciones relevantes en medios",
     icon: <Database className="h-8 w-8 text-emerald-500" />,
     color: "text-emerald-500",
     bgColor: "bg-emerald-100",
   },
   {
     number: "04",
-    title: "Analyze Media Presence",
-    description: "Evaluating the brand's visibility and impact",
+    title: "Analizar Presencia Mediática",
+    description: "Evaluación de visibilidad e impacto de la marca",
     icon: <LineChart className="h-8 w-8 text-green-500" />,
     color: "text-green-500",
     bgColor: "bg-green-100",
   },
   {
     number: "05",
-    title: "Identify Trends or Issues",
-    description: "Detecting patterns or problems in media coverage",
+    title: "Identificar Tendencias",
+    description: "Detección de patrones en cobertura mediática",
     icon: <LineChart className="h-8 w-8 text-yellow-500" />,
     color: "text-yellow-500",
     bgColor: "bg-yellow-100",
   },
   {
     number: "06",
-    title: "Take Action",
-    description: "Implementing strategies based on analysis",
+    title: "Tomar Acción",
+    description: "Implementar estrategias basadas en análisis",
     icon: <Zap className="h-8 w-8 text-orange-500" />,
     color: "text-orange-500",
     bgColor: "bg-orange-100",
@@ -57,7 +57,7 @@ export function MediaMonitoringProcess() {
   return (
     <Card className="w-full">
       <CardContent className="p-6">
-        <h2 className="text-2xl font-bold text-center mb-8">Media Monitoring Process</h2>
+        <h2 className="text-2xl font-bold text-center mb-8">Proceso de Monitoreo de Medios</h2>
         
         <div className="relative">
           {/* Process pipeline visualization */}

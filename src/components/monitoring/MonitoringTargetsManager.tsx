@@ -40,7 +40,7 @@ export function MonitoringTargetsManager() {
       });
       setShowAddForm(false);
     } catch (error) {
-      console.error("Error creating target:", error);
+      console.error("Error al crear objetivo:", error);
     }
   };
   
@@ -169,7 +169,7 @@ export function MonitoringTargetsManager() {
             No hay objetivos de monitoreo definidos. Añada uno para comenzar.
           </div>
         ) : (
-          monitoringTargets.map((target) => (
+          monitoringTargets.map((target: MonitoringTarget) => (
             <div key={target.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-md">
               <div className="space-y-2 mb-2 sm:mb-0">
                 <div className="flex items-center space-x-2">
