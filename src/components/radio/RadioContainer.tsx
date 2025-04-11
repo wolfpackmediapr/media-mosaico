@@ -100,7 +100,9 @@ const RadioContainer = () => {
         console.log("Typeform script loaded successfully");
         if (window.tf && typeof window.tf.createWidget === 'function') {
           setTimeout(() => {
-            window.tf.createWidget && window.tf.createWidget();
+            if (window.tf && window.tf.createWidget) {
+              window.tf.createWidget();
+            }
           }, 500);
         }
       };

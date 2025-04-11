@@ -8,3 +8,5 @@ declare global {
     tf?: TypeformWidget;
   }
 }
+
+export {};
