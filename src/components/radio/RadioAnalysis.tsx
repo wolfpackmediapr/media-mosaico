@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +13,7 @@ import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator
 
 interface RadioAnalysisProps {
   transcriptionText?: string;
-  transcriptionId?: string; // Added this prop to match what's being passed in RadioContainer
+  transcriptionId?: string;
   transcriptionResult?: TranscriptionResult;
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
 }
@@ -110,55 +111,27 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
     }
   };
 
-  const generateImprovedSegments = () => {
-    if ((!transcriptionText && !transcriptionResult) || !onSegmentsGenerated) {
-      toast.error("No hay contenido para generar segmentos");
-      return;
-    }
-
-    if (transcriptionResult) {
-      // Use the full result object for timestamp-aware segmentation
-      generateRadioSegments(transcriptionResult);
-    } else if (transcriptionText) {
-      // Fallback to text-only segmentation
-      generateRadioSegments(transcriptionText);
-    }
-    
-    toast.success("Segmentos generados con timestamping mejorado");
-  };
-
   return (
     <Card>
       <CardHeader className="bg-gradient-to-r from-primary-50 to-transparent">
         <CardTitle className="text-xl font-bold">Análisis de Contenido</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
-        <div className="flex justify-between">
-          <Button 
-            className="bg-black text-white hover:bg-black/90"
-            variant="default"
-            onClick={analyzeContent}
-            disabled={isAnalyzing || !transcriptionText}
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analizando...
-              </>
-            ) : (
-              'Analizar Contenido'
-            )}
-          </Button>
-          
-          <Button
-            variant="default"
-            className="bg-black text-white hover:bg-black/90"
-            onClick={generateImprovedSegments}
-            disabled={isAnalyzing || (!transcriptionText && !transcriptionResult)}
-          >
-            Generar Segmentos con Timestamping
-          </Button>
-        </div>
+        <Button 
+          className="bg-black text-white hover:bg-black/90 w-full sm:w-auto"
+          variant="default"
+          onClick={analyzeContent}
+          disabled={isAnalyzing || !transcriptionText}
+        >
+          {isAnalyzing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Analizando...
+            </>
+          ) : (
+            'Analizar Contenido'
+          )}
+        </Button>
         
         {analysis && (
           <div className="mt-4">
