@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { makeUserAdmin } from "@/utils/adminUtils";
 import { useEffect } from "react";
 
 interface LogoutButtonProps {
@@ -19,46 +19,14 @@ const LogoutButton = ({
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
-  // One-time function to update the administrator role
+  // Make the wolfpackmediapr@gmail.com user an admin
+  // This is done once when the component is mounted
   useEffect(() => {
-    const makeAdmin = async () => {
-      try {
-        // First find the user by email
-        const { data: userData, error: userError } = await supabase
-          .from('auth.users')
-          .select('id')
-          .eq('email', 'wolfpackmediapr@gmail.com')
-          .single();
-
-        if (userError) {
-          console.error("Error finding user:", userError);
-          return;
-        }
-
-        if (!userData) {
-          console.error("User not found");
-          return;
-        }
-
-        // Update the user's role to administrator
-        const { error: updateError } = await supabase
-          .from('user_profiles')
-          .update({ role: 'administrator' })
-          .eq('id', userData.id);
-
-        if (updateError) {
-          console.error("Error updating user role:", updateError);
-          return;
-        }
-
-        console.log("User wolfpackmediapr@gmail.com successfully set as administrator");
-        toast.success("El usuario wolfpackmediapr@gmail.com ahora es administrador");
-      } catch (error) {
-        console.error("Error in makeAdmin function:", error);
-      }
+    const setAdmin = async () => {
+      await makeUserAdmin("wolfpackmediapr@gmail.com");
     };
-
-    makeAdmin();
+    
+    setAdmin();
   }, []);
 
   const handleLogout = async () => {

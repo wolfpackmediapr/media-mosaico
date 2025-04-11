@@ -46,6 +46,3 @@ export const makeUserAdmin = async (email: string) => {
     return false;
   }
 };
-
-// Execute the function immediately to make wolfpackmediapr@gmail.com an admin
-makeUserAdmin("wolfpackmediapr@gmail.com");
