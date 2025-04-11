@@ -1,4 +1,5 @@
 
+
 import { supabase } from "@/integrations/supabase/client";
 import { createNotification } from "../notifications/unifiedNotificationService";
 import { analyzeMediaContent } from "../notifications/mediaAnalysisService";
@@ -89,13 +90,11 @@ export const getMonitoringTargets = async (): Promise<MonitoringTarget[]> => {
         }
       }
       
-      // Only spread if target is an object (to fix spread error)
-      const targetWithClient = typeof target === 'object' ? {
+      // Add the client name to the target object
+      targetsWithClients.push({
         ...target,
         clientName
-      } : { clientName };
-      
-      targetsWithClients.push(targetWithClient);
+      });
     }
     
     return targetsWithClients;
@@ -210,17 +209,19 @@ export const analyzeContentForTarget = async (
     }
     
     // Check if content contains any of the target keywords
-    const matchedKeywords = (target.keywords || []).filter(keyword => 
-      content.toLowerCase().includes(keyword.toLowerCase()) || 
-      title.toLowerCase().includes(keyword.toLowerCase())
-    );
+    const matchedKeywords = Array.isArray(target.keywords) 
+      ? target.keywords.filter(keyword => 
+          content.toLowerCase().includes(keyword.toLowerCase()) || 
+          title.toLowerCase().includes(keyword.toLowerCase())
+        )
+      : [];
     
     if (matchedKeywords.length === 0) {
       return { matched: false, message: 'No keywords matched' };
     }
     
-    // Simulate analysis result
-    const analysisResult = await analyzeMediaContent(contentId, contentType, title, content);
+    // Get analysis result
+    const analysisResult = await analyzeMediaContent(contentId);
     
     // Simulate creating a mention record
     const mention = {
@@ -301,26 +302,44 @@ export const runMonitoringScan = async () => {
     // Analyze each article for each target
     if (articles.length > 0) {
       for (const article of articles) {
+        if (!article || !article.id) {
+          console.warn('Invalid article found, skipping');
+          continue;
+        }
+
         results.processed++;
         
         // Mark the article as processed
-        const { error: updateError } = await supabase
-          .from('news_articles')
-          .update({ last_processed: new Date().toISOString() })
-          .eq('id', article.id);
-        
-        if (updateError) {
+        try {
+          const { error: updateError } = await supabase
+            .from('news_articles')
+            .update({ last_processed: new Date().toISOString() })
+            .eq('id', article.id);
+          
+          if (updateError) {
+            console.error(`Error updating article ${article.id}:`, updateError);
+            continue;
+          }
+        } catch (updateError) {
           console.error(`Error updating article ${article.id}:`, updateError);
           continue;
         }
         
         for (const target of targets) {
           try {
+            const articleTitle = article.title || "";
+            const articleContent = article.description || article.content || '';
+            
+            if (!target.id) {
+              console.warn('Invalid target found, skipping');
+              continue;
+            }
+
             const result = await analyzeContentForTarget(
               article.id,
               'news',
-              article.title || "",
-              article.description || article.content || '',
+              articleTitle,
+              articleContent,
               target.id
             );
             
@@ -351,16 +370,31 @@ export const runMonitoringScan = async () => {
       
       if (!pressError && pressClippings.length > 0) {
         for (const clipping of pressClippings) {
+          if (!clipping || !clipping.id) {
+            console.warn('Invalid press clipping found, skipping');
+            continue;
+          }
+
           results.processed++;
           
           // Mark the clipping as processed
-          await supabase
-            .from('press_clippings')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('id', clipping.id);
+          try {
+            await supabase
+              .from('press_clippings')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', clipping.id);
+          } catch (updateError) {
+            console.error(`Error updating clipping ${clipping.id}:`, updateError);
+            continue;
+          }
           
           for (const target of targets) {
             try {
+              if (!target.id) {
+                console.warn('Invalid target found, skipping');
+                continue;
+              }
+
               const result = await analyzeContentForTarget(
                 clipping.id,
                 'press',
@@ -493,3 +527,4 @@ const getContentTypeDisplay = (contentType: string): string => {
   };
   return map[contentType] || contentType;
 };
+
