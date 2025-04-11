@@ -190,12 +190,31 @@ export function MusicCard({
   
   const progressPercentage = displayDuration > 0 ? (displayCurrentTime / displayDuration) * 100 : 0;
   
+  // Create a lighter version of the color for the gradient
+  const lightenColor = (color: string, percent: number) => {
+    // Convert hex to RGB
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+
+    // Calculate lighter values
+    const factor = percent / 100;
+    const lighter = (value: number) => Math.round(value + (255 - value) * factor);
+    
+    // Convert back to hex
+    return `#${lighter(r).toString(16).padStart(2, '0')}${lighter(g).toString(16).padStart(2, '0')}${lighter(b).toString(16).padStart(2, '0')}`;
+  };
+
+  // Create a lighter version of the main color for gradient
+  const lighterColor = lightenColor(mainColor, 70);
+  
   return (
     <div 
       className="rounded-xl p-4 w-full overflow-hidden"
       style={{
-        background: `linear-gradient(to bottom right, ${mainColor}25, transparent)`,
-        borderColor: `${mainColor}40`,
+        background: `linear-gradient(to bottom right, ${mainColor}30, ${lighterColor}20)`,
+        borderColor: `${mainColor}50`,
         borderWidth: "1px"
       }}
     >
@@ -301,6 +320,10 @@ export function MusicCard({
               max={100}
               step={1}
               onValueChange={handleVolumeChange}
+              style={{ 
+                "--thumb-bg": mainColor,
+                "--track-active-bg": mainColor
+              } as React.CSSProperties}
             />
           </div>
         </div>

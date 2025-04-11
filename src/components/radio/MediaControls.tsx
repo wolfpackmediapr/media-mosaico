@@ -47,12 +47,15 @@ const MediaControls = ({
 }: MediaControlsProps) => {
   if (!currentFile) return null;
 
+  // Using the Publimedia green color (#66cc00)
+  const publimediaGreen = "#66cc00";
+
   return (
     <MusicCard
       file={currentFile}
       title={currentFile.name}
       artist={metadata?.emisora || 'Radio Transcription'}
-      mainColor="#8B5CF6"
+      mainColor={publimediaGreen}
       customControls={true}
       isPlaying={isPlaying}
       currentTime={currentTime}

@@ -11,6 +11,9 @@ interface RadioLayoutProps {
   newsSegmentsSection?: ReactNode;
 }
 
+// Publimedia brand color
+const PUBLIMEDIA_GREEN = "#66cc00";
+
 const RadioLayout = ({
   isAuthenticated,
   leftSection,
