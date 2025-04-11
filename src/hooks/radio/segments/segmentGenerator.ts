@@ -1,7 +1,7 @@
 
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
-import { createSegmentsFromText } from "./textBasedSegmentation";
+import { createSegmentsFromTextChunks, createLengthBasedSegments } from "./textBasedSegmentation";
 import { createSegmentsFromSentences, createSegmentsFromWords, createSegmentsFromWhisperSegments } from "./timestampedSegmentation";
 
 /**
@@ -49,10 +49,19 @@ export const generateRadioSegments = (
     }
     
     // 4. Fallback to text-based segmentation using the full text
-    console.log(`Falling back to text-based segmentation with ${text.length} chars`);
-    return createSegmentsFromText(text, onSegmentsReceived);
+    console.log(`Falling back to length-based segmentation with ${text.length} chars`);
+    return createLengthBasedSegments(text, onSegmentsReceived);
   }
   
   // Simple text-based segmentation for string input
-  return createSegmentsFromText(transcriptionData, onSegmentsReceived);
+  // Split the text into chunks at paragraph breaks
+  const chunks = transcriptionData.split(/\n\s*\n/).filter(chunk => chunk.trim().length > 0);
+  
+  if (chunks.length > 1) {
+    console.log(`Creating segments from ${chunks.length} text chunks`);
+    return createSegmentsFromTextChunks(chunks, onSegmentsReceived);
+  } else {
+    console.log(`Using length-based segmentation for single text block`);
+    return createLengthBasedSegments(transcriptionData, onSegmentsReceived);
+  }
 };
