@@ -33,7 +33,10 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
       const progressInterval = simulateProgressUpdates(setProgress);
       
       // Process the file
-      const success = await processWithAuth(file, (text) => {
+      const success = await processWithAuth(file, (result) => {
+        // Extract the text from the TranscriptionResult object
+        const text = result.text;
+        
         // Pass the transcription text to the parent component
         onTranscriptionComplete?.(text);
         setProcessingComplete(true);

@@ -32,7 +32,7 @@ const RadioAnalysis = ({ transcriptionText, transcriptionResult, onSegmentsGener
       const { data, error } = await supabase.functions.invoke('analyze-radio-content', {
         body: { 
           transcriptionText,
-          transcriptId: transcriptionResult?.transcript_id
+          transcriptId: transcriptionResult?.transcript_id || null
         }
       });
 

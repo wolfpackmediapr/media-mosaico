@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { TranscriptionResult } from '@/services/audio/transcriptionService';
 
 export interface UploadedFile extends File {
   preview?: string;

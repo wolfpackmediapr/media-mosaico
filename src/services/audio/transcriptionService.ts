@@ -10,6 +10,8 @@ export interface TranscriptionResult {
   words?: WordTimestamp[];
   sentences?: SentenceTimestamp[];
   audio_duration?: number;
+  transcript_id?: string; // Added to fix the missing property errors
+  segments?: any[]; // Added to fix the missing property errors
 }
 
 export interface WordTimestamp {

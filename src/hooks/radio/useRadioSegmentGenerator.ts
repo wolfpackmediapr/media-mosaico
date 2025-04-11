@@ -1,4 +1,3 @@
-
 import { useRef } from "react";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 import { TranscriptionResult, SentenceTimestamp } from "@/services/audio/transcriptionService";
@@ -38,7 +37,7 @@ export const useRadioSegmentGenerator = (
       
       // APPROACH 3: Use Whisper segments if available
       if (transcriptionResult.segments && transcriptionResult.segments.length >= 2) {
-        console.log(`Using ${transcriptionResult.segments.length} Whisper segments`);
+        console.log(`Using ${transcriptionResult.segments?.length} Whisper segments`);
         createSegmentsFromWhisperSegments(transcriptionResult.segments, text, transcriptionResult.audio_duration);
         return;
       }

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { FileAudio, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,11 @@ const AudioFileItem = ({
     if (setProgress) setProgress(10);
     
     try {
-      const success = await processWithAuth(file, (text) => {
+      const success = await processWithAuth(file, (result) => {
+        // Extract text from the result object
+        const text = result.text;
+        
+        // Pass just the text to the callback
         onTranscriptionComplete?.(text);
         if (setProgress) setProgress(100);
         setProcessingComplete(true);
