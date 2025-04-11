@@ -151,7 +151,8 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
           </Button>
           
           <Button
-            variant="secondary"
+            variant="default"
+            className="bg-black text-white hover:bg-black/90"
             onClick={generateImprovedSegments}
             disabled={isAnalyzing || (!transcriptionText && !transcriptionResult)}
           >
