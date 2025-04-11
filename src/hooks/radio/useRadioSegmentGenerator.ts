@@ -37,7 +37,7 @@ export const useRadioSegmentGenerator = (
       
       // APPROACH 3: Use Whisper segments if available
       if (transcriptionResult.segments && transcriptionResult.segments.length >= 2) {
-        console.log(`Using ${transcriptionResult.segments?.length} Whisper segments`);
+        console.log(`Using ${transcriptionResult.segments.length} Whisper segments`);
         createSegmentsFromWhisperSegments(transcriptionResult.segments, text, transcriptionResult.audio_duration);
         return;
       }
@@ -91,14 +91,21 @@ export const useRadioSegmentGenerator = (
         segments.push({
           headline: headline || `Segmento ${i + 1}`,
           text: segmentText,
-          start: i * 60000,
-          end: (i + 1) * 60000,
+          start: i * 60000, // use milliseconds consistently
+          end: (i + 1) * 60000, // use milliseconds consistently
           keywords: extractKeywords(segmentText)
         });
       }
     }
     
     if (segments.length > 0) {
+      // Log timestamps for debugging
+      console.log("Generated segments with timestamps:", segments.map(s => ({
+        headline: s.headline,
+        start: s.start,
+        end: s.end
+      })));
+      
       onSegmentsReceived(segments);
     }
   };
@@ -143,6 +150,13 @@ export const useRadioSegmentGenerator = (
     }
     
     if (segments.length > 0) {
+      // Log timestamps for debugging
+      console.log("Generated segments from sentences with timestamps:", segments.map(s => ({
+        headline: s.headline,
+        start: s.start,
+        end: s.end
+      })));
+      
       onSegmentsReceived(segments);
       return true;
     }
@@ -213,6 +227,13 @@ export const useRadioSegmentGenerator = (
     }
     
     if (segments.length > 0) {
+      // Log timestamps for debugging
+      console.log("Generated segments from words with timestamps:", segments.map(s => ({
+        headline: s.headline,
+        start: s.start,
+        end: s.end
+      })));
+      
       onSegmentsReceived(segments);
       return true;
     }
@@ -246,7 +267,7 @@ export const useRadioSegmentGenerator = (
       if (currentWhisperSegments.length === 0) continue;
       
       const segmentText = currentWhisperSegments.map(s => s.text).join(' ');
-      // Convert seconds to milliseconds for consistency
+      // Make sure to convert seconds to milliseconds for consistency
       const startTime = Math.round(currentWhisperSegments[0].start * 1000);
       const endTime = Math.round(currentWhisperSegments[currentWhisperSegments.length - 1].end * 1000);
       const headline = extractHeadline(segmentText);
@@ -261,6 +282,14 @@ export const useRadioSegmentGenerator = (
     }
     
     if (segments.length > 0) {
+      // Log timestamps for debugging
+      console.log("Generated segments from Whisper with timestamps:", segments.map(s => ({
+        headline: s.headline,
+        start: s.start,
+        end: s.end,
+        from: "whisper"
+      })));
+      
       onSegmentsReceived(segments);
       return true;
     }
@@ -277,11 +306,18 @@ export const useRadioSegmentGenerator = (
       return {
         headline: headline || `Segmento ${index + 1}`,
         text: chunk,
-        start: index * 60000,
-        end: (index + 1) * 60000,
+        start: index * 60000, // use milliseconds consistently
+        end: (index + 1) * 60000, // use milliseconds consistently
         keywords: extractKeywords(chunk)
       };
     });
+    
+    // Log timestamps for debugging
+    console.log("Generated segments from text chunks with estimated timestamps:", segments.map(s => ({
+      headline: s.headline,
+      start: s.start,
+      end: s.end
+    })));
     
     onSegmentsReceived(segments);
   };

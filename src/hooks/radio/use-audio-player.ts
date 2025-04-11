@@ -115,9 +115,15 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
     toast.info(`Velocidad: ${newRate}x`);
   };
 
+  // Update the seekToTimestamp function to properly handle both milliseconds and seconds
   const seekToTimestamp = (timestamp: number) => {
     if (audioElement) {
-      audioElement.currentTime = timestamp / 1000;
+      // Check if the timestamp is in milliseconds (large number) and convert to seconds if needed
+      const targetSeconds = timestamp > 1000 ? timestamp / 1000 : timestamp;
+      
+      console.log(`Seeking to timestamp: ${timestamp}, converted to seconds: ${targetSeconds}`);
+      
+      audioElement.currentTime = targetSeconds;
       audioElement.play();
       setIsPlaying(true);
     } else {

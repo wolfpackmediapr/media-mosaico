@@ -75,6 +75,11 @@ const RadioContainer = () => {
     setMetadata(newMetadata);
   };
 
+  const handleSeekToSegment = (timestamp: number) => {
+    console.log(`Seeking to segment timestamp: ${timestamp}ms, audio current time: ${currentTime}s`);
+    seekToTimestamp(timestamp);
+  };
+
   // Authentication check
   if (isAuthenticated === false || isAuthenticated === null) {
     return <AuthCheck isAuthenticated={isAuthenticated} />;
@@ -134,7 +139,7 @@ const RadioContainer = () => {
         <RadioNewsSegmentsContainer
           segments={newsSegments}
           onSegmentsChange={setNewsSegments}
-          onSeek={seekToTimestamp}
+          onSeek={handleSeekToSegment}
           isProcessing={isProcessing}
         />
       )}
