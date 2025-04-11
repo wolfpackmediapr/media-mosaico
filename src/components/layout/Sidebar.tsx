@@ -1,4 +1,3 @@
-
 import { Home, Tv, Radio, Newspaper, Bell, BarChart2, Settings, HelpCircle, Send, Rss, Menu, Tablet, FileText, BookOpen } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Image } from "@/components/ui/image";
@@ -17,6 +16,7 @@ const mainMenuItems = [
   { icon: Bell, label: "Notificaciones", path: "/notificaciones" },
   { icon: Send, label: "Envío de Alertas", path: "/envio-alertas" },
   { icon: BarChart2, label: "Reportes", path: "/reportes" },
+  { icon: BookOpen, label: "Media Monitoring", path: "/media-monitoring" },
 ];
 
 const bottomMenuItems = [

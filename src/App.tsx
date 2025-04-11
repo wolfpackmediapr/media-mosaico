@@ -18,6 +18,7 @@ import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
 import Ayuda from "./pages/Ayuda";
+import MediaMonitoring from "./pages/MediaMonitoring";
 import { 
   GeneralSettings,
   NotificationsSettings,
@@ -30,8 +31,6 @@ import {
 import MediaSettings from "./pages/configuracion/MediaSettings";
 import CategoriesSettings from "./pages/configuracion/categories/CategoriesSettings";
 import TvSettings from "./pages/configuracion/TvSettings";
-import { Toaster } from "@/components/ui/sonner";
-import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
 import { seedMediaOutlets } from "./services/media/mediaImportService";
 import { defaultCsvData } from "./services/media/defaultMediaData";
 import { seedTvData } from "@/services/tv";
@@ -55,6 +54,8 @@ import PublitecaTv from "./pages/publiteca/Tv";
 import PublitecaRedesSociales from "./pages/publiteca/RedesSociales";
 
 import "./App.css";
+import { Toaster } from "@/components/ui/sonner";
+import RealTimeAlertsProvider from "./components/notifications/RealTimeAlertsProvider";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -106,6 +107,7 @@ function App() {
                 <Route path="notificaciones" element={<Notificaciones />} />
                 <Route path="reportes" element={<Reportes />} />
                 <Route path="envio-alertas" element={<EnvioAlertas />} />
+                <Route path="media-monitoring" element={<MediaMonitoring />} />
                 <Route path="ajustes" element={<Ajustes />} />
                 <Route path="ajustes/*" element={<Outlet />}>
                   <Route path="general" element={<GeneralSettings />} />
