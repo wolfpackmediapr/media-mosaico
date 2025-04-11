@@ -31,6 +31,7 @@ interface RadioTranscriptionSlotProps {
     station_id: string;
     program_id: string;
   }) => void;
+  onTimestampClick?: (timestamp: number) => void;
 }
 
 const RadioTranscriptionSlot = ({
@@ -41,7 +42,8 @@ const RadioTranscriptionSlot = ({
   metadata,
   onTranscriptionChange,
   onSegmentsReceived,
-  onMetadataChange
+  onMetadataChange,
+  onTimestampClick
 }: RadioTranscriptionSlotProps) => {
   const { checkAndGenerateSegments } = useRadioSegmentGenerator(onSegmentsReceived);
 
@@ -66,6 +68,8 @@ const RadioTranscriptionSlot = ({
             isProcessing={isProcessing}
             onTranscriptionChange={onTranscriptionChange}
             transcriptionId={transcriptionId}
+            transcriptionResult={transcriptionResult}
+            onTimestampClick={onTimestampClick}
           />
           <div className="flex justify-end">
             <RadioReportButton

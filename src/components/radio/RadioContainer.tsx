@@ -9,6 +9,7 @@ import AuthCheck from "./AuthCheck";
 import MediaControls from "./MediaControls";
 import TypeformAlert from "./TypeformAlert";
 import RadioAnalysis from "./RadioAnalysis";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -21,6 +22,7 @@ const RadioContainer = () => {
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionId, setTranscriptionId] = useState<string>();
+  const [transcriptionResult, setTranscriptionResult] = useState<TranscriptionResult>();
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [metadata, setMetadata] = useState<{
     emisora?: string;
@@ -81,6 +83,12 @@ const RadioContainer = () => {
     seekToTimestamp(timestamp);
   };
 
+  const handleTranscriptionReceived = (result: TranscriptionResult) => {
+    setTranscriptionText(result.text || "");
+    setTranscriptionResult(result);
+    setTranscriptionId(result.transcript_id);
+  };
+
   // Authentication check
   if (isAuthenticated === false || isAuthenticated === null) {
     return <AuthCheck isAuthenticated={isAuthenticated} />;
@@ -102,6 +110,7 @@ const RadioContainer = () => {
             transcriptionText={transcriptionText}
             setTranscriptionText={setTranscriptionText}
             setTranscriptionId={setTranscriptionId}
+            onTranscriptionComplete={handleTranscriptionReceived}
           />
           
           {currentFile && (
@@ -128,10 +137,12 @@ const RadioContainer = () => {
             isProcessing={isProcessing}
             transcriptionText={transcriptionText}
             transcriptionId={transcriptionId}
+            transcriptionResult={transcriptionResult}
             metadata={metadata}
             onTranscriptionChange={handleTranscriptionChange}
             onSegmentsReceived={handleSegmentsReceived}
             onMetadataChange={handleMetadataChange}
+            onTimestampClick={handleSeekToSegment}
           />
         </div>
       </div>
@@ -140,6 +151,7 @@ const RadioContainer = () => {
       <RadioAnalysis 
         transcriptionText={transcriptionText} 
         transcriptionId={transcriptionId}
+        transcriptionResult={transcriptionResult}
         onSegmentsGenerated={handleSegmentsReceived}
       />
 

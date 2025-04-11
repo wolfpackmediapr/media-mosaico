@@ -1,4 +1,3 @@
-
 import { Dispatch, SetStateAction } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileList from "./AudioFileList";
@@ -10,30 +9,32 @@ interface UploadedFile extends File {
 
 interface FileUploadSectionProps {
   files: UploadedFile[];
-  setFiles: Dispatch<SetStateAction<UploadedFile[]>>;
   currentFileIndex: number;
-  setCurrentFileIndex: Dispatch<SetStateAction<number>>;
   isProcessing: boolean;
-  setIsProcessing: Dispatch<SetStateAction<boolean>>;
   progress: number;
-  setProgress: Dispatch<SetStateAction<number>>;
   transcriptionText: string;
-  setTranscriptionText: Dispatch<SetStateAction<string>>;
-  setTranscriptionId: Dispatch<SetStateAction<string | undefined>>;
+  setFiles: (files: UploadedFile[]) => void;
+  setCurrentFileIndex: (index: number) => void;
+  setIsProcessing: (isProcessing: boolean) => void;
+  setProgress: (progress: number) => void;
+  setTranscriptionText: (text: string) => void;
+  setTranscriptionId?: (id?: string) => void;
+  onTranscriptionComplete?: (result: TranscriptionResult) => void;
 }
 
 const FileUploadSection = ({ 
   files, 
-  setFiles, 
   currentFileIndex, 
-  setCurrentFileIndex,
   isProcessing,
-  setIsProcessing,
   progress,
-  setProgress,
   transcriptionText,
+  setFiles,
+  setCurrentFileIndex,
+  setIsProcessing,
+  setProgress,
   setTranscriptionText,
-  setTranscriptionId
+  setTranscriptionId,
+  onTranscriptionComplete
 }: FileUploadSectionProps) => {
   const handleFilesAdded = (newFiles: File[]) => {
     const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
@@ -67,6 +68,54 @@ const FileUploadSection = ({
     });
   };
 
+  const processFile = async (file: UploadedFile) => {
+    setIsProcessing(true);
+    setProgress(0);
+    
+    try {
+      // Start progress simulation
+      const intervalId = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(intervalId);
+            return 95;
+          }
+          return prev + Math.random() * 10;
+        });
+      }, 1000);
+
+      // Actual processing
+      const transcriptionResult = await processWithAuth(file, (result) => {
+        // This callback will be called when transcription is complete
+        if (result?.text) {
+          setTranscriptionText(result.text);
+        }
+        
+        if (result?.transcript_id) {
+          setTranscriptionId?.(result.transcript_id);
+        }
+        
+        if (onTranscriptionComplete) {
+          onTranscriptionComplete(result);
+        }
+      });
+
+      // Cleanup and finalize
+      clearInterval(intervalId);
+      setProgress(100);
+      
+      // Reset progress after a delay
+      setTimeout(() => setProgress(0), 1000);
+      
+      return transcriptionResult;
+    } catch (error) {
+      console.error("Error processing file:", error);
+      toast.error("Error al procesar el archivo");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <>
       <FileUploadZone
@@ -90,9 +139,7 @@ const FileUploadSection = ({
         <AudioFileList
           uploadedFiles={files}
           onProcess={(file) => {
-            setIsProcessing(true);
-            setProgress(10);
-            // The actual processing happens in AudioFileItem
+            processFile(file);
           }}
           onTranscriptionComplete={setTranscriptionText}
           onRemoveFile={handleRemoveFile}

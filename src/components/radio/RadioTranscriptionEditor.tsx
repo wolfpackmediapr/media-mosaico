@@ -6,13 +6,17 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { Copy, CheckCheck, Edit, Check } from "lucide-react";
+import { Copy, CheckCheck, Edit, Check, Clock } from "lucide-react";
+import RadioTimestampedTranscription from "./RadioTimestampedTranscription";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
   isProcessing: boolean;
   onTranscriptionChange: (text: string) => void;
   transcriptionId?: string;
+  transcriptionResult?: TranscriptionResult;
+  onTimestampClick?: (timestamp: number) => void;
 }
 
 const RadioTranscriptionEditor = ({
@@ -20,10 +24,13 @@ const RadioTranscriptionEditor = ({
   isProcessing,
   onTranscriptionChange,
   transcriptionId,
+  transcriptionResult,
+  onTimestampClick
 }: RadioTranscriptionEditorProps) => {
   const { toast } = useToast();
   const [isCopied, setIsCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showTimestamps, setShowTimestamps] = useState(false);
   
   // Use persistent state with session storage for unsaved content
   const [localText, setLocalText] = usePersistentState(
@@ -126,23 +133,59 @@ const RadioTranscriptionEditor = ({
     }
   };
 
+  const toggleTimestampView = () => {
+    setShowTimestamps(!showTimestamps);
+    
+    // Exit edit mode when showing timestamps
+    if (!showTimestamps && isEditing) {
+      setIsEditing(false);
+    }
+  };
+
+  const hasTimestampData = Boolean(
+    transcriptionResult?.sentences?.length || 
+    transcriptionResult?.words?.length
+  );
+
   return (
     <div className="relative">
-      <Textarea
-        placeholder="Aquí aparecerá el texto transcrito..."
-        className={`min-h-[200px] resize-y pr-12 ${isEditing ? 'border-primary' : ''} focus:border-primary focus-visible:ring-1`}
-        value={localText}
-        onChange={handleTextChange}
-        readOnly={isProcessing || !isEditing}
-        onClick={() => !isEditing && toggleEditMode()}
-      />
+      {showTimestamps && hasTimestampData ? (
+        <RadioTimestampedTranscription 
+          transcriptionResult={transcriptionResult}
+          text={localText}
+          onTimestampClick={onTimestampClick}
+        />
+      ) : (
+        <Textarea
+          placeholder="Aquí aparecerá el texto transcrito..."
+          className={`min-h-[200px] resize-y pr-12 ${isEditing ? 'border-primary' : ''} focus:border-primary focus-visible:ring-1`}
+          value={localText}
+          onChange={handleTextChange}
+          readOnly={isProcessing || !isEditing}
+          onClick={() => !isEditing && toggleEditMode()}
+        />
+      )}
       <div className="absolute top-2 right-2 flex flex-col gap-2">
+        {hasTimestampData && (
+          <Button
+            type="button"
+            size="icon"
+            variant={showTimestamps ? "default" : "ghost"}
+            onClick={toggleTimestampView}
+            disabled={isProcessing}
+            className={`hover:bg-primary/10 transition-colors ${showTimestamps ? 'text-white bg-primary' : ''}`}
+            aria-label={showTimestamps ? "Vista normal" : "Vista con timestamps"}
+            title={showTimestamps ? "Vista normal" : "Vista con timestamps"}
+          >
+            <Clock className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           type="button"
           size="icon"
           variant="ghost"
           onClick={toggleEditMode}
-          disabled={isProcessing}
+          disabled={isProcessing || showTimestamps}
           className="hover:bg-primary/10 transition-colors"
           aria-label={isEditing ? "Finalizar edición" : "Editar texto"}
           title={isEditing ? "Finalizar edición" : "Editar texto"}
@@ -178,6 +221,11 @@ const RadioTranscriptionEditor = ({
       {!localText && !isProcessing && (
         <p className="text-sm text-muted-foreground mt-2">
           Procese un archivo de audio para ver la transcripción aquí. Podrá editar el texto una vez transcrito.
+        </p>
+      )}
+      {showTimestamps && !hasTimestampData && (
+        <p className="text-sm text-yellow-500 mt-2">
+          No hay datos de timestamps disponibles para esta transcripción.
         </p>
       )}
     </div>
