@@ -61,8 +61,8 @@ serve(async (req) => {
     const uploadResult = await uploadResponse.json();
     console.log('File uploaded successfully:', uploadResult);
 
-    // Start transcription
-    console.log('Starting AssemblyAI transcription...');
+    // Start transcription with Nano model for Spanish
+    console.log('Starting AssemblyAI transcription with Nano model for Spanish...');
     const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
@@ -72,6 +72,9 @@ serve(async (req) => {
       body: JSON.stringify({
         audio_url: uploadResult.upload_url,
         language_code: 'es',
+        speech_model: 'nano',
+        entity_detection: true,
+        word_boost: ["radio", "noticia", "programa"],
       }),
     });
 
@@ -83,13 +86,19 @@ serve(async (req) => {
 
     const transcribeResult = await transcribeResponse.json();
     console.log('Transcription started:', transcribeResult);
+    const transcriptId = transcribeResult.id;
 
     // Poll for completion
     let transcript;
-    for (let i = 0; i < 60; i++) {
-      console.log(`Polling AssemblyAI (attempt ${i+1}/60)...`);
+    let attempts = 0;
+    const maxAttempts = 60;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      console.log(`Polling AssemblyAI (attempt ${attempts}/${maxAttempts})...`);
+      
       const pollingResponse = await fetch(
-        `https://api.assemblyai.com/v2/transcript/${transcribeResult.id}`,
+        `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
         {
           headers: {
             'Authorization': assemblyKey,
@@ -123,21 +132,63 @@ serve(async (req) => {
       throw new Error('Transcription timed out');
     }
 
+    // Fetch sentences for better segmentation (if available)
+    let sentences = [];
+    try {
+      console.log('Fetching sentence-level timestamps...');
+      const sentencesResponse = await fetch(
+        `https://api.assemblyai.com/v2/transcript/${transcriptId}/sentences`,
+        {
+          headers: {
+            'Authorization': assemblyKey,
+          },
+        }
+      );
+      
+      if (sentencesResponse.ok) {
+        const sentencesData = await sentencesResponse.json();
+        sentences = sentencesData.sentences || [];
+        console.log(`Retrieved ${sentences.length} sentences with timestamps`);
+      } else {
+        console.warn('Failed to fetch sentences, continuing without sentence data');
+      }
+    } catch (sentenceError) {
+      console.error('Error fetching sentences:', sentenceError);
+      // Continue execution even if sentence fetch fails
+    }
+
     // Store the transcription in the database
+    let dbTranscriptionId = null;
     try {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       );
 
-      await supabase
+      const { data: insertData, error: insertError } = await supabase
         .from('radio_transcriptions')
         .insert({
           user_id: userId,
-          transcription_text: transcript.text
-        });
+          transcription_text: transcript.text,
+          transcript_id: transcriptId,
+          metadata: {
+            audio_duration: transcript.audio_duration,
+            has_word_timestamps: true,
+            has_sentence_timestamps: sentences.length > 0,
+            entity_detection: transcript.entities ? true : false,
+            language_code: 'es',
+            model: 'nano'
+          }
+        })
+        .select('id')
+        .single();
 
-      console.log('Transcription saved to database');
+      if (insertError) {
+        console.error('Error saving to database:', insertError);
+      } else {
+        dbTranscriptionId = insertData.id;
+        console.log('Transcription saved to database with ID:', dbTranscriptionId);
+      }
     } catch (dbError) {
       console.error('Error saving to database:', dbError);
       // Continue execution even if database save fails
@@ -147,9 +198,14 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         text: transcript.text,
+        words: transcript.words,
+        sentences: sentences,
         content_safety: transcript.content_safety_labels,
         entities: transcript.entities,
-        topics: transcript.iab_categories_result
+        topics: transcript.iab_categories_result,
+        audio_duration: transcript.audio_duration,
+        transcript_id: transcriptId,
+        db_transcription_id: dbTranscriptionId
       }),
       { 
         headers: { 

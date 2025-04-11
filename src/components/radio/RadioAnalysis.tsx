@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,15 +7,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import { createNotification } from "@/services/notifications/unifiedNotificationService";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
 
 interface RadioAnalysisProps {
   transcriptionText?: string;
+  transcriptionResult?: TranscriptionResult;
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
 }
 
-const RadioAnalysis = ({ transcriptionText, onSegmentsGenerated }: RadioAnalysisProps) => {
+const RadioAnalysis = ({ transcriptionText, transcriptionResult, onSegmentsGenerated }: RadioAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState("");
+  const { generateRadioSegments } = useRadioSegmentGenerator(onSegmentsGenerated);
 
   const analyzeContent = async () => {
     if (!transcriptionText) {
@@ -27,7 +30,10 @@ const RadioAnalysis = ({ transcriptionText, onSegmentsGenerated }: RadioAnalysis
     setIsAnalyzing(true);
     try {
       const { data, error } = await supabase.functions.invoke('analyze-radio-content', {
-        body: { transcriptionText }
+        body: { 
+          transcriptionText,
+          transcriptId: transcriptionResult?.transcript_id
+        }
       });
 
       if (error) throw error;
@@ -38,7 +44,13 @@ const RadioAnalysis = ({ transcriptionText, onSegmentsGenerated }: RadioAnalysis
         
         // Generate radio segments based on analysis result
         if (onSegmentsGenerated) {
-          generateImprovedSegments(data.analysis, transcriptionText);
+          if (transcriptionResult) {
+            // Pass full result object for timestamp-aware segmentation
+            generateRadioSegments(transcriptionResult);
+          } else {
+            // Fallback to text-only segmentation
+            generateRadioSegments(transcriptionText);
+          }
         }
         
         // Create notification for radio content analysis
@@ -85,143 +97,46 @@ const RadioAnalysis = ({ transcriptionText, onSegmentsGenerated }: RadioAnalysis
               console.log("Created notification for radio content analysis");
             }
           }
-        } catch (notificationError) {
-          console.error("Error creating notification:", notificationError);
+        } catch (notifyError) {
+          console.error('Error creating notification:', notifyError);
         }
       }
     } catch (error) {
       console.error('Error analyzing content:', error);
-      toast.error("No se pudo analizar el contenido. Por favor, intenta nuevamente.");
+      toast.error("No se pudo analizar el contenido");
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const generateImprovedSegments = (analysisText: string, fullTranscription: string) => {
-    if (!onSegmentsGenerated) return;
-    
-    // Extract keywords and topics from analysis
-    const keywordsMatch = analysisText.match(/Keywords: (.*)/i);
-    const keywordsString = keywordsMatch ? keywordsMatch[1] : "";
-    const keywords = keywordsString.split(',').map(k => k.trim()).filter(k => k.length > 0);
-    
-    // Find natural segmentation points in the transcription
-    // More sophisticated segmentation - look for topic changes or natural pauses
-    const segments: RadioNewsSegment[] = [];
-    
-    // Split by clear topic markers like questions or new speakers
-    const possibleSegments = fullTranscription
-      .split(/(?:\?|\.|!)\s+(?=[A-Z¿¡])|(?:[\r\n]{2,})/g)
-      .filter(text => text.trim().length > 50);
-      
-    // If we couldn't find natural segments, fall back to paragraph-based segmentation
-    if (possibleSegments.length <= 1) {
-      const paragraphs = fullTranscription
-        .split(/\n\s*\n/)
-        .filter(p => p.trim().length > 50);
-        
-      if (paragraphs.length > 1) {
-        createSegmentsFromTexts(paragraphs, keywords, segments);
-      } else {
-        // If still no clear paragraphs, divide text into roughly equal segments
-        const textLength = fullTranscription.length;
-        const segmentCount = Math.max(2, Math.min(5, Math.floor(textLength / 300)));
-        const segmentSize = Math.floor(textLength / segmentCount);
-        
-        for (let i = 0; i < segmentCount; i++) {
-          const start = i * segmentSize;
-          const end = (i === segmentCount - 1) ? textLength : (i + 1) * segmentSize;
-          
-          // Find a space to break at
-          let breakPoint = end;
-          while (breakPoint > start && fullTranscription[breakPoint] !== ' ' && breakPoint > start + 100) {
-            breakPoint--;
-          }
-          
-          const segmentText = fullTranscription.substring(start, breakPoint).trim();
-          if (segmentText.length > 50) {
-            const headline = extractHeadline(segmentText);
-            segments.push({
-              headline,
-              text: segmentText,
-              start: i * 60000,
-              end: (i + 1) * 60000,
-              keywords: assignKeywords(keywords, i, segmentCount)
-            });
-          }
-        }
-      }
-    } else {
-      createSegmentsFromTexts(possibleSegments, keywords, segments);
+  const generateImprovedSegments = () => {
+    if ((!transcriptionText && !transcriptionResult) || !onSegmentsGenerated) {
+      toast.error("No hay contenido para generar segmentos");
+      return;
+    }
+
+    if (transcriptionResult) {
+      // Use the full result object for timestamp-aware segmentation
+      generateRadioSegments(transcriptionResult);
+    } else if (transcriptionText) {
+      // Fallback to text-only segmentation
+      generateRadioSegments(transcriptionText);
     }
     
-    if (segments.length > 0) {
-      console.log(`Generated ${segments.length} radio segments based on analysis`);
-      onSegmentsGenerated(segments);
-    } else {
-      // Fallback if no segments could be created
-      onSegmentsGenerated([{
-        headline: "Contenido completo",
-        text: fullTranscription,
-        start: 0,
-        end: 60000,
-        keywords: keywords.slice(0, 5)
-      }]);
-    }
-  };
-  
-  const createSegmentsFromTexts = (texts: string[], keywords: string[], segments: RadioNewsSegment[]) => {
-    texts.forEach((text, index) => {
-      if (text.trim().length > 50) {
-        const headline = extractHeadline(text);
-        segments.push({
-          headline,
-          text,
-          start: index * 60000,
-          end: (index + 1) * 60000,
-          keywords: assignKeywords(keywords, index, texts.length)
-        });
-      }
-    });
-  };
-  
-  const extractHeadline = (text: string): string => {
-    // Try to get first sentence or meaningful phrase
-    const firstSentence = text.split(/[.!?]/, 1)[0];
-    return firstSentence.length > 50 
-      ? firstSentence.substring(0, 47) + '...'
-      : firstSentence;
-  };
-  
-  const assignKeywords = (allKeywords: string[], index: number, total: number): string[] => {
-    if (allKeywords.length === 0) return [];
-    
-    // Distribute keywords among segments, ensuring each gets some
-    const keywordsPerSegment = Math.max(2, Math.min(5, Math.ceil(allKeywords.length / total)));
-    const startIdx = (index * keywordsPerSegment) % allKeywords.length;
-    
-    const segmentKeywords: string[] = [];
-    for (let i = 0; i < keywordsPerSegment; i++) {
-      const keywordIdx = (startIdx + i) % allKeywords.length;
-      segmentKeywords.push(allKeywords[keywordIdx]);
-    }
-    
-    return segmentKeywords;
+    toast.success("Segmentos generados con timestamping mejorado");
   };
 
   return (
-    <Card className="mt-6">
+    <Card>
       <CardHeader className="bg-gradient-to-r from-primary-50 to-transparent">
-        <CardTitle className="text-2xl font-bold text-primary-900">
-          Análisis de Contenido Radial
-        </CardTitle>
+        <CardTitle className="text-xl font-bold">Análisis de Contenido</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 pt-4">
-        <div className="flex justify-end">
-          <Button
+      <CardContent className="space-y-4 p-4">
+        <div className="flex justify-between">
+          <Button 
+            variant="outline" 
             onClick={analyzeContent}
             disabled={isAnalyzing || !transcriptionText}
-            className="w-full sm:w-auto"
           >
             {isAnalyzing ? (
               <>
@@ -232,13 +147,26 @@ const RadioAnalysis = ({ transcriptionText, onSegmentsGenerated }: RadioAnalysis
               'Analizar Contenido'
             )}
           </Button>
+          
+          <Button
+            variant="secondary"
+            onClick={generateImprovedSegments}
+            disabled={isAnalyzing || (!transcriptionText && !transcriptionResult)}
+          >
+            Generar Segmentos con Timestamping
+          </Button>
         </div>
-        <Textarea
-          value={analysis}
-          readOnly
-          className="min-h-[200px] font-mono text-sm"
-          placeholder="El análisis del contenido radial aparecerá aquí..."
-        />
+        
+        {analysis && (
+          <div className="mt-4">
+            <h3 className="text-lg font-medium mb-2">Resultado del Análisis:</h3>
+            <Textarea 
+              className="min-h-[150px] w-full" 
+              value={analysis} 
+              readOnly 
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

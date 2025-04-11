@@ -7,10 +7,12 @@ import RadioAnalysis from "./RadioAnalysis";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import RadioReportButton from "./RadioReportButton";
 import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface RadioTranscriptionSlotProps {
   isProcessing: boolean;
   transcriptionText: string;
+  transcriptionResult?: TranscriptionResult;
   transcriptionId?: string;
   metadata?: {
     emisora?: string;
@@ -35,6 +37,7 @@ interface RadioTranscriptionSlotProps {
 const RadioTranscriptionSlot = ({
   isProcessing,
   transcriptionText,
+  transcriptionResult,
   transcriptionId,
   metadata,
   onTranscriptionChange,
@@ -45,8 +48,14 @@ const RadioTranscriptionSlot = ({
 
   // Check for segment generation when transcription changes
   useEffect(() => {
-    checkAndGenerateSegments(transcriptionText);
-  }, [transcriptionText, checkAndGenerateSegments]);
+    // If we have a full result object, use it for better timestamp accuracy
+    if (transcriptionResult) {
+      checkAndGenerateSegments(transcriptionResult);
+    } else {
+      // Fallback to just text-based segmentation
+      checkAndGenerateSegments(transcriptionText);
+    }
+  }, [transcriptionText, transcriptionResult, checkAndGenerateSegments]);
 
   return (
     <div className="space-y-4 md:space-y-6 h-full w-full">
@@ -71,6 +80,7 @@ const RadioTranscriptionSlot = ({
 
       <RadioAnalysis 
         transcriptionText={transcriptionText} 
+        transcriptionResult={transcriptionResult}
         onSegmentsGenerated={onSegmentsReceived}
       />
     </div>

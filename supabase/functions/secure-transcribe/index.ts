@@ -14,227 +14,127 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting secure transcription process...');
+    console.log('Starting secure-transcribe process...');
     
     const formData = await req.formData();
     const file = formData.get('file');
     const userId = formData.get('userId');
 
-    if (!file || !(file instanceof File)) {
-      console.error('No valid file provided');
-      throw new Error('No file provided');
+    if (!file || !userId) {
+      console.error('Missing required data:', { hasFile: !!file, hasUserId: !!userId });
+      throw new Error('Missing required file or user ID');
     }
 
-    if (!userId) {
-      console.error('No user ID provided');
-      throw new Error('No user ID provided');
-    }
-
-    console.log('Received file:', {
-      name: file.name,
-      type: file.type,
-      size: file.size
-    });
-
-    // Get OpenAI API key
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openaiKey) {
+    console.log('Processing file with OpenAI Whisper API');
+    const openAIKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIKey) {
       console.error('OpenAI API key not found');
       throw new Error('OpenAI API key not configured');
     }
 
-    console.log('OpenAI API key retrieved successfully');
-
-    // Prepare form data for OpenAI Whisper
+    // Create a new FormData for OpenAI
     const whisperFormData = new FormData();
     whisperFormData.append('file', file);
     whisperFormData.append('model', 'whisper-1');
-    whisperFormData.append('response_format', 'json');
     whisperFormData.append('language', 'es');
+    whisperFormData.append('response_format', 'verbose_json');
 
-    console.log('Sending request to OpenAI Whisper...');
-    const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    // Send to OpenAI Whisper
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiKey}`,
+        'Authorization': `Bearer ${openAIKey}`,
       },
       body: whisperFormData,
     });
 
-    if (!whisperResponse.ok) {
-      const errorText = await whisperResponse.text();
-      console.error(`OpenAI API error: ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI API error:', errorText);
       throw new Error(`OpenAI API error: ${errorText}`);
     }
 
-    const whisperResult = await whisperResponse.json();
-    console.log('Whisper transcription completed successfully');
+    const result = await response.json();
+    
+    // Transform segments into word-like format for consistency
+    const segments = result.segments || [];
+    const words = segments.map(segment => ({
+      text: segment.text,
+      start: Math.round(segment.start * 1000), // Convert seconds to ms
+      end: Math.round(segment.end * 1000),     // Convert seconds to ms
+      confidence: segment.confidence
+    }));
 
-    // Initialize AssemblyAI client
-    const assemblyKey = Deno.env.get('ASSEMBLYAI_API_KEY');
-    if (!assemblyKey) {
-      console.error('AssemblyAI API key not found');
-      throw new Error('AssemblyAI API key not configured');
-    }
+    // Calculate audio duration from segments
+    const audioDuration = segments.length > 0 
+      ? segments[segments.length - 1].end 
+      : 0;
 
-    console.log('AssemblyAI API key retrieved successfully');
-
-    const assemblyAiHeaders = {
-      'Authorization': assemblyKey,
-      'Content-Type': 'application/json',
-    };
-
-    // Upload audio to AssemblyAI
-    console.log('Uploading audio to AssemblyAI...');
-    const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
-      method: 'POST',
-      headers: assemblyAiHeaders,
-      body: await file.arrayBuffer(),
-    });
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error('Failed to upload to AssemblyAI:', errorText);
-      throw new Error(`Failed to upload to AssemblyAI: ${errorText}`);
-    }
-
-    const { upload_url } = await uploadResponse.json();
-    console.log('Upload to AssemblyAI successful');
-
-    // Start transcription with all analysis features
-    console.log('Starting AssemblyAI transcription with analysis...');
-    const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
-      method: 'POST',
-      headers: assemblyAiHeaders,
-      body: JSON.stringify({
-        audio_url: upload_url,
-        language_code: 'es',
-        summarization: true,
-        summary_model: 'informative',
-        summary_type: 'bullets',
-        content_safety: true,
-        sentiment_analysis: true,
-        entity_detection: true,
-        iab_categories: true,
-        auto_chapters: true,
-        auto_highlights: true,
-      }),
-    });
-
-    if (!transcribeResponse.ok) {
-      const errorText = await transcribeResponse.text();
-      console.error('Failed to start AssemblyAI transcription:', errorText);
-      throw new Error(`Failed to start AssemblyAI transcription: ${errorText}`);
-    }
-
-    const { id: transcriptId } = await transcribeResponse.json();
-    console.log('AssemblyAI transcription started with ID:', transcriptId);
-
-    // Poll for completion
-    let assemblyResult;
-    let pollCount = 0;
-    const maxPolls = 60;
-    while (pollCount < maxPolls) {
-      console.log(`Polling AssemblyAI (attempt ${pollCount+1}/${maxPolls})...`);
-      const pollingResponse = await fetch(
-        `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
-        { headers: assemblyAiHeaders }
+    // Store the transcription in the database
+    let dbTranscriptionId = null;
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       );
 
-      if (!pollingResponse.ok) {
-        const errorText = await pollingResponse.text();
-        console.error('Polling failed:', errorText);
-        throw new Error(`Polling failed: ${errorText}`);
+      const { data: insertData, error: insertError } = await supabase
+        .from('radio_transcriptions')
+        .insert({
+          user_id: userId,
+          transcription_text: result.text,
+          metadata: {
+            audio_duration: audioDuration,
+            has_segment_timestamps: true,
+            language_code: 'es',
+            model: 'whisper-1',
+            fallback: true
+          }
+        })
+        .select('id')
+        .single();
+
+      if (insertError) {
+        console.error('Error saving to database:', insertError);
+      } else {
+        dbTranscriptionId = insertData.id;
+        console.log('Transcription saved to database with ID:', dbTranscriptionId);
       }
-
-      assemblyResult = await pollingResponse.json();
-      console.log('AssemblyAI status:', assemblyResult.status);
-
-      if (assemblyResult.status === 'completed') {
-        console.log('AssemblyAI transcription completed successfully');
-        break;
-      } else if (assemblyResult.status === 'error') {
-        console.error('AssemblyAI transcription failed:', assemblyResult.error);
-        throw new Error(`AssemblyAI transcription failed: ${assemblyResult.error}`);
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      pollCount++;
+    } catch (dbError) {
+      console.error('Error saving to database:', dbError);
     }
-
-    if (pollCount >= maxPolls) {
-      console.error('AssemblyAI transcription timed out');
-      throw new Error('AssemblyAI transcription timed out');
-    }
-
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    console.log('Saving transcription to database...');
-    // Save transcription and analysis to database
-    const { error: dbError } = await supabase
-      .from('transcriptions')
-      .insert({
-        user_id: userId,
-        transcription_text: whisperResult.text,
-        original_file_path: file.name,
-        status: 'completed',
-        progress: 100,
-        summary: assemblyResult.summary,
-        content_safety_labels: assemblyResult.content_safety_labels,
-        sentiment_analysis_results: assemblyResult.sentiment_analysis_results,
-        entities: assemblyResult.entities,
-        iab_categories_result: assemblyResult.iab_categories_result,
-        chapters: assemblyResult.chapters,
-        auto_highlights_result: assemblyResult.auto_highlights_result,
-      });
-
-    if (dbError) {
-      console.error('Failed to save transcription:', dbError);
-      throw new Error(`Failed to save transcription: ${dbError.message}`);
-    }
-
-    console.log('Transcription saved successfully');
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        text: whisperResult.text,
-        analysis: {
-          summary: assemblyResult.summary,
-          content_safety_labels: assemblyResult.content_safety_labels,
-          sentiment_analysis_results: assemblyResult.sentiment_analysis_results,
-          entities: assemblyResult.entities,
-          iab_categories_result: assemblyResult.iab_categories_result,
-          chapters: assemblyResult.chapters,
-          auto_highlights_result: assemblyResult.auto_highlights_result,
-        },
+      JSON.stringify({ 
+        success: true, 
+        text: result.text,
+        words: words,
+        segments: segments,
+        audio_duration: audioDuration,
+        db_transcription_id: dbTranscriptionId
       }),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
       }
     );
 
   } catch (error) {
     console.error('Error in secure-transcribe function:', error);
     return new Response(
-      JSON.stringify({
-        success: false,
+      JSON.stringify({ 
+        success: false, 
         error: error.message,
-        stack: error.stack
+        details: error.stack
       }),
-      {
+      { 
         status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
       }
     );
   }

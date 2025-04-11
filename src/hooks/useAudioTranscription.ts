@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
-import { transcribeWithAssemblyAI, transcribeWithOpenAI } from "@/services/audio/transcriptionService";
+import { transcribeWithAssemblyAI, transcribeWithOpenAI, fetchSentenceTimestamps, TranscriptionResult } from "@/services/audio/transcriptionService";
 import { verifyAuthentication, validateAudioFile } from "@/utils/authUtils";
 
 interface UploadedFile extends File {
@@ -11,12 +11,15 @@ interface UploadedFile extends File {
 
 export const useAudioTranscription = () => {
   const navigate = useNavigate();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcriptId, setTranscriptId] = useState<string | null>(null);
   
   const processAudioFile = async (
     file: UploadedFile,
-    onTranscriptionComplete?: (text: string) => void
+    onTranscriptionComplete?: (result: TranscriptionResult) => void
   ) => {
     try {
+      setIsProcessing(true);
       // Check authentication first
       const user = await verifyAuthentication();
       
@@ -44,12 +47,32 @@ export const useAudioTranscription = () => {
       // Try primary transcription service (AssemblyAI)
       try {
         const data = await transcribeWithAssemblyAI(formData);
-        onTranscriptionComplete?.(data.text);
+        
+        // Store transcript ID for potential later use
+        if (data?.transcript_id) {
+          setTranscriptId(data.transcript_id);
+        }
+        
+        // If we don't have sentence timestamps yet but we have an ID, fetch them
+        if (data?.transcript_id && (!data.sentences || data.sentences.length === 0)) {
+          try {
+            const sentences = await fetchSentenceTimestamps(data.transcript_id);
+            if (sentences && sentences.length > 0) {
+              data.sentences = sentences;
+            }
+          } catch (sentenceError) {
+            console.error('Error fetching sentences:', sentenceError);
+            // Non-fatal, continue without sentences
+          }
+        }
+        
+        onTranscriptionComplete?.(data);
+        
         toast({
           title: "Transcripción completada",
           description: "El archivo ha sido procesado exitosamente con AssemblyAI",
         });
-        return;
+        return data;
       } catch (assemblyError) {
         console.error('AssemblyAI transcription failed, falling back to OpenAI:', assemblyError);
       }
@@ -57,12 +80,12 @@ export const useAudioTranscription = () => {
       // Fallback to OpenAI Whisper
       try {
         const data = await transcribeWithOpenAI(formData);
-        onTranscriptionComplete?.(data.text);
+        onTranscriptionComplete?.(data);
         toast({
           title: "Transcripción completada",
           description: "El archivo ha sido procesado exitosamente con OpenAI Whisper",
         });
-        return;
+        return data;
       } catch (openaiError) {
         console.error('OpenAI transcription failed:', openaiError);
         throw openaiError;
@@ -81,12 +104,14 @@ export const useAudioTranscription = () => {
         variant: "destructive",
       });
       throw error;
+    } finally {
+      setIsProcessing(false);
     }
   };
   
   const processWithAuth = async (
     file: UploadedFile,
-    onTranscriptionComplete?: (text: string) => void
+    onTranscriptionComplete?: (result: TranscriptionResult) => void
   ) => {
     try {
       await processAudioFile(file, onTranscriptionComplete);
@@ -103,5 +128,11 @@ export const useAudioTranscription = () => {
     }
   };
   
-  return { processWithAuth };
+  const getTranscriptId = () => transcriptId;
+  
+  return { 
+    processWithAuth,
+    isProcessing,
+    getTranscriptId
+  };
 };

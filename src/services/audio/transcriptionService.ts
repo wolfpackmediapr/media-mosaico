@@ -7,6 +7,24 @@ export interface TranscriptionResult {
   content_safety?: any;
   entities?: any;
   topics?: any;
+  words?: WordTimestamp[];
+  sentences?: SentenceTimestamp[];
+  audio_duration?: number;
+}
+
+export interface WordTimestamp {
+  text: string;
+  start: number;
+  end: number;
+  confidence?: number;
+}
+
+export interface SentenceTimestamp {
+  text: string;
+  start: number;
+  end: number;
+  confidence?: number;
+  words?: WordTimestamp[];
 }
 
 /**
@@ -64,4 +82,35 @@ export const transcribeWithOpenAI = async (
   }
   
   throw new Error("No se recibió texto de transcripción de OpenAI");
+};
+
+/**
+ * Fetch sentence-level timestamps from AssemblyAI
+ */
+export const fetchSentenceTimestamps = async (transcriptId: string): Promise<SentenceTimestamp[]> => {
+  try {
+    console.log('Fetching sentence-level timestamps from AssemblyAI...');
+    
+    const { data, error } = await supabase.functions.invoke('fetch-sentences', {
+      body: { transcriptId },
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (error) {
+      console.error('Error fetching sentences:', error);
+      throw error;
+    }
+
+    if (data?.sentences && Array.isArray(data.sentences)) {
+      console.log(`Retrieved ${data.sentences.length} sentences with timestamps`);
+      return data.sentences;
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Failed to fetch sentence timestamps:', error);
+    return [];
+  }
 };
