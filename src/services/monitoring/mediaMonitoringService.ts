@@ -1,5 +1,4 @@
 
-
 import { supabase } from "@/integrations/supabase/client";
 import { createNotification } from "../notifications/unifiedNotificationService";
 import { analyzeMediaContent } from "../notifications/mediaAnalysisService";
@@ -221,7 +220,12 @@ export const analyzeContentForTarget = async (
     }
     
     // Get analysis result
-    const analysisResult = await analyzeMediaContent(contentId);
+    const analysisResult = await analyzeMediaContent({
+      contentId,
+      contentType,
+      title,
+      content
+    });
     
     // Simulate creating a mention record
     const mention = {
@@ -284,7 +288,7 @@ export const runMonitoringScan = async () => {
     // Get recent news articles
     const { data: articlesData, error: articlesError } = await supabase
       .from('news_articles')
-      .select('id, title, description, content')
+      .select('id, title, description')
       .order('created_at', { ascending: false })
       .limit(20);
     
@@ -328,7 +332,7 @@ export const runMonitoringScan = async () => {
         for (const target of targets) {
           try {
             const articleTitle = article.title || "";
-            const articleContent = article.description || article.content || '';
+            const articleContent = article.description || "";
             
             if (!target.id) {
               console.warn('Invalid target found, skipping');
@@ -527,4 +531,3 @@ const getContentTypeDisplay = (contentType: string): string => {
   };
   return map[contentType] || contentType;
 };
-
