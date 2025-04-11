@@ -39,6 +39,7 @@ export const RadioTranscriptionHeader = ({ metadata, onMetadataChange }: RadioTr
     handleStationChange,
     handleProgramChange,
     handleInputChange,
+    handleCategoryChange,
     saveMetadata
   } = useRadioMetadata({ initialMetadata: metadata, onMetadataChange });
 
@@ -108,8 +109,10 @@ export const RadioTranscriptionHeader = ({ metadata, onMetadataChange }: RadioTr
           />
           <AdditionalMetadataFields 
             horario={localMetadata.horario} 
-            categoria={localMetadata.categoria} 
-            onChange={handleInputChange} 
+            categoria={localMetadata.categoria}
+            loading={loading}
+            onChange={handleInputChange}
+            onCategoryChange={handleCategoryChange}
           />
         </div>
       ) : (

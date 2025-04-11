@@ -110,6 +110,13 @@ export const useRadioMetadata = ({ initialMetadata, onMetadataChange }: UseRadio
     }));
   };
 
+  const handleCategoryChange = (category: string) => {
+    setLocalMetadata(prev => ({
+      ...prev,
+      categoria: category
+    }));
+  };
+
   const saveMetadata = () => {
     if (onMetadataChange) {
       onMetadataChange(localMetadata);
@@ -124,6 +131,7 @@ export const useRadioMetadata = ({ initialMetadata, onMetadataChange }: UseRadio
     handleStationChange,
     handleProgramChange,
     handleInputChange,
+    handleCategoryChange,
     saveMetadata
   };
 };

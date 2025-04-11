@@ -2,14 +2,23 @@
 import React from 'react';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { CategorySelector } from './CategorySelector';
 
 interface AdditionalMetadataFieldsProps {
   horario: string;
   categoria: string;
+  loading: boolean;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onCategoryChange: (category: string) => void;
 }
 
-export const AdditionalMetadataFields = ({ horario, categoria, onChange }: AdditionalMetadataFieldsProps) => {
+export const AdditionalMetadataFields = ({ 
+  horario, 
+  categoria, 
+  loading,
+  onChange, 
+  onCategoryChange 
+}: AdditionalMetadataFieldsProps) => {
   return (
     <>
       <div className="space-y-1">
@@ -22,16 +31,11 @@ export const AdditionalMetadataFields = ({ horario, categoria, onChange }: Addit
           placeholder="Ej. 8:00 AM - 10:00 AM"
         />
       </div>
-      <div className="space-y-1">
-        <Label htmlFor="categoria">Categoría</Label>
-        <Input
-          id="categoria"
-          name="categoria"
-          value={categoria}
-          onChange={onChange}
-          placeholder="Noticias, Deportes, etc."
-        />
-      </div>
+      <CategorySelector 
+        categoryValue={categoria}
+        loading={loading}
+        onCategoryChange={onCategoryChange}
+      />
     </>
   );
 };
