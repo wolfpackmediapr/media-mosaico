@@ -1,3 +1,4 @@
+
 import { Database as OriginalDatabase } from './types';
 
 // Extend the original Database type with our custom tables
@@ -248,6 +249,52 @@ export interface CustomDatabase extends OriginalDatabase {
             foreignKeyName: "monitoring_targets_client_id_fkey";
             columns: ["client_id"];
             referencedRelation: "clients";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      target_mentions: {
+        Row: {
+          id: string;
+          target_id: string;
+          content_id: string;
+          content_type: 'news' | 'social' | 'radio' | 'tv' | 'press';
+          matched_keywords: string[];
+          importance: number;
+          analysis_result?: any;
+          read: boolean;
+          archived: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          target_id: string;
+          content_id: string;
+          content_type: 'news' | 'social' | 'radio' | 'tv' | 'press';
+          matched_keywords?: string[];
+          importance?: number;
+          analysis_result?: any;
+          read?: boolean;
+          archived?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          target_id?: string;
+          content_id?: string;
+          content_type?: 'news' | 'social' | 'radio' | 'tv' | 'press';
+          matched_keywords?: string[];
+          importance?: number;
+          analysis_result?: any;
+          read?: boolean;
+          archived?: boolean;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "target_mentions_target_id_fkey";
+            columns: ["target_id"];
+            referencedRelation: "monitoring_targets";
             referencedColumns: ["id"];
           }
         ];

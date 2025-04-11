@@ -5,6 +5,7 @@ import { analyzeMediaContent } from "../notifications/mediaAnalysisService";
 import { MonitoringTarget } from "@/hooks/monitoring/useMediaMonitoring";
 import { fetchCategories } from "@/pages/configuracion/categories/categoriesService";
 import { fetchClients } from "@/services/clients/clientService";
+import { CustomDatabase } from "@/integrations/supabase/schema";
 
 /**
  * Media monitoring system service
@@ -88,10 +89,13 @@ export const getMonitoringTargets = async (): Promise<MonitoringTarget[]> => {
         }
       }
       
-      targetsWithClients.push({
+      // Only spread if target is an object (to fix spread error)
+      const targetWithClient = typeof target === 'object' ? {
         ...target,
         clientName
-      });
+      } : { clientName };
+      
+      targetsWithClients.push(targetWithClient);
     }
     
     return targetsWithClients;
@@ -277,13 +281,16 @@ export const runMonitoringScan = async () => {
     const targets = await getMonitoringTargets();
       
     // Get recent news articles
-    const { data: articles, error: articlesError } = await supabase
+    const { data: articlesData, error: articlesError } = await supabase
       .from('news_articles')
       .select('id, title, description, content')
       .order('created_at', { ascending: false })
       .limit(20);
     
     if (articlesError) throw articlesError;
+    
+    // Check if articlesData is defined before processing
+    const articles = articlesData || [];
       
     const results = {
       processed: 0,
@@ -292,11 +299,11 @@ export const runMonitoringScan = async () => {
     };
     
     // Analyze each article for each target
-    if (articles) {
+    if (articles.length > 0) {
       for (const article of articles) {
         results.processed++;
         
-        // Marcar el artículo como procesado
+        // Mark the article as processed
         const { error: updateError } = await supabase
           .from('news_articles')
           .update({ last_processed: new Date().toISOString() })
@@ -312,7 +319,7 @@ export const runMonitoringScan = async () => {
             const result = await analyzeContentForTarget(
               article.id,
               'news',
-              article.title,
+              article.title || "",
               article.description || article.content || '',
               target.id
             );
@@ -333,17 +340,20 @@ export const runMonitoringScan = async () => {
     
     // Get press clippings if available
     try {
-      const { data: pressClippings, error: pressError } = await supabase
+      const { data: pressClippingsData, error: pressError } = await supabase
         .from('press_clippings')
         .select('id, title, content, publication_name')
         .order('created_at', { ascending: false })
         .limit(10);
       
-      if (!pressError && pressClippings) {
+      // Check if pressClippingsData is defined before processing
+      const pressClippings = pressClippingsData || [];
+      
+      if (!pressError && pressClippings.length > 0) {
         for (const clipping of pressClippings) {
           results.processed++;
           
-          // Marcar el recorte como procesado
+          // Mark the clipping as processed
           await supabase
             .from('press_clippings')
             .update({ updated_at: new Date().toISOString() })
@@ -354,8 +364,8 @@ export const runMonitoringScan = async () => {
               const result = await analyzeContentForTarget(
                 clipping.id,
                 'press',
-                clipping.title,
-                clipping.content,
+                clipping.title || "",
+                clipping.content || "",
                 target.id
               );
               
