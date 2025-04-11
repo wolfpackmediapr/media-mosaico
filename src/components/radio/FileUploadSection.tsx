@@ -1,7 +1,10 @@
+
 import { Dispatch, SetStateAction } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileList from "./AudioFileList";
 import { toast } from "sonner";
+import { useAudioTranscription } from "@/hooks/useAudioTranscription";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -36,6 +39,8 @@ const FileUploadSection = ({
   setTranscriptionId,
   onTranscriptionComplete
 }: FileUploadSectionProps) => {
+  const { processWithAuth } = useAudioTranscription();
+
   const handleFilesAdded = (newFiles: File[]) => {
     const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
     
@@ -51,21 +56,22 @@ const FileUploadSection = ({
       });
       return uploadedFile as UploadedFile;
     });
-    setFiles((prevFiles) => [...prevFiles, ...uploadedFiles]);
+    
+    setFiles([...files, ...uploadedFiles]);
   };
 
   const handleRemoveFile = (index: number) => {
-    setFiles((prevFiles) => {
-      const newFiles = [...prevFiles];
-      if (newFiles[index].preview) {
-        URL.revokeObjectURL(newFiles[index].preview!);
-      }
-      newFiles.splice(index, 1);
-      if (currentFileIndex >= newFiles.length && currentFileIndex > 0) {
-        setCurrentFileIndex(newFiles.length - 1);
-      }
-      return newFiles;
-    });
+    const newFiles = [...files];
+    if (newFiles[index].preview) {
+      URL.revokeObjectURL(newFiles[index].preview!);
+    }
+    newFiles.splice(index, 1);
+    
+    setFiles(newFiles);
+    
+    if (currentFileIndex >= newFiles.length && currentFileIndex > 0) {
+      setCurrentFileIndex(newFiles.length - 1);
+    }
   };
 
   const processFile = async (file: UploadedFile) => {
@@ -75,7 +81,7 @@ const FileUploadSection = ({
     try {
       // Start progress simulation
       const intervalId = setInterval(() => {
-        setProgress(prev => {
+        setProgress((prev) => {
           if (prev >= 95) {
             clearInterval(intervalId);
             return 95;
