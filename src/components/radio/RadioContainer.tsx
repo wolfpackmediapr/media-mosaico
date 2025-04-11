@@ -103,6 +103,7 @@ const RadioContainer = () => {
     </>
   );
 
+  // Transcription section - now will be rendered as full width
   const rightSection = (
     <RadioTranscriptionSlot
       isProcessing={isProcessing}

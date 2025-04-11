@@ -59,7 +59,7 @@ const RadioTranscriptionSlot = ({
   }, [transcriptionText, transcriptionResult, checkAndGenerateSegments]);
 
   return (
-    <div className="space-y-4 md:space-y-6 h-full w-full">
+    <div className="space-y-4 md:space-y-6 w-full">
       <Card className="overflow-hidden w-full">
         <RadioTranscriptionMetadata metadata={metadata} onMetadataChange={onMetadataChange} />
         <CardContent className="p-4 space-y-4">
@@ -80,8 +80,6 @@ const RadioTranscriptionSlot = ({
           </div>
         </CardContent>
       </Card>
-      
-      {/* RadioAnalysis component removed from here as it's already rendered in RadioContainer */}
     </div>
   );
 };

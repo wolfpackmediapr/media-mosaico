@@ -28,16 +28,21 @@ const RadioLayout = ({
 
   return (
     <div className="w-full space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* First row - Controls section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Left section with file upload and media controls */}
         <div className="space-y-4 w-full">
           {leftSection}
         </div>
-        <div className="w-full">
-          {rightSection}
-        </div>
+        {/* Media controls will be on the right side on larger screens */}
+      </div>
+      
+      {/* Second row - Transcription section (full width) */}
+      <div className="w-full">
+        {rightSection}
       </div>
 
-      {/* Analysis section now full width - moved outside the grid */}
+      {/* Analysis section (already full width) */}
       {analysisSection}
 
       {/* News segments section if available */}
