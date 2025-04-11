@@ -1,14 +1,16 @@
 
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { Copy, CheckCheck, Edit, Check, Clock } from "lucide-react";
 import RadioTimestampedTranscription from "./RadioTimestampedTranscription";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import TranscriptionModeToggle from "./editor/TranscriptionModeToggle";
+import CopyTextButton from "./editor/CopyTextButton";
+import StatusIndicator from "./editor/StatusIndicator";
+import TranscriptionTextArea from "./editor/TranscriptionTextArea";
+import TranscriptionFeedback from "./editor/TranscriptionFeedback";
 
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
@@ -28,7 +30,6 @@ const RadioTranscriptionEditor = ({
   onTimestampClick
 }: RadioTranscriptionEditorProps) => {
   const { toast } = useToast();
-  const [isCopied, setIsCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showTimestamps, setShowTimestamps] = useState(false);
   
@@ -99,29 +100,6 @@ const RadioTranscriptionEditor = ({
     }
   };
 
-  const handleCopyText = async () => {
-    try {
-      await navigator.clipboard.writeText(localText);
-      setIsCopied(true);
-      toast({
-        title: "Texto copiado",
-        description: "El texto ha sido copiado al portapapeles",
-      });
-      
-      // Reset the copied state after 2 seconds
-      setTimeout(() => {
-        setIsCopied(false);
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to copy text:', error);
-      toast({
-        title: "Error al copiar",
-        description: "No se pudo copiar el texto. Intente de nuevo.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const toggleEditMode = () => {
     setIsEditing(!isEditing);
     // Focus the textarea when entering edit mode
@@ -156,78 +134,32 @@ const RadioTranscriptionEditor = ({
           onTimestampClick={onTimestampClick}
         />
       ) : (
-        <Textarea
-          placeholder="Aquí aparecerá el texto transcrito..."
-          className={`min-h-[200px] resize-y pr-12 ${isEditing ? 'border-primary' : ''} focus:border-primary focus-visible:ring-1`}
-          value={localText}
+        <TranscriptionTextArea
+          text={localText}
+          isProcessing={isProcessing}
+          isEditing={isEditing}
           onChange={handleTextChange}
-          readOnly={isProcessing || !isEditing}
           onClick={() => !isEditing && toggleEditMode()}
         />
       )}
       <div className="absolute top-2 right-2 flex flex-col gap-2">
-        {hasTimestampData && (
-          <Button
-            type="button"
-            size="icon"
-            variant={showTimestamps ? "default" : "ghost"}
-            onClick={toggleTimestampView}
-            disabled={isProcessing}
-            className={`hover:bg-primary/10 transition-colors ${showTimestamps ? 'text-white bg-primary' : ''}`}
-            aria-label={showTimestamps ? "Vista normal" : "Vista con timestamps"}
-            title={showTimestamps ? "Vista normal" : "Vista con timestamps"}
-          >
-            <Clock className="h-4 w-4" />
-          </Button>
-        )}
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={toggleEditMode}
-          disabled={isProcessing || showTimestamps}
-          className="hover:bg-primary/10 transition-colors"
-          aria-label={isEditing ? "Finalizar edición" : "Editar texto"}
-          title={isEditing ? "Finalizar edición" : "Editar texto"}
-        >
-          {isEditing ? (
-            <Check className="h-4 w-4 text-green-500" />
-          ) : (
-            <Edit className={`h-4 w-4 ${isEditing ? 'text-primary' : ''}`} />
-          )}
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={handleCopyText}
-          disabled={!localText || isProcessing}
-          className="hover:bg-primary/10 transition-colors"
-          aria-label="Copiar texto"
-          title="Copiar texto"
-        >
-          {isCopied ? (
-            <CheckCheck className="h-4 w-4 text-green-500" />
-          ) : (
-            <Copy className="h-4 w-4" />
-          )}
-        </Button>
-        {isSaving && (
-          <span className="text-xs text-primary animate-pulse whitespace-nowrap">
-            Guardando...
-          </span>
-        )}
+        <TranscriptionModeToggle
+          showTimestamps={showTimestamps}
+          isEditing={isEditing}
+          hasTimestampData={hasTimestampData}
+          isProcessing={isProcessing}
+          toggleTimestampView={toggleTimestampView}
+          toggleEditMode={toggleEditMode}
+        />
+        <CopyTextButton text={localText} isProcessing={isProcessing} />
+        <StatusIndicator isSaving={isSaving} />
       </div>
-      {!localText && !isProcessing && (
-        <p className="text-sm text-muted-foreground mt-2">
-          Procese un archivo de audio para ver la transcripción aquí. Podrá editar el texto una vez transcrito.
-        </p>
-      )}
-      {showTimestamps && !hasTimestampData && (
-        <p className="text-sm text-yellow-500 mt-2">
-          No hay datos de timestamps disponibles para esta transcripción.
-        </p>
-      )}
+      <TranscriptionFeedback
+        isEmpty={!localText}
+        isProcessing={isProcessing}
+        showTimestamps={showTimestamps}
+        hasTimestampData={hasTimestampData}
+      />
     </div>
   );
 };

@@ -1,18 +1,18 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import { createNotification } from "@/services/notifications/unifiedNotificationService";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
+import AnalysisActions from "./analysis/AnalysisActions";
+import AnalysisResult from "./analysis/AnalysisResult";
 
 interface RadioAnalysisProps {
   transcriptionText?: string;
-  transcriptionId?: string; // Added this prop to match what's being passed in RadioContainer
+  transcriptionId?: string;
   transcriptionResult?: TranscriptionResult;
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
 }
@@ -133,43 +133,16 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
         <CardTitle className="text-xl font-bold">Análisis de Contenido</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
-        <div className="flex justify-between">
-          <Button 
-            className="bg-black text-white hover:bg-black/90"
-            variant="default"
-            onClick={analyzeContent}
-            disabled={isAnalyzing || !transcriptionText}
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analizando...
-              </>
-            ) : (
-              'Analizar Contenido'
-            )}
-          </Button>
-          
-          <Button
-            variant="default"
-            className="bg-black text-white hover:bg-black/90"
-            onClick={generateImprovedSegments}
-            disabled={isAnalyzing || (!transcriptionText && !transcriptionResult)}
-          >
-            Generar Segmentos con Timestamping
-          </Button>
-        </div>
+        <AnalysisActions
+          isAnalyzing={isAnalyzing}
+          hasTranscriptionText={!!transcriptionText}
+          onAnalyzeContent={analyzeContent}
+          showSegmentGeneration={true}
+          canGenerateSegments={!!(transcriptionText || transcriptionResult)}
+          onGenerateSegments={generateImprovedSegments}
+        />
         
-        {analysis && (
-          <div className="mt-4">
-            <h3 className="text-lg font-medium mb-2">Resultado del Análisis:</h3>
-            <Textarea 
-              className="min-h-[150px] w-full" 
-              value={analysis} 
-              readOnly 
-            />
-          </div>
-        )}
+        <AnalysisResult analysis={analysis} />
       </CardContent>
     </Card>
   );
