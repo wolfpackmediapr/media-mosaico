@@ -3,9 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useEffect } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
-import RadioAnalysis from "./RadioAnalysis";
-import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import RadioReportButton from "./RadioReportButton";
+import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
@@ -77,12 +76,8 @@ const RadioTranscriptionSlot = ({
           </div>
         </CardContent>
       </Card>
-
-      <RadioAnalysis 
-        transcriptionText={transcriptionText} 
-        transcriptionResult={transcriptionResult}
-        onSegmentsGenerated={onSegmentsReceived}
-      />
+      
+      {/* RadioAnalysis component removed from here as it's already rendered in RadioContainer */}
     </div>
   );
 };
