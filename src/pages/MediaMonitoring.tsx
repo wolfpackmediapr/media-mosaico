@@ -3,14 +3,28 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MediaMonitoringProcess } from "@/components/monitoring/MediaMonitoringProcess";
-import MonitoringHeader from "@/components/monitoring/MonitoringHeader";
-import ProcessingJobsTable from "@/components/monitoring/ProcessingJobsTable";
-import DeliveryLogsTable from "@/components/monitoring/DeliveryLogsTable";
 import { MediaMonitoringDashboard } from "@/components/monitoring/MediaMonitoringDashboard";
 import { MonitoringTargetsManager } from "@/components/monitoring/MonitoringTargetsManager";
+import ProcessingJobsTable from "@/components/monitoring/ProcessingJobsTable";
+import DeliveryLogsTable from "@/components/monitoring/DeliveryLogsTable";
+import { useNotificationProcessing } from "@/hooks/use-notification-processing";
 
 export default function MediaMonitoring() {
   const [activeTab, setActiveTab] = useState("overview");
+  
+  const {
+    jobs,
+    jobsCount,
+    isLoadingJobs,
+    deliveryLogs,
+    deliveryLogsCount,
+    isLoadingDeliveryLogs,
+    activeFilter,
+    setActiveFilter,
+    page,
+    setPage,
+    pageSize
+  } = useNotificationProcessing();
 
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -47,7 +61,16 @@ export default function MediaMonitoring() {
                 <CardDescription>Estado de los análisis de contenido y procesamiento de notificaciones</CardDescription>
               </CardHeader>
               <CardContent>
-                <ProcessingJobsTable />
+                <ProcessingJobsTable 
+                  jobs={jobs}
+                  jobsCount={jobsCount}
+                  isLoadingJobs={isLoadingJobs}
+                  activeFilter={activeFilter}
+                  setActiveFilter={setActiveFilter}
+                  page={page}
+                  setPage={setPage}
+                  pageSize={pageSize}
+                />
               </CardContent>
             </Card>
             
@@ -57,7 +80,14 @@ export default function MediaMonitoring() {
                 <CardDescription>Estado de entrega de notificaciones a clientes</CardDescription>
               </CardHeader>
               <CardContent>
-                <DeliveryLogsTable />
+                <DeliveryLogsTable 
+                  deliveryLogs={deliveryLogs}
+                  deliveryLogsCount={deliveryLogsCount}
+                  isLoadingDeliveryLogs={isLoadingDeliveryLogs}
+                  page={page}
+                  setPage={setPage}
+                  pageSize={pageSize}
+                />
               </CardContent>
             </Card>
           </TabsContent>

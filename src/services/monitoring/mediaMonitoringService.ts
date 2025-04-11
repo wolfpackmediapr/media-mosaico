@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { createNotification } from "../notifications/unifiedNotificationService";
 import { analyzeMediaContent } from "../notifications/mediaAnalysisService";
+import { MonitoringTarget } from "@/hooks/monitoring/useMediaMonitoring";
 
 /**
  * Media monitoring system service
@@ -13,15 +14,6 @@ import { analyzeMediaContent } from "../notifications/mediaAnalysisService";
  * 5. Identify Trends
  * 6. Take Action
  */
-
-interface MonitoringTarget {
-  id: string;
-  name: string;
-  type: 'client' | 'topic' | 'brand';
-  keywords: string[];
-  categories?: string[];
-  importance?: number;
-}
 
 interface MonitoringSummary {
   totalMentions: number;
@@ -41,7 +33,7 @@ async function ensureTablesExist() {
 /**
  * Creates a new monitoring target for a client, brand, or topic
  */
-export const createMonitoringTarget = async (target: Omit<MonitoringTarget, 'id'>) => {
+export const createMonitoringTarget = async (target: Omit<MonitoringTarget, 'id' | 'created_at' | 'updated_at'>) => {
   try {
     await ensureTablesExist();
     
@@ -65,7 +57,7 @@ export const createMonitoringTarget = async (target: Omit<MonitoringTarget, 'id'
 /**
  * Gets all monitoring targets
  */
-export const getMonitoringTargets = async () => {
+export const getMonitoringTargets = async (): Promise<MonitoringTarget[]> => {
   try {
     await ensureTablesExist();
     
@@ -112,7 +104,7 @@ export const analyzeContentForTarget = async (
     const target = {
       id: targetId,
       name: "Simulated Target",
-      type: "client",
+      type: "client" as const,
       keywords: ["proyecto", "desarrollo", "tecnología"],
       client_id: "client-123"
     };
@@ -282,6 +274,12 @@ export const getMonitoringSummary = async (targetId?: string): Promise<Monitorin
       .map(([keyword, count]) => ({ keyword, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
+      
+    // Sample client impact data
+    summary.clientImpact = [
+      { clientId: "client-1", clientName: "Empresa ABC", mentionCount: 3 },
+      { clientId: "client-2", clientName: "Cliente XYZ", mentionCount: 2 }
+    ];
     
     return summary;
   } catch (error) {

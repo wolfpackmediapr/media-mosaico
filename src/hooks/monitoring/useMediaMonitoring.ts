@@ -15,7 +15,7 @@ export interface MonitoringTarget {
   id: string;
   name: string;
   type: 'client' | 'topic' | 'brand';
-  keywords: string[];
+  keywords?: string[];
   categories?: string[];
   importance?: number;
   created_at: string;
