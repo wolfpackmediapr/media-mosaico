@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,11 +13,12 @@ import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator
 
 interface RadioAnalysisProps {
   transcriptionText?: string;
+  transcriptionId?: string; // Added this prop to match what's being passed in RadioContainer
   transcriptionResult?: TranscriptionResult;
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
 }
 
-const RadioAnalysis = ({ transcriptionText, transcriptionResult, onSegmentsGenerated }: RadioAnalysisProps) => {
+const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult, onSegmentsGenerated }: RadioAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState("");
   const { generateRadioSegments } = useRadioSegmentGenerator(onSegmentsGenerated);
@@ -32,7 +34,7 @@ const RadioAnalysis = ({ transcriptionText, transcriptionResult, onSegmentsGener
       const { data, error } = await supabase.functions.invoke('analyze-radio-content', {
         body: { 
           transcriptionText,
-          transcriptId: transcriptionResult?.transcript_id || null
+          transcriptId: transcriptionId || null
         }
       });
 
