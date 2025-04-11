@@ -19,7 +19,7 @@ interface FileUploadSectionProps {
   setFiles: (files: UploadedFile[]) => void;
   setCurrentFileIndex: (index: number) => void;
   setIsProcessing: (isProcessing: boolean) => void;
-  setProgress: (progress: number) => void;
+  setProgress: Dispatch<SetStateAction<number>>;  // Update to the correct type
   setTranscriptionText: (text: string) => void;
   setTranscriptionId?: (id?: string) => void;
   onTranscriptionComplete?: (result: TranscriptionResult) => void;
