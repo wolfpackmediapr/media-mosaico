@@ -53,12 +53,29 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
   });
 
   useEffect(() => {
-    if (!file) return;
+    // If no file provided or the file is invalid, return early
+    if (!file || !(file instanceof File)) {
+      console.log("No valid file provided to audio player");
+      return;
+    }
 
+    let objectUrl: string | null = null;
+    
     // Create a blob URL from the file
     try {
-      const objectUrl = URL.createObjectURL(file);
-      const audio = new Audio(objectUrl);
+      // Validate the file before creating the URL
+      if (file.size === 0) {
+        throw new Error("File is empty");
+      }
+      
+      // Create the object URL with proper error handling
+      objectUrl = URL.createObjectURL(file);
+      if (!objectUrl) {
+        throw new Error("Failed to create object URL");
+      }
+      
+      const audio = new Audio();
+      audio.src = objectUrl;
       
       setMediaElement(audio);
       
@@ -92,6 +109,17 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
         updatePlayingState(false);
       };
       
+      // Add error handling for audio loading errors
+      audio.onerror = (e) => {
+        console.error("Audio loading error:", e);
+        toast.error("Error loading audio file");
+        
+        // Clean up the object URL on error
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+      
       audio.volume = volume[0] / 100;
       audio.muted = isMuted;
       audio.playbackRate = playbackRate;
@@ -100,11 +128,19 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
       
       return () => {
         audio.pause();
-        URL.revokeObjectURL(objectUrl);
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
       };
     } catch (error) {
       console.error("Error creating audio element:", error);
       toast.error("Error loading audio file");
+      
+      // Clean up the object URL if it was created
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+      return () => {};
     }
   }, [file, onTimeUpdate, onDurationChange, updateTime, updatePlayingState]);
 
