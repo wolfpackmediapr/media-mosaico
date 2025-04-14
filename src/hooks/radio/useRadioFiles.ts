@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { usePersistentState } from '@/hooks/use-persistent-state';
+import { toast } from "sonner";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -36,33 +37,51 @@ export function useRadioFiles() {
     setFiles([]);
     
     // Don't try to process empty metadata
-    if (fileMetadata.length === 0) return;
+    if (!fileMetadata || fileMetadata.length === 0) {
+      console.log('No file metadata found in session storage');
+      return;
+    }
     
     console.log('Loading files from metadata:', fileMetadata);
     
-    // For each metadata entry, create a placeholder File-like object
     try {
+      // For each metadata entry, create a placeholder File-like object
       const placeholderFiles = fileMetadata.map(meta => {
-        // Create a File-like object with essential properties
-        // This is a simplified representation since we can't fully reconstruct a File object
-        const placeholderFile = new File(
-          // Use an empty array buffer as content
-          [new Blob(['placeholder content'])], 
-          meta.name, 
-          { 
-            type: meta.type || 'audio/mpeg', // Default to audio/mpeg if type is missing
-            lastModified: meta.lastModified 
-          }
-        );
+        if (!meta || !meta.name) {
+          console.error('Invalid metadata entry:', meta);
+          throw new Error('Invalid metadata entry');
+        }
         
-        // Add the ID property
-        Object.defineProperty(placeholderFile, 'id', {
-          value: meta.id,
-          writable: true,
-          enumerable: true
+        console.log('Creating placeholder for file:', meta.name);
+        
+        // Create a small placeholder content blob
+        const placeholderContent = new Blob(['audio placeholder content'], { 
+          type: meta.type || 'audio/mpeg'
         });
         
-        return placeholderFile as UploadedFile;
+        try {
+          // Create a File-like object with essential properties
+          const placeholderFile = new File(
+            [placeholderContent], 
+            meta.name, 
+            { 
+              type: meta.type || 'audio/mpeg',
+              lastModified: meta.lastModified 
+            }
+          );
+          
+          // Add the ID property
+          Object.defineProperty(placeholderFile, 'id', {
+            value: meta.id,
+            writable: true,
+            enumerable: true
+          });
+          
+          return placeholderFile as UploadedFile;
+        } catch (fileError) {
+          console.error('Error creating placeholder file:', fileError);
+          throw fileError;
+        }
       });
       
       setFiles(placeholderFiles);
@@ -71,6 +90,7 @@ export function useRadioFiles() {
       console.error('Error reconstructing files from metadata:', error);
       // Clear metadata if there's an error to prevent future issues
       setFileMetadata([]);
+      toast.error("Error recuperando archivos de la sesión anterior");
     }
   }, [fileMetadata, setFileMetadata]);
   
@@ -109,6 +129,12 @@ export function useRadioFiles() {
         return;
       }
       
+      if (file.size === 0) {
+        console.error('File has zero size, skipping:', file.name);
+        toast.error(`El archivo ${file.name} está vacío`);
+        return;
+      }
+      
       const id = `file-${uuidv4()}`;
       
       // Create enhanced File object with ID
@@ -127,6 +153,11 @@ export function useRadioFiles() {
       });
     });
     
+    if (filesWithIds.length === 0) {
+      console.log('No valid files to add after validation');
+      return;
+    }
+    
     // Log what's being added
     console.log('Adding files with IDs:', filesWithIds);
     console.log('Adding metadata:', newMetadata);
@@ -136,9 +167,19 @@ export function useRadioFiles() {
     
     // Update metadata for persistence
     setFileMetadata(prev => [...prev, ...newMetadata]);
+    
+    // Update current file index to point to the first new file if no files existed before
+    if (files.length === 0 && filesWithIds.length > 0) {
+      setCurrentFileIndex(0);
+    }
   };
   
   const handleRemoveFile = (index: number) => {
+    if (index < 0 || index >= files.length) {
+      console.error('Invalid file index to remove:', index);
+      return;
+    }
+    
     // Remove file from array
     setFiles(prev => {
       const newFiles = [...prev];

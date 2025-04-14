@@ -1,26 +1,37 @@
 
-import React from 'react';
 import { Button } from "@/components/ui/button";
-import { ProcessButtonProps } from './types';
 
-export const ProcessButton: React.FC<ProcessButtonProps> = ({
-  isProcessing,
-  processingComplete,
-  progress,
-  onProcess
-}) => {
+interface ProcessButtonProps {
+  isProcessing: boolean;
+  processingComplete: boolean;
+  progress: number;
+  onProcess: () => void;
+  disabled?: boolean;
+}
+
+const ProcessButton = ({ 
+  isProcessing, 
+  processingComplete, 
+  progress, 
+  onProcess,
+  disabled = false
+}: ProcessButtonProps) => {
   const getButtonText = () => {
-    if (!isProcessing && !processingComplete) return "Procesar Transcripción";
-    if (processingComplete) return "Procesamiento completado";
-    return `Procesando: ${progress}%`;
+    if (isProcessing) {
+      return `Procesando: ${Math.round(progress)}%`;
+    }
+    
+    return processingComplete 
+      ? "Transcripción completada"
+      : "Procesar transcripción";
   };
-
+  
   return (
     <Button
-      className="w-full relative"
       onClick={onProcess}
-      disabled={isProcessing || processingComplete}
+      disabled={isProcessing || processingComplete || disabled}
       variant={processingComplete ? "secondary" : "default"}
+      className="w-full"
     >
       {getButtonText()}
     </Button>

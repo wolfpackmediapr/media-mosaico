@@ -23,12 +23,22 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   const audioRef = useRef<HTMLAudioElement>(null);
   const { processWithAuth } = useAudioTranscription();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioLoadError, setAudioLoadError] = useState<boolean>(false);
 
   // Enhanced file validation
   const isValidAudioFile = (fileToValidate: File): boolean => {
-    // This is a more lenient validation that only checks if it's a File object with size
-    // We don't strictly check the MIME type as it may be incorrectly detected
-    return fileToValidate instanceof File && fileToValidate.size > 0;
+    if (!fileToValidate || !(fileToValidate instanceof File)) {
+      console.error('Invalid file object provided:', fileToValidate);
+      return false;
+    }
+
+    if (fileToValidate.size === 0) {
+      console.error('File has zero size:', fileToValidate.name);
+      return false;
+    }
+
+    // Consider all non-empty files as potentially valid
+    return true;
   };
 
   // Create audio URL when component mounts or file changes
@@ -39,30 +49,26 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
       setAudioUrl(null);
     }
     
-    // Only create a new URL if we have a valid audio file
+    setAudioLoadError(false);
+    
+    // Only create a new URL if we have a valid file
     if (file && isValidAudioFile(file)) {
       try {
+        console.log('Creating object URL for file:', file.name, file.type, file.size);
         const url = URL.createObjectURL(file);
         setAudioUrl(url);
       } catch (error) {
         console.error('Error creating object URL:', error);
+        setAudioLoadError(true);
         toast.error("No se pudo crear la vista previa del audio");
       }
     } else if (file) {
-      console.warn('Potentially invalid file provided, but trying to use it anyway:', {
+      console.warn('Invalid file provided:', {
         name: file.name,
         size: file.size,
         type: file.type || 'unknown'
       });
-      
-      try {
-        // Try to create URL even if type validation failed
-        const url = URL.createObjectURL(file);
-        setAudioUrl(url);
-      } catch (error) {
-        console.error('Failed to create URL for possibly invalid file:', error);
-        toast.error("No se pudo crear la vista previa del audio");
-      }
+      setAudioLoadError(true);
     }
     
     // Cleanup on unmount
@@ -75,6 +81,11 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
 
   const handleProcess = async () => {
     if (isProcessing || processingComplete) return;
+    
+    if (!file || !isValidAudioFile(file)) {
+      toast.error("El archivo no es válido o está vacío");
+      return;
+    }
     
     try {
       if (setIsProcessing) setIsProcessing(true);
@@ -126,12 +137,19 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   };
 
   const handleTogglePlayer = () => {
+    if (audioLoadError) {
+      toast.error("No se puede reproducir el archivo de audio");
+      return;
+    }
+    
     setShowPlayer(!showPlayer);
     
     // If showing the player and we have an audio reference, play it
-    if (!showPlayer && audioRef.current) {
+    if (!showPlayer && audioRef.current && audioUrl) {
       audioRef.current.play().catch(error => {
         console.error('Error playing audio:', error);
+        toast.error("Error reproduciendo el audio");
+        setAudioLoadError(true);
       });
     }
   };
@@ -147,14 +165,25 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         />
       </div>
       
-      {showPlayer && audioUrl && (
+      {showPlayer && audioUrl && !audioLoadError && (
         <div className="px-3 pb-3">
           <audio 
             ref={audioRef}
             controls
             src={audioUrl} 
-            className="w-full" 
+            className="w-full"
+            onError={(e) => {
+              console.error('Audio element error:', e);
+              setAudioLoadError(true);
+              toast.error("Error cargando el archivo de audio");
+            }}
           />
+        </div>
+      )}
+      
+      {audioLoadError && showPlayer && (
+        <div className="px-3 pb-3 text-center text-destructive">
+          No se puede reproducir este archivo de audio
         </div>
       )}
       
@@ -169,6 +198,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
           processingComplete={processingComplete} 
           progress={progress}
           onProcess={handleProcess}
+          disabled={audioLoadError}
         />
       </div>
     </div>
