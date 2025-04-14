@@ -1,33 +1,59 @@
 
 import { useState } from "react";
-import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
-export const useRadioTranscription = () => {
+export function useRadioTranscription() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [transcriptionText, setTranscriptionText] = useState("");
-  const [transcriptionId, setTranscriptionId] = useState<string>();
-  const [transcriptionResult, setTranscriptionResult] = useState<TranscriptionResult>();
-  const [newsSegments, setNewsSegments] = useState<RadioNewsSegment[]>([]);
-  const [metadata, setMetadata] = useState<{
+  
+  const [transcriptionText, setTranscriptionText] = usePersistentState<string>(
+    'radio-transcription-text', 
+    '',
+    { storage: 'sessionStorage' }
+  );
+  
+  const [transcriptionId, setTranscriptionId] = usePersistentState<string>(
+    'radio-transcription-id',
+    '',
+    { storage: 'sessionStorage' }
+  );
+  
+  // Store the full transcription result object
+  const [transcriptionResult, setTranscriptionResult] = usePersistentState<TranscriptionResult | undefined>(
+    'radio-transcription-result',
+    undefined,
+    { storage: 'sessionStorage' }
+  );
+  
+  // Store metadata
+  const [metadata, setMetadata] = usePersistentState<{
     emisora?: string;
     programa?: string;
     horario?: string;
     categoria?: string;
     station_id?: string;
     program_id?: string;
-  }>({});
+  }>(
+    'radio-metadata',
+    {},
+    { storage: 'sessionStorage' }
+  );
+  
+  // Store news segments
+  const [newsSegments, setNewsSegments] = usePersistentState<RadioNewsSegment[]>(
+    'radio-news-segments',
+    [],
+    { storage: 'sessionStorage' }
+  );
 
-  const handleTranscriptionChange = (newText: string) => {
-    setTranscriptionText(newText);
+  const handleTranscriptionChange = (text: string) => {
+    setTranscriptionText(text);
   };
 
   const handleSegmentsReceived = (segments: RadioNewsSegment[]) => {
-    console.log("Received segments:", segments.length);
-    if (segments && segments.length > 0) {
-      setNewsSegments(segments);
-    }
+    setNewsSegments(segments);
   };
 
   const handleMetadataChange = (newMetadata: {
@@ -42,9 +68,8 @@ export const useRadioTranscription = () => {
   };
 
   const handleTranscriptionReceived = (result: TranscriptionResult) => {
-    setTranscriptionText(result.text || "");
+    setTranscriptionText(result.text);
     setTranscriptionResult(result);
-    setTranscriptionId(result.transcript_id);
   };
 
   return {
@@ -57,7 +82,6 @@ export const useRadioTranscription = () => {
     transcriptionId,
     setTranscriptionId,
     transcriptionResult,
-    setTranscriptionResult,
     metadata,
     newsSegments,
     setNewsSegments,
@@ -66,4 +90,4 @@ export const useRadioTranscription = () => {
     handleMetadataChange,
     handleTranscriptionReceived
   };
-};
+}
