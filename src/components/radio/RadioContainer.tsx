@@ -47,10 +47,12 @@ const RadioContainer = () => {
     return () => {
       clearFiles();
     };
-  }, []);
+  }, [clearFiles]);
 
   // Only initialize audio player if we have a valid current file
-  const audioPlayerProps = currentFile ? { file: currentFile } : { file: undefined };
+  // We explicitly check if currentFile is a valid File with size > 0
+  const hasValidFile = currentFile instanceof File && currentFile.size > 0;
+  const audioPlayerProps = hasValidFile ? { file: currentFile } : { file: undefined };
   
   const {
     isPlaying,

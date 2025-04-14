@@ -22,6 +22,33 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   const [processingComplete, setProcessingComplete] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { processWithAuth } = useAudioTranscription();
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  // Create audio URL when component mounts or file changes
+  React.useEffect(() => {
+    // Clean up previous URL if it exists
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    
+    // Only create a new URL if we have a valid File object
+    if (file && file instanceof File && file.size > 0) {
+      try {
+        const url = URL.createObjectURL(file);
+        setAudioUrl(url);
+      } catch (error) {
+        console.error('Error creating object URL:', error);
+      }
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [file]);
 
   const handleProcess = async () => {
     if (isProcessing || processingComplete) return;
@@ -97,12 +124,12 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         />
       </div>
       
-      {showPlayer && (
+      {showPlayer && audioUrl && (
         <div className="px-3 pb-3">
           <audio 
             ref={audioRef}
             controls
-            src={file.preview || URL.createObjectURL(file)} 
+            src={audioUrl} 
             className="w-full" 
           />
         </div>

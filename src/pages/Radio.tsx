@@ -19,6 +19,22 @@ const Radio = () => {
       try {
         // We'll use the cleanup flag to ensure we only clean up once per session
         setHasCleanedUp();
+        
+        // Clear any old entries in session storage related to radio
+        const keysToRemove = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && key.startsWith('radio-')) {
+            keysToRemove.push(key);
+          }
+        }
+        
+        // Remove the keys in a separate loop to avoid issues with changing sessionStorage during iteration
+        keysToRemove.forEach(key => {
+          sessionStorage.removeItem(key);
+        });
+        
+        console.log('Radio session cleaned up successfully');
       } catch (error) {
         console.error("Error cleaning up radio session:", error);
       }

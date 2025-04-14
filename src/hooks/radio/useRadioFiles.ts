@@ -38,24 +38,37 @@ export function useRadioFiles() {
     // Don't try to process empty metadata
     if (fileMetadata.length === 0) return;
     
-    // For each metadata entry, create a preview placeholder
-    const placeholderFiles = fileMetadata.map(meta => {
-      // Create a minimal File-like object with essential properties
-      const placeholderFile = {
-        name: meta.name,
-        size: meta.size,
-        type: meta.type,
-        lastModified: meta.lastModified,
-        id: meta.id,
-        // This will be a placeholder until the user interacts with the file
-        preview: undefined
-      } as UploadedFile;
+    // For each metadata entry, create a placeholder File-like object
+    try {
+      const placeholderFiles = fileMetadata.map(meta => {
+        // Create a File-like object with essential properties
+        // This is a simplified representation since we can't fully reconstruct a File object
+        const placeholderFile = new File(
+          // Use an empty array buffer as content - we'll need to upload the real file again
+          [new Blob([])], 
+          meta.name, 
+          { 
+            type: meta.type,
+            lastModified: meta.lastModified 
+          }
+        );
+        
+        // Add the ID property
+        Object.defineProperty(placeholderFile, 'id', {
+          value: meta.id,
+          writable: true
+        });
+        
+        return placeholderFile as UploadedFile;
+      });
       
-      return placeholderFile;
-    });
-    
-    setFiles(placeholderFiles);
-  }, [fileMetadata]);
+      setFiles(placeholderFiles);
+    } catch (error) {
+      console.error('Error reconstructing files from metadata:', error);
+      // Clear metadata if there's an error to prevent future issues
+      setFileMetadata([]);
+    }
+  }, [fileMetadata, setFileMetadata]);
   
   // Update currentFile based on currentFileIndex
   useEffect(() => {
@@ -68,7 +81,13 @@ export function useRadioFiles() {
 
   // Add new files
   const addFiles = (newFiles: File[]) => {
-    const filesWithPreviews: UploadedFile[] = [];
+    // Validate that we have actual File objects
+    if (!newFiles || !Array.isArray(newFiles) || newFiles.length === 0) {
+      console.error('Invalid files array provided to addFiles');
+      return;
+    }
+    
+    const filesWithIds: UploadedFile[] = [];
     const newMetadata: Array<{
       id: string;
       name: string;
@@ -78,25 +97,19 @@ export function useRadioFiles() {
     }> = [];
     
     newFiles.forEach(file => {
-      const id = `file-${uuidv4()}`;
-      
-      // Create URL preview
-      let preview: string | undefined;
-      try {
-        preview = URL.createObjectURL(file);
-      } catch (error) {
-        console.error('Error creating object URL:', error);
-        preview = undefined;
+      // Validate this is a real File object
+      if (!(file instanceof File)) {
+        console.error('Invalid file object:', file);
+        return;
       }
       
-      // Create File with preview
-      const uploadedFile = {
-        ...file,
-        id,
-        preview
-      } as UploadedFile;
+      const id = `file-${uuidv4()}`;
       
-      filesWithPreviews.push(uploadedFile);
+      // Create enhanced File object with ID
+      const uploadedFile = file as UploadedFile;
+      uploadedFile.id = id;
+      
+      filesWithIds.push(uploadedFile);
       
       // Save metadata
       newMetadata.push({
@@ -109,22 +122,13 @@ export function useRadioFiles() {
     });
     
     // Update files state
-    setFiles(prev => [...prev, ...filesWithPreviews]);
+    setFiles(prev => [...prev, ...filesWithIds]);
     
     // Update metadata for persistence
     setFileMetadata(prev => [...prev, ...newMetadata]);
   };
   
   const handleRemoveFile = (index: number) => {
-    // Revoke URL if it exists
-    if (files[index]?.preview) {
-      try {
-        URL.revokeObjectURL(files[index].preview!);
-      } catch (error) {
-        console.error('Error revoking object URL:', error);
-      }
-    }
-    
     // Remove file from array
     setFiles(prev => {
       const newFiles = [...prev];
@@ -151,20 +155,8 @@ export function useRadioFiles() {
     }
   };
 
-  // Clear all files (useful when navigating away)
+  // Clear all files
   const clearFiles = () => {
-    // Revoke all object URLs
-    files.forEach(file => {
-      if (file.preview) {
-        try {
-          URL.revokeObjectURL(file.preview);
-        } catch (error) {
-          console.error('Error revoking object URL:', error);
-        }
-      }
-    });
-    
-    // Clear states
     setFiles([]);
     setFileMetadata([]);
     setCurrentFileIndex(0);
