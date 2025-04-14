@@ -3,11 +3,13 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useMediaStatePersistence } from "@/hooks/use-media-state-persistence";
 import { v4 as uuidv4 } from "uuid";
+import { useAudioSource } from "./useAudioSource";
 
 export function useAudioElement(
   file?: File, 
   onTimeUpdate?: (time: number) => void,
-  onDurationChange?: (duration: number) => void
+  onDurationChange?: (duration: number) => void,
+  onError?: (error: string) => void
 ) {
   // Generate a stable ID for this audio instance
   const audioIdRef = useRef<string>(file ? `audio-${file.name}-${uuidv4()}` : "audio-empty");
@@ -15,6 +17,14 @@ export function useAudioElement(
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  
+  // Use our audio source hook to handle the file
+  const { audioSource, isValid, url } = useAudioSource(file, { 
+    onError: (error) => {
+      toast.error(error);
+      if (onError) onError(error);
+    }
+  });
   
   // Use our media state persistence
   const { 
@@ -34,29 +44,15 @@ export function useAudioElement(
   });
 
   useEffect(() => {
-    // If no file provided or the file is invalid, return early
-    if (!file || !(file instanceof File)) {
-      console.log("No valid file provided to audio player");
+    // If we don't have a valid audio source, return early
+    if (!isValid || !url) {
+      console.log("No valid audio source available");
       return;
     }
 
-    let objectUrl: string | null = null;
-    
-    // Create a blob URL from the file
     try {
-      // Validate the file before creating the URL
-      if (file.size === 0) {
-        throw new Error("File is empty");
-      }
-      
-      // Create the object URL with proper error handling
-      objectUrl = URL.createObjectURL(file);
-      if (!objectUrl) {
-        throw new Error("Failed to create object URL");
-      }
-      
       const audio = new Audio();
-      audio.src = objectUrl;
+      audio.src = url;
       
       setMediaElement(audio);
       
@@ -94,32 +90,22 @@ export function useAudioElement(
       audio.onerror = (e) => {
         console.error("Audio loading error:", e);
         toast.error("Error loading audio file");
-        
-        // Clean up the object URL on error
-        if (objectUrl) {
-          URL.revokeObjectURL(objectUrl);
-        }
+        if (onError) onError("Error loading audio file");
       };
       
       setAudioElement(audio);
       
       return () => {
         audio.pause();
-        if (objectUrl) {
-          URL.revokeObjectURL(objectUrl);
-        }
+        // No need to revoke object URL here as it's handled by useAudioSource
       };
     } catch (error) {
       console.error("Error creating audio element:", error);
       toast.error("Error loading audio file");
-      
-      // Clean up the object URL if it was created
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      if (onError) onError("Error creating audio element");
       return () => {};
     }
-  }, [file, onTimeUpdate, onDurationChange, updateTime, updatePlayingState]);
+  }, [url, isValid, onTimeUpdate, onDurationChange, updateTime, updatePlayingState]);
 
   // Handle other players becoming active
   useEffect(() => {
@@ -134,6 +120,7 @@ export function useAudioElement(
     isPlaying,
     currentTime,
     duration,
-    setIsPlaying
+    setIsPlaying,
+    isValid: isValid && !!audioElement
   };
 }

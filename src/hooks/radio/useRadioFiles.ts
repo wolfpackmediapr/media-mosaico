@@ -7,6 +7,8 @@ import { toast } from "sonner";
 interface UploadedFile extends File {
   preview?: string;
   id?: string;
+  needsReupload?: boolean;
+  isValid?: boolean;
 }
 
 export function useRadioFiles() {
@@ -22,6 +24,7 @@ export function useRadioFiles() {
     size: number;
     type: string;
     lastModified: number;
+    needsReupload?: boolean;
   }>>(
     'radio-files-metadata',
     [],
@@ -65,9 +68,10 @@ export function useRadioFiles() {
             lastModified: meta.lastModified
           });
           
-          // Add the id property
+          // Add the id property and needsReupload flag
           const uploadedFile = file as UploadedFile;
           uploadedFile.id = meta.id;
+          uploadedFile.needsReupload = meta.needsReupload || false;
           
           return uploadedFile;
         } catch (fileError) {
@@ -89,7 +93,16 @@ export function useRadioFiles() {
   // Update currentFile based on currentFileIndex
   useEffect(() => {
     if (files.length > 0 && currentFileIndex < files.length) {
-      setCurrentFile(files[currentFileIndex]);
+      const selectedFile = files[currentFileIndex];
+      
+      // If file needs reupload, show a toast
+      if (selectedFile.needsReupload) {
+        toast.error(`El archivo ${selectedFile.name} necesita ser subido de nuevo`, {
+          description: "Los archivos no persisten después de recargar la página"
+        });
+      }
+      
+      setCurrentFile(selectedFile);
     } else {
       setCurrentFile(undefined);
     }
@@ -112,6 +125,7 @@ export function useRadioFiles() {
       size: number;
       type: string;
       lastModified: number;
+      needsReupload?: boolean;
     }> = [];
     
     newFiles.forEach(file => {
@@ -132,6 +146,8 @@ export function useRadioFiles() {
       // Create enhanced File object with ID
       const uploadedFile = file as UploadedFile;
       uploadedFile.id = id;
+      uploadedFile.isValid = true; // Assume valid until proven otherwise
+      uploadedFile.needsReupload = false;
       
       filesWithIds.push(uploadedFile);
       
@@ -141,7 +157,8 @@ export function useRadioFiles() {
         name: file.name,
         size: file.size,
         type: file.type || 'audio/mpeg', // Default to audio/mpeg if type is missing
-        lastModified: file.lastModified
+        lastModified: file.lastModified,
+        needsReupload: false
       });
     });
     
@@ -160,6 +177,33 @@ export function useRadioFiles() {
     if (files.length === 0 && filesWithIds.length > 0) {
       setCurrentFileIndex(0);
     }
+  };
+  
+  const markFileAsNeedsReupload = (index: number) => {
+    if (index < 0 || index >= files.length) {
+      console.error('Invalid file index:', index);
+      return;
+    }
+    
+    // Update files array
+    setFiles(prev => {
+      const newFiles = [...prev];
+      newFiles[index] = {
+        ...newFiles[index],
+        needsReupload: true
+      };
+      return newFiles;
+    });
+    
+    // Update metadata
+    setFileMetadata(prev => {
+      const newMetadata = [...prev];
+      newMetadata[index] = {
+        ...newMetadata[index],
+        needsReupload: true
+      };
+      return newMetadata;
+    });
   };
   
   const handleRemoveFile = (index: number) => {
@@ -208,6 +252,7 @@ export function useRadioFiles() {
     setCurrentFileIndex,
     currentFile,
     handleRemoveFile,
+    markFileAsNeedsReupload,
     clearFiles
   };
 }

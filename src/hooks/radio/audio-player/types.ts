@@ -3,6 +3,7 @@ export interface AudioPlayerOptions {
   file?: File;
   onTimeUpdate?: (time: number) => void;
   onDurationChange?: (duration: number) => void;
+  onError?: (error: string) => void;
 }
 
 export interface AudioPlayerState {

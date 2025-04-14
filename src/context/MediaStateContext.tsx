@@ -11,6 +11,8 @@ interface MediaState {
   isPlaying: boolean;
   src?: string;
   fileName?: string;
+  sourceType?: "blob" | "remote" | null;
+  needsReupload?: boolean;
 }
 
 interface MediaStateContextType {
@@ -40,18 +42,54 @@ interface MediaStateProviderProps {
 const STORAGE_KEY = "media-state";
 const DEBOUNCE_DELAY = 1000;
 
+function sanitizeMediaState(state: Record<string, MediaState>): Record<string, MediaState> {
+  const sanitized = {...state};
+  
+  Object.keys(sanitized).forEach(key => {
+    const item = sanitized[key];
+    
+    if (item.src && item.src.startsWith('blob:')) {
+      sanitized[key] = {
+        ...item,
+        src: undefined,
+        sourceType: null,
+        needsReupload: true
+      };
+    }
+  });
+  
+  return sanitized;
+}
+
 export function MediaStateProvider({ children }: MediaStateProviderProps) {
   const [mediaStates, setMediaStates] = useState<Record<string, MediaState>>({});
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null);
   const mediaStatesRef = useRef<Record<string, MediaState>>({});
   const debouncedMediaStates = useDebounce(mediaStates, DEBOUNCE_DELAY);
 
-  // Load media states from sessionStorage on mount
   useEffect(() => {
     try {
       const storedStates = sessionStorage.getItem(STORAGE_KEY);
       if (storedStates) {
         const parsedStates = JSON.parse(storedStates);
+        
+        Object.keys(parsedStates).forEach(key => {
+          const item = parsedStates[key];
+          
+          if (item.needsReupload) {
+            console.log(`Media item ${key} needs reupload`);
+          }
+          
+          if (item.src && item.src.startsWith('blob:')) {
+            parsedStates[key] = {
+              ...item,
+              src: undefined,
+              sourceType: null,
+              needsReupload: true
+            };
+          }
+        });
+        
         setMediaStates(parsedStates);
         mediaStatesRef.current = parsedStates;
       }
@@ -60,22 +98,21 @@ export function MediaStateProvider({ children }: MediaStateProviderProps) {
     }
   }, []);
 
-  // Save media states to sessionStorage when they change (debounced)
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(debouncedMediaStates));
+      const sanitizedStates = sanitizeMediaState(debouncedMediaStates);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizedStates));
     } catch (error) {
       console.error("Error saving media states to sessionStorage:", error);
     }
   }, [debouncedMediaStates]);
 
-  // Handle visibility change to save state when user leaves the page
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         try {
-          // Use the ref to get the most up-to-date state
-          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(mediaStatesRef.current));
+          const sanitizedStates = sanitizeMediaState(mediaStatesRef.current);
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizedStates));
         } catch (error) {
           console.error("Error saving media states on visibility change:", error);
         }
@@ -91,12 +128,10 @@ export function MediaStateProvider({ children }: MediaStateProviderProps) {
 
   const registerMedia = (mediaId: string, mediaType: "video" | "audio") => {
     setMediaStates(prevStates => {
-      // If this media already exists in our state, use it
       if (prevStates[mediaId]) {
         return prevStates;
       }
 
-      // Otherwise create a new entry
       const newState = {
         ...prevStates,
         [mediaId]: {
@@ -104,9 +139,11 @@ export function MediaStateProvider({ children }: MediaStateProviderProps) {
           type: mediaType,
           currentTime: 0,
           duration: 0,
-          volume: mediaType === "video" ? 50 : 50, // Default volumes
+          volume: mediaType === "video" ? 50 : 50,
           playbackRate: 1,
           isPlaying: false,
+          sourceType: null,
+          needsReupload: false
         }
       };
       mediaStatesRef.current = newState;
@@ -127,11 +164,18 @@ export function MediaStateProvider({ children }: MediaStateProviderProps) {
     setMediaStates(prevStates => {
       if (!prevStates[id]) return prevStates;
 
+      let sourceType = prevStates[id].sourceType;
+      if (state.src) {
+        sourceType = state.src.startsWith('blob:') ? 'blob' : 'remote';
+      }
+
       const newState = {
         ...prevStates,
         [id]: {
           ...prevStates[id],
-          ...state
+          ...state,
+          sourceType,
+          needsReupload: state.src ? false : prevStates[id].needsReupload
         }
       };
       mediaStatesRef.current = newState;

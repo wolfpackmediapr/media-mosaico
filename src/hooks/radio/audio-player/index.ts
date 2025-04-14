@@ -10,7 +10,8 @@ import { useMediaStatePersistence } from "@/hooks/use-media-state-persistence";
 export function useAudioPlayer({ 
   file, 
   onTimeUpdate, 
-  onDurationChange 
+  onDurationChange,
+  onError
 }: AudioPlayerOptions = {}) {
   // Generate a reference to the audio ID for persistence
   const audioIdRef = useRef<string>(file ? `audio-${file.name}` : "audio-empty");
@@ -21,14 +22,15 @@ export function useAudioPlayer({
     fileName: file?.name
   });
   
-  // Handle audio element creation and lifecycle
+  // Handle audio element creation and lifecycle with improved error handling
   const {
     audioElement,
     isPlaying,
     currentTime,
     duration,
-    setIsPlaying
-  } = useAudioElement(file, onTimeUpdate, onDurationChange);
+    setIsPlaying,
+    isValid
+  } = useAudioElement(file, onTimeUpdate, onDurationChange, onError);
   
   // Handle audio settings like volume and playback rate
   const {
@@ -65,6 +67,7 @@ export function useAudioPlayer({
     volume,
     isMuted,
     playbackRate,
+    isValid,
     handlePlayPause,
     handleSeek,
     handleSkip,
