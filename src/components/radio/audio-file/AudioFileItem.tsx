@@ -26,9 +26,9 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
 
   // Enhanced file validation
   const isValidAudioFile = (fileToValidate: File): boolean => {
-    return fileToValidate instanceof File && 
-           fileToValidate.size > 0 && 
-           fileToValidate.type.startsWith('audio/');
+    // This is a more lenient validation that only checks if it's a File object with size
+    // We don't strictly check the MIME type as it may be incorrectly detected
+    return fileToValidate instanceof File && fileToValidate.size > 0;
   };
 
   // Create audio URL when component mounts or file changes
@@ -48,9 +48,21 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         console.error('Error creating object URL:', error);
         toast.error("No se pudo crear la vista previa del audio");
       }
-    } else {
-      console.warn('Invalid audio file provided');
-      toast.warning("El archivo de audio no es válido");
+    } else if (file) {
+      console.warn('Potentially invalid file provided, but trying to use it anyway:', {
+        name: file.name,
+        size: file.size,
+        type: file.type || 'unknown'
+      });
+      
+      try {
+        // Try to create URL even if type validation failed
+        const url = URL.createObjectURL(file);
+        setAudioUrl(url);
+      } catch (error) {
+        console.error('Failed to create URL for possibly invalid file:', error);
+        toast.error("No se pudo crear la vista previa del audio");
+      }
     }
     
     // Cleanup on unmount

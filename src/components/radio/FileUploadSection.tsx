@@ -45,34 +45,30 @@ const FileUploadSection = ({
   const { processWithAuth } = useAudioTranscription();
 
   const handleFilesAdded = (newFiles: File[]) => {
-    // Filter out invalid files
+    // Filter out files with zero size
     const validFiles = newFiles.filter(file => {
-      // Check if file is audio
-      if (!file.type.startsWith('audio/')) {
-        return false;
-      }
-      
-      // Check if file is not empty
+      // Skip empty files
       if (file.size === 0) {
         toast.error(`El archivo ${file.name} está vacío`);
         return false;
       }
       
+      console.log(`File received: ${file.name}, type: ${file.type || 'unknown'}, size: ${file.size}`);
+      
+      // Accept any file that has size > 0 (we'll try to play it later)
       return true;
     });
     
     if (validFiles.length === 0) {
       if (newFiles.length > 0) {
-        toast.warning('Se omitieron los archivos que no son de audio válidos');
+        toast.warning('No se encontraron archivos válidos');
       }
       return;
     }
     
-    if (validFiles.length < newFiles.length) {
-      toast.warning('Se omitieron algunos archivos que no son de audio');
-    }
-    
+    // Accept all valid files
     setFiles(validFiles);
+    toast.success(`${validFiles.length} archivo(s) añadido(s)`);
   };
 
   const processFile = async (file: UploadedFile) => {
@@ -143,7 +139,7 @@ const FileUploadSection = ({
           const files = Array.from(e.target.files || []);
           handleFilesAdded(files);
         }}
-        accept="audio/*"
+        accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
         message="Arrastra y suelta archivos de audio o haz clic para seleccionarlos"
       />
       

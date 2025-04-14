@@ -38,17 +38,19 @@ export function useRadioFiles() {
     // Don't try to process empty metadata
     if (fileMetadata.length === 0) return;
     
+    console.log('Loading files from metadata:', fileMetadata);
+    
     // For each metadata entry, create a placeholder File-like object
     try {
       const placeholderFiles = fileMetadata.map(meta => {
         // Create a File-like object with essential properties
         // This is a simplified representation since we can't fully reconstruct a File object
         const placeholderFile = new File(
-          // Use an empty array buffer as content - we'll need to upload the real file again
-          [new Blob([])], 
+          // Use an empty array buffer as content
+          [new Blob(['placeholder content'])], 
           meta.name, 
           { 
-            type: meta.type,
+            type: meta.type || 'audio/mpeg', // Default to audio/mpeg if type is missing
             lastModified: meta.lastModified 
           }
         );
@@ -56,13 +58,15 @@ export function useRadioFiles() {
         // Add the ID property
         Object.defineProperty(placeholderFile, 'id', {
           value: meta.id,
-          writable: true
+          writable: true,
+          enumerable: true
         });
         
         return placeholderFile as UploadedFile;
       });
       
       setFiles(placeholderFiles);
+      console.log('Placeholder files created:', placeholderFiles);
     } catch (error) {
       console.error('Error reconstructing files from metadata:', error);
       // Clear metadata if there's an error to prevent future issues
@@ -86,6 +90,8 @@ export function useRadioFiles() {
       console.error('Invalid files array provided to addFiles');
       return;
     }
+    
+    console.log('Adding files:', newFiles);
     
     const filesWithIds: UploadedFile[] = [];
     const newMetadata: Array<{
@@ -116,10 +122,14 @@ export function useRadioFiles() {
         id,
         name: file.name,
         size: file.size,
-        type: file.type,
+        type: file.type || 'audio/mpeg', // Default to audio/mpeg if type is missing
         lastModified: file.lastModified
       });
     });
+    
+    // Log what's being added
+    console.log('Adding files with IDs:', filesWithIds);
+    console.log('Adding metadata:', newMetadata);
     
     // Update files state
     setFiles(prev => [...prev, ...filesWithIds]);
