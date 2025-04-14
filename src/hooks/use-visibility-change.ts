@@ -1,28 +1,25 @@
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
-type VisibilityChangeHandler = {
-  onHidden?: () => void;
+interface VisibilityChangeOptions {
   onVisible?: () => void;
-};
+  onHidden?: () => void;
+}
 
-/**
- * Hook to handle document visibility changes
- */
-export function useVisibilityChange({ onHidden, onVisible }: VisibilityChangeHandler) {
+export const useVisibilityChange = (options: VisibilityChangeOptions = {}) => {
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        onHidden?.();
-      } else if (document.visibilityState === 'visible') {
-        onVisible?.();
+      if (document.visibilityState === "visible") {
+        options.onVisible?.();
+      } else if (document.visibilityState === "hidden") {
+        options.onHidden?.();
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [onHidden, onVisible]);
-}
+  }, [options]);
+};
