@@ -7,6 +7,7 @@ import { useAudioTranscription } from '@/hooks/useAudioTranscription';
 import { AudioFileItemProps } from './types';
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { useAudioSource } from '@/hooks/radio/audio-player/useAudioSource';
 
 const AudioFileItem: React.FC<AudioFileItemProps> = ({
   file,
@@ -23,100 +24,19 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   const [processingComplete, setProcessingComplete] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { processWithAuth } = useAudioTranscription();
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioLoadError, setAudioLoadError] = useState<boolean>(false);
   const [loadingAudio, setLoadingAudio] = useState<boolean>(false);
 
-  // Enhanced file validation - allow all files that have size
-  const isValidAudioFile = (fileToValidate: File): boolean => {
-    if (!fileToValidate || !(fileToValidate instanceof File)) {
-      console.error('Invalid file object provided:', fileToValidate);
-      return false;
+  // Use our audio source hook for better file handling
+  const { audioSource, isValid, url } = useAudioSource(file, {
+    onError: (error) => {
+      toast.error(error);
     }
-
-    if (fileToValidate.size === 0) {
-      console.error('File has zero size:', fileToValidate.name);
-      return false;
-    }
-
-    // Consider all non-empty files as potentially valid
-    return true;
-  };
-
-  // Create audio URL when component mounts or file changes
-  useEffect(() => {
-    // Clean up previous URL if it exists
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-    }
-    
-    setAudioLoadError(false);
-    setLoadingAudio(true);
-    
-    // Only create a new URL if we have a valid file
-    if (file && isValidAudioFile(file)) {
-      try {
-        console.log('Creating object URL for file:', file.name, file.type, file.size);
-        const url = URL.createObjectURL(file);
-        setAudioUrl(url);
-        
-        // Test if the audio is actually playable
-        const audio = new Audio();
-        
-        // Add a timeout to detect if audio is taking too long to load
-        const timeoutId = setTimeout(() => {
-          console.warn('Audio loading timeout:', file.name);
-          setLoadingAudio(false);
-        }, 5000);
-        
-        audio.addEventListener('canplaythrough', () => {
-          clearTimeout(timeoutId);
-          setLoadingAudio(false);
-          console.log('Audio can play through successfully');
-        });
-        
-        audio.addEventListener('error', (e) => {
-          clearTimeout(timeoutId);
-          console.error('Error in test audio loading:', e);
-          setAudioLoadError(true);
-          setLoadingAudio(false);
-          URL.revokeObjectURL(url);
-          setAudioUrl(null);
-          toast.error("No se puede reproducir el archivo de audio", {
-            description: "El formato puede no ser compatible"
-          });
-        });
-        
-        audio.src = url;
-      } catch (error) {
-        console.error('Error creating object URL:', error);
-        setAudioLoadError(true);
-        setLoadingAudio(false);
-        toast.error("No se pudo crear la vista previa del audio");
-      }
-    } else if (file) {
-      console.warn('Invalid file provided:', {
-        name: file.name,
-        size: file.size,
-        type: file.type || 'unknown'
-      });
-      setAudioLoadError(true);
-      setLoadingAudio(false);
-    }
-    
-    // Cleanup on unmount
-    return () => {
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    };
-  }, [file]);
+  });
 
   const handleProcess = async () => {
     if (isProcessing || processingComplete) return;
     
-    if (!file || !isValidAudioFile(file)) {
+    if (!file || !isValid) {
       toast.error("El archivo no es válido o está vacío");
       return;
     }
@@ -174,7 +94,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   };
 
   const handleTogglePlayer = () => {
-    if (audioLoadError) {
+    if (!isValid) {
       toast.error("No se puede reproducir el archivo de audio", {
         description: "Intente con otro formato o archivo"
       });
@@ -187,15 +107,6 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
     }
     
     setShowPlayer(!showPlayer);
-    
-    // If showing the player and we have an audio reference, play it
-    if (!showPlayer && audioRef.current && audioUrl) {
-      audioRef.current.play().catch(error => {
-        console.error('Error playing audio:', error);
-        toast.error("Error reproduciendo el audio");
-        setAudioLoadError(true);
-      });
-    }
   };
 
   return (
@@ -207,7 +118,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
           onRemove={onRemove}
           onTogglePlayer={handleTogglePlayer}
           isLoading={loadingAudio}
-          isInvalid={audioLoadError}
+          isInvalid={!isValid}
         />
       </div>
       
@@ -218,23 +129,25 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         </div>
       )}
       
-      {showPlayer && audioUrl && !audioLoadError && !loadingAudio && (
+      {showPlayer && url && isValid && (
         <div className="px-3 pb-3">
           <audio 
             ref={audioRef}
             controls
-            src={audioUrl} 
+            src={url} 
             className="w-full"
+            onLoadStart={() => setLoadingAudio(true)}
+            onCanPlay={() => setLoadingAudio(false)}
             onError={(e) => {
               console.error('Audio element error:', e);
-              setAudioLoadError(true);
+              setLoadingAudio(false);
               toast.error("Error cargando el archivo de audio");
             }}
           />
         </div>
       )}
       
-      {audioLoadError && showPlayer && (
+      {!isValid && showPlayer && (
         <div className="px-3 pb-3 text-center text-destructive">
           No se puede reproducir este archivo de audio
         </div>
@@ -251,7 +164,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
           processingComplete={processingComplete} 
           progress={progress}
           onProcess={handleProcess}
-          disabled={audioLoadError}
+          disabled={!isValid}
         />
       </div>
     </div>

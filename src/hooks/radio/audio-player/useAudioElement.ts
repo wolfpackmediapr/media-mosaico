@@ -53,6 +53,7 @@ export function useAudioElement(
     try {
       const audio = new Audio();
       audio.src = url;
+      audio.preload = "metadata";
       
       setMediaElement(audio);
       

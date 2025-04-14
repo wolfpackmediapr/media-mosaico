@@ -72,35 +72,10 @@ export function useAudioSource(file?: File, options?: UseAudioSourceOptions) {
         isValid: true,
       });
       
-      // Test the audio to ensure it's actually playable
-      const testAudio = new Audio();
+      // Less strict validation - just check if blob URL was created successfully
+      // Don't use Audio element test as it might be too restrictive on certain browsers
+      console.log(`Created object URL for file: ${file.name}, size: ${file.size}, type: ${file.type || 'unknown'}`);
       
-      const errorHandler = () => {
-        console.error('Error loading audio file in test:', file.name);
-        URL.revokeObjectURL(objectUrl);
-        setAudioSource(prev => ({
-          ...prev,
-          isValid: false
-        }));
-        options?.onError?.('Error loading audio file');
-      };
-      
-      testAudio.addEventListener('error', errorHandler);
-      
-      // Add a timeout to detect if audio is taking too long to load
-      const timeoutId = setTimeout(() => {
-        if (!testAudio.readyState) {
-          errorHandler();
-          testAudio.src = '';
-          clearTimeout(timeoutId);
-        }
-      }, 5000);
-      
-      testAudio.addEventListener('canplaythrough', () => {
-        clearTimeout(timeoutId);
-      });
-      
-      testAudio.src = objectUrl;
     } catch (error) {
       console.error('Error creating object URL:', error);
       options?.onError?.('Error creating audio preview');

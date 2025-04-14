@@ -44,21 +44,6 @@ const FileUploadSection = ({
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
 
-  // Basic validation: ensure file exists and has size
-  const validateAudioFile = (file: File): boolean => {
-    if (!file || !(file instanceof File)) {
-      console.error('Invalid file provided to validateAudioFile:', file);
-      return false;
-    }
-    
-    if (file.size === 0) {
-      console.error('File has zero size:', file.name);
-      return false;
-    }
-    
-    return true;
-  };
-
   const handleFilesAdded = (newFiles: File[]) => {
     if (!newFiles || newFiles.length === 0) {
       console.log('No files received in handleFilesAdded');
@@ -70,11 +55,15 @@ const FileUploadSection = ({
       console.log(`File received: ${file.name}, type: ${file.type || 'unknown'}, size: ${file.size}`);
     });
     
-    // Filter out files with zero size or invalid types
+    // Accept any non-empty file - we'll handle validation in the components that use the file
     const validFiles = newFiles.filter(file => {
-      // Skip empty files
-      if (!validateAudioFile(file)) {
-        toast.error(`El archivo ${file.name} no es válido o está vacío`);
+      if (!file || !(file instanceof File)) {
+        toast.error(`El archivo no es válido`);
+        return false;
+      }
+      
+      if (file.size === 0) {
+        toast.error(`El archivo ${file.name} está vacío`);
         return false;
       }
       
@@ -82,9 +71,7 @@ const FileUploadSection = ({
     });
     
     if (validFiles.length === 0) {
-      if (newFiles.length > 0) {
-        toast.warning('No se encontraron archivos válidos');
-      }
+      toast.warning('No se encontraron archivos válidos');
       return;
     }
     
@@ -96,7 +83,7 @@ const FileUploadSection = ({
   };
 
   const processFile = async (file: UploadedFile) => {
-    if (!validateAudioFile(file)) {
+    if (!file || file.size === 0) {
       toast.error("Archivo inválido o vacío");
       return;
     }
