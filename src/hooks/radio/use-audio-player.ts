@@ -55,50 +55,57 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
   useEffect(() => {
     if (!file) return;
 
-    const audio = new Audio(URL.createObjectURL(file));
-    
-    setMediaElement(audio);
-    
-    audio.onloadedmetadata = () => {
-      setDuration(audio.duration);
-      if (onDurationChange) {
-        onDurationChange(audio.duration);
-      }
-    };
-    
-    audio.ontimeupdate = () => {
-      setCurrentTime(audio.currentTime);
-      updateTime(audio.currentTime, audio.duration);
-      if (onTimeUpdate) {
-        onTimeUpdate(audio.currentTime);
-      }
-    };
-    
-    audio.onended = () => {
-      setIsPlaying(false);
-      updatePlayingState(false);
-    };
-    
-    audio.onplay = () => {
-      setIsPlaying(true);
-      updatePlayingState(true);
-    };
-    
-    audio.onpause = () => {
-      setIsPlaying(false);
-      updatePlayingState(false);
-    };
-    
-    audio.volume = volume[0] / 100;
-    audio.muted = isMuted;
-    audio.playbackRate = playbackRate;
-    
-    setAudioElement(audio);
-    
-    return () => {
-      audio.pause();
-      URL.revokeObjectURL(audio.src);
-    };
+    // Create a blob URL from the file
+    try {
+      const objectUrl = URL.createObjectURL(file);
+      const audio = new Audio(objectUrl);
+      
+      setMediaElement(audio);
+      
+      audio.onloadedmetadata = () => {
+        setDuration(audio.duration);
+        if (onDurationChange) {
+          onDurationChange(audio.duration);
+        }
+      };
+      
+      audio.ontimeupdate = () => {
+        setCurrentTime(audio.currentTime);
+        updateTime(audio.currentTime, audio.duration);
+        if (onTimeUpdate) {
+          onTimeUpdate(audio.currentTime);
+        }
+      };
+      
+      audio.onended = () => {
+        setIsPlaying(false);
+        updatePlayingState(false);
+      };
+      
+      audio.onplay = () => {
+        setIsPlaying(true);
+        updatePlayingState(true);
+      };
+      
+      audio.onpause = () => {
+        setIsPlaying(false);
+        updatePlayingState(false);
+      };
+      
+      audio.volume = volume[0] / 100;
+      audio.muted = isMuted;
+      audio.playbackRate = playbackRate;
+      
+      setAudioElement(audio);
+      
+      return () => {
+        audio.pause();
+        URL.revokeObjectURL(objectUrl);
+      };
+    } catch (error) {
+      console.error("Error creating audio element:", error);
+      toast.error("Error loading audio file");
+    }
   }, [file, onTimeUpdate, onDurationChange, updateTime, updatePlayingState]);
 
   // Update volume in player when it changes in context
