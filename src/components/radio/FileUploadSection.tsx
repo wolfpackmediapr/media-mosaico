@@ -65,11 +65,13 @@ const FileUploadSection = ({
       return;
     }
     
+    // Log info about all files for debugging
+    newFiles.forEach(file => {
+      console.log(`File received: ${file.name}, type: ${file.type || 'unknown'}, size: ${file.size}`);
+    });
+    
     // Filter out files with zero size or invalid types
     const validFiles = newFiles.filter(file => {
-      // Log info about the file for debugging
-      console.log(`File received: ${file.name}, type: ${file.type || 'unknown'}, size: ${file.size}`);
-      
       // Skip empty files
       if (!validateAudioFile(file)) {
         toast.error(`El archivo ${file.name} no es válido o está vacío`);
@@ -85,6 +87,8 @@ const FileUploadSection = ({
       }
       return;
     }
+    
+    console.log('Valid files to add:', validFiles.map(f => f.name).join(', '));
     
     // Accept all valid files
     setFiles(validFiles);

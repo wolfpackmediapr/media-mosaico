@@ -72,10 +72,10 @@ export function useAudioSource(file?: File, options?: UseAudioSourceOptions) {
         isValid: true,
       });
       
-      // Add a test to validate the audio can actually be loaded
+      // Test the audio to ensure it's actually playable
       const testAudio = new Audio();
       
-      testAudio.addEventListener('error', () => {
+      const errorHandler = () => {
         console.error('Error loading audio file in test:', file.name);
         URL.revokeObjectURL(objectUrl);
         setAudioSource(prev => ({
@@ -83,6 +83,21 @@ export function useAudioSource(file?: File, options?: UseAudioSourceOptions) {
           isValid: false
         }));
         options?.onError?.('Error loading audio file');
+      };
+      
+      testAudio.addEventListener('error', errorHandler);
+      
+      // Add a timeout to detect if audio is taking too long to load
+      const timeoutId = setTimeout(() => {
+        if (!testAudio.readyState) {
+          errorHandler();
+          testAudio.src = '';
+          clearTimeout(timeoutId);
+        }
+      }, 5000);
+      
+      testAudio.addEventListener('canplaythrough', () => {
+        clearTimeout(timeoutId);
       });
       
       testAudio.src = objectUrl;

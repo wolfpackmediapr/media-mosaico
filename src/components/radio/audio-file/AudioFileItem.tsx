@@ -27,7 +27,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   const [audioLoadError, setAudioLoadError] = useState<boolean>(false);
   const [loadingAudio, setLoadingAudio] = useState<boolean>(false);
 
-  // Enhanced file validation - accept any file that looks like it could be audio
+  // Enhanced file validation - allow all files that have size
   const isValidAudioFile = (fileToValidate: File): boolean => {
     if (!fileToValidate || !(fileToValidate instanceof File)) {
       console.error('Invalid file object provided:', fileToValidate);
@@ -63,12 +63,21 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         
         // Test if the audio is actually playable
         const audio = new Audio();
+        
+        // Add a timeout to detect if audio is taking too long to load
+        const timeoutId = setTimeout(() => {
+          console.warn('Audio loading timeout:', file.name);
+          setLoadingAudio(false);
+        }, 5000);
+        
         audio.addEventListener('canplaythrough', () => {
+          clearTimeout(timeoutId);
           setLoadingAudio(false);
           console.log('Audio can play through successfully');
         });
         
         audio.addEventListener('error', (e) => {
+          clearTimeout(timeoutId);
           console.error('Error in test audio loading:', e);
           setAudioLoadError(true);
           setLoadingAudio(false);
@@ -80,13 +89,6 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         });
         
         audio.src = url;
-        // Set a timeout to prevent hanging on files that don't trigger errors but don't load
-        setTimeout(() => {
-          if (loadingAudio) {
-            setLoadingAudio(false);
-          }
-        }, 3000);
-        
       } catch (error) {
         console.error('Error creating object URL:', error);
         setAudioLoadError(true);
@@ -204,6 +206,8 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
           index={index}
           onRemove={onRemove}
           onTogglePlayer={handleTogglePlayer}
+          isLoading={loadingAudio}
+          isInvalid={audioLoadError}
         />
       </div>
       

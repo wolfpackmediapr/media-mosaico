@@ -1,7 +1,7 @@
 
 import { MusicCard } from "@/components/ui/music-card";
 import { EnhancedAudioPlayer } from "@/components/radio/audio-player/EnhancedAudioPlayer";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { FileWarning } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,80 @@ const MediaControls = ({
   onFileError
 }: MediaControlsProps) => {
   const [useLegacyPlayer, setUseLegacyPlayer] = useState(false);
+  const [validationInProgress, setValidationInProgress] = useState(false);
+  const [isFileValid, setIsFileValid] = useState(true);
+  
+  // Validate the file when it changes
+  useEffect(() => {
+    if (!currentFile) {
+      return;
+    }
+
+    // Skip validation for files that need reupload - we already know
+    if (currentFile.needsReupload) {
+      setIsFileValid(false);
+      return;
+    }
+    
+    // Check if this is an actual File object with size
+    if (!(currentFile instanceof File) || currentFile.size === 0) {
+      console.error('Invalid file object provided to MediaControls:', currentFile);
+      setIsFileValid(false);
+      return;
+    }
+
+    // Validate that the file can be played
+    setValidationInProgress(true);
+    
+    try {
+      // Create a test URL and audio element
+      const testUrl = URL.createObjectURL(currentFile);
+      const testAudio = new Audio();
+      
+      const handleError = () => {
+        console.error('Audio validation failed for:', currentFile.name);
+        URL.revokeObjectURL(testUrl);
+        setIsFileValid(false);
+        setValidationInProgress(false);
+        
+        // Notify about the error
+        if (onFileError) {
+          onFileError();
+        }
+      };
+      
+      const handleSuccess = () => {
+        URL.revokeObjectURL(testUrl);
+        setIsFileValid(true);
+        setValidationInProgress(false);
+      };
+      
+      // Set up event listeners
+      testAudio.addEventListener('error', handleError);
+      testAudio.addEventListener('canplaythrough', handleSuccess);
+      
+      // Start loading the audio
+      testAudio.src = testUrl;
+      
+      // Set timeout for validation
+      const timeoutId = setTimeout(() => {
+        if (validationInProgress) {
+          handleSuccess(); // Assume it's valid if it didn't fail within timeout
+        }
+      }, 5000);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        testAudio.removeEventListener('error', handleError);
+        testAudio.removeEventListener('canplaythrough', handleSuccess);
+        URL.revokeObjectURL(testUrl);
+      };
+    } catch (error) {
+      console.error('Error validating audio file:', error);
+      setIsFileValid(false);
+      setValidationInProgress(false);
+    }
+  }, [currentFile]);
   
   if (!currentFile) return null;
 
@@ -64,16 +138,19 @@ const MediaControls = ({
   const publimediaGreen = "#66cc00";
 
   // If the file needs to be reuploaded, show a message
-  if (needsReupload) {
+  if (needsReupload || !isFileValid) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-md p-4 mb-4">
         <div className="flex items-center gap-3 mb-3">
           <FileWarning className="text-amber-500 h-6 w-6" />
-          <h3 className="text-amber-700 font-medium">El archivo necesita ser subido de nuevo</h3>
+          <h3 className="text-amber-700 font-medium">
+            {needsReupload ? "El archivo necesita ser subido de nuevo" : "El archivo no se puede reproducir"}
+          </h3>
         </div>
         <p className="text-amber-600 mb-3">
-          El archivo <strong>{currentFile.name}</strong> ya no está disponible porque la página se ha recargado.
-          Las URLs del archivo expiran cuando se recarga la página.
+          El archivo <strong>{currentFile.name}</strong> {needsReupload ? 
+            "ya no está disponible porque la página se ha recargado." : 
+            "no se puede reproducir. El formato puede no ser compatible."}
         </p>
         <p className="text-amber-600 mb-4">
           Por favor, suba el archivo de nuevo para continuar.
@@ -90,6 +167,18 @@ const MediaControls = ({
         >
           Subir archivo de nuevo
         </Button>
+      </div>
+    );
+  }
+
+  // If validation is in progress, show a loading state
+  if (validationInProgress) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+          <p className="text-blue-700">Validando el archivo de audio...</p>
+        </div>
       </div>
     );
   }
