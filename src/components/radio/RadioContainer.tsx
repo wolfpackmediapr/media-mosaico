@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
 import RadioNewsSegmentsContainer from "./RadioNewsSegmentsContainer";
@@ -10,7 +10,6 @@ import RadioAnalysis from "./RadioAnalysis";
 import RadioLayout from "./RadioLayout";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
-import { toast } from "sonner";
 
 const RadioContainer = () => {
   const { isAuthenticated } = useAuthStatus();
@@ -20,9 +19,7 @@ const RadioContainer = () => {
     currentFileIndex,
     setCurrentFileIndex,
     currentFile,
-    handleRemoveFile,
-    markFileAsNeedsReupload,
-    clearFiles
+    handleRemoveFile
   } = useRadioFiles();
   
   const {
@@ -44,27 +41,6 @@ const RadioContainer = () => {
     handleTranscriptionReceived
   } = useRadioTranscription();
 
-  // Clean up when component unmounts
-  useEffect(() => {
-    return () => {
-      clearFiles();
-    };
-  }, [clearFiles]);
-
-  // Only initialize audio player if we have a valid current file
-  // We explicitly check if currentFile is a valid File with size > 0
-  const hasValidFile = currentFile instanceof File && currentFile.size > 0;
-  const audioPlayerProps = hasValidFile ? { 
-    file: currentFile,
-    onError: (error: string) => {
-      console.error("Audio player error:", error);
-      // Mark the current file as needing reupload
-      if (currentFileIndex >= 0) {
-        markFileAsNeedsReupload(currentFileIndex);
-      }
-    }
-  } : { file: undefined };
-  
   const {
     isPlaying,
     currentTime,
@@ -78,30 +54,14 @@ const RadioContainer = () => {
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp,
-    isValid: isAudioValid
-  } = useAudioPlayer(audioPlayerProps);
+    seekToTimestamp
+  } = useAudioPlayer({
+    file: currentFile
+  });
 
   const handleSeekToSegment = (timestamp: number) => {
     console.log(`Seeking to segment timestamp: ${timestamp}ms, audio current time: ${currentTime}s`);
-    if (!isAudioValid) {
-      toast.error("No se puede reproducir el audio", {
-        description: "El archivo de audio no es válido o necesita volver a subirse"
-      });
-      return;
-    }
     seekToTimestamp(timestamp);
-  };
-
-  const handleFileError = () => {
-    // This will be called when there's an error with the audio file
-    // Clear the current file or prompt for reupload
-    toast.info("Por favor, suba el archivo de nuevo para continuar", {
-      action: {
-        label: "Entendido",
-        onClick: () => {}
-      }
-    });
   };
 
   // File upload section (now left column only)
@@ -119,7 +79,6 @@ const RadioContainer = () => {
       setTranscriptionText={setTranscriptionText}
       setTranscriptionId={setTranscriptionId}
       onTranscriptionComplete={handleTranscriptionReceived}
-      onRemoveFile={handleRemoveFile}
     />
   );
 
@@ -142,7 +101,6 @@ const RadioContainer = () => {
           onToggleMute={handleToggleMute}
           onVolumeChange={handleVolumeChange}
           onPlaybackRateChange={handlePlaybackRateChange}
-          onFileError={handleFileError}
         />
       )}
     </>

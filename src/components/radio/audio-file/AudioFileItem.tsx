@@ -1,13 +1,11 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import ProcessButton from './ProcessButton';
 import AudioFileHeader from './AudioFileHeader';
 import ProgressIndicator from './ProgressIndicator';
 import { useAudioTranscription } from '@/hooks/useAudioTranscription';
 import { AudioFileItemProps } from './types';
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { useAudioSource } from '@/hooks/radio/audio-player/useAudioSource';
 
 const AudioFileItem: React.FC<AudioFileItemProps> = ({
   file,
@@ -24,22 +22,9 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   const [processingComplete, setProcessingComplete] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { processWithAuth } = useAudioTranscription();
-  const [loadingAudio, setLoadingAudio] = useState<boolean>(false);
-
-  // Use our audio source hook for better file handling
-  const { audioSource, isValid, url } = useAudioSource(file, {
-    onError: (error) => {
-      toast.error(error);
-    }
-  });
 
   const handleProcess = async () => {
     if (isProcessing || processingComplete) return;
-    
-    if (!file || !isValid) {
-      toast.error("El archivo no es válido o está vacío");
-      return;
-    }
     
     try {
       if (setIsProcessing) setIsProcessing(true);
@@ -68,10 +53,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         clearInterval(progressInterval);
         if (setIsProcessing) setIsProcessing(false);
         if (setProgress) setProgress(0);
-        return;
       }
-      
-      if (setProgress) setProgress(100);
     } catch (error) {
       console.error('Error processing file:', error);
       if (setIsProcessing) setIsProcessing(false);
@@ -94,19 +76,14 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   };
 
   const handleTogglePlayer = () => {
-    if (!isValid) {
-      toast.error("No se puede reproducir el archivo de audio", {
-        description: "Intente con otro formato o archivo"
-      });
-      return;
-    }
-    
-    if (loadingAudio) {
-      toast.info("Cargando audio, por favor espere...");
-      return;
-    }
-    
     setShowPlayer(!showPlayer);
+    
+    // If showing the player and we have an audio reference, play it
+    if (!showPlayer && audioRef.current) {
+      audioRef.current.play().catch(error => {
+        console.error('Error playing audio:', error);
+      });
+    }
   };
 
   return (
@@ -117,39 +94,17 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
           index={index}
           onRemove={onRemove}
           onTogglePlayer={handleTogglePlayer}
-          isLoading={loadingAudio}
-          isInvalid={!isValid}
         />
       </div>
       
-      {loadingAudio && showPlayer && (
-        <div className="px-3 pb-3 flex items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
-          <span className="text-sm text-muted-foreground">Cargando audio...</span>
-        </div>
-      )}
-      
-      {showPlayer && url && isValid && (
+      {showPlayer && (
         <div className="px-3 pb-3">
           <audio 
             ref={audioRef}
             controls
-            src={url} 
-            className="w-full"
-            onLoadStart={() => setLoadingAudio(true)}
-            onCanPlay={() => setLoadingAudio(false)}
-            onError={(e) => {
-              console.error('Audio element error:', e);
-              setLoadingAudio(false);
-              toast.error("Error cargando el archivo de audio");
-            }}
+            src={file.preview || URL.createObjectURL(file)} 
+            className="w-full" 
           />
-        </div>
-      )}
-      
-      {!isValid && showPlayer && (
-        <div className="px-3 pb-3 text-center text-destructive">
-          No se puede reproducir este archivo de audio
         </div>
       )}
       
@@ -164,7 +119,6 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
           processingComplete={processingComplete} 
           progress={progress}
           onProcess={handleProcess}
-          disabled={!isValid}
         />
       </div>
     </div>

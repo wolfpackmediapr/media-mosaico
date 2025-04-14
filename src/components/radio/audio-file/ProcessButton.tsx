@@ -1,40 +1,27 @@
 
+import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { ProcessButtonProps } from './types';
 
-interface ProcessButtonProps {
-  isProcessing: boolean;
-  processingComplete: boolean;
-  progress: number;
-  onProcess: () => void;
-  disabled?: boolean;
-}
-
-const ProcessButton = ({ 
-  isProcessing, 
-  processingComplete, 
-  progress, 
-  onProcess,
-  disabled = false
-}: ProcessButtonProps) => {
+export const ProcessButton: React.FC<ProcessButtonProps> = ({
+  isProcessing,
+  processingComplete,
+  progress,
+  onProcess
+}) => {
   const getButtonText = () => {
-    if (isProcessing) {
-      return `Procesando: ${Math.round(progress)}%`;
-    }
-    
-    return processingComplete 
-      ? "Transcripción completada"
-      : "Procesar transcripción";
+    if (!isProcessing && !processingComplete) return "Procesar Transcripción";
+    if (processingComplete) return "Procesamiento completado";
+    return `Procesando: ${progress}%`;
   };
-  
+
   return (
     <Button
-      onClick={onProcess}
-      disabled={isProcessing || processingComplete || disabled}
-      variant={processingComplete ? "secondary" : "default"}
       className="w-full relative"
+      onClick={onProcess}
+      disabled={isProcessing || processingComplete}
+      variant={processingComplete ? "secondary" : "default"}
     >
-      {isProcessing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
       {getButtonText()}
     </Button>
   );

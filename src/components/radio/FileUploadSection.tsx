@@ -8,7 +8,6 @@ import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface UploadedFile extends File {
   preview?: string;
-  id?: string;
 }
 
 interface FileUploadSectionProps {
@@ -20,11 +19,10 @@ interface FileUploadSectionProps {
   setFiles: (files: UploadedFile[]) => void;
   setCurrentFileIndex: (index: number) => void;
   setIsProcessing: (isProcessing: boolean) => void;
-  setProgress: Dispatch<SetStateAction<number>>;
+  setProgress: Dispatch<SetStateAction<number>>;  // Update to the correct type
   setTranscriptionText: (text: string) => void;
   setTranscriptionId?: (id?: string) => void;
   onTranscriptionComplete?: (result: TranscriptionResult) => void;
-  onRemoveFile?: (index: number) => void;
 }
 
 const FileUploadSection = ({ 
@@ -39,55 +37,44 @@ const FileUploadSection = ({
   setProgress,
   setTranscriptionText,
   setTranscriptionId,
-  onTranscriptionComplete,
-  onRemoveFile
+  onTranscriptionComplete
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
 
   const handleFilesAdded = (newFiles: File[]) => {
-    if (!newFiles || newFiles.length === 0) {
-      console.log('No files received in handleFilesAdded');
-      return;
-    }
+    const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
     
-    // Log info about all files for debugging
-    newFiles.forEach(file => {
-      console.log(`File received: ${file.name}, type: ${file.type || 'unknown'}, size: ${file.size}`);
+    if (audioFiles.length < newFiles.length) {
+      toast.warning('Se omitieron algunos archivos que no son de audio');
+    }
+
+    const uploadedFiles = audioFiles.map((file) => {
+      const uploadedFile = new File([file], file.name, { type: file.type });
+      Object.defineProperty(uploadedFile, 'preview', {
+        value: URL.createObjectURL(file),
+        writable: true
+      });
+      return uploadedFile as UploadedFile;
     });
     
-    // Accept any non-empty file - we'll handle validation in the components that use the file
-    const validFiles = newFiles.filter(file => {
-      if (!file || !(file instanceof File)) {
-        toast.error(`El archivo no es válido`);
-        return false;
-      }
-      
-      if (file.size === 0) {
-        toast.error(`El archivo ${file.name} está vacío`);
-        return false;
-      }
-      
-      return true;
-    });
-    
-    if (validFiles.length === 0) {
-      toast.warning('No se encontraron archivos válidos');
-      return;
+    setFiles([...files, ...uploadedFiles]);
+  };
+
+  const handleRemoveFile = (index: number) => {
+    const newFiles = [...files];
+    if (newFiles[index].preview) {
+      URL.revokeObjectURL(newFiles[index].preview!);
     }
+    newFiles.splice(index, 1);
     
-    console.log('Valid files to add:', validFiles.map(f => f.name).join(', '));
+    setFiles(newFiles);
     
-    // Accept all valid files
-    setFiles(validFiles);
-    toast.success(`${validFiles.length} archivo(s) añadido(s)`);
+    if (currentFileIndex >= newFiles.length && currentFileIndex > 0) {
+      setCurrentFileIndex(newFiles.length - 1);
+    }
   };
 
   const processFile = async (file: UploadedFile) => {
-    if (!file || file.size === 0) {
-      toast.error("Archivo inválido o vacío");
-      return;
-    }
-    
     setIsProcessing(true);
     setProgress(0);
     
@@ -150,7 +137,7 @@ const FileUploadSection = ({
           const files = Array.from(e.target.files || []);
           handleFilesAdded(files);
         }}
-        accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
+        accept="audio/*"
         message="Arrastra y suelta archivos de audio o haz clic para seleccionarlos"
       />
       
@@ -161,7 +148,7 @@ const FileUploadSection = ({
             processFile(file);
           }}
           onTranscriptionComplete={setTranscriptionText}
-          onRemoveFile={onRemoveFile}
+          onRemoveFile={handleRemoveFile}
           currentFileIndex={currentFileIndex}
           setCurrentFileIndex={setCurrentFileIndex}
           isProcessing={isProcessing}

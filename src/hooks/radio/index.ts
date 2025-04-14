@@ -8,6 +8,6 @@ export * from './segments/segmentGenerator';
 export * from './segments/textBasedSegmentation';
 export * from './segments/timestampedSegmentation';
 export * from './utils/segmentUtils';
-export * from './audio-player';
+export * from './use-audio-player';
 export * from './useRadioFiles';
 export * from './useRadioTranscription';

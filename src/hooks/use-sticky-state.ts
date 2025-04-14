@@ -1,58 +1,50 @@
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { usePersistentState } from './use-persistent-state';
 
-interface StickyStateOptions {
+interface StickyOptions {
   persistKey?: string;
   defaultSticky?: boolean;
-  storage?: 'localStorage' | 'sessionStorage';
+  persistInSession?: boolean;
 }
 
-export function useStickyState(options: StickyStateOptions = {}) {
-  const { persistKey, defaultSticky = false, storage = 'localStorage' } = options;
-  const storageKey = persistKey ? `sticky-${persistKey}` : null;
+/**
+ * Hook for managing sticky UI components that can be toggled and persisted
+ */
+export function useStickyState(options: StickyOptions = {}) {
+  const {
+    persistKey,
+    defaultSticky = false,
+    persistInSession = true,
+  } = options;
   
-  const [isSticky, setIsSticky] = useState(() => {
-    if (!storageKey) return defaultSticky;
-    
-    try {
-      const storedValue = window[storage].getItem(storageKey);
-      return storedValue !== null ? JSON.parse(storedValue) : defaultSticky;
-    } catch (error) {
-      console.error('Error reading sticky state from storage:', error);
-      return defaultSticky;
-    }
-  });
+  // If persistKey is provided, use persistent storage
+  const [isSticky, setIsSticky] = persistKey 
+    ? usePersistentState(
+        `sticky-${persistKey}`,
+        defaultSticky,
+        { storage: persistInSession ? 'sessionStorage' : 'localStorage' }
+      )
+    : useState(defaultSticky);
   
+  // Ref to the sticky element
   const stickyRef = useRef<HTMLDivElement>(null);
   
-  // Store sticky state in storage when it changes
-  useEffect(() => {
-    if (!storageKey) return;
-    
-    try {
-      window[storage].setItem(storageKey, JSON.stringify(isSticky));
-    } catch (error) {
-      console.error('Error storing sticky state:', error);
-    }
-  }, [isSticky, storageKey, storage]);
-  
   // Toggle sticky state
-  const toggleSticky = () => {
-    setIsSticky(prev => !prev);
+  const toggleSticky = () => setIsSticky(!isSticky);
+  
+  // Scroll the sticky element into view when needed
+  const scrollIntoView = (options: ScrollIntoViewOptions = { behavior: 'smooth' }) => {
+    if (stickyRef.current && isSticky) {
+      stickyRef.current.scrollIntoView(options);
+    }
   };
   
-  // Clear sticky state from storage when component unmounts
-  useEffect(() => {
-    return () => {
-      if (storageKey && isSticky === false) {
-        try {
-          window[storage].removeItem(storageKey);
-        } catch (error) {
-          console.error('Error removing sticky state from storage:', error);
-        }
-      }
-    };
-  }, [storageKey, isSticky, storage]);
-  
-  return { isSticky, stickyRef, toggleSticky };
+  return {
+    isSticky,
+    setIsSticky,
+    toggleSticky,
+    stickyRef,
+    scrollIntoView
+  };
 }
