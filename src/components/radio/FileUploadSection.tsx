@@ -8,6 +8,7 @@ import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface UploadedFile extends File {
   preview?: string;
+  id?: string;
 }
 
 interface FileUploadSectionProps {
@@ -19,10 +20,11 @@ interface FileUploadSectionProps {
   setFiles: (files: UploadedFile[]) => void;
   setCurrentFileIndex: (index: number) => void;
   setIsProcessing: (isProcessing: boolean) => void;
-  setProgress: Dispatch<SetStateAction<number>>;  // Update to the correct type
+  setProgress: Dispatch<SetStateAction<number>>;
   setTranscriptionText: (text: string) => void;
   setTranscriptionId?: (id?: string) => void;
   onTranscriptionComplete?: (result: TranscriptionResult) => void;
+  onRemoveFile?: (index: number) => void;
 }
 
 const FileUploadSection = ({ 
@@ -37,44 +39,48 @@ const FileUploadSection = ({
   setProgress,
   setTranscriptionText,
   setTranscriptionId,
-  onTranscriptionComplete
+  onTranscriptionComplete,
+  onRemoveFile
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
 
   const handleFilesAdded = (newFiles: File[]) => {
-    const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
-    
-    if (audioFiles.length < newFiles.length) {
-      toast.warning('Se omitieron algunos archivos que no son de audio');
-    }
-
-    const uploadedFiles = audioFiles.map((file) => {
-      const uploadedFile = new File([file], file.name, { type: file.type });
-      Object.defineProperty(uploadedFile, 'preview', {
-        value: URL.createObjectURL(file),
-        writable: true
-      });
-      return uploadedFile as UploadedFile;
+    // Filter out invalid files
+    const validFiles = newFiles.filter(file => {
+      // Check if file is audio
+      if (!file.type.startsWith('audio/')) {
+        return false;
+      }
+      
+      // Check if file is not empty
+      if (file.size === 0) {
+        toast.error(`El archivo ${file.name} está vacío`);
+        return false;
+      }
+      
+      return true;
     });
     
-    setFiles([...files, ...uploadedFiles]);
-  };
-
-  const handleRemoveFile = (index: number) => {
-    const newFiles = [...files];
-    if (newFiles[index].preview) {
-      URL.revokeObjectURL(newFiles[index].preview!);
+    if (validFiles.length === 0) {
+      if (newFiles.length > 0) {
+        toast.warning('Se omitieron los archivos que no son de audio válidos');
+      }
+      return;
     }
-    newFiles.splice(index, 1);
     
-    setFiles(newFiles);
-    
-    if (currentFileIndex >= newFiles.length && currentFileIndex > 0) {
-      setCurrentFileIndex(newFiles.length - 1);
+    if (validFiles.length < newFiles.length) {
+      toast.warning('Se omitieron algunos archivos que no son de audio');
     }
+    
+    setFiles(validFiles);
   };
 
   const processFile = async (file: UploadedFile) => {
+    if (!file || !(file instanceof File) || file.size === 0) {
+      toast.error("Archivo inválido o vacío");
+      return;
+    }
+    
     setIsProcessing(true);
     setProgress(0);
     
@@ -148,7 +154,7 @@ const FileUploadSection = ({
             processFile(file);
           }}
           onTranscriptionComplete={setTranscriptionText}
-          onRemoveFile={handleRemoveFile}
+          onRemoveFile={onRemoveFile}
           currentFileIndex={currentFileIndex}
           setCurrentFileIndex={setCurrentFileIndex}
           isProcessing={isProcessing}

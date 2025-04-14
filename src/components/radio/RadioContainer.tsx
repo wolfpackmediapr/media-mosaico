@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
 import RadioNewsSegmentsContainer from "./RadioNewsSegmentsContainer";
@@ -19,7 +19,8 @@ const RadioContainer = () => {
     currentFileIndex,
     setCurrentFileIndex,
     currentFile,
-    handleRemoveFile
+    handleRemoveFile,
+    clearFiles
   } = useRadioFiles();
   
   const {
@@ -41,6 +42,16 @@ const RadioContainer = () => {
     handleTranscriptionReceived
   } = useRadioTranscription();
 
+  // Clean up when component unmounts
+  useEffect(() => {
+    return () => {
+      clearFiles();
+    };
+  }, []);
+
+  // Only initialize audio player if we have a valid current file
+  const audioPlayerProps = currentFile ? { file: currentFile } : { file: undefined };
+  
   const {
     isPlaying,
     currentTime,
@@ -55,9 +66,7 @@ const RadioContainer = () => {
     handleVolumeChange,
     handlePlaybackRateChange,
     seekToTimestamp
-  } = useAudioPlayer({
-    file: currentFile
-  });
+  } = useAudioPlayer(audioPlayerProps);
 
   const handleSeekToSegment = (timestamp: number) => {
     console.log(`Seeking to segment timestamp: ${timestamp}ms, audio current time: ${currentTime}s`);
@@ -79,6 +88,7 @@ const RadioContainer = () => {
       setTranscriptionText={setTranscriptionText}
       setTranscriptionId={setTranscriptionId}
       onTranscriptionComplete={handleTranscriptionReceived}
+      onRemoveFile={handleRemoveFile}
     />
   );
 

@@ -12,7 +12,9 @@ interface AudioPlayerOptions {
 }
 
 export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPlayerOptions = {}) => {
+  // Generate a stable ID for this audio instance
   const audioIdRef = useRef<string>(file ? `audio-${file.name}-${uuidv4()}` : "audio-empty");
+  
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -243,7 +245,10 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
       console.log(`Seeking to timestamp: ${timestamp}, converted to seconds: ${targetSeconds}`);
       
       audioElement.currentTime = targetSeconds;
-      audioElement.play();
+      audioElement.play().catch(error => {
+        console.error("Error playing audio when seeking to timestamp:", error);
+        toast.error("Error reproduciendo el audio");
+      });
       setIsPlaying(true);
       updatePlayingState(true);
     } else {
