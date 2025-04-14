@@ -5,7 +5,7 @@ import { useStickyState } from "@/hooks/use-sticky-state";
 
 const Radio = () => {
   // Use sticky state to track if we've cleaned up this session
-  const [hasCleanedUp, setHasCleanedUp] = useStickyState({
+  const { isSticky: hasCleanedUp, toggleSticky: setHasCleanedUp } = useStickyState({
     persistKey: "radio-cleanup",
     defaultSticky: false,
     storage: 'sessionStorage'
@@ -18,7 +18,7 @@ const Radio = () => {
       // Clear any orphaned file previews from sessionStorage
       try {
         // We'll use the cleanup flag to ensure we only clean up once per session
-        setHasCleanedUp(true);
+        setHasCleanedUp();
       } catch (error) {
         console.error("Error cleaning up radio session:", error);
       }
@@ -27,7 +27,7 @@ const Radio = () => {
     // Clean up on unmount
     return () => {
       // This will handle cleanup when navigating away
-      setHasCleanedUp(false);
+      setHasCleanedUp();
     };
   }, [hasCleanedUp, setHasCleanedUp]);
 
