@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ProcessButton from './ProcessButton';
 import AudioFileHeader from './AudioFileHeader';
 import ProgressIndicator from './ProgressIndicator';
@@ -24,22 +24,33 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   const { processWithAuth } = useAudioTranscription();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
+  // Enhanced file validation
+  const isValidAudioFile = (fileToValidate: File): boolean => {
+    return fileToValidate instanceof File && 
+           fileToValidate.size > 0 && 
+           fileToValidate.type.startsWith('audio/');
+  };
+
   // Create audio URL when component mounts or file changes
-  React.useEffect(() => {
+  useEffect(() => {
     // Clean up previous URL if it exists
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
     }
     
-    // Only create a new URL if we have a valid File object
-    if (file && file instanceof File && file.size > 0) {
+    // Only create a new URL if we have a valid audio file
+    if (file && isValidAudioFile(file)) {
       try {
         const url = URL.createObjectURL(file);
         setAudioUrl(url);
       } catch (error) {
         console.error('Error creating object URL:', error);
+        toast.error("No se pudo crear la vista previa del audio");
       }
+    } else {
+      console.warn('Invalid audio file provided');
+      toast.warning("El archivo de audio no es válido");
     }
     
     // Cleanup on unmount
