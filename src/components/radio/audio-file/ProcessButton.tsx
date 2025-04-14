@@ -1,5 +1,6 @@
 
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 interface ProcessButtonProps {
   isProcessing: boolean;
@@ -31,8 +32,9 @@ const ProcessButton = ({
       onClick={onProcess}
       disabled={isProcessing || processingComplete || disabled}
       variant={processingComplete ? "secondary" : "default"}
-      className="w-full"
+      className="w-full relative"
     >
+      {isProcessing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
       {getButtonText()}
     </Button>
   );

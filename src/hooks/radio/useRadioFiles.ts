@@ -54,30 +54,22 @@ export function useRadioFiles() {
         
         console.log('Creating placeholder for file:', meta.name);
         
-        // Create a small placeholder content blob
-        const placeholderContent = new Blob(['audio placeholder content'], { 
-          type: meta.type || 'audio/mpeg'
-        });
-        
         try {
-          // Create a File-like object with essential properties
-          const placeholderFile = new File(
-            [placeholderContent], 
-            meta.name, 
-            { 
-              type: meta.type || 'audio/mpeg',
-              lastModified: meta.lastModified 
-            }
-          );
+          // Create a small placeholder blob with MIME type
+          const contentType = meta.type || 'audio/mpeg';
+          const placeholderContent = new Blob(['audio placeholder content'], { type: contentType });
           
-          // Add the ID property
-          Object.defineProperty(placeholderFile, 'id', {
-            value: meta.id,
-            writable: true,
-            enumerable: true
+          // Create a File object with the metadata
+          const file = new File([placeholderContent], meta.name, {
+            type: contentType,
+            lastModified: meta.lastModified
           });
           
-          return placeholderFile as UploadedFile;
+          // Add the id property
+          const uploadedFile = file as UploadedFile;
+          uploadedFile.id = meta.id;
+          
+          return uploadedFile;
         } catch (fileError) {
           console.error('Error creating placeholder file:', fileError);
           throw fileError;
@@ -157,10 +149,6 @@ export function useRadioFiles() {
       console.log('No valid files to add after validation');
       return;
     }
-    
-    // Log what's being added
-    console.log('Adding files with IDs:', filesWithIds);
-    console.log('Adding metadata:', newMetadata);
     
     // Update files state
     setFiles(prev => [...prev, ...filesWithIds]);

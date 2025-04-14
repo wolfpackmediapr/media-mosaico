@@ -44,12 +44,18 @@ const FileUploadSection = ({
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
 
-  // Validate that the file is usable
+  // Basic validation: ensure file exists and has size
   const validateAudioFile = (file: File): boolean => {
-    // Basic validation: file should exist and have size
-    if (!file || !(file instanceof File) || file.size === 0) {
+    if (!file || !(file instanceof File)) {
+      console.error('Invalid file provided to validateAudioFile:', file);
       return false;
     }
+    
+    if (file.size === 0) {
+      console.error('File has zero size:', file.name);
+      return false;
+    }
+    
     return true;
   };
 

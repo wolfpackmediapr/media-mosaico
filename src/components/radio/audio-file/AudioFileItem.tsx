@@ -6,6 +6,7 @@ import ProgressIndicator from './ProgressIndicator';
 import { useAudioTranscription } from '@/hooks/useAudioTranscription';
 import { AudioFileItemProps } from './types';
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const AudioFileItem: React.FC<AudioFileItemProps> = ({
   file,
@@ -24,8 +25,9 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   const { processWithAuth } = useAudioTranscription();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioLoadError, setAudioLoadError] = useState<boolean>(false);
+  const [loadingAudio, setLoadingAudio] = useState<boolean>(false);
 
-  // Enhanced file validation
+  // Enhanced file validation - accept any file that looks like it could be audio
   const isValidAudioFile = (fileToValidate: File): boolean => {
     if (!fileToValidate || !(fileToValidate instanceof File)) {
       console.error('Invalid file object provided:', fileToValidate);
@@ -50,6 +52,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
     }
     
     setAudioLoadError(false);
+    setLoadingAudio(true);
     
     // Only create a new URL if we have a valid file
     if (file && isValidAudioFile(file)) {
@@ -57,9 +60,37 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         console.log('Creating object URL for file:', file.name, file.type, file.size);
         const url = URL.createObjectURL(file);
         setAudioUrl(url);
+        
+        // Test if the audio is actually playable
+        const audio = new Audio();
+        audio.addEventListener('canplaythrough', () => {
+          setLoadingAudio(false);
+          console.log('Audio can play through successfully');
+        });
+        
+        audio.addEventListener('error', (e) => {
+          console.error('Error in test audio loading:', e);
+          setAudioLoadError(true);
+          setLoadingAudio(false);
+          URL.revokeObjectURL(url);
+          setAudioUrl(null);
+          toast.error("No se puede reproducir el archivo de audio", {
+            description: "El formato puede no ser compatible"
+          });
+        });
+        
+        audio.src = url;
+        // Set a timeout to prevent hanging on files that don't trigger errors but don't load
+        setTimeout(() => {
+          if (loadingAudio) {
+            setLoadingAudio(false);
+          }
+        }, 3000);
+        
       } catch (error) {
         console.error('Error creating object URL:', error);
         setAudioLoadError(true);
+        setLoadingAudio(false);
         toast.error("No se pudo crear la vista previa del audio");
       }
     } else if (file) {
@@ -69,6 +100,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         type: file.type || 'unknown'
       });
       setAudioLoadError(true);
+      setLoadingAudio(false);
     }
     
     // Cleanup on unmount
@@ -114,7 +146,10 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         clearInterval(progressInterval);
         if (setIsProcessing) setIsProcessing(false);
         if (setProgress) setProgress(0);
+        return;
       }
+      
+      if (setProgress) setProgress(100);
     } catch (error) {
       console.error('Error processing file:', error);
       if (setIsProcessing) setIsProcessing(false);
@@ -138,7 +173,14 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
 
   const handleTogglePlayer = () => {
     if (audioLoadError) {
-      toast.error("No se puede reproducir el archivo de audio");
+      toast.error("No se puede reproducir el archivo de audio", {
+        description: "Intente con otro formato o archivo"
+      });
+      return;
+    }
+    
+    if (loadingAudio) {
+      toast.info("Cargando audio, por favor espere...");
       return;
     }
     
@@ -165,7 +207,14 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         />
       </div>
       
-      {showPlayer && audioUrl && !audioLoadError && (
+      {loadingAudio && showPlayer && (
+        <div className="px-3 pb-3 flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
+          <span className="text-sm text-muted-foreground">Cargando audio...</span>
+        </div>
+      )}
+      
+      {showPlayer && audioUrl && !audioLoadError && !loadingAudio && (
         <div className="px-3 pb-3">
           <audio 
             ref={audioRef}
