@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
 import RadioNewsSegmentsContainer from "./RadioNewsSegmentsContainer";
@@ -11,7 +11,12 @@ import RadioLayout from "./RadioLayout";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
 
-const RadioContainer = () => {
+interface RadioContainerProps {
+  persistedText?: string;
+  onTextChange?: (text: string) => void;
+}
+
+const RadioContainer = ({ persistedText = "", onTextChange }: RadioContainerProps) => {
   const { isAuthenticated } = useAuthStatus();
   const {
     files,
@@ -41,6 +46,20 @@ const RadioContainer = () => {
     handleTranscriptionReceived
   } = useRadioTranscription();
 
+  // Sync with persisted text if provided
+  useEffect(() => {
+    if (persistedText && persistedText !== transcriptionText) {
+      setTranscriptionText(persistedText);
+    }
+  }, [persistedText, setTranscriptionText]);
+
+  // Update persisted text when transcription text changes
+  useEffect(() => {
+    if (onTextChange && transcriptionText && transcriptionText !== persistedText) {
+      onTextChange(transcriptionText);
+    }
+  }, [transcriptionText, onTextChange, persistedText]);
+
   const {
     isPlaying,
     currentTime,
@@ -62,6 +81,14 @@ const RadioContainer = () => {
   const handleSeekToSegment = (timestamp: number) => {
     console.log(`Seeking to segment timestamp: ${timestamp}ms, audio current time: ${currentTime}s`);
     seekToTimestamp(timestamp);
+  };
+
+  // Enhanced text change handler to update both states
+  const handleTranscriptionTextChange = (text: string) => {
+    handleTranscriptionChange(text);
+    if (onTextChange) {
+      onTextChange(text);
+    }
   };
 
   // File upload section (now left column only)
@@ -114,7 +141,7 @@ const RadioContainer = () => {
       transcriptionId={transcriptionId}
       transcriptionResult={transcriptionResult}
       metadata={metadata}
-      onTranscriptionChange={handleTranscriptionChange}
+      onTranscriptionChange={handleTranscriptionTextChange}
       onSegmentsReceived={handleSegmentsReceived}
       onMetadataChange={handleMetadataChange}
       onTimestampClick={handleSeekToSegment}
