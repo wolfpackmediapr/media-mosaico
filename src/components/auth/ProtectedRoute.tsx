@@ -32,19 +32,19 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
             if (error.code === 'PGRST116') {
               console.log('User profile not found, creating default profile');
               
-              // Create a default profile for the user with 'user' role
+              // Create a default profile for the user with 'data_entry' role
               const { error: insertError } = await supabase
                 .from('user_profiles')
                 .insert({ 
                   id: user.id, 
                   username: user.email?.split('@')[0] || 'user', 
-                  role: 'user' 
+                  role: 'data_entry' 
                 });
               
               if (insertError) {
                 console.error('Error creating user profile:', insertError);
               } else {
-                setUserRole('user');
+                setUserRole('data_entry');
               }
             } else {
               console.error('Error fetching user role:', error);

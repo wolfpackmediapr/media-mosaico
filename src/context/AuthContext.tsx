@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .insert({ 
           id: userId, 
           username: metadata?.username || userId, 
-          role: 'user'
+          role: 'data_entry'
         });
       
       if (error) {
