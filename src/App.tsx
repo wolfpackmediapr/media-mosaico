@@ -133,225 +133,55 @@ function App() {
                     </Layout>
                   </ProtectedRoute>
                 }>
-                  {/* Admin-only routes */}
-                  <Route path="admin" element={
-                    <ProtectedRoute adminOnly>
-                      <Admin />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="tv" element={
-                    <ProtectedRoute adminOnly>
-                      <Tv />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Radio module - accessible by all users */}
+                  <Route path="admin" element={<Admin />} />
+                  <Route path="tv" element={<Tv />} />
                   <Route path="radio" element={<Radio />} />
-                  
-                  {/* Admin-only routes */}
-                  <Route path="prensa" element={
-                    <ProtectedRoute adminOnly>
-                      <Prensa />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="prensa-escrita" element={
-                    <ProtectedRoute adminOnly>
-                      <PrensaEscrita />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="redes-sociales" element={
-                    <ProtectedRoute adminOnly>
-                      <RedesSociales />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="notificaciones" element={
-                    <ProtectedRoute adminOnly>
-                      <Notificaciones />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="reportes" element={
-                    <ProtectedRoute adminOnly>
-                      <Reportes />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="envio-alertas" element={
-                    <ProtectedRoute adminOnly>
-                      <EnvioAlertas />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="media-monitoring" element={
-                    <ProtectedRoute adminOnly>
-                      <MediaMonitoring />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Settings routes */}
+                  <Route path="prensa" element={<Prensa />} />
+                  <Route path="prensa-escrita" element={<PrensaEscrita />} />
+                  <Route path="redes-sociales" element={<RedesSociales />} />
+                  <Route path="notificaciones" element={<Notificaciones />} />
+                  <Route path="reportes" element={<Reportes />} />
+                  <Route path="envio-alertas" element={<EnvioAlertas />} />
+                  <Route path="media-monitoring" element={<MediaMonitoring />} />
                   <Route path="ajustes" element={<Ajustes />} />
                   <Route path="ajustes/*" element={<Outlet />}>
-                    {/* Admin-only settings */}
-                    <Route path="general" element={
-                      <ProtectedRoute adminOnly>
-                        <GeneralSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="general/medios" element={
-                      <ProtectedRoute adminOnly>
-                        <MediaSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="general/categorias" element={
-                      <ProtectedRoute adminOnly>
-                        <CategoriesSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="general/*" element={
-                      <ProtectedRoute adminOnly>
-                        <GeneralSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="usuarios" element={
-                      <ProtectedRoute adminOnly>
-                        <UsersSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="usuarios/*" element={
-                      <ProtectedRoute adminOnly>
-                        <UsersSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="clientes" element={
-                      <ProtectedRoute adminOnly>
-                        <ClientsSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="clientes/*" element={
-                      <ProtectedRoute adminOnly>
-                        <ClientsSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="notificaciones" element={
-                      <ProtectedRoute adminOnly>
-                        <NotificationsSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="monitoreo-notificaciones" element={
-                      <ProtectedRoute adminOnly>
-                        <NotificationMonitoring />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="tv" element={
-                      <ProtectedRoute adminOnly>
-                        <TvSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="tv/tarifas" element={
-                      <ProtectedRoute adminOnly>
-                        <TvTarifasSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="tv/*" element={
-                      <ProtectedRoute adminOnly>
-                        <TvSettings />
-                      </ProtectedRoute>
-                    } />
-                    
-                    {/* Radio settings - accessible by all users */}
+                    <Route path="general" element={<GeneralSettings />} />
+                    <Route path="general/medios" element={<MediaSettings />} />
+                    <Route path="general/categorias" element={<CategoriesSettings />} />
+                    <Route path="general/*" element={<GeneralSettings />} />
+                    <Route path="usuarios" element={<UsersSettings />} />
+                    <Route path="usuarios/*" element={<UsersSettings />} />
+                    <Route path="clientes" element={<ClientsSettings />} />
+                    <Route path="clientes/*" element={<ClientsSettings />} />
+                    <Route path="notificaciones" element={<NotificationsSettings />} />
+                    <Route path="monitoreo-notificaciones" element={<NotificationMonitoring />} />
+                    <Route path="tv" element={<TvSettings />} />
+                    <Route path="tv/tarifas" element={<TvTarifasSettings />} />
+                    <Route path="tv/*" element={<TvSettings />} />
                     <Route path="radio" element={<RadioSettings />} />
                     <Route path="radio/*" element={<RadioSettings />} />
-                    
-                    {/* Admin-only settings */}
-                    <Route path="prensa" element={
-                      <ProtectedRoute adminOnly>
-                        <PressSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="prensa/generos" element={
-                      <ProtectedRoute adminOnly>
-                        <GenresSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="prensa/fuentes" element={
-                      <ProtectedRoute adminOnly>
-                        <SourcesSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="prensa/secciones" element={
-                      <ProtectedRoute adminOnly>
-                        <SectionsSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="prensa/tarifas" element={
-                      <ProtectedRoute adminOnly>
-                        <RatesSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="prensa/*" element={
-                      <ProtectedRoute adminOnly>
-                        <PressSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="participantes" element={
-                      <ProtectedRoute adminOnly>
-                        <ParticipantesSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="participantes/gestion" element={
-                      <ProtectedRoute adminOnly>
-                        <ParticipantesGestionSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="participantes/categorias" element={
-                      <ProtectedRoute adminOnly>
-                        <ParticipantesCategoriasSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="instituciones" element={
-                      <ProtectedRoute adminOnly>
-                        <InstitucionesSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="instituciones/gestion" element={
-                      <ProtectedRoute adminOnly>
-                        <InstitucionesGestionSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="instituciones/categorias" element={
-                      <ProtectedRoute adminOnly>
-                        <InstitucionesCategoriasSettings />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="instituciones/agencias" element={
-                      <ProtectedRoute adminOnly>
-                        <InstitucionesAgenciasSettings />
-                      </ProtectedRoute>
-                    } />
+                    <Route path="prensa" element={<PressSettings />} />
+                    <Route path="prensa/generos" element={<GenresSettings />} />
+                    <Route path="prensa/fuentes" element={<SourcesSettings />} />
+                    <Route path="prensa/secciones" element={<SectionsSettings />} />
+                    <Route path="prensa/tarifas" element={<RatesSettings />} />
+                    <Route path="prensa/*" element={<PressSettings />} />
+                    <Route path="participantes" element={<ParticipantesSettings />} />
+                    <Route path="participantes/gestion" element={<ParticipantesGestionSettings />} />
+                    <Route path="participantes/categorias" element={<ParticipantesCategoriasSettings />} />
+                    <Route path="instituciones" element={<InstitucionesSettings />} />
+                    <Route path="instituciones/gestion" element={<InstitucionesGestionSettings />} />
+                    <Route path="instituciones/categorias" element={<InstitucionesCategoriasSettings />} />
+                    <Route path="instituciones/agencias" element={<InstitucionesAgenciasSettings />} />
                   </Route>
-                  
-                  {/* Help route - accessible by all users */}
                   <Route path="ayuda" element={<Ayuda />} />
 
-                  {/* Admin-only Publiteca routes */}
+                  {/* Publiteca routes */}
                   <Route path="publiteca">
-                    <Route path="prensa" element={
-                      <ProtectedRoute adminOnly>
-                        <PublitecaPrensa />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="radio" element={
-                      <ProtectedRoute adminOnly>
-                        <PublitecaRadio />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="tv" element={
-                      <ProtectedRoute adminOnly>
-                        <PublitecaTv />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="redes-sociales" element={
-                      <ProtectedRoute adminOnly>
-                        <PublitecaRedesSociales />
-                      </ProtectedRoute>
-                    } />
+                    <Route path="prensa" element={<PublitecaPrensa />} />
+                    <Route path="radio" element={<PublitecaRadio />} />
+                    <Route path="tv" element={<PublitecaTv />} />
+                    <Route path="redes-sociales" element={<PublitecaRedesSociales />} />
                   </Route>
                 </Route>
                 
