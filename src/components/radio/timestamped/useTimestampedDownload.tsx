@@ -1,10 +1,11 @@
 
 import { formatSrtTime } from "./timeUtils";
+import { TimestampedItem } from "./ViewModeManager";
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 
 export const useTimestampedDownload = () => {
   const downloadSRT = (
-    items: { text: string; start: number; end: number; type: string; speaker?: string }[],
+    items: TimestampedItem[],
     customContent?: string | null
   ) => {
     if (customContent) {

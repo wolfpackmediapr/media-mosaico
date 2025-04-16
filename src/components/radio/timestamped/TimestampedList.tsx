@@ -1,14 +1,10 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import TimestampedItem from "./TimestampedItem";
+import { TimestampedItem as TimestampedItemType } from "./ViewModeManager";
 
 interface TimestampedListProps {
-  items: {
-    text: string;
-    start: number;
-    end: number;
-    type: 'sentence' | 'word' | 'speaker';
-  }[];
+  items: TimestampedItemType[];
   viewMode: 'sentence' | 'word';
   formatTime: (time: number, includeMs?: boolean) => string;
   onItemClick: (timestamp: number) => void;
