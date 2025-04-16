@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import TimestampControls from "./timestamped/TimestampControls";
 import EmptyTimestampState from "./timestamped/EmptyTimestampState";
@@ -18,6 +18,8 @@ const RadioTimestampedTranscription = ({
   text,
   onTimestampClick = () => {}
 }: RadioTimestampedTranscriptionProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+  
   // Use the view mode manager hook
   const {
     viewMode,
@@ -34,8 +36,19 @@ const RadioTimestampedTranscription = ({
     timestampedItems,
     transcriptionResult
   });
+  
+  // Show loading state when switching to speaker mode if no utterances available yet
+  useEffect(() => {
+    if (viewMode === 'speaker' && transcriptionResult && 
+        (!transcriptionResult.utterances || transcriptionResult.utterances.length === 0) &&
+        transcriptionResult.transcript_id) {
+      setIsLoading(true);
+    } else {
+      setIsLoading(false);
+    }
+  }, [viewMode, transcriptionResult]);
 
-  if (timestampedItems.length === 0) {
+  if (timestampedItems.length === 0 && !isLoading) {
     return <EmptyTimestampState />;
   }
 
@@ -55,6 +68,7 @@ const RadioTimestampedTranscription = ({
         timestampedItems={timestampedItems}
         utterances={transcriptionResult?.utterances}
         onTimestampClick={onTimestampClick}
+        isLoading={isLoading}
       />
     </div>
   );

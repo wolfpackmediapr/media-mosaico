@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -35,24 +34,20 @@ const RadioTranscriptionEditor = ({
   const [enhancedTranscriptionResult, setEnhancedTranscriptionResult] = 
     useState<TranscriptionResult | undefined>(transcriptionResult);
   
-  // Use persistent state with session storage for unsaved content
   const [localText, setLocalText] = usePersistentState(
     `radio-transcription-${transcriptionId || "draft"}`,
     transcriptionText,
     { storage: 'sessionStorage' }
   );
 
-  // Update local text when transcription changes from parent
   useEffect(() => {
     setLocalText(transcriptionText);
   }, [transcriptionText, setLocalText]);
 
-  // Update enhanced result when transcriptionResult changes
   useEffect(() => {
     setEnhancedTranscriptionResult(transcriptionResult);
   }, [transcriptionResult]);
 
-  // Fetch utterances if not available in the initial transcription result
   useEffect(() => {
     const fetchSpeakerData = async () => {
       if (
@@ -62,23 +57,32 @@ const RadioTranscriptionEditor = ({
         (!transcriptionResult.utterances || transcriptionResult.utterances.length === 0)
       ) {
         try {
+          console.log('Fetching utterances for transcript ID:', transcriptionId);
           const utterances = await fetchUtterances(transcriptionId);
+          
           if (utterances && utterances.length > 0) {
+            console.log(`Retrieved ${utterances.length} utterances for transcript`);
             setEnhancedTranscriptionResult(prev => ({
               ...(prev || transcriptionResult),
               utterances
             }));
+          } else {
+            console.warn('No utterances found for transcript ID:', transcriptionId);
           }
         } catch (error) {
           console.error('Error fetching utterances:', error);
+          toast({
+            title: "No se pudieron cargar los datos de hablantes",
+            description: "Intente nuevamente o use otro modo de visualización",
+            variant: "destructive",
+          });
         }
       }
     };
 
     fetchSpeakerData();
-  }, [transcriptionId, showTimestamps, transcriptionResult]);
+  }, [transcriptionId, showTimestamps, transcriptionResult, toast]);
 
-  // Setup autosave
   const { isSaving, saveSuccess } = useAutosave({
     data: { text: localText, id: transcriptionId },
     onSave: async (data) => {
@@ -108,11 +112,10 @@ const RadioTranscriptionEditor = ({
         throw error;
       }
     },
-    debounce: 2000, // Save after 2 seconds of inactivity
+    debounce: 2000,
     enabled: !!transcriptionId,
   });
 
-  // Show toast only when saveSuccess changes to true
   useEffect(() => {
     if (saveSuccess === true) {
       toast({
@@ -127,7 +130,6 @@ const RadioTranscriptionEditor = ({
     setLocalText(newText);
     onTranscriptionChange(newText);
     
-    // Automatically enter edit mode when the user starts typing
     if (!isEditing) {
       setIsEditing(true);
     }
@@ -135,7 +137,6 @@ const RadioTranscriptionEditor = ({
 
   const toggleEditMode = () => {
     setIsEditing(!isEditing);
-    // Focus the textarea when entering edit mode
     if (!isEditing) {
       setTimeout(() => {
         const textarea = document.querySelector('textarea');
@@ -147,7 +148,6 @@ const RadioTranscriptionEditor = ({
   const toggleTimestampView = () => {
     setShowTimestamps(!showTimestamps);
     
-    // Exit edit mode when showing timestamps
     if (!showTimestamps && isEditing) {
       setIsEditing(false);
     }

@@ -18,11 +18,14 @@ interface ViewModeManagerProps {
 }
 
 export const useViewModeManager = ({ transcriptionResult }: ViewModeManagerProps) => {
-  // Initialize viewMode with preference for speakers if available, then sentences, then words
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    transcriptionResult?.utterances?.length ? 'speaker' :
-    transcriptionResult?.sentences?.length ? 'sentence' : 'word'
-  );
+  // Initialize viewMode based on available data
+  const initialViewMode = useMemo(() => {
+    if (transcriptionResult?.utterances?.length) return 'speaker';
+    if (transcriptionResult?.sentences?.length) return 'sentence';
+    return 'word';
+  }, [transcriptionResult]);
+
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   
   // Generate timestamped items based on available data
   const timestampedItems = useMemo(() => {
@@ -61,6 +64,24 @@ export const useViewModeManager = ({ transcriptionResult }: ViewModeManagerProps
     
     return [] as TimestampedItem[];
   }, [transcriptionResult, viewMode]);
+
+  // Update view mode when transcription result changes (e.g., when utterances are fetched)
+  useMemo(() => {
+    if (viewMode === 'speaker' && transcriptionResult?.utterances?.length) {
+      // If we're already in speaker mode and utterances are loaded, stay there
+      return;
+    }
+    
+    if (transcriptionResult?.utterances?.length && initialViewMode === 'speaker') {
+      setViewMode('speaker');
+    } else if (transcriptionResult?.sentences?.length && !transcriptionResult.utterances?.length) {
+      setViewMode('sentence');
+    } else if (transcriptionResult?.words?.length && 
+               !transcriptionResult.utterances?.length && 
+               !transcriptionResult.sentences?.length) {
+      setViewMode('word');
+    }
+  }, [transcriptionResult, initialViewMode]);
 
   // Determine available view modes
   const viewModes = {

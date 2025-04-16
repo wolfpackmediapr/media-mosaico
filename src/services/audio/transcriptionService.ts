@@ -149,9 +149,15 @@ export const fetchUtterances = async (transcriptId: string): Promise<UtteranceTi
       return data.utterances;
     }
     
+    if (data?.success === false) {
+      console.error('Error fetching utterances:', data.error);
+      throw new Error(data.error || 'Failed to fetch utterances');
+    }
+    
+    console.warn('No utterances found in the response');
     return [];
   } catch (error) {
     console.error('Failed to fetch utterances:', error);
-    return [];
+    throw error;
   }
 };

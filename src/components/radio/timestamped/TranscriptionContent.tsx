@@ -1,6 +1,5 @@
 
 import { TranscriptionResult, UtteranceTimestamp } from "@/services/audio/transcriptionService";
-import SpeakerTimestampedList from "./SpeakerTimestampedList";
 import TimestampedList from "./TimestampedList";
 import { formatTime } from "./timeUtils";
 import { ViewMode, TimestampedItem } from "./ViewModeManager";
@@ -10,30 +9,23 @@ interface TranscriptionContentProps {
   timestampedItems: TimestampedItem[];
   utterances?: UtteranceTimestamp[];
   onTimestampClick: (timestamp: number) => void;
+  isLoading?: boolean;
 }
 
 const TranscriptionContent = ({
   viewMode,
   timestampedItems,
-  utterances,
-  onTimestampClick
+  onTimestampClick,
+  isLoading = false
 }: TranscriptionContentProps) => {
   return (
-    <>
-      {viewMode === 'speaker' && utterances ? (
-        <SpeakerTimestampedList
-          utterances={utterances}
-          onUtteranceClick={onTimestampClick}
-        />
-      ) : (
-        <TimestampedList
-          items={timestampedItems}
-          viewMode={viewMode === 'word' ? 'word' : 'sentence'}
-          formatTime={formatTime}
-          onItemClick={onTimestampClick}
-        />
-      )}
-    </>
+    <TimestampedList
+      items={timestampedItems}
+      viewMode={viewMode}
+      formatTime={formatTime}
+      onItemClick={onTimestampClick}
+      isLoading={isLoading}
+    />
   );
 };
 
