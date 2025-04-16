@@ -1,4 +1,3 @@
-
 import { Dispatch, SetStateAction } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileList from "./AudioFileList";
@@ -19,10 +18,11 @@ interface FileUploadSectionProps {
   setFiles: (files: UploadedFile[]) => void;
   setCurrentFileIndex: (index: number) => void;
   setIsProcessing: (isProcessing: boolean) => void;
-  setProgress: Dispatch<SetStateAction<number>>;  // Update to the correct type
+  setProgress: Dispatch<SetStateAction<number>>;
   setTranscriptionText: (text: string) => void;
   setTranscriptionId?: (id?: string) => void;
   onTranscriptionComplete?: (result: TranscriptionResult) => void;
+  onFilesAdded?: (newFiles: File[]) => void;
 }
 
 const FileUploadSection = ({ 
@@ -37,27 +37,32 @@ const FileUploadSection = ({
   setProgress,
   setTranscriptionText,
   setTranscriptionId,
-  onTranscriptionComplete
+  onTranscriptionComplete,
+  onFilesAdded
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
 
   const handleFilesAdded = (newFiles: File[]) => {
-    const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
-    
-    if (audioFiles.length < newFiles.length) {
-      toast.warning('Se omitieron algunos archivos que no son de audio');
-    }
+    if (onFilesAdded) {
+      onFilesAdded(newFiles);
+    } else {
+      const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
+      
+      if (audioFiles.length < newFiles.length) {
+        toast.warning('Se omitieron algunos archivos que no son de audio');
+      }
 
-    const uploadedFiles = audioFiles.map((file) => {
-      const uploadedFile = new File([file], file.name, { type: file.type });
-      Object.defineProperty(uploadedFile, 'preview', {
-        value: URL.createObjectURL(file),
-        writable: true
+      const uploadedFiles = audioFiles.map((file) => {
+        const uploadedFile = new File([file], file.name, { type: file.type });
+        Object.defineProperty(uploadedFile, 'preview', {
+          value: URL.createObjectURL(file),
+          writable: true
+        });
+        return uploadedFile as UploadedFile;
       });
-      return uploadedFile as UploadedFile;
-    });
-    
-    setFiles([...files, ...uploadedFiles]);
+      
+      setFiles([...files, ...uploadedFiles]);
+    }
   };
 
   const handleRemoveFile = (index: number) => {
@@ -79,7 +84,6 @@ const FileUploadSection = ({
     setProgress(0);
     
     try {
-      // Start progress simulation
       const intervalId = setInterval(() => {
         setProgress((prev) => {
           if (prev >= 95) {
@@ -90,9 +94,7 @@ const FileUploadSection = ({
         });
       }, 1000);
 
-      // Actual processing
       const transcriptionResult = await processWithAuth(file, (result) => {
-        // This callback will be called when transcription is complete
         if (result?.text) {
           setTranscriptionText(result.text);
         }
@@ -106,11 +108,9 @@ const FileUploadSection = ({
         }
       });
 
-      // Cleanup and finalize
       clearInterval(intervalId);
       setProgress(100);
       
-      // Reset progress after a delay
       setTimeout(() => setProgress(0), 1000);
       
       return transcriptionResult;

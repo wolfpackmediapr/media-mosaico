@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
@@ -14,9 +13,16 @@ import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
 interface RadioContainerProps {
   persistedText?: string;
   onTextChange?: (text: string) => void;
+  persistKey?: string;
+  storage?: 'localStorage' | 'sessionStorage';
 }
 
-const RadioContainer = ({ persistedText = "", onTextChange }: RadioContainerProps) => {
+const RadioContainer = ({ 
+  persistedText = "", 
+  onTextChange,
+  persistKey = "radio-files",
+  storage = "sessionStorage"
+}: RadioContainerProps) => {
   const { isAuthenticated } = useAuthStatus();
   const {
     files,
@@ -24,8 +30,12 @@ const RadioContainer = ({ persistedText = "", onTextChange }: RadioContainerProp
     currentFileIndex,
     setCurrentFileIndex,
     currentFile,
-    handleRemoveFile
-  } = useRadioFiles();
+    handleRemoveFile,
+    handleFilesAdded
+  } = useRadioFiles({
+    persistKey,
+    storage
+  });
   
   const {
     isProcessing,
@@ -46,14 +56,12 @@ const RadioContainer = ({ persistedText = "", onTextChange }: RadioContainerProp
     handleTranscriptionReceived
   } = useRadioTranscription();
 
-  // Sync with persisted text if provided
   useEffect(() => {
     if (persistedText && persistedText !== transcriptionText) {
       setTranscriptionText(persistedText);
     }
   }, [persistedText, setTranscriptionText]);
 
-  // Update persisted text when transcription text changes
   useEffect(() => {
     if (onTextChange && transcriptionText && transcriptionText !== persistedText) {
       onTextChange(transcriptionText);
@@ -83,7 +91,6 @@ const RadioContainer = ({ persistedText = "", onTextChange }: RadioContainerProp
     seekToTimestamp(timestamp);
   };
 
-  // Enhanced text change handler to update both states
   const handleTranscriptionTextChange = (text: string) => {
     handleTranscriptionChange(text);
     if (onTextChange) {
@@ -91,7 +98,6 @@ const RadioContainer = ({ persistedText = "", onTextChange }: RadioContainerProp
     }
   };
 
-  // File upload section (now left column only)
   const leftSection = (
     <FileUploadSection 
       files={files}
@@ -106,10 +112,10 @@ const RadioContainer = ({ persistedText = "", onTextChange }: RadioContainerProp
       setTranscriptionText={setTranscriptionText}
       setTranscriptionId={setTranscriptionId}
       onTranscriptionComplete={handleTranscriptionReceived}
+      onFilesAdded={handleFilesAdded}
     />
   );
 
-  // Media controls and audio file list (now right column)
   const rightSection = (
     <>
       {currentFile && (
@@ -133,7 +139,6 @@ const RadioContainer = ({ persistedText = "", onTextChange }: RadioContainerProp
     </>
   );
 
-  // Transcription section - full width below the two columns
   const transcriptionSection = (
     <RadioTranscriptionSlot
       isProcessing={isProcessing}

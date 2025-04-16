@@ -14,6 +14,8 @@ const Radio = () => {
     <RadioContainer 
       persistedText={textContent} 
       onTextChange={setTextContent}
+      persistKey="radio-files"
+      storage="sessionStorage"
     />
   );
 };
