@@ -13,7 +13,8 @@ const corsHeaders = {
 function constructDynamicPrompt(
   categories: string[] = [],
   clients: { name: string; keywords: string[] }[] = [],
-  additionalContext: string = ''
+  additionalContext: string = '',
+  hasSpeakerLabels: boolean = false
 ): string {
   // Format categories list
   const categoriesText = categories.length > 0 
@@ -43,20 +44,26 @@ function constructDynamicPrompt(
 3. Tono general del contenido (formal/informal, informativo/opinión)
 4. Posibles categorías o géneros radiofónicos que aplican. Estas son las categorías disponibles: ${categoriesText}`;
 
+  // Add specific speaker analysis if speaker labels are available
+  if (hasSpeakerLabels) {
+    prompt += `
+5. Identificación de los participantes en la conversación (cuántos hablantes participan y si se pueden identificar sus roles o nombres)`;
+  }
+
   // Add clients section if available
   if (clientsText) {
     prompt += `
-5. Presencia de personas o entidades relevantes mencionadas
-6. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}`;
+${hasSpeakerLabels ? '6' : '5'}. Presencia de personas o entidades relevantes mencionadas
+${hasSpeakerLabels ? '7' : '6'}. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}`;
   } else {
     prompt += `
-5. Presencia de personas o entidades relevantes mencionadas`;
+${hasSpeakerLabels ? '6' : '5'}. Presencia de personas o entidades relevantes mencionadas`;
   }
 
   // Add keyword mapping if available
   if (clientKeywordMap) {
     prompt += `
-7. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
+${hasSpeakerLabels ? '8' : '7'}. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
 ${clientKeywordMap}
 
 Responde en español de manera concisa y profesional. Si es posible, incluye las palabras textuales mencionadas que justifiquen las asociaciones con clientes o palabras clave.`;
@@ -64,6 +71,11 @@ Responde en español de manera concisa y profesional. Si es posible, incluye las
     prompt += `
 
 Responde en español de manera concisa y profesional.`;
+  }
+
+  // Add speaker-specific instructions if available
+  if (hasSpeakerLabels) {
+    prompt += `\n\nLa transcripción incluye etiquetas de hablantes (SPEAKER A, SPEAKER B, etc.). Utiliza esta información para identificar diferentes personas, sus roles y la dinámica de la conversación.`;
   }
 
   // Add any additional context provided
@@ -96,6 +108,7 @@ serve(async (req) => {
     
     // If we have a transcript ID, we could fetch additional metadata from AssemblyAI if needed
     let additionalContext = '';
+    let hasSpeakerLabels = false;
     const assemblyKey = Deno.env.get('ASSEMBLYAI_API_KEY');
     
     if (transcriptId && assemblyKey) {
@@ -116,10 +129,35 @@ serve(async (req) => {
             additionalContext = `\nLa transcripción tiene ${sentencesData.sentences.length} oraciones con timestamps precisos.`;
           }
         }
+        
+        // Check for speaker labels (utterances)
+        const utterancesResponse = await fetch(
+          `https://api.assemblyai.com/v2/transcript/${transcriptId}/utterances`,
+          {
+            headers: {
+              'Authorization': assemblyKey,
+            },
+          }
+        );
+        
+        if (utterancesResponse.ok) {
+          const utterancesData = await utterancesResponse.json();
+          if (utterancesData.utterances?.length > 0) {
+            hasSpeakerLabels = true;
+            const speakerCount = new Set(utterancesData.utterances.map((u: any) => u.speaker)).size;
+            additionalContext += `\nLa transcripción incluye etiquetas de ${speakerCount} hablantes distintos.`;
+          }
+        }
       } catch (error) {
         console.error('Error fetching additional metadata:', error);
         // Non-fatal, continue without it
       }
+    }
+    
+    // Check if the transcription text itself contains speaker labels
+    if (!hasSpeakerLabels) {
+      const speakerLabelRegex = /SPEAKER [A-Z]\s*\(\d+:\d+\):/i;
+      hasSpeakerLabels = speakerLabelRegex.test(transcriptionText);
     }
     
     const openAIKey = Deno.env.get('OPENAI_API_KEY');
@@ -131,7 +169,8 @@ serve(async (req) => {
     const systemPrompt = constructDynamicPrompt(
       categories.map((c: any) => typeof c === 'string' ? c : c.name_es || c.name), 
       clients,
-      additionalContext
+      additionalContext,
+      hasSpeakerLabels
     );
 
     console.log('Generated system prompt with length:', systemPrompt.length);
@@ -155,7 +194,7 @@ serve(async (req) => {
           },
         ],
         temperature: 0.3,
-        max_tokens: 1000, // Increased from 800 to accommodate more detailed analysis
+        max_tokens: 1000,
       }),
     });
 

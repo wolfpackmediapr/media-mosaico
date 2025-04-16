@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -9,9 +8,10 @@ export interface TranscriptionResult {
   topics?: any;
   words?: WordTimestamp[];
   sentences?: SentenceTimestamp[];
+  utterances?: UtteranceTimestamp[];
   audio_duration?: number;
-  transcript_id?: string; // Added to fix the missing property errors
-  segments?: any[]; // Added to fix the missing property errors
+  transcript_id?: string;
+  segments?: any[];
 }
 
 export interface WordTimestamp {
@@ -27,6 +27,14 @@ export interface SentenceTimestamp {
   end: number;
   confidence?: number;
   words?: WordTimestamp[];
+}
+
+export interface UtteranceTimestamp {
+  text: string;
+  start: number;
+  end: number;
+  speaker: string;
+  confidence?: number;
 }
 
 /**
@@ -113,6 +121,37 @@ export const fetchSentenceTimestamps = async (transcriptId: string): Promise<Sen
     return [];
   } catch (error) {
     console.error('Failed to fetch sentence timestamps:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch speaker utterances from AssemblyAI
+ */
+export const fetchUtterances = async (transcriptId: string): Promise<UtteranceTimestamp[]> => {
+  try {
+    console.log('Fetching speaker utterances from AssemblyAI...');
+    
+    const { data, error } = await supabase.functions.invoke('fetch-utterances', {
+      body: { transcriptId },
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (error) {
+      console.error('Error fetching utterances:', error);
+      throw error;
+    }
+
+    if (data?.utterances && Array.isArray(data.utterances)) {
+      console.log(`Retrieved ${data.utterances.length} utterances with speaker labels`);
+      return data.utterances;
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Failed to fetch utterances:', error);
     return [];
   }
 };

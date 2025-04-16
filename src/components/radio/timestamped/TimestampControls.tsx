@@ -3,23 +3,29 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 
 interface TimestampControlsProps {
-  viewMode: 'sentence' | 'word';
+  viewMode: 'speaker' | 'sentence' | 'word';
   canToggleViewMode: boolean;
   onToggleViewMode: () => void;
   onDownloadSRT: () => void;
+  viewModeName?: string;
+  nextViewModeName?: string;
 }
 
 const TimestampControls = ({
   viewMode,
   canToggleViewMode,
   onToggleViewMode,
-  onDownloadSRT
+  onDownloadSRT,
+  viewModeName,
+  nextViewModeName
 }: TimestampControlsProps) => {
   return (
     <div className="p-2 bg-muted/20 flex justify-between items-center">
       <div className="flex gap-2">
         <span className="text-sm font-medium text-muted-foreground">
-          {viewMode === 'sentence' ? 'Vista por Oraciones' : 'Vista por Palabras'}
+          {viewModeName || (viewMode === 'speaker' ? 'Vista por Hablantes' : 
+                            viewMode === 'sentence' ? 'Vista por Oraciones' : 
+                            'Vista por Palabras')}
         </span>
         {canToggleViewMode && (
           <Button 
@@ -28,7 +34,9 @@ const TimestampControls = ({
             onClick={onToggleViewMode}
             className="h-7 text-xs"
           >
-            {viewMode === 'sentence' ? 'Cambiar a Palabras' : 'Cambiar a Oraciones'}
+            {nextViewModeName || (viewMode === 'speaker' ? 'Cambiar a Oraciones' : 
+                                  viewMode === 'sentence' ? 'Cambiar a Palabras' : 
+                                  'Cambiar a Hablantes')}
           </Button>
         )}
       </div>

@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import RadioTimestampedTranscription from "./RadioTimestampedTranscription";
-import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import { TranscriptionResult, fetchUtterances } from "@/services/audio/transcriptionService";
 import TranscriptionModeToggle from "./editor/TranscriptionModeToggle";
 import CopyTextButton from "./editor/CopyTextButton";
 import StatusIndicator from "./editor/StatusIndicator";
@@ -32,6 +32,8 @@ const RadioTranscriptionEditor = ({
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [showTimestamps, setShowTimestamps] = useState(false);
+  const [enhancedTranscriptionResult, setEnhancedTranscriptionResult] = 
+    useState<TranscriptionResult | undefined>(transcriptionResult);
   
   // Use persistent state with session storage for unsaved content
   const [localText, setLocalText] = usePersistentState(
@@ -44,6 +46,37 @@ const RadioTranscriptionEditor = ({
   useEffect(() => {
     setLocalText(transcriptionText);
   }, [transcriptionText, setLocalText]);
+
+  // Update enhanced result when transcriptionResult changes
+  useEffect(() => {
+    setEnhancedTranscriptionResult(transcriptionResult);
+  }, [transcriptionResult]);
+
+  // Fetch utterances if not available in the initial transcription result
+  useEffect(() => {
+    const fetchSpeakerData = async () => {
+      if (
+        transcriptionId && 
+        showTimestamps && 
+        transcriptionResult && 
+        (!transcriptionResult.utterances || transcriptionResult.utterances.length === 0)
+      ) {
+        try {
+          const utterances = await fetchUtterances(transcriptionId);
+          if (utterances && utterances.length > 0) {
+            setEnhancedTranscriptionResult(prev => ({
+              ...(prev || transcriptionResult),
+              utterances
+            }));
+          }
+        } catch (error) {
+          console.error('Error fetching utterances:', error);
+        }
+      }
+    };
+
+    fetchSpeakerData();
+  }, [transcriptionId, showTimestamps, transcriptionResult]);
 
   // Setup autosave
   const { isSaving, saveSuccess } = useAutosave({
@@ -121,15 +154,16 @@ const RadioTranscriptionEditor = ({
   };
 
   const hasTimestampData = Boolean(
-    transcriptionResult?.sentences?.length || 
-    transcriptionResult?.words?.length
+    enhancedTranscriptionResult?.sentences?.length || 
+    enhancedTranscriptionResult?.words?.length ||
+    enhancedTranscriptionResult?.utterances?.length
   );
 
   return (
     <div className="relative">
       {showTimestamps && hasTimestampData ? (
         <RadioTimestampedTranscription 
-          transcriptionResult={transcriptionResult}
+          transcriptionResult={enhancedTranscriptionResult}
           text={localText}
           onTimestampClick={onTimestampClick}
         />

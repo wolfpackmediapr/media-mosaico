@@ -73,8 +73,12 @@ serve(async (req) => {
         audio_url: uploadResult.upload_url,
         language_code: 'es',
         speech_model: 'nano',
+        speaker_labels: true,     // Enable speaker diarization
+        punctuate: true,          // Enable smart punctuation
+        format_text: true,        // Enable text formatting
         entity_detection: true,
         word_boost: ["radio", "noticia", "programa"],
+        boost_param: "high"       // Force stronger boost effect
       }),
     });
 
@@ -157,6 +161,31 @@ serve(async (req) => {
       // Continue execution even if sentence fetch fails
     }
 
+    // Fetch utterances (speaker segments) if diarization was enabled
+    let utterances = [];
+    try {
+      console.log('Fetching speaker diarization data...');
+      const utterancesResponse = await fetch(
+        `https://api.assemblyai.com/v2/transcript/${transcriptId}/utterances`,
+        {
+          headers: {
+            'Authorization': assemblyKey,
+          },
+        }
+      );
+      
+      if (utterancesResponse.ok) {
+        const utterancesData = await utterancesResponse.json();
+        utterances = utterancesData.utterances || [];
+        console.log(`Retrieved ${utterances.length} speaker utterances`);
+      } else {
+        console.warn('Failed to fetch utterances, continuing without speaker data');
+      }
+    } catch (utteranceError) {
+      console.error('Error fetching utterances:', utteranceError);
+      // Continue execution even if utterance fetch fails
+    }
+
     // Store the transcription in the database
     let dbTranscriptionId = null;
     try {
@@ -175,6 +204,7 @@ serve(async (req) => {
             audio_duration: transcript.audio_duration,
             has_word_timestamps: true,
             has_sentence_timestamps: sentences.length > 0,
+            has_speaker_labels: utterances.length > 0,
             entity_detection: transcript.entities ? true : false,
             language_code: 'es',
             model: 'nano'
@@ -200,6 +230,7 @@ serve(async (req) => {
         text: transcript.text,
         words: transcript.words,
         sentences: sentences,
+        utterances: utterances, // Include speaker utterances in the response
         content_safety: transcript.content_safety_labels,
         entities: transcript.entities,
         topics: transcript.iab_categories_result,

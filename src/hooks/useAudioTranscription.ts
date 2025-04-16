@@ -2,7 +2,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
-import { transcribeWithAssemblyAI, transcribeWithOpenAI, fetchSentenceTimestamps, TranscriptionResult } from "@/services/audio/transcriptionService";
+import { 
+  transcribeWithAssemblyAI, 
+  transcribeWithOpenAI, 
+  fetchSentenceTimestamps,
+  fetchUtterances, 
+  TranscriptionResult 
+} from "@/services/audio/transcriptionService";
 import { verifyAuthentication, validateAudioFile } from "@/utils/authUtils";
 
 interface UploadedFile extends File {
@@ -63,6 +69,19 @@ export const useAudioTranscription = () => {
           } catch (sentenceError) {
             console.error('Error fetching sentences:', sentenceError);
             // Non-fatal, continue without sentences
+          }
+        }
+        
+        // If we don't have speaker utterances but have an ID, fetch them
+        if (data?.transcript_id && (!data.utterances || data.utterances.length === 0)) {
+          try {
+            const utterances = await fetchUtterances(data.transcript_id);
+            if (utterances && utterances.length > 0) {
+              data.utterances = utterances;
+            }
+          } catch (utteranceError) {
+            console.error('Error fetching utterances:', utteranceError);
+            // Non-fatal, continue without utterances
           }
         }
         
