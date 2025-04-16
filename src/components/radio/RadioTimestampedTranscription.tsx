@@ -15,11 +15,13 @@ interface RadioTimestampedTranscriptionProps {
   onTimestampClick?: (timestamp: number) => void;
 }
 
+// Define a more general timestamped item type
 interface TimestampedItem {
   text: string;
   start: number;
   end: number;
   type: 'sentence' | 'word' | 'speaker';
+  speaker?: string;
 }
 
 const RadioTimestampedTranscription = ({
@@ -37,7 +39,7 @@ const RadioTimestampedTranscription = ({
   
   // Generate timestamped items based on available data
   const timestampedItems = useMemo(() => {
-    if (!transcriptionResult) return [];
+    if (!transcriptionResult) return [] as TimestampedItem[];
     
     // If we have speaker utterances and we're in speaker mode, use them (top priority)
     if (viewMode === 'speaker' && transcriptionResult.utterances && transcriptionResult.utterances.length > 0) {
@@ -70,7 +72,7 @@ const RadioTimestampedTranscription = ({
       }));
     }
     
-    return [];
+    return [] as TimestampedItem[];
   }, [transcriptionResult, viewMode]);
   
   const handleItemClick = (timestamp: number) => {
@@ -151,7 +153,7 @@ const RadioTimestampedTranscription = ({
         />
       ) : (
         <TimestampedList
-          items={timestampedItems}
+          items={timestampedItems as any} // Type assertion to avoid TypeScript issue
           viewMode={viewMode === 'word' ? 'word' : 'sentence'}
           formatTime={formatTime}
           onItemClick={handleItemClick}

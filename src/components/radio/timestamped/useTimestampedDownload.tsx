@@ -1,64 +1,48 @@
 
-import { useState } from "react";
 import { formatSrtTime } from "./timeUtils";
-
-interface TimestampedItem {
-  text: string;
-  start: number;
-  end: number;
-  type: string;
-  speaker?: string;
-}
+import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 
 export const useTimestampedDownload = () => {
-  const [isDownloading, setIsDownloading] = useState(false);
-  
-  const generateSRT = (items: TimestampedItem[]) => {
-    if (!items || items.length === 0) return "";
-    
-    return items.map((item, index) => {
-      const speakerPrefix = item.speaker ? `SPEAKER ${item.speaker}: ` : "";
-      const itemNumber = index + 1;
-      const startTime = formatSrtTime(item.start);
-      const endTime = formatSrtTime(item.end);
-      
-      return `${itemNumber}\n${startTime} --> ${endTime}\n${speakerPrefix}${item.text}\n`;
-    }).join('\n');
-  };
-  
-  const downloadSRT = (items: TimestampedItem[], preformattedContent?: string | null) => {
-    try {
-      setIsDownloading(true);
-      
-      // Generate SRT content
-      let srtContent = preformattedContent;
-      
-      if (!srtContent) {
-        srtContent = generateSRT(items);
-      }
-      
-      // Create a blob and trigger download
-      const blob = new Blob([srtContent], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `transcription_${new Date().getTime()}.srt`;
-      document.body.appendChild(a);
-      a.click();
-      
-      // Cleanup
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
-      
-    } catch (error) {
-      console.error('Error generating SRT file:', error);
-    } finally {
-      setIsDownloading(false);
+  const downloadSRT = (
+    items: { text: string; start: number; end: number; type: string; speaker?: string }[],
+    customContent?: string | null
+  ) => {
+    if (customContent) {
+      // Use custom pre-formatted content if provided
+      downloadTextFile(customContent, "transcript.txt");
+      return;
     }
+
+    // Generate SRT format
+    let srtContent = "";
+    
+    items.forEach((item, index) => {
+      const i = index + 1;
+      const startFormatted = formatSrtTime(item.start);
+      const endFormatted = formatSrtTime(item.end);
+      
+      // Add speaker prefix for speaker items
+      const text = item.type === 'speaker' && item.speaker 
+        ? `SPEAKER ${item.speaker}: ${item.text}`
+        : item.text;
+      
+      srtContent += `${i}\n${startFormatted} --> ${endFormatted}\n${text}\n\n`;
+    });
+    
+    downloadTextFile(srtContent, "transcript.srt");
   };
   
-  return { isDownloading, downloadSRT };
+  const downloadTextFile = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+  
+  return { downloadSRT };
 };

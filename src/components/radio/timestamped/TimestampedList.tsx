@@ -7,7 +7,7 @@ interface TimestampedListProps {
     text: string;
     start: number;
     end: number;
-    type: 'sentence' | 'word';
+    type: 'sentence' | 'word' | 'speaker';
   }[];
   viewMode: 'sentence' | 'word';
   formatTime: (time: number, includeMs?: boolean) => string;
