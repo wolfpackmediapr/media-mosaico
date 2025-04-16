@@ -144,7 +144,7 @@ const Tv = () => {
   };
 
   const handleTranscriptionComplete = (text: string) => {
-    setTranscriptionText(text);
+    handleTranscriptionChange(text);
   };
 
   const handleRemoveFile = (index: number) => {
