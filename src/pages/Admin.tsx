@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -61,9 +62,6 @@ const Admin = () => {
 
   useEffect(() => {
     fetchUsers();
-    
-    // Make wolfpackmediapr@gmail.com an admin immediately
-    makeUserAdmin("wolfpackmediapr@gmail.com");
   }, []);
 
   const handleMakeAdmin = async (email: string) => {
@@ -106,7 +104,9 @@ const Admin = () => {
                   <tr key={user.id} className="border-b">
                     <td className="p-2">{user.username}</td>
                     <td className="p-2">{user.email}</td>
-                    <td className="p-2">{user.role === 'administrator' ? 'Administrador' : 'Entrada de datos'}</td>
+                    <td className="p-2">
+                      {user.role === 'administrator' ? 'Administrador' : 'Entrada de datos'}
+                    </td>
                     <td className="p-2">
                       {user.role !== 'administrator' && (
                         <Button 
