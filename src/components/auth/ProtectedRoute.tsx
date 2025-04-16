@@ -1,8 +1,9 @@
 
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,9 +11,10 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isCheckingRole, setIsCheckingRole] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const checkUserRole = async () => {
@@ -35,24 +37,33 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
         } finally {
           setIsCheckingRole(false);
         }
+      } else if (!authLoading) {
+        // Reset role when user is not authenticated
+        setUserRole(null);
       }
     };
 
     checkUserRole();
-  }, [user]);
+  }, [user, authLoading]);
 
-  if (isLoading || isCheckingRole) {
+  // Show loading state while checking auth or role
+  if (authLoading || isCheckingRole) {
     return (
-      <div className="w-full h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <div className="w-full h-screen flex flex-col items-center justify-center">
+        <Loader2 className="animate-spin h-12 w-12 text-primary mb-4" />
+        <p className="text-muted-foreground">Verificando autenticación...</p>
       </div>
     );
   }
 
+  // Redirect to auth if not logged in
   if (!user) {
+    // Save the current location to redirect back after login
+    sessionStorage.setItem('redirectAfterLogin', location.pathname);
     return <Navigate to="/auth" replace />;
   }
 
+  // Redirect to home if admin-only route but user is not an admin
   if (adminOnly && userRole !== 'administrator') {
     return <Navigate to="/" replace />;
   }
