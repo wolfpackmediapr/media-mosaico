@@ -7,19 +7,92 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/**
+ * Constructs a dynamic prompt for the AI based on categories and clients data
+ */
+function constructDynamicPrompt(
+  categories: string[] = [],
+  clients: { name: string; keywords: string[] }[] = [],
+  additionalContext: string = ''
+): string {
+  // Format categories list
+  const categoriesText = categories.length > 0 
+    ? categories.join(', ')
+    : 'ENTRETENIMIENTO, EDUCACION & CULTURA, COMUNIDAD, SALUD, CRIMEN, TRIBUNALES, AMBIENTE & EL TIEMPO, ECONOMIA & NEGOCIOS, GOBIERNO, POLITICA, EE.UU. & INTERNACIONALES, DEPORTES, RELIGION, OTRAS, ACCIDENTES, CIENCIA & TECNOLOGIA';
+
+  // Format clients list
+  const clientsText = clients.length > 0
+    ? clients.map(c => c.name).join(', ')
+    : '';
+
+  // Build client-keyword mapping
+  const clientKeywordMap = clients.length > 0
+    ? clients.map(client => {
+        const keywords = client.keywords?.length > 0
+          ? client.keywords.join(', ')
+          : '—';
+        return `- ${client.name}: ${keywords}`;
+      }).join('\n')
+    : '';
+
+  // Construct the base prompt
+  let prompt = `Eres un analista experto en contenido de radio. Analiza la siguiente transcripción de un programa de radio en español y proporciona un resumen estructurado que incluya:
+
+1. Una síntesis general del contenido (7-10 oraciones)
+2. Identificación de los temas principales tratados (7-10 temas listados)
+3. Tono general del contenido (formal/informal, informativo/opinión)
+4. Posibles categorías o géneros radiofónicos que aplican. Estas son las categorías disponibles: ${categoriesText}`;
+
+  // Add clients section if available
+  if (clientsText) {
+    prompt += `
+5. Presencia de personas o entidades relevantes mencionadas
+6. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}`;
+  } else {
+    prompt += `
+5. Presencia de personas o entidades relevantes mencionadas`;
+  }
+
+  // Add keyword mapping if available
+  if (clientKeywordMap) {
+    prompt += `
+7. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
+${clientKeywordMap}
+
+Responde en español de manera concisa y profesional. Si es posible, incluye las palabras textuales mencionadas que justifiquen las asociaciones con clientes o palabras clave.`;
+  } else {
+    prompt += `
+
+Responde en español de manera concisa y profesional.`;
+  }
+
+  // Add any additional context provided
+  if (additionalContext) {
+    prompt += additionalContext;
+  }
+
+  return prompt;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { transcriptionText, transcriptId } = await req.json();
+    const { 
+      transcriptionText, 
+      transcriptId,
+      categories = [],
+      clients = [] 
+    } = await req.json();
 
     if (!transcriptionText || transcriptionText.length < 10) {
       throw new Error('Texto de transcripción demasiado corto o vacío');
     }
 
     console.log(`Analyzing transcription text (${transcriptionText.length} chars)${transcriptId ? ' with ID: ' + transcriptId : ''}`);
+    console.log(`Using ${categories.length} categories and ${clients.length} clients for analysis`);
     
     // If we have a transcript ID, we could fetch additional metadata from AssemblyAI if needed
     let additionalContext = '';
@@ -54,6 +127,15 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
+    // Construct the dynamic system prompt
+    const systemPrompt = constructDynamicPrompt(
+      categories.map((c: any) => typeof c === 'string' ? c : c.name_es || c.name), 
+      clients,
+      additionalContext
+    );
+
+    console.log('Generated system prompt with length:', systemPrompt.length);
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -65,15 +147,7 @@ serve(async (req) => {
         messages: [
           { 
             role: 'system', 
-            content: `Eres un analista experto en contenido de radio. Analiza la siguiente transcripción de un programa de radio en español y proporciona un resumen estructurado que incluya:
-            
-            1. Una síntesis general del contenido (2-3 oraciones)
-            2. Identificación de los temas principales tratados (3-5 temas listados)
-            3. Tono general del contenido (formal/informal, informativo/opinión)
-            4. Posibles categorías o géneros radiofónicos que aplican (noticias, entrevista, debate, etc.)
-            5. Presencia de personas o entidades relevantes mencionadas
-            
-            Responde en español de manera concisa y profesional.${additionalContext}`
+            content: systemPrompt
           },
           { 
             role: 'user', 
@@ -81,7 +155,7 @@ serve(async (req) => {
           },
         ],
         temperature: 0.3,
-        max_tokens: 800,
+        max_tokens: 1000, // Increased from 800 to accommodate more detailed analysis
       }),
     });
 

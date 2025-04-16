@@ -7,6 +7,8 @@ import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import { createNotification } from "@/services/notifications/unifiedNotificationService";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
+import { useCategories } from "@/hooks/radio/useCategories";
+import { useClientData } from "@/hooks/radio/useClientData";
 import AnalysisActions from "./analysis/AnalysisActions";
 import AnalysisResult from "./analysis/AnalysisResult";
 
@@ -21,6 +23,8 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState("");
   const { generateRadioSegments } = useRadioSegmentGenerator(onSegmentsGenerated);
+  const { categories } = useCategories();
+  const { clients } = useClientData();
 
   const analyzeContent = async () => {
     if (!transcriptionText) {
@@ -30,10 +34,19 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
 
     setIsAnalyzing(true);
     try {
+      // Format categories and clients for the prompt
+      const formattedCategories = categories.map(cat => cat.name_es);
+      const formattedClients = clients.map(client => ({
+        name: client.name,
+        keywords: client.keywords || []
+      }));
+
       const { data, error } = await supabase.functions.invoke('analyze-radio-content', {
         body: { 
           transcriptionText,
-          transcriptId: transcriptionId || null
+          transcriptId: transcriptionId || null,
+          categories: formattedCategories,
+          clients: formattedClients
         }
       });
 
@@ -64,17 +77,17 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
             let matchedClients: string[] = [];
             
             // Try to parse category, keywords and clients from the analysis text
-            const categoryMatch = data.analysis.match(/Categoría:?\s*([A-Z\s&]+)/i);
+            const categoryMatch = data.analysis.match(/Categoría[s]?:?\s*([A-ZÁ-ÚÑ\s&]+)/i);
             if (categoryMatch && categoryMatch[1]) {
               category = categoryMatch[1].trim();
             }
             
-            const keywordsMatch = data.analysis.match(/Keywords:?\s*([^\.]+)/i);
+            const keywordsMatch = data.analysis.match(/Palabras clave:?\s*([^\.]+)/i);
             if (keywordsMatch && keywordsMatch[1]) {
               keywords = keywordsMatch[1].split(',').map((k: string) => k.trim()).filter(Boolean);
             }
             
-            const clientsMatch = data.analysis.match(/Clientes relacionados:?\s*([^\.]+)/i);
+            const clientsMatch = data.analysis.match(/Clientes [^:]*:?\s*([^\.]+)/i);
             if (clientsMatch && clientsMatch[1]) {
               matchedClients = clientsMatch[1].split(',').map((c: string) => c.trim()).filter(Boolean);
             }
