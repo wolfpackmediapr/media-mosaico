@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { makeUserAdmin } from "@/utils/adminUtils";
-import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface LogoutButtonProps {
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
@@ -20,7 +20,7 @@ const LogoutButton = ({
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const { userRole } = usePermissions();
 
   // Make the wolfpackmediapr@gmail.com user an admin
   useEffect(() => {
@@ -37,23 +37,6 @@ const LogoutButton = ({
       
       setAdmin();
     }
-    
-    // Fetch user role
-    const fetchUserRole = async () => {
-      if (user) {
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-        
-        if (!error && data) {
-          setUserRole(data.role);
-        }
-      }
-    };
-    
-    fetchUserRole();
   }, [user]);
 
   const handleLogout = async () => {
