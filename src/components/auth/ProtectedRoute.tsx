@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,6 +16,7 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isCheckingRole, setIsCheckingRole] = useState(false);
   const location = useLocation();
+  const { canAccessRoute } = usePermissions();
 
   useEffect(() => {
     const checkUserRole = async () => {
@@ -85,6 +87,11 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
 
   // Redirect to home if admin-only route but user is not an admin
   if (adminOnly && userRole !== 'administrator') {
+    return <Navigate to="/" replace />;
+  }
+
+  // Check route access based on user role
+  if (!canAccessRoute(location.pathname)) {
     return <Navigate to="/" replace />;
   }
 
