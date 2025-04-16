@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
@@ -9,6 +10,7 @@ import RadioAnalysis from "./RadioAnalysis";
 import RadioLayout from "./RadioLayout";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
+import TrackList from "./TrackList";
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -91,6 +93,12 @@ const RadioContainer = ({
     seekToTimestamp(timestamp);
   };
 
+  const handleTrackSelect = (index: number) => {
+    if (index !== currentFileIndex) {
+      setCurrentFileIndex(index);
+    }
+  };
+
   const handleTranscriptionTextChange = (text: string) => {
     handleTranscriptionChange(text);
     if (onTextChange) {
@@ -117,7 +125,7 @@ const RadioContainer = ({
   );
 
   const rightSection = (
-    <>
+    <div className="space-y-4">
       {currentFile && (
         <MediaControls
           currentFile={currentFile}
@@ -136,7 +144,18 @@ const RadioContainer = ({
           onPlaybackRateChange={handlePlaybackRateChange}
         />
       )}
-    </>
+      
+      {files.length > 0 && (
+        <TrackList
+          files={files}
+          currentFileIndex={currentFileIndex}
+          onSelectTrack={handleTrackSelect}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+        />
+      )}
+    </div>
   );
 
   const transcriptionSection = (
