@@ -11,3 +11,4 @@ export * from './utils/segmentUtils';
 export * from './use-audio-player';
 export * from './useRadioFiles';
 export * from './useRadioTranscription';
+export * from './useTranscriptionEditor';
