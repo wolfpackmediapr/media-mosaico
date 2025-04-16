@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -30,9 +31,18 @@ const RadioTranscriptionEditor = ({
 }: RadioTranscriptionEditorProps) => {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
-  const [showTimestamps, setShowTimestamps] = useState(false);
+  
+  // Determine initial showTimestamps state based on available data
+  const hasTimestampData = Boolean(
+    transcriptionResult?.sentences?.length || 
+    transcriptionResult?.words?.length ||
+    transcriptionResult?.utterances?.length
+  );
+  
+  const [showTimestamps, setShowTimestamps] = useState(hasTimestampData);
   const [enhancedTranscriptionResult, setEnhancedTranscriptionResult] = 
     useState<TranscriptionResult | undefined>(transcriptionResult);
+  const [isLoadingUtterances, setIsLoadingUtterances] = useState(false);
   
   const [localText, setLocalText] = usePersistentState(
     `radio-transcription-${transcriptionId || "draft"}`,
@@ -49,6 +59,13 @@ const RadioTranscriptionEditor = ({
   }, [transcriptionResult]);
 
   useEffect(() => {
+    // Update showTimestamps state when transcriptionResult changes
+    if (hasTimestampData && !isEditing) {
+      setShowTimestamps(true);
+    }
+  }, [transcriptionResult, hasTimestampData, isEditing]);
+
+  useEffect(() => {
     const fetchSpeakerData = async () => {
       if (
         transcriptionId && 
@@ -57,6 +74,7 @@ const RadioTranscriptionEditor = ({
         (!transcriptionResult.utterances || transcriptionResult.utterances.length === 0)
       ) {
         try {
+          setIsLoadingUtterances(true);
           console.log('Fetching utterances for transcript ID:', transcriptionId);
           const utterances = await fetchUtterances(transcriptionId);
           
@@ -76,6 +94,8 @@ const RadioTranscriptionEditor = ({
             description: "Intente nuevamente o use otro modo de visualización",
             variant: "destructive",
           });
+        } finally {
+          setIsLoadingUtterances(false);
         }
       }
     };
@@ -153,12 +173,6 @@ const RadioTranscriptionEditor = ({
     }
   };
 
-  const hasTimestampData = Boolean(
-    enhancedTranscriptionResult?.sentences?.length || 
-    enhancedTranscriptionResult?.words?.length ||
-    enhancedTranscriptionResult?.utterances?.length
-  );
-
   return (
     <div className="relative">
       {showTimestamps && hasTimestampData ? (
@@ -166,6 +180,7 @@ const RadioTranscriptionEditor = ({
           transcriptionResult={enhancedTranscriptionResult}
           text={localText}
           onTimestampClick={onTimestampClick}
+          isLoading={isLoadingUtterances}
         />
       ) : (
         <TranscriptionTextArea
