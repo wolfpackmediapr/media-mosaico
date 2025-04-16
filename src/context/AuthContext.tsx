@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .insert({ 
           id: userId, 
           username: metadata?.username || userId, 
-          role: 'data_entry'
+          role: 'data_entry' // Always default to data_entry role
         });
       
       if (error) {
@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             : error.message
         });
       } else if (data && data.user) {
-        // Create a user profile after successful signup
+        // Create a user profile after successful signup with data_entry role
         await createUserProfile(data.user.id, metadata);
         
         toast.success("Cuenta creada exitosamente", {

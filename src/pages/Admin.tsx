@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -71,6 +70,9 @@ const Admin = () => {
     const success = await makeUserAdmin(email);
     if (success) {
       fetchUsers(); // Refresh the user list
+      toast.success("Usuario promovido a administrador correctamente");
+    } else {
+      toast.error("No se pudo promover al usuario a administrador");
     }
   };
 
