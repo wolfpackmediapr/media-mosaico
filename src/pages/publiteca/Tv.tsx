@@ -1,13 +1,16 @@
 
-import React, { useState } from "react";
+import React from "react";
 import { PublitecaLayout } from "@/components/publiteca/PublitecaLayout";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TvNoticias } from "@/components/publiteca/tv/TvNoticias";
 import { TvAnuncios } from "@/components/publiteca/tv/TvAnuncios";
 import { TvPublicity } from "@/components/publiteca/tv/TvPublicity";
+import { useTvTabState } from "@/hooks/tv/useTvTabState";
 
 export default function Tv() {
-  const [activeTab, setActiveTab] = useState("noticias");
+  const { activeTab, setActiveTab } = useTvTabState({
+    persistKey: "publiteca-tv-tab"
+  });
 
   return (
     <PublitecaLayout 

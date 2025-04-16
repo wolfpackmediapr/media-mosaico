@@ -20,7 +20,13 @@ export const useTranscriptionEditor = ({
   onTranscriptionChange,
 }: UseTranscriptionEditorProps) => {
   const { toast } = useToast();
-  const [isEditing, setIsEditing] = useState(false);
+  
+  // Use persistent state for editor mode
+  const [isEditing, setIsEditing] = usePersistentState(
+    `transcription-editor-mode-${transcriptionId || "draft"}`,
+    false,
+    { storage: 'sessionStorage' }
+  );
   
   // Determine initial showTimestamps state based on available data
   const hasTimestampData = Boolean(
@@ -29,11 +35,18 @@ export const useTranscriptionEditor = ({
     transcriptionResult?.utterances?.length
   );
   
-  const [showTimestamps, setShowTimestamps] = useState(hasTimestampData);
+  // Use persistent state for timestamp view preference
+  const [showTimestamps, setShowTimestamps] = usePersistentState(
+    `transcription-timestamp-view-${transcriptionId || "draft"}`,
+    hasTimestampData,
+    { storage: 'sessionStorage' }
+  );
+  
   const [enhancedTranscriptionResult, setEnhancedTranscriptionResult] = 
     useState<TranscriptionResult | undefined>(transcriptionResult);
   const [isLoadingUtterances, setIsLoadingUtterances] = useState(false);
   
+  // Use persistent state for the text content
   const [localText, setLocalText] = usePersistentState(
     `radio-transcription-${transcriptionId || "draft"}`,
     transcriptionText,

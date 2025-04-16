@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { TvSettingsTabs } from "@/components/settings/tv/TvSettingsTabs";
 import { seedTvData, resetTvData } from "@/services/tv/seedService";
@@ -9,9 +9,13 @@ import { AlertTriangle, RefreshCw, Database } from "lucide-react";
 import { TvMigrationPanel } from "@/components/settings/tv/TvMigrationPanel";
 import { Badge } from "@/components/ui/badge";
 import { isUsingDatabase } from "@/services/tv/utils";
+import { useTvTabState } from "@/hooks/tv/useTvTabState";
 
 export default function TvSettings() {
-  const [activeTab, setActiveTab] = useState<string>("channels");
+  const { activeTab, setActiveTab } = useTvTabState({
+    defaultTab: "channels",
+    persistKey: "tv-settings-tabs"
+  });
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
   const [settingsTab, setSettingsTab] = useState<string>("data");

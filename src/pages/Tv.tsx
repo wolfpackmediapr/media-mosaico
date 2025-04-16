@@ -6,6 +6,7 @@ import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
 import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -13,9 +14,19 @@ interface UploadedFile extends File {
 
 const Tv = () => {
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  // Use persistent state for uploaded files so they're remembered across navigation
+  const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
+    "tv-uploaded-files",
+    [],
+    { storage: 'sessionStorage' }
+  );
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState([50]);
+  // Use persistent state for volume preference
+  const [volume, setVolume] = usePersistentState<number[]>(
+    "tv-player-volume",
+    [50],
+    { storage: 'localStorage' }
+  );
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
