@@ -20,7 +20,16 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
   useEffect(() => {
     if (!file) return;
 
-    const audio = new Audio(URL.createObjectURL(file));
+    // Clean up previous audio element
+    if (audioElement) {
+      audioElement.pause();
+      URL.revokeObjectURL(audioElement.src);
+    }
+
+    // Create a URL from the file if it's not already a URL
+    const fileUrl = file.preview || URL.createObjectURL(file);
+    
+    const audio = new Audio(fileUrl);
     
     audio.onloadedmetadata = () => {
       setDuration(audio.duration);
@@ -48,9 +57,20 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
     
     return () => {
       audio.pause();
-      URL.revokeObjectURL(audio.src);
+      // Only revoke if we created the URL, not if we're using a preview
+      if (!file.preview) {
+        URL.revokeObjectURL(fileUrl);
+      }
     };
   }, [file, onTimeUpdate, onDurationChange]);
+
+  // Reset state when file changes
+  useEffect(() => {
+    if (file) {
+      setCurrentTime(0);
+      setIsPlaying(false);
+    }
+  }, [file]);
 
   const handlePlayPause = () => {
     if (!audioElement) return;
@@ -58,7 +78,10 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
     if (isPlaying) {
       audioElement.pause();
     } else {
-      audioElement.play();
+      audioElement.play().catch(error => {
+        console.error("Error playing audio:", error);
+        toast.error("Error al reproducir el audio");
+      });
     }
     setIsPlaying(!isPlaying);
   };
@@ -124,7 +147,10 @@ export const useAudioPlayer = ({ file, onTimeUpdate, onDurationChange }: AudioPl
       console.log(`Seeking to timestamp: ${timestamp}, converted to seconds: ${targetSeconds}`);
       
       audioElement.currentTime = targetSeconds;
-      audioElement.play();
+      audioElement.play().catch(error => {
+        console.error("Error playing audio after seeking:", error);
+        toast.error("Error al reproducir el audio después de buscar");
+      });
       setIsPlaying(true);
     } else {
       console.warn('No audio element found to seek');

@@ -46,32 +46,38 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     // Skip if no metadata or files already loaded
     if (fileMetadata.length === 0 || files.length > 0) return;
 
-    // Create empty File objects with previews from metadata
-    const reconstructedFiles = fileMetadata.map(meta => {
-      // Create a minimal File object
-      const file = new File([], meta.name, { 
-        type: meta.type,
-        lastModified: meta.lastModified
-      });
-      
-      // Add size property to match original
-      Object.defineProperty(file, 'size', {
-        value: meta.size,
-        writable: false
-      });
-      
-      // Add preview URL if available
-      if (meta.preview) {
-        Object.defineProperty(file, 'preview', {
-          value: meta.preview,
-          writable: true
+    try {
+      // Create File objects with previews from metadata
+      const reconstructedFiles = fileMetadata.map(meta => {
+        // Create a minimal File object with blank content
+        const file = new File([""], meta.name, { 
+          type: meta.type,
+          lastModified: meta.lastModified
         });
-      }
+        
+        // Add size property to match original
+        Object.defineProperty(file, 'size', {
+          value: meta.size,
+          writable: false
+        });
+        
+        // Add preview URL if available
+        if (meta.preview) {
+          Object.defineProperty(file, 'preview', {
+            value: meta.preview,
+            writable: true
+          });
+        }
+        
+        return file as UploadedFile;
+      });
       
-      return file as UploadedFile;
-    });
-    
-    setFiles(reconstructedFiles);
+      console.log("Reconstructed files from metadata:", reconstructedFiles);
+      setFiles(reconstructedFiles);
+    } catch (error) {
+      console.error("Error reconstructing files from metadata:", error);
+      toast.error("Error al cargar archivos guardados");
+    }
   }, [fileMetadata]);
 
   // Sync file metadata when files change
@@ -112,11 +118,27 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     }
 
     const uploadedFiles = audioFiles.map((file) => {
-      const uploadedFile = new File([file], file.name, { type: file.type });
+      // Create a new File object
+      const uploadedFile = new File([file], file.name, { 
+        type: file.type,
+        lastModified: file.lastModified
+      });
+      
+      // Set size property if needed
+      if (uploadedFile.size !== file.size) {
+        Object.defineProperty(uploadedFile, 'size', {
+          value: file.size,
+          writable: false
+        });
+      }
+      
+      // Add preview URL
+      const previewUrl = URL.createObjectURL(file);
       Object.defineProperty(uploadedFile, 'preview', {
-        value: URL.createObjectURL(file),
+        value: previewUrl,
         writable: true
       });
+      
       return uploadedFile as UploadedFile;
     });
     
