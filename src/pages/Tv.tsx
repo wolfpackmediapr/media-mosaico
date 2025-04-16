@@ -1,20 +1,17 @@
-import { useState, useEffect, useRef } from "react";
-import FileUploadZone from "@/components/upload/FileUploadZone";
-import VideoPreview from "@/components/video/VideoPreview";
-import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
-import { useFileUpload } from "@/hooks/use-file-upload";
-import { useVideoProcessor } from "@/hooks/use-video-processor";
-import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
+
+import { useState, useEffect } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useTvTabState } from "@/hooks/tv/useTvTabState";
+import { useVideoProcessor } from "@/hooks/use-video-processor";
+import VideoSection from "@/components/tv/VideoSection";
+import TvTranscriptionSection from "@/components/tv/TvTranscriptionSection";
+import TvTypeformEmbed from "@/components/tv/TvTypeformEmbed";
 
 interface UploadedFile extends File {
   preview?: string;
 }
 
 const Tv = () => {
-  const [isDragging, setIsDragging] = useState(false);
-  
   // Use persistent state for uploaded files so they're remembered across navigation
   const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
     "tv-uploaded-files",
@@ -37,10 +34,7 @@ const Tv = () => {
     storage: 'sessionStorage',
     persistTextContent: true
   });
-  
-  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const { isUploading, uploadProgress, uploadFile } = useFileUpload();
   const {
     isProcessing,
     progress,
@@ -57,14 +51,14 @@ const Tv = () => {
     if (transcriptionText && transcriptionText !== textContent) {
       setTextContent(transcriptionText);
     }
-  }, [transcriptionText, setTextContent]);
+  }, [transcriptionText, setTextContent, textContent]);
 
   // When our text content changes externally, update the processor state
   useEffect(() => {
     if (textContent && textContent !== transcriptionText) {
       setVideoProcessorText(textContent);
     }
-  }, [textContent]);
+  }, [textContent, transcriptionText, setVideoProcessorText]);
 
   // Enhanced text change handler to update both states
   const handleTranscriptionChange = (text: string) => {
@@ -96,49 +90,6 @@ const Tv = () => {
     ]
   };
 
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = "//embed.typeform.com/next/embed.js";
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleFiles = async (files: FileList) => {
-    for (const file of Array.from(files)) {
-      const result = await uploadFile(file);
-      if (result) {
-        const uploadedFile = Object.assign(file, { preview: result.preview });
-        setUploadedFiles(prev => [...prev, uploadedFile]);
-      }
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleFiles(e.dataTransfer.files);
-  };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      handleFiles(e.target.files);
-    }
-  };
-
   const togglePlayback = () => {
     setIsPlaying(!isPlaying);
   };
@@ -164,12 +115,6 @@ const Tv = () => {
     }
   };
 
-  const handleSegmentsReceived = (segments: any[]) => {
-    if (segments && segments.length > 0) {
-      setNewsSegments(segments);
-    }
-  };
-
   return (
     <div className="w-full space-y-6">
       <div>
@@ -179,58 +124,35 @@ const Tv = () => {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 w-full">
-        <FileUploadZone
-          isDragging={isDragging}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onFileInput={handleFileInput}
-          isUploading={isUploading}
-          uploadProgress={uploadProgress}
-        />
-
-        <VideoPreview
-          uploadedFiles={uploadedFiles}
-          isPlaying={isPlaying}
-          volume={volume}
-          isProcessing={isProcessing}
-          progress={progress}
-          onTogglePlayback={togglePlayback}
-          onVolumeChange={setVolume}
-          onProcess={processVideo}
-          onTranscriptionComplete={handleTranscriptionChange}
-          onRemoveFile={handleRemoveFile}
-        />
-      </div>
+      <VideoSection
+        uploadedFiles={uploadedFiles}
+        setUploadedFiles={setUploadedFiles}
+        isPlaying={isPlaying}
+        volume={volume}
+        isProcessing={isProcessing}
+        progress={progress}
+        onTogglePlayback={togglePlayback}
+        onVolumeChange={setVolume}
+        onProcess={processVideo}
+        onTranscriptionComplete={handleTranscriptionComplete}
+        onRemoveFile={handleRemoveFile}
+      />
 
       {textContent && (
-        <NewsSegmentsContainer
-          segments={newsSegments}
-          onSegmentsChange={setNewsSegments}
-          onSeek={handleSeekToTimestamp}
+        <TvTranscriptionSection 
+          textContent={textContent}
+          newsSegments={newsSegments}
           isProcessing={isProcessing}
+          transcriptionMetadata={transcriptionMetadata}
+          testAnalysis={testAnalysis}
+          onTranscriptionChange={handleTranscriptionChange}
+          onSegmentsChange={setNewsSegments}
+          onSeekToTimestamp={handleSeekToTimestamp}
+          onSegmentsReceived={setNewsSegments}
         />
       )}
 
-      <TranscriptionSlot
-        isProcessing={isProcessing}
-        transcriptionText={textContent}
-        metadata={transcriptionMetadata || {
-          channel: "WIPR",
-          program: "Noticias Puerto Rico",
-          category: "Economía",
-          broadcastTime: "2024-03-15T10:00:00Z"
-        }}
-        analysis={testAnalysis}
-        onTranscriptionChange={handleTranscriptionChange}
-        onSegmentsReceived={handleSegmentsReceived}
-      />
-
-      <div className="mt-8 p-6 bg-muted rounded-lg w-full">
-        <h2 className="text-2xl font-bold mb-4">Alerta TV</h2>
-        <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK" className="h-[500px] md:h-[600px]"></div>
-      </div>
+      <TvTypeformEmbed />
     </div>
   );
 };
