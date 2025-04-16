@@ -19,7 +19,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   } = options;
 
   // Store file metadata in persistent storage
-  const [fileMetadata, setFileMetadata, clearFileMetadata] = usePersistentState<Array<{
+  const [fileMetadata, setFileMetadata] = usePersistentState<Array<{
     name: string;
     type: string;
     size: number;
@@ -35,7 +35,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   
   // Store current file index in persistent storage
-  const [currentFileIndex, setCurrentFileIndex, clearCurrentFileIndex] = usePersistentState<number>(
+  const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
     `${persistKey}-current-index`,
     0,
     { storage }
@@ -43,8 +43,8 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
 
   // Initialize file objects from metadata when component mounts
   useEffect(() => {
-    // Remove the files.length check that was preventing re-initialization after clearing
-    if (fileMetadata.length === 0) return;
+    // Skip if no metadata or files already loaded
+    if (fileMetadata.length === 0 || files.length > 0) return;
 
     try {
       // Create File objects with previews from metadata
@@ -167,20 +167,6 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     });
   };
 
-  const clearFiles = () => {
-    // Revoke all object URLs
-    files.forEach(file => {
-      if (file.preview) {
-        URL.revokeObjectURL(file.preview);
-      }
-    });
-    
-    // Clear states
-    setFiles([]);
-    clearFileMetadata();
-    clearCurrentFileIndex();
-  };
-
   return {
     files,
     setFiles,
@@ -188,7 +174,6 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     setCurrentFileIndex,
     currentFile,
     handleFilesAdded,
-    handleRemoveFile,
-    clearFiles
+    handleRemoveFile
   };
 };

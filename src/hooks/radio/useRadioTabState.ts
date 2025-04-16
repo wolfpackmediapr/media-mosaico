@@ -22,23 +22,18 @@ export const useRadioTabState = (options: UseRadioTabStateOptions = {}) => {
   } = options;
 
   // Use persistent state to store the active tab
-  const [activeTab, setActiveTab, clearActiveTab] = usePersistentState<string>(
+  const [activeTab, setActiveTab] = usePersistentState<string>(
     persistKey,
     defaultTab,
     { storage }
   );
 
   // Add text content persistence
-  const [textContent, setTextContent, clearTextContent] = usePersistentState<string>(
+  const [textContent, setTextContent] = usePersistentState<string>(
     `${persistKey}-text-content`,
     "",
     { storage }
   );
-
-  // Function to clear text content
-  const clearText = () => {
-    clearTextContent();
-  };
 
   // Public API for the hook
   return {
@@ -46,7 +41,6 @@ export const useRadioTabState = (options: UseRadioTabStateOptions = {}) => {
     setActiveTab,
     textContent,
     setTextContent,
-    resetTab: () => setActiveTab(defaultTab),
-    clearText
+    resetTab: () => setActiveTab(defaultTab)
   };
 };
