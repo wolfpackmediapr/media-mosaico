@@ -28,7 +28,27 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
             .single();
           
           if (error) {
-            console.error('Error fetching user role:', error);
+            // If the error is that no rows were returned, the profile doesn't exist yet
+            if (error.code === 'PGRST116') {
+              console.log('User profile not found, creating default profile');
+              
+              // Create a default profile for the user with 'user' role
+              const { error: insertError } = await supabase
+                .from('user_profiles')
+                .insert({ 
+                  id: user.id, 
+                  username: user.email?.split('@')[0] || 'user', 
+                  role: 'user' 
+                });
+              
+              if (insertError) {
+                console.error('Error creating user profile:', insertError);
+              } else {
+                setUserRole('user');
+              }
+            } else {
+              console.error('Error fetching user role:', error);
+            }
           } else {
             setUserRole(data?.role || null);
           }

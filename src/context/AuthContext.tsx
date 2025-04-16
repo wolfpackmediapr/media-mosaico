@@ -51,6 +51,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Helper function to create user profile
+  const createUserProfile = async (userId: string, metadata: any) => {
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .insert({ 
+          id: userId, 
+          username: metadata?.username || userId, 
+          role: 'user'
+        });
+      
+      if (error) {
+        console.error("Error creating user profile:", error);
+      }
+    } catch (err) {
+      console.error("Error in createUserProfile:", err);
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -86,7 +105,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { error };
       }
       
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -102,7 +121,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             ? "El usuario ya existe. Intente iniciar sesión." 
             : error.message
         });
-      } else {
+      } else if (data && data.user) {
+        // Create a user profile after successful signup
+        await createUserProfile(data.user.id, metadata);
+        
         toast.success("Cuenta creada exitosamente", {
           description: "Por favor verifique su correo electrónico para continuar."
         });
