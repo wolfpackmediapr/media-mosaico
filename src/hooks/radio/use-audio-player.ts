@@ -2,8 +2,12 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
+interface UploadedFile extends File {
+  preview?: string;
+}
+
 interface AudioPlayerOptions {
-  file?: File;
+  file?: UploadedFile;
   onTimeUpdate?: (time: number) => void;
   onDurationChange?: (duration: number) => void;
 }
