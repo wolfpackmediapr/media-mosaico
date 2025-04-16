@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
@@ -15,13 +16,15 @@ interface RadioContainerProps {
   onTextChange?: (text: string) => void;
   persistKey?: string;
   storage?: 'localStorage' | 'sessionStorage';
+  shouldClearOnRefresh?: boolean;
 }
 
 const RadioContainer = ({ 
   persistedText = "", 
   onTextChange,
   persistKey = "radio-files",
-  storage = "sessionStorage"
+  storage = "sessionStorage",
+  shouldClearOnRefresh = false
 }: RadioContainerProps) => {
   const { isAuthenticated } = useAuthStatus();
   const {
@@ -31,7 +34,8 @@ const RadioContainer = ({
     setCurrentFileIndex,
     currentFile,
     handleRemoveFile,
-    handleFilesAdded
+    handleFilesAdded,
+    clearFiles
   } = useRadioFiles({
     persistKey,
     storage
@@ -55,6 +59,19 @@ const RadioContainer = ({
     handleMetadataChange,
     handleTranscriptionReceived
   } = useRadioTranscription();
+
+  // Effect to clear files on refresh if shouldClearOnRefresh is true
+  useEffect(() => {
+    if (shouldClearOnRefresh) {
+      const isPageRefresh = performance.navigation?.type === 1 || 
+                         document.visibilityState === 'visible';
+      
+      if (isPageRefresh) {
+        console.log("Page was refreshed, clearing radio files");
+        clearFiles();
+      }
+    }
+  }, [shouldClearOnRefresh, clearFiles]);
 
   useEffect(() => {
     if (persistedText && persistedText !== transcriptionText) {

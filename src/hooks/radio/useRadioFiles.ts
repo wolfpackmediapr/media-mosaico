@@ -19,7 +19,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   } = options;
 
   // Store file metadata in persistent storage
-  const [fileMetadata, setFileMetadata] = usePersistentState<Array<{
+  const [fileMetadata, setFileMetadata, clearFileMetadata] = usePersistentState<Array<{
     name: string;
     type: string;
     size: number;
@@ -35,7 +35,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   
   // Store current file index in persistent storage
-  const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
+  const [currentFileIndex, setCurrentFileIndex, clearCurrentFileIndex] = usePersistentState<number>(
     `${persistKey}-current-index`,
     0,
     { storage }
@@ -167,6 +167,20 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     });
   };
 
+  const clearFiles = () => {
+    // Revoke all object URLs
+    files.forEach(file => {
+      if (file.preview) {
+        URL.revokeObjectURL(file.preview);
+      }
+    });
+    
+    // Clear states
+    setFiles([]);
+    clearFileMetadata();
+    clearCurrentFileIndex();
+  };
+
   return {
     files,
     setFiles,
@@ -174,6 +188,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     setCurrentFileIndex,
     currentFile,
     handleFilesAdded,
-    handleRemoveFile
+    handleRemoveFile,
+    clearFiles
   };
 };
