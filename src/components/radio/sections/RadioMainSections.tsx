@@ -1,6 +1,6 @@
 
 import { ReactNode } from "react";
-import { RadioNewsSegment } from "../RadioNewsSegmentsContainer";
+import RadioNewsSegmentsContainer, { RadioNewsSegment } from "../RadioNewsSegmentsContainer";
 
 interface RadioMainSectionsProps {
   transcriptionSection: ReactNode;
