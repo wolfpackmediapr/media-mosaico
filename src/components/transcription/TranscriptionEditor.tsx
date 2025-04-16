@@ -19,23 +19,31 @@ const TranscriptionEditor = ({
 }: TranscriptionEditorProps) => {
   const { toast } = useToast();
   
+  // Create a more robust key for persistence
+  const storageKey = `transcription-draft-${transcriptionText?.substring(0, 20) || 'empty'}-${Date.now().toString().substring(0, 6)}`;
+  
   // Use persistent state with session storage for unsaved content
   const [localText, setLocalText] = usePersistentState(
-    `transcription-draft-${transcriptionText.substring(0, 20)}`,
-    transcriptionText,
+    storageKey,
+    transcriptionText || "",
     { storage: 'sessionStorage' }
   );
 
-  // Update local text when transcription changes from parent
+  // Ensure we update local text when transcription changes from parent
+  // with a check to prevent losing edits
   useEffect(() => {
-    setLocalText(transcriptionText);
-  }, [transcriptionText, setLocalText]);
+    if (transcriptionText && (!localText || transcriptionText !== localText)) {
+      setLocalText(transcriptionText);
+    }
+  }, [transcriptionText]);
 
   // Setup autosave
   const { isSaving, saveSuccess } = useAutosave({
     data: localText,
     onSave: async (text) => {
       try {
+        if (!text) return;
+        
         const { error } = await supabase
           .from('transcriptions')
           .update({ transcription_text: text })
@@ -43,7 +51,6 @@ const TranscriptionEditor = ({
 
         if (error) throw error;
         
-        // No mostramos el toast aquí directamente
         return;
       } catch (error) {
         toast({
@@ -57,7 +64,7 @@ const TranscriptionEditor = ({
     debounce: 2000, // Save after 2 seconds of inactivity
   });
 
-  // Mostrar toast solo cuando saveSuccess cambie a true
+  // Show toast only when saveSuccess changes to true
   useEffect(() => {
     if (saveSuccess === true) {
       toast({
@@ -73,12 +80,15 @@ const TranscriptionEditor = ({
     onTranscriptionChange(newText);
   };
 
+  // Make sure we're rendering something sensible
+  const displayText = localText || transcriptionText || "";
+
   return (
     <div className="relative">
       <Textarea
         placeholder="Aquí aparecerá el texto transcrito..."
         className="min-h-[200px] resize-y"
-        value={localText}
+        value={displayText}
         onChange={handleTextChange}
         disabled={isProcessing}
       />

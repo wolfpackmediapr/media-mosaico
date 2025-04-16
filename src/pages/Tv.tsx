@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import VideoPreview from "@/components/video/VideoPreview";
@@ -7,6 +6,7 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
 import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useTvTabState } from "@/hooks/tv/useTvTabState";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -14,19 +14,30 @@ interface UploadedFile extends File {
 
 const Tv = () => {
   const [isDragging, setIsDragging] = useState(false);
+  
   // Use persistent state for uploaded files so they're remembered across navigation
   const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
     "tv-uploaded-files",
     [],
     { storage: 'sessionStorage' }
   );
+  
   const [isPlaying, setIsPlaying] = useState(false);
+  
   // Use persistent state for volume preference
   const [volume, setVolume] = usePersistentState<number[]>(
     "tv-player-volume",
     [50],
     { storage: 'localStorage' }
   );
+  
+  // Use TV tab state for persisting transcription text
+  const { textContent, setTextContent } = useTvTabState({
+    persistKey: "tv-transcription",
+    storage: 'sessionStorage',
+    persistTextContent: true
+  });
+  
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
@@ -37,9 +48,29 @@ const Tv = () => {
     transcriptionMetadata,
     newsSegments,
     processVideo,
-    setTranscriptionText,
+    setTranscriptionText: setVideoProcessorText,
     setNewsSegments
   } = useVideoProcessor();
+
+  // Sync videoProcessor text with our persisted text state
+  useEffect(() => {
+    if (transcriptionText && transcriptionText !== textContent) {
+      setTextContent(transcriptionText);
+    }
+  }, [transcriptionText, setTextContent]);
+
+  // When our text content changes externally, update the processor state
+  useEffect(() => {
+    if (textContent && textContent !== transcriptionText) {
+      setVideoProcessorText(textContent);
+    }
+  }, [textContent]);
+
+  // Enhanced text change handler to update both states
+  const handleTranscriptionChange = (text: string) => {
+    setTextContent(text);
+    setVideoProcessorText(text);
+  };
 
   const testAnalysis = {
     quien: "José Luis Pérez, Secretario del Departamento de Desarrollo Económico",
@@ -168,12 +199,12 @@ const Tv = () => {
           onTogglePlayback={togglePlayback}
           onVolumeChange={setVolume}
           onProcess={processVideo}
-          onTranscriptionComplete={handleTranscriptionComplete}
+          onTranscriptionComplete={handleTranscriptionChange}
           onRemoveFile={handleRemoveFile}
         />
       </div>
 
-      {transcriptionText && (
+      {textContent && (
         <NewsSegmentsContainer
           segments={newsSegments}
           onSegmentsChange={setNewsSegments}
@@ -184,7 +215,7 @@ const Tv = () => {
 
       <TranscriptionSlot
         isProcessing={isProcessing}
-        transcriptionText={transcriptionText}
+        transcriptionText={textContent}
         metadata={transcriptionMetadata || {
           channel: "WIPR",
           program: "Noticias Puerto Rico",
@@ -192,7 +223,7 @@ const Tv = () => {
           broadcastTime: "2024-03-15T10:00:00Z"
         }}
         analysis={testAnalysis}
-        onTranscriptionChange={setTranscriptionText}
+        onTranscriptionChange={handleTranscriptionChange}
         onSegmentsReceived={handleSegmentsReceived}
       />
 
