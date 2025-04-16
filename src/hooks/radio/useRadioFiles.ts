@@ -43,8 +43,8 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
 
   // Initialize file objects from metadata when component mounts
   useEffect(() => {
-    // Skip if no metadata or files already loaded
-    if (fileMetadata.length === 0 || files.length > 0) return;
+    // Remove the files.length check that was preventing re-initialization after clearing
+    if (fileMetadata.length === 0) return;
 
     try {
       // Create File objects with previews from metadata

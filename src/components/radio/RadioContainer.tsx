@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
@@ -60,7 +59,6 @@ const RadioContainer = ({
     handleTranscriptionReceived
   } = useRadioTranscription();
 
-  // Effect to clear files on refresh if shouldClearOnRefresh is true
   useEffect(() => {
     if (shouldClearOnRefresh) {
       const isPageRefresh = performance.navigation?.type === 1 || 
