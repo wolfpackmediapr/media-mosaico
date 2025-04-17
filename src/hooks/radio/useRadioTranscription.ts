@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
@@ -57,7 +56,7 @@ export const useRadioTranscription = () => {
     transcriptionId,
     setTranscriptionId,
     transcriptionResult,
-    setTranscriptionResult, // <-- Add this line
+    setTranscriptionResult,
     metadata,
     newsSegments,
     setNewsSegments,
