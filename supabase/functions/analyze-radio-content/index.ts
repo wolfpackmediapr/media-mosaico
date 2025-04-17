@@ -7,9 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-/**
- * Constructs a dynamic prompt for the AI based on categories and clients data
- */
 function constructDynamicPrompt(
   categories: string[] = [],
   clients: { name: string; keywords: string[] }[] = [],
@@ -36,13 +33,21 @@ function constructDynamicPrompt(
       }).join('\n')
     : '';
 
-  // Construct the base prompt
-  let prompt = `Eres un analista experto en contenido de radio. Analiza la siguiente transcripción de un programa de radio en español y proporciona un resumen estructurado que incluya:
+  // Construct the base prompt with ad detection
+  let prompt = `Eres un analista experto en contenido de radio. Analiza la siguiente transcripción de un programa de radio en español. Primero, identifica si el contenido es un anuncio publicitario o contenido regular del programa. Luego, proporciona un resumen estructurado según el tipo de contenido:
 
+Para anuncios publicitarios, incluye:
+1. Marca(s) o producto(s) anunciados
+2. Mensajes clave del anuncio
+3. Llamada a la acción (si existe)
+4. Tono del anuncio (persuasivo, informativo, emocional, etc.)
+5. Duración aproximada (corto/medio/largo)
+
+Para contenido regular del programa, incluye:
 1. Una síntesis general del contenido (7-10 oraciones)
 2. Identificación de los temas principales tratados (7-10 temas listados)
 3. Tono general del contenido (formal/informal, informativo/opinión)
-4. Posibles categorías o géneros radiofónicos que aplican. Estas son las categorías disponibles: ${categoriesText}`;
+4. Posibles categorías o géneros radiofónicos que aplican. Categorías disponibles: ${categoriesText}`;
 
   // Add specific speaker analysis if speaker labels are available
   if (hasSpeakerLabels) {
@@ -66,11 +71,10 @@ ${hasSpeakerLabels ? '6' : '5'}. Presencia de personas o entidades relevantes me
 ${hasSpeakerLabels ? '8' : '7'}. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
 ${clientKeywordMap}
 
-Responde en español de manera concisa y profesional. Si es posible, incluye las palabras textuales mencionadas que justifiquen las asociaciones con clientes o palabras clave.`;
+Responde en español de manera concisa y profesional. Si es posible, incluye las palabras textuales mencionadas que justifiquen las asociaciones con clientes o palabras clave.
+En el caso de anuncios, enfócate en las menciones de marcas y productos.`;
   } else {
-    prompt += `
-
-Responde en español de manera concisa y profesional.`;
+    prompt += `\n\nResponde en español de manera concisa y profesional.`;
   }
 
   // Add speaker-specific instructions if available
@@ -165,15 +169,12 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    // Construct the dynamic system prompt
     const systemPrompt = constructDynamicPrompt(
       categories.map((c: any) => typeof c === 'string' ? c : c.name_es || c.name), 
       clients,
       additionalContext,
       hasSpeakerLabels
     );
-
-    console.log('Generated system prompt with length:', systemPrompt.length);
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
