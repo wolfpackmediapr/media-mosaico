@@ -1,5 +1,5 @@
 
-import { Client } from './types';
+import { Client } from './types.ts';
 
 export const constructDynamicPrompt = (
   categories: string[] = [],
