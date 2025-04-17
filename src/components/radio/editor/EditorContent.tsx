@@ -2,7 +2,6 @@
 import React from 'react';
 import RadioTimestampedTranscription from '../RadioTimestampedTranscription';
 import TranscriptionTextArea from './TranscriptionTextArea';
-import FormattedTranscriptionEditor from './FormattedTranscriptionEditor';
 import { TranscriptionResult } from '@/services/audio/transcriptionService';
 
 interface EditorContentProps {
@@ -41,20 +40,6 @@ const EditorContent = ({
     );
   }
 
-  // When not showing timestamps and editing, use the formatted editor
-  if (isEditing) {
-    return (
-      <FormattedTranscriptionEditor
-        text={text}
-        isEditing={isEditing}
-        isProcessing={isProcessing}
-        onChange={onTextChange}
-        onClick={onTextAreaClick}
-      />
-    );
-  }
-
-  // Fallback: classic textarea (readonly or not editing)
   return (
     <TranscriptionTextArea
       text={text}
