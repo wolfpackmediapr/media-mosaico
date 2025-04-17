@@ -1,3 +1,4 @@
+
 import { Dispatch, SetStateAction } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileList from "./AudioFileList";
@@ -45,52 +46,78 @@ const FileUploadSection = ({
   const handleFilesAdded = (newFiles: File[]) => {
     if (onFilesAdded) {
       onFilesAdded(newFiles);
-    } else {
-      const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
-      
-      if (audioFiles.length < newFiles.length) {
-        toast.warning('Se omitieron algunos archivos que no son de audio');
-      }
+      return;
+    }
+    
+    const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
+    
+    if (audioFiles.length < newFiles.length) {
+      toast.warning('Se omitieron algunos archivos que no son de audio');
+    }
 
-      const uploadedFiles = audioFiles.map((file) => {
-        const uploadedFile = new File([file], file.name, { type: file.type });
-        Object.defineProperty(uploadedFile, 'preview', {
-          value: URL.createObjectURL(file),
-          writable: true
-        });
-        return uploadedFile as UploadedFile;
+    // Handle empty file list
+    if (audioFiles.length === 0) {
+      toast.error('No se seleccionaron archivos de audio válidos');
+      return;
+    }
+
+    const uploadedFiles = audioFiles.map((file) => {
+      // Create a proper uploadedFile object
+      const uploadedFile = new File([file], file.name, { type: file.type });
+      
+      // Create object URL for preview
+      const preview = URL.createObjectURL(file);
+      
+      // Add preview property
+      Object.defineProperty(uploadedFile, 'preview', {
+        value: preview,
+        writable: true
       });
       
+      return uploadedFile as UploadedFile;
+    });
+    
+    // Only update if we have valid files
+    if (uploadedFiles.length > 0) {
       setFiles([...files, ...uploadedFiles]);
     }
   };
 
   const handleRemoveFile = (index: number) => {
     const newFiles = [...files];
-    if (newFiles[index].preview) {
+    
+    // Make sure to revoke object URL before removing to prevent memory leaks
+    if (newFiles[index]?.preview) {
       URL.revokeObjectURL(newFiles[index].preview!);
     }
-    newFiles.splice(index, 1);
     
+    newFiles.splice(index, 1);
     setFiles(newFiles);
     
+    // Handle case when current file is removed
     if (currentFileIndex >= newFiles.length && currentFileIndex > 0) {
-      setCurrentFileIndex(newFiles.length - 1);
+      setCurrentFileIndex(Math.max(0, newFiles.length - 1));
     }
   };
 
   const processFile = async (file: UploadedFile) => {
+    if (!file) {
+      toast.error('No hay un archivo seleccionado para procesar');
+      return null;
+    }
+    
     setIsProcessing(true);
     setProgress(0);
     
     try {
+      // Simulate progress updates for better UX
       const intervalId = setInterval(() => {
         setProgress((prev) => {
           if (prev >= 95) {
             clearInterval(intervalId);
             return 95;
           }
-          return prev + Math.random() * 10;
+          return prev + Math.random() * 5;
         });
       }, 1000);
 
@@ -111,12 +138,14 @@ const FileUploadSection = ({
       clearInterval(intervalId);
       setProgress(100);
       
+      // Reset progress after a delay
       setTimeout(() => setProgress(0), 1000);
       
       return transcriptionResult;
     } catch (error) {
       console.error("Error processing file:", error);
       toast.error("Error al procesar el archivo");
+      return null;
     } finally {
       setIsProcessing(false);
     }
@@ -126,7 +155,10 @@ const FileUploadSection = ({
     <>
       <FileUploadZone
         isDragging={false}
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          // Add visual feedback for dragging here if needed
+        }}
         onDragLeave={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -134,8 +166,12 @@ const FileUploadSection = ({
           handleFilesAdded(files);
         }}
         onFileInput={(e) => {
-          const files = Array.from(e.target.files || []);
-          handleFilesAdded(files);
+          if (e.target.files && e.target.files.length > 0) {
+            const files = Array.from(e.target.files);
+            handleFilesAdded(files);
+            // Reset the input value to allow selecting the same file again
+            e.target.value = '';
+          }
         }}
         accept="audio/*"
         message="Arrastra y suelta archivos de audio o haz clic para seleccionarlos"

@@ -77,6 +77,8 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     } catch (error) {
       console.error("Error reconstructing files from metadata:", error);
       toast.error("Error al cargar archivos guardados");
+      // Reset metadata if reconstruction fails
+      setFileMetadata([]);
     }
   }, [fileMetadata]);
 
@@ -92,6 +94,9 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
       }));
       
       setFileMetadata(metadata);
+    } else if (fileMetadata.length > 0 && files.length === 0) {
+      // Clear metadata when files are emptied
+      setFileMetadata([]);
     }
   }, [files, setFileMetadata]);
 
@@ -111,10 +116,19 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     : undefined;
   
   const handleFilesAdded = (newFiles: File[]) => {
+    if (!newFiles || newFiles.length === 0) {
+      return;
+    }
+    
     const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
     
     if (audioFiles.length < newFiles.length) {
       toast.warning('Se omitieron algunos archivos que no son de audio');
+    }
+    
+    if (audioFiles.length === 0) {
+      toast.error('No se seleccionaron archivos de audio válidos');
+      return;
     }
 
     const uploadedFiles = audioFiles.map((file) => {
@@ -152,11 +166,6 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         URL.revokeObjectURL(newFiles[index].preview!);
       }
       newFiles.splice(index, 1);
-      
-      // Update metadata
-      if (newFiles.length === 0) {
-        setFileMetadata([]);
-      }
       
       // Update current index if needed
       if (currentFileIndex >= newFiles.length && currentFileIndex > 0 && newFiles.length > 0) {

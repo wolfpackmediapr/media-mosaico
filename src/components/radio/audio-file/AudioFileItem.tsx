@@ -20,6 +20,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
 }) => {
   const [showPlayer, setShowPlayer] = useState(false);
   const [processingComplete, setProcessingComplete] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { processWithAuth } = useAudioTranscription();
 
@@ -82,9 +83,20 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
     if (!showPlayer && audioRef.current) {
       audioRef.current.play().catch(error => {
         console.error('Error playing audio:', error);
+        setAudioError("Error al reproducir el audio. El archivo podría estar dañado.");
+        toast.error("Error al reproducir el audio");
       });
     }
   };
+
+  const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+    console.error('Audio error:', e);
+    setAudioError("Error al cargar el audio. El formato podría no ser compatible.");
+    toast.error("Error al cargar el audio");
+  };
+
+  // Create audio URL from file if it doesn't have a preview
+  const audioSrc = file.preview || (file instanceof File ? URL.createObjectURL(file) : '');
 
   return (
     <div className="border rounded-lg overflow-hidden bg-card mb-4">
@@ -102,9 +114,13 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
           <audio 
             ref={audioRef}
             controls
-            src={file.preview || URL.createObjectURL(file)} 
+            src={audioSrc} 
             className="w-full" 
+            onError={handleAudioError}
           />
+          {audioError && (
+            <p className="text-red-500 text-sm mt-1">{audioError}</p>
+          )}
         </div>
       )}
       
