@@ -58,7 +58,7 @@ PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
 5. Duración aproximada
 
 PARA CADA SECCIÓN DE PROGRAMA REGULAR:
-1. Resumen del contenido (5-7 oraciones)
+1. Resumen del contenido (10-15 oraciones)
 2. Temas principales tratados
 3. Tono del contenido
 4. Categorías aplicables de: ${categoriesText}`;
