@@ -1,5 +1,6 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
@@ -17,12 +18,18 @@ interface RadioAnalysisProps {
   transcriptionId?: string;
   transcriptionResult?: TranscriptionResult;
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
-  onClearAnalysis?: () => void;
+  onClearAnalysis?: (clearFn: () => void) => void; // expects a function to set the clear handler
 }
 
 const ANALYSIS_PERSIST_KEY = "radio-content-analysis";
 
-const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult, onSegmentsGenerated, onClearAnalysis }: RadioAnalysisProps) => {
+const RadioAnalysis = ({
+  transcriptionText,
+  transcriptionId,
+  transcriptionResult,
+  onSegmentsGenerated,
+  onClearAnalysis
+}: RadioAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis, removeAnalysis] = usePersistentState<string>(
     `${ANALYSIS_PERSIST_KEY}-${transcriptionId || "draft"}`,
@@ -32,14 +39,16 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
   const { categories } = useCategories();
   const { clients } = useClientData();
 
+  // Register a clear handler via onClearAnalysis ref
   useEffect(() => {
-    if (onClearAnalysis) {
+    if (typeof onClearAnalysis === "function") {
       onClearAnalysis(() => {
         setAnalysis("");
         removeAnalysis();
       });
     }
-  }, [onClearAnalysis, setAnalysis, removeAnalysis]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClearAnalysis, setAnalysis, removeAnalysis, transcriptionId]);
 
   const analyzeContent = async () => {
     if (!transcriptionText) {

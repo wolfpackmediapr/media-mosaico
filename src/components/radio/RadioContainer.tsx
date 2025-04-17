@@ -81,6 +81,7 @@ const RadioContainer = ({
     setFiles([]);
     setCurrentFileIndex(0);
     resetTranscription();
+    setNewsSegments([]);
     clearAnalysisRef.current?.();
     if (onTextChange) onTextChange("");
   };
@@ -205,7 +206,7 @@ const RadioContainer = ({
       transcriptionId={transcriptionId}
       transcriptionResult={transcriptionResult}
       onSegmentsGenerated={handleSegmentsReceived}
-      onClearAnalysis={(handler) => { clearAnalysisRef.current = handler; }}
+      onClearAnalysis={(fn) => { clearAnalysisRef.current = fn; }}
     />
   );
 
