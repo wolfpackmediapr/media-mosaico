@@ -33,17 +33,26 @@ function constructDynamicPrompt(
       }).join('\n')
     : '';
 
-  // Construct the base prompt with ad detection
-  let prompt = `Eres un analista experto en contenido de radio. Analiza la siguiente transcripción de un programa de radio en español. Primero, identifica si el contenido es un anuncio publicitario o contenido regular del programa. Luego, proporciona un resumen estructurado según el tipo de contenido:
+  // Construct the base prompt with clear content type identification
+  let prompt = `Eres un analista experto en contenido de radio. Tu tarea es analizar la siguiente transcripción de un programa de radio en español.
 
-Para anuncios publicitarios, incluye:
+PASO 1 - IDENTIFICACIÓN DEL TIPO DE CONTENIDO:
+Primero, identifica si el contenido es un anuncio publicitario o contenido regular del programa.
+Comienza tu respuesta con uno de estos encabezados:
+[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
+o
+[TIPO DE CONTENIDO: PROGRAMA REGULAR]
+
+PASO 2 - ANÁLISIS DETALLADO:
+
+Si es un ANUNCIO PUBLICITARIO, incluye:
 1. Marca(s) o producto(s) anunciados
 2. Mensajes clave del anuncio
 3. Llamada a la acción (si existe)
 4. Tono del anuncio (persuasivo, informativo, emocional, etc.)
 5. Duración aproximada (corto/medio/largo)
 
-Para contenido regular del programa, incluye:
+Si es PROGRAMA REGULAR, incluye:
 1. Una síntesis general del contenido (7-10 oraciones)
 2. Identificación de los temas principales tratados (7-10 temas listados)
 3. Tono general del contenido (formal/informal, informativo/opinión)
@@ -71,10 +80,13 @@ ${hasSpeakerLabels ? '6' : '5'}. Presencia de personas o entidades relevantes me
 ${hasSpeakerLabels ? '8' : '7'}. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
 ${clientKeywordMap}
 
-Responde en español de manera concisa y profesional. Si es posible, incluye las palabras textuales mencionadas que justifiquen las asociaciones con clientes o palabras clave.
-En el caso de anuncios, enfócate en las menciones de marcas y productos.`;
+Responde en español de manera concisa y profesional. Asegúrate de:
+1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente
+2. Si es un anuncio, enfatizar las marcas y productos mencionados
+3. Si es contenido regular, mantener el formato de análisis detallado
+4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave`;
   } else {
-    prompt += `\n\nResponde en español de manera concisa y profesional.`;
+    prompt += `\n\nResponde en español de manera concisa y profesional, comenzando SIEMPRE con el encabezado del tipo de contenido identificado.`;
   }
 
   // Add speaker-specific instructions if available
