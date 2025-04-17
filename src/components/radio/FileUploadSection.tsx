@@ -1,13 +1,10 @@
 import { Dispatch, SetStateAction } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileList from "./AudioFileList";
-import { toast } from "sonner";
 import { useAudioTranscription } from "@/hooks/useAudioTranscription";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
-
-interface UploadedFile extends File {
-  preview?: string;
-}
+import { useFileUploadHandlers } from "./useFileUploadHandlers";
+import { UploadedFile } from "./types";
 
 interface FileUploadSectionProps {
   files: UploadedFile[];
@@ -25,9 +22,9 @@ interface FileUploadSectionProps {
   onFilesAdded?: (newFiles: File[]) => void;
 }
 
-const FileUploadSection = ({ 
-  files, 
-  currentFileIndex, 
+const FileUploadSection = ({
+  files,
+  currentFileIndex,
   isProcessing,
   progress,
   transcriptionText,
@@ -42,54 +39,29 @@ const FileUploadSection = ({
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
 
-  const handleFilesAdded = (newFiles: File[]) => {
-    console.log('[FileUploadSection] handleFilesAdded called', { incomingFiles: newFiles.map(f => f.name) });
-    if (onFilesAdded) {
-      onFilesAdded(newFiles);
-      return;
-    }
-    const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
-    if (audioFiles.length < newFiles.length) {
-      toast.warning('Se omitieron algunos archivos que no son de audio');
-    }
-    if (audioFiles.length === 0) {
-      toast.error('No se seleccionaron archivos de audio válidos');
-      return;
-    }
-    const uploadedFiles = audioFiles.map((file) => {
-      const uploadedFile = new File([file], file.name, { type: file.type });
-      const preview = URL.createObjectURL(file);
-      Object.defineProperty(uploadedFile, 'preview', {
-        value: preview,
-        writable: true
-      });
-      return uploadedFile as UploadedFile;
-    });
-    if (uploadedFiles.length > 0) {
-      console.log('[FileUploadSection] Valid uploadedFiles:', uploadedFiles.map(f => f.name));
-      setFiles([...files, ...uploadedFiles]);
+  const { handleFilesAdded, handleRemoveFile } = useFileUploadHandlers({
+    files,
+    setFiles,
+    currentFileIndex,
+    setCurrentFileIndex
+  });
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArr = Array.from(e.target.files);
+      (onFilesAdded ? onFilesAdded : handleFilesAdded)(filesArr);
+      e.target.value = '';
     }
   };
 
-  const handleRemoveFile = (index: number) => {
-    console.log('[FileUploadSection] Removing file at index', index, files[index]?.name);
-    const newFiles = [...files];
-    if (newFiles[index]?.preview) {
-      URL.revokeObjectURL(newFiles[index].preview!);
-    }
-    newFiles.splice(index, 1);
-    setFiles(newFiles);
-    if (currentFileIndex >= newFiles.length && currentFileIndex > 0) {
-      setCurrentFileIndex(Math.max(0, newFiles.length - 1));
-    }
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const filesArr = Array.from(e.dataTransfer.files);
+    (onFilesAdded ? onFilesAdded : handleFilesAdded)(filesArr);
   };
 
   const processFile = async (file: UploadedFile) => {
-    console.log('[FileUploadSection] processFile called', file.name);
-    if (!file) {
-      toast.error('No hay un archivo seleccionado para procesar');
-      return null;
-    }
+    if (!file) return null;
     setIsProcessing(true);
     setProgress(0);
     try {
@@ -103,21 +75,13 @@ const FileUploadSection = ({
         });
       }, 1000);
       const transcriptionResult = await processWithAuth(file, (result) => {
-        console.log('[FileUploadSection] Transcription complete callback. Result:', !!result, !!result?.text, !!result?.transcript_id);
-        if (result?.text) {
-          setTranscriptionText(result.text);
-        }
-        if (result?.transcript_id) {
-          setTranscriptionId?.(result.transcript_id);
-        }
-        if (onTranscriptionComplete) {
-          onTranscriptionComplete(result);
-        }
+        if (result?.text) setTranscriptionText(result.text);
+        if (result?.transcript_id) setTranscriptionId?.(result.transcript_id);
+        if (onTranscriptionComplete) onTranscriptionComplete(result);
       });
       clearInterval(intervalId);
       setProgress(100);
       setTimeout(() => setProgress(0), 1000);
-      console.log('[FileUploadSection] processFile finished', file.name);
       return transcriptionResult;
     } catch (error) {
       console.error("[FileUploadSection] Error processing file:", error);
@@ -132,34 +96,17 @@ const FileUploadSection = ({
     <>
       <FileUploadZone
         isDragging={false}
-        onDragOver={(e) => {
-          e.preventDefault();
-          // Add visual feedback for dragging here if needed
-        }}
+        onDragOver={(e) => { e.preventDefault(); }}
         onDragLeave={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const files = Array.from(e.dataTransfer.files);
-          handleFilesAdded(files);
-        }}
-        onFileInput={(e) => {
-          if (e.target.files && e.target.files.length > 0) {
-            const files = Array.from(e.target.files);
-            handleFilesAdded(files);
-            // Reset the input value to allow selecting the same file again
-            e.target.value = '';
-          }
-        }}
+        onDrop={handleDrop}
+        onFileInput={handleFileInput}
         accept="audio/*"
         message="Arrastra y suelta archivos de audio o haz clic para seleccionarlos"
       />
-      
       {files.length > 0 && (
         <AudioFileList
           uploadedFiles={files}
-          onProcess={(file) => {
-            processFile(file);
-          }}
+          onProcess={processFile}
           onTranscriptionComplete={setTranscriptionText}
           onRemoveFile={handleRemoveFile}
           currentFileIndex={currentFileIndex}
