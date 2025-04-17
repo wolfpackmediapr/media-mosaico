@@ -1,5 +1,5 @@
 
-import { Textarea } from "@/components/ui/textarea";
+import FormattedAnalysisResult from "./FormattedAnalysisResult";
 
 interface AnalysisResultProps {
   analysis: string;
@@ -11,11 +11,7 @@ const AnalysisResult = ({ analysis }: AnalysisResultProps) => {
   return (
     <div className="mt-4">
       <h3 className="text-lg font-medium mb-2">Resultado del Análisis:</h3>
-      <Textarea 
-        className="min-h-[150px] w-full" 
-        value={analysis} 
-        readOnly 
-      />
+      <FormattedAnalysisResult analysis={analysis} />
     </div>
   );
 };
