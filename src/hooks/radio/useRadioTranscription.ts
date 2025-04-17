@@ -57,7 +57,7 @@ export const useRadioTranscription = () => {
     transcriptionId,
     setTranscriptionId,
     transcriptionResult,
-    setTranscriptionResult,
+    setTranscriptionResult, // <-- Add this line
     metadata,
     newsSegments,
     setNewsSegments,
