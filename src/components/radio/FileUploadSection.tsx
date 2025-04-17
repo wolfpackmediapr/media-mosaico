@@ -86,7 +86,11 @@ const FileUploadSection = ({
       return transcriptionResult;
     } catch (error) {
       console.error("[FileUploadSection] Error processing file:", error);
-      toast.error("Error al procesar el archivo");
+      toast({
+        title: "Error",
+        description: "Error al procesar el archivo",
+        variant: "destructive"
+      });
       return null;
     } finally {
       setIsProcessing(false);
