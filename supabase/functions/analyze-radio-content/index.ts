@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
@@ -33,12 +32,20 @@ function constructDynamicPrompt(
       }).join('\n')
     : '';
 
-  // Construct the base prompt with clear content type identification
-  let prompt = `Eres un analista experto en contenido de radio. Tu tarea es analizar la siguiente transcripción de un programa de radio en español.
+  // Construct the base prompt with enhanced ad detection
+  let prompt = `Eres un analista experto en contenido de radio. Tu tarea es analizar la siguiente transcripción de un programa de radio en español. ES MUY IMPORTANTE que identifiques correctamente si es un anuncio publicitario o contenido regular.
 
 PASO 1 - IDENTIFICACIÓN DEL TIPO DE CONTENIDO:
 Primero, identifica si el contenido es un anuncio publicitario o contenido regular del programa.
-Comienza tu respuesta con uno de estos encabezados:
+Busca estas señales para identificar anuncios:
+- Menciones de precios, ofertas o descuentos
+- Llamadas a la acción ("llame ahora", "visite nuestra tienda", etc.)
+- Información de contacto (números de teléfono, direcciones)
+- Menciones repetidas de marcas o productos específicos
+- Lenguaje persuasivo o promocional
+- Menciones de "promoción", "oferta especial", "disponible en", etc.
+
+DEBES comenzar tu respuesta con uno de estos encabezados en mayúsculas:
 [TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
 o
 [TIPO DE CONTENIDO: PROGRAMA REGULAR]
@@ -51,6 +58,16 @@ Si es un ANUNCIO PUBLICITARIO, incluye:
 3. Llamada a la acción (si existe)
 4. Tono del anuncio (persuasivo, informativo, emocional, etc.)
 5. Duración aproximada (corto/medio/largo)
+
+Ejemplo de formato para anuncio:
+[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
+Marca: Supermercados Grande
+Mensajes clave: 
+- Ofertas de fin de semana
+- Productos frescos a mejor precio
+Llamada a acción: "Visite nuestras tiendas este fin de semana"
+Tono: Informativo y persuasivo
+Duración: Corto (30 segundos aprox.)
 
 Si es PROGRAMA REGULAR, incluye:
 1. Una síntesis general del contenido (7-10 oraciones)
@@ -81,12 +98,12 @@ ${hasSpeakerLabels ? '8' : '7'}. Palabras clave mencionadas relevantes para los 
 ${clientKeywordMap}
 
 Responde en español de manera concisa y profesional. Asegúrate de:
-1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente
-2. Si es un anuncio, enfatizar las marcas y productos mencionados
+1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
+2. Si es un anuncio, enfatizar las marcas, productos y llamadas a la acción
 3. Si es contenido regular, mantener el formato de análisis detallado
 4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave`;
   } else {
-    prompt += `\n\nResponde en español de manera concisa y profesional, comenzando SIEMPRE con el encabezado del tipo de contenido identificado.`;
+    prompt += `\n\nResponde en español de manera concisa y profesional, comenzando SIEMPRE con el encabezado del tipo de contenido identificado en mayúsculas.`;
   }
 
   // Add speaker-specific instructions if available
