@@ -33,47 +33,35 @@ function constructDynamicPrompt(
     : '';
 
   // Construct the base prompt with enhanced ad detection
-  let prompt = `Eres un analista experto en contenido de radio. Tu tarea es analizar la siguiente transcripción de un programa de radio en español. ES MUY IMPORTANTE que identifiques correctamente si es un anuncio publicitario o contenido regular.
+  let prompt = `Eres un analista experto en contenido de radio. Tu tarea es analizar la siguiente transcripción de radio en español e identificar y separar el contenido publicitario del contenido regular del programa.
 
-PASO 1 - IDENTIFICACIÓN DEL TIPO DE CONTENIDO:
-Primero, identifica si el contenido es un anuncio publicitario o contenido regular del programa.
-Busca estas señales para identificar anuncios:
+IMPORTANTE - FORMATO DE RESPUESTA:
+Debes identificar y separar claramente cada sección de contenido, comenzando CADA SECCIÓN con uno de estos encabezados:
+
+[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
+o
+[TIPO DE CONTENIDO: PROGRAMA REGULAR]
+
+IDENTIFICACIÓN DE ANUNCIOS:
+Señales clave para identificar anuncios:
 - Menciones de precios, ofertas o descuentos
 - Llamadas a la acción ("llame ahora", "visite nuestra tienda", etc.)
 - Información de contacto (números de teléfono, direcciones)
 - Menciones repetidas de marcas o productos específicos
 - Lenguaje persuasivo o promocional
-- Menciones de "promoción", "oferta especial", "disponible en", etc.
 
-DEBES comenzar tu respuesta con uno de estos encabezados en mayúsculas:
-[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
-o
-[TIPO DE CONTENIDO: PROGRAMA REGULAR]
-
-PASO 2 - ANÁLISIS DETALLADO:
-
-Si es un ANUNCIO PUBLICITARIO, incluye:
+PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
 1. Marca(s) o producto(s) anunciados
 2. Mensajes clave del anuncio
 3. Llamada a la acción (si existe)
-4. Tono del anuncio (persuasivo, informativo, emocional, etc.)
-5. Duración aproximada (corto/medio/largo)
+4. Tono del anuncio
+5. Duración aproximada
 
-Ejemplo de formato para anuncio:
-[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
-Marca: Supermercados Grande
-Mensajes clave: 
-- Ofertas de fin de semana
-- Productos frescos a mejor precio
-Llamada a acción: "Visite nuestras tiendas este fin de semana"
-Tono: Informativo y persuasivo
-Duración: Corto (30 segundos aprox.)
-
-Si es PROGRAMA REGULAR, incluye:
-1. Una síntesis general del contenido (7-10 oraciones)
-2. Identificación de los temas principales tratados (7-10 temas listados)
-3. Tono general del contenido (formal/informal, informativo/opinión)
-4. Posibles categorías o géneros radiofónicos que aplican. Categorías disponibles: ${categoriesText}`;
+PARA CADA SECCIÓN DE PROGRAMA REGULAR:
+1. Resumen del contenido (5-7 oraciones)
+2. Temas principales tratados
+3. Tono del contenido
+4. Categorías aplicables de: ${categoriesText}`;
 
   // Add specific speaker analysis if speaker labels are available
   if (hasSpeakerLabels) {

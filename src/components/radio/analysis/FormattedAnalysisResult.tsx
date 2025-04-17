@@ -13,8 +13,12 @@ const FormattedAnalysisResult = ({ analysis }: FormattedAnalysisResultProps) => 
 
   const [editableContent, setEditableContent] = useState(analysis);
 
-  // Split content by content type markers
-  const contentParts = editableContent.split(/\[TIPO DE CONTENIDO:.*?\]\n?/).filter(Boolean);
+  // Split content by content type markers and filter out empty strings
+  const contentParts = editableContent.split(/\[TIPO DE CONTENIDO:.*?\]/)
+    .filter(Boolean)
+    .map(part => part.trim());
+    
+  // Extract content type headers
   const contentTypes = editableContent.match(/\[TIPO DE CONTENIDO:.*?\]/g) || [];
 
   const renderContentSection = (content: string, type: string, index: number) => {
@@ -46,7 +50,7 @@ const FormattedAnalysisResult = ({ analysis }: FormattedAnalysisResultProps) => 
           </span>
         </div>
         <Textarea
-          value={content.trim()}
+          value={content}
           onChange={(e) => {
             const newContent = [...contentParts];
             newContent[index] = e.target.value;
@@ -54,11 +58,11 @@ const FormattedAnalysisResult = ({ analysis }: FormattedAnalysisResultProps) => 
             // Reconstruct the full content with content type markers
             const updatedContent = newContent.map((part, i) => {
               return `${contentTypes[i] || ''}${part}`;
-            }).join('\n');
+            }).join('\n\n');
             
             setEditableContent(updatedContent);
           }}
-          className="min-h-[100px]"
+          className="min-h-[100px] text-foreground"
         />
       </Card>
     );
