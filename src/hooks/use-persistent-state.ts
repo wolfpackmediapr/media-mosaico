@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 
 type StorageType = 'localStorage' | 'sessionStorage';
@@ -32,9 +31,10 @@ export function usePersistentState<T>(
   const [state, setState] = useState<T>(() => {
     try {
       const storedValue = storageObject.getItem(key);
+      console.log(`[usePersistentState] [${storage}] READ "${key}":`, storedValue);
       return storedValue ? deserialize(storedValue) : initialValue;
     } catch (error) {
-      console.error(`Error reading from ${storage}:`, error);
+      console.error(`[usePersistentState] [${storage}] Error reading "${key}":`, error);
       return initialValue;
     }
   });
@@ -43,8 +43,9 @@ export function usePersistentState<T>(
   useEffect(() => {
     try {
       storageObject.setItem(key, serialize(state));
+      console.log(`[usePersistentState] [${storage}] SET "${key}" =`, state);
     } catch (error) {
-      console.error(`Error writing to ${storage}:`, error);
+      console.error(`[usePersistentState] [${storage}] Error writing "${key}":`, error);
     }
   }, [key, state, serialize, storageObject]);
   
@@ -53,8 +54,9 @@ export function usePersistentState<T>(
     try {
       storageObject.removeItem(key);
       setState(initialValue);
+      console.log(`[usePersistentState] [${storage}] REMOVE "${key}"`);
     } catch (error) {
-      console.error(`Error removing from ${storage}:`, error);
+      console.error(`[usePersistentState] [${storage}] Error removing "${key}":`, error);
     }
   };
   

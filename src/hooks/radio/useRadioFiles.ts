@@ -1,4 +1,3 @@
-
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -18,7 +17,6 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     storage = 'sessionStorage',
   } = options;
 
-  // Store file metadata in persistent storage
   const [fileMetadata, setFileMetadata] = usePersistentState<Array<{
     name: string;
     type: string;
@@ -31,58 +29,43 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     { storage }
   );
   
-  // Local state for actual File objects (can't persist directly)
   const [files, setFiles] = useState<UploadedFile[]>([]);
   
-  // Store current file index in persistent storage
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
     `${persistKey}-current-index`,
     0,
     { storage }
   );
 
-  // Initialize file objects from metadata when component mounts
   useEffect(() => {
-    // Skip if no metadata or files already loaded
     if (fileMetadata.length === 0 || files.length > 0) return;
-
     try {
-      // Create File objects with previews from metadata
       const reconstructedFiles = fileMetadata.map(meta => {
-        // Create a minimal File object with blank content
         const file = new File([""], meta.name, { 
           type: meta.type,
           lastModified: meta.lastModified
         });
-        
-        // Add size property to match original
         Object.defineProperty(file, 'size', {
           value: meta.size,
           writable: false
         });
-        
-        // Add preview URL if available
         if (meta.preview) {
           Object.defineProperty(file, 'preview', {
             value: meta.preview,
             writable: true
           });
         }
-        
         return file as UploadedFile;
       });
-      
-      console.log("Reconstructed files from metadata:", reconstructedFiles);
+      console.log('[useRadioFiles] Reconstructed files from metadata:', reconstructedFiles.map(f => f.name));
       setFiles(reconstructedFiles);
     } catch (error) {
-      console.error("Error reconstructing files from metadata:", error);
+      console.error("[useRadioFiles] Error reconstructing files from metadata:", error);
       toast.error("Error al cargar archivos guardados");
-      // Reset metadata if reconstruction fails
       setFileMetadata([]);
     }
   }, [fileMetadata]);
 
-  // Sync file metadata when files change
   useEffect(() => {
     if (files.length > 0) {
       const metadata = files.map(file => ({
@@ -92,15 +75,14 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         lastModified: file.lastModified,
         preview: file.preview
       }));
-      
       setFileMetadata(metadata);
+      console.log('[useRadioFiles] Synced file metadata:', metadata.map(m => m.name));
     } else if (fileMetadata.length > 0 && files.length === 0) {
-      // Clear metadata when files are emptied
       setFileMetadata([]);
+      console.log('[useRadioFiles] Cleared file metadata; no files remaining');
     }
   }, [files, setFileMetadata]);
 
-  // Clean up object URLs when component unmounts
   useEffect(() => {
     return () => {
       files.forEach(file => {
@@ -108,55 +90,50 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
           URL.revokeObjectURL(file.preview);
         }
       });
+      console.log('[useRadioFiles] Cleaned up file object URLs');
     };
   }, []);
-  
+
   const currentFile = files.length > 0 && currentFileIndex < files.length 
     ? files[currentFileIndex] 
     : undefined;
-  
+
   const handleFilesAdded = (newFiles: File[]) => {
+    console.log('[useRadioFiles] handleFilesAdded called. Adding:', newFiles.map(f => f.name));
     if (!newFiles || newFiles.length === 0) {
       return;
     }
-    
     const audioFiles = newFiles.filter(file => file.type.startsWith('audio/'));
-    
     if (audioFiles.length < newFiles.length) {
       toast.warning('Se omitieron algunos archivos que no son de audio');
     }
-    
     if (audioFiles.length === 0) {
       toast.error('No se seleccionaron archivos de audio válidos');
       return;
     }
-
     const uploadedFiles = audioFiles.map((file) => {
-      // Create a new File object
       const uploadedFile = new File([file], file.name, { 
         type: file.type,
         lastModified: file.lastModified
       });
-      
-      // Set size property if needed
       if (uploadedFile.size !== file.size) {
         Object.defineProperty(uploadedFile, 'size', {
           value: file.size,
           writable: false
         });
       }
-      
-      // Add preview URL
       const previewUrl = URL.createObjectURL(file);
       Object.defineProperty(uploadedFile, 'preview', {
         value: previewUrl,
         writable: true
       });
-      
       return uploadedFile as UploadedFile;
     });
-    
-    setFiles(prevFiles => [...prevFiles, ...uploadedFiles]);
+    setFiles(prevFiles => {
+      const updatedFiles = [...prevFiles, ...uploadedFiles];
+      console.log('[useRadioFiles] Files after adding:', updatedFiles.map(f => f.name));
+      return updatedFiles;
+    });
   };
 
   const handleRemoveFile = (index: number) => {
@@ -166,12 +143,11 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         URL.revokeObjectURL(newFiles[index].preview!);
       }
       newFiles.splice(index, 1);
-      
-      // Update current index if needed
+      console.log('[useRadioFiles] handleRemoveFile: newFiles =', newFiles.map(f => f.name));
       if (currentFileIndex >= newFiles.length && currentFileIndex > 0 && newFiles.length > 0) {
         setCurrentFileIndex(newFiles.length - 1);
+        console.log('[useRadioFiles] Updated currentFileIndex:', newFiles.length - 1);
       }
-      
       return newFiles;
     });
   };

@@ -63,6 +63,7 @@ const RadioContainer = ({
   const clearAnalysisRef = useRef<(() => void) | null>(null);
 
   const handleClearAll = () => {
+    console.log('[RadioContainer] handleClearAll: Removing all files and state');
     sessionStorage.removeItem(`${persistKey}-metadata`);
     sessionStorage.removeItem(`${persistKey}-current-index`);
     sessionStorage.removeItem("radio-transcription");
@@ -84,6 +85,7 @@ const RadioContainer = ({
     setNewsSegments([]);
     clearAnalysisRef.current?.();
     if (onTextChange) onTextChange("");
+    console.log('[RadioContainer] handleClearAll: All state, segments, and callbacks cleared');
   };
 
   useEffect(() => {
