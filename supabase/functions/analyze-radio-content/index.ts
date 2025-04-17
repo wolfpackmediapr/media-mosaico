@@ -59,9 +59,20 @@ PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
 
 PARA CADA SECCIÓN DE PROGRAMA REGULAR:
 1. Resumen del contenido (10-15 oraciones)
+   - Incluir desarrollo cronológico de los temas
+   - Destacar citas textuales relevantes
+   - Mencionar interacciones entre participantes si las hay
 2. Temas principales tratados
+   - Listar temas por orden de importancia
+   - Incluir subtemas relacionados
+   - Señalar conexiones entre temas si existen
 3. Tono del contenido
-4. Categorías aplicables de: ${categoriesText}`;
+   - Estilo de la presentación (formal/informal)
+   - Tipo de lenguaje utilizado
+   - Enfoque del contenido (informativo/editorial/debate)
+4. Categorías aplicables de: ${categoriesText}
+   - Justificar la selección de cada categoría
+   - Indicar categoría principal y secundarias`;
 
   // Add specific speaker analysis if speaker labels are available
   if (hasSpeakerLabels) {
