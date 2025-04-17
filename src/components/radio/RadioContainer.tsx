@@ -49,6 +49,7 @@ const RadioContainer = ({
     transcriptionId,
     setTranscriptionId,
     transcriptionResult,
+    setTranscriptionResult,
     metadata,
     newsSegments,
     setNewsSegments,
