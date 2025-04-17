@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
@@ -11,6 +10,7 @@ import RadioLayout from "./RadioLayout";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
 import TrackList from "./TrackList";
+import ClearAllButton from "./ClearAllButton";
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -57,6 +57,31 @@ const RadioContainer = ({
     handleMetadataChange,
     handleTranscriptionReceived
   } = useRadioTranscription();
+
+  const handleClearAll = () => {
+    sessionStorage.removeItem(`${persistKey}-metadata`);
+    sessionStorage.removeItem(`${persistKey}-current-index`);
+    sessionStorage.removeItem("radio-transcription");
+    sessionStorage.removeItem("radio-transcription-draft");
+    sessionStorage.removeItem("radio-content-analysis-draft");
+    sessionStorage.removeItem("radio-content-analysis");
+    sessionStorage.removeItem("radio-transcription-draft");
+    sessionStorage.removeItem("transcription-timestamp-view-draft");
+    sessionStorage.removeItem("transcription-editor-mode-draft");
+    if (transcriptionId) {
+      sessionStorage.removeItem(`radio-transcription-${transcriptionId}`);
+      sessionStorage.removeItem(`transcription-timestamp-view-${transcriptionId}`);
+      sessionStorage.removeItem(`transcription-editor-mode-${transcriptionId}`);
+      sessionStorage.removeItem(`radio-content-analysis-${transcriptionId}`);
+    }
+    setFiles([]);
+    setCurrentFileIndex(0);
+    setTranscriptionText("");
+    setTranscriptionId?.(undefined);
+    setTranscriptionResult?.(undefined);
+    setNewsSegments([]);
+    if (onTextChange) onTextChange("");
+  };
 
   useEffect(() => {
     if (persistedText && persistedText !== transcriptionText) {
@@ -190,15 +215,30 @@ const RadioContainer = ({
     />
   ) : null;
 
+  const topSection = (
+    <div className="flex justify-end mb-2">
+      <ClearAllButton
+        onClearAll={handleClearAll}
+        disabled={
+          files.length === 0 &&
+          !transcriptionText
+        }
+      />
+    </div>
+  );
+
   return (
-    <RadioLayout
-      isAuthenticated={isAuthenticated}
-      leftSection={leftSection}
-      rightSection={rightSection}
-      transcriptionSection={transcriptionSection}
-      analysisSection={analysisSection}
-      newsSegmentsSection={newsSegmentsSection}
-    />
+    <>
+      {topSection}
+      <RadioLayout
+        isAuthenticated={isAuthenticated}
+        leftSection={leftSection}
+        rightSection={rightSection}
+        transcriptionSection={transcriptionSection}
+        analysisSection={analysisSection}
+        newsSegmentsSection={newsSegmentsSection}
+      />
+    </>
   );
 };
 
