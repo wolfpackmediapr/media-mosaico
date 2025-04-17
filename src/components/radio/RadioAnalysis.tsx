@@ -11,6 +11,7 @@ import { useCategories } from "@/hooks/radio/useCategories";
 import { useClientData } from "@/hooks/radio/useClientData";
 import AnalysisActions from "./analysis/AnalysisActions";
 import AnalysisResult from "./analysis/AnalysisResult";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface RadioAnalysisProps {
   transcriptionText?: string;
@@ -19,9 +20,14 @@ interface RadioAnalysisProps {
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
 }
 
+const ANALYSIS_PERSIST_KEY = "radio-content-analysis";
+
 const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult, onSegmentsGenerated }: RadioAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState("");
+  const [analysis, setAnalysis, removeAnalysis] = usePersistentState<string>(
+    `${ANALYSIS_PERSIST_KEY}-${transcriptionId || "draft"}`,
+    ""
+  );
   const { generateRadioSegments } = useRadioSegmentGenerator(onSegmentsGenerated);
   const { categories } = useCategories();
   const { clients } = useClientData();
@@ -53,7 +59,7 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
       if (error) throw error;
 
       if (data?.analysis) {
-        setAnalysis(data.analysis);
+        setAnalysis(data.analysis); // Store analysis in persistent state
         toast.success("El contenido ha sido analizado exitosamente.");
         
         // Generate radio segments based on analysis result
