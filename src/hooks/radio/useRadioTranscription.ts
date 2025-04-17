@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
@@ -46,6 +47,15 @@ export const useRadioTranscription = () => {
     setTranscriptionId(result.transcript_id);
   };
 
+  // RESET method to clear all transcription/segment state
+  const resetTranscription = () => {
+    setTranscriptionText("");
+    setTranscriptionId(undefined);
+    setTranscriptionResult(undefined);
+    setNewsSegments([]);
+    setMetadata({});
+  };
+
   return {
     isProcessing,
     setIsProcessing,
@@ -63,6 +73,7 @@ export const useRadioTranscription = () => {
     handleTranscriptionChange,
     handleSegmentsReceived,
     handleMetadataChange,
-    handleTranscriptionReceived
+    handleTranscriptionReceived,
+    resetTranscription // <-- expose new reset function
   };
 };

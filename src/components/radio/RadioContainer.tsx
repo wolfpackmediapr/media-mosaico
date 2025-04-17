@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import FileUploadSection from "./FileUploadSection";
 import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
 import RadioNewsSegmentsContainer from "./RadioNewsSegmentsContainer";
@@ -49,14 +49,18 @@ const RadioContainer = ({
     transcriptionId,
     setTranscriptionId,
     transcriptionResult,
+    setTranscriptionResult,
     metadata,
     newsSegments,
     setNewsSegments,
     handleTranscriptionChange,
     handleSegmentsReceived,
     handleMetadataChange,
-    handleTranscriptionReceived
+    handleTranscriptionReceived,
+    resetTranscription
   } = useRadioTranscription();
+
+  const clearAnalysisRef = useRef<(() => void) | null>(null);
 
   const handleClearAll = () => {
     sessionStorage.removeItem(`${persistKey}-metadata`);
@@ -76,10 +80,8 @@ const RadioContainer = ({
     }
     setFiles([]);
     setCurrentFileIndex(0);
-    setTranscriptionText("");
-    setTranscriptionId?.(undefined);
-    setTranscriptionResult?.(undefined);
-    setNewsSegments([]);
+    resetTranscription();
+    clearAnalysisRef.current?.();
     if (onTextChange) onTextChange("");
   };
 
@@ -203,6 +205,7 @@ const RadioContainer = ({
       transcriptionId={transcriptionId}
       transcriptionResult={transcriptionResult}
       onSegmentsGenerated={handleSegmentsReceived}
+      onClearAnalysis={(handler) => { clearAnalysisRef.current = handler; }}
     />
   );
 

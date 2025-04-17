@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,11 +17,12 @@ interface RadioAnalysisProps {
   transcriptionId?: string;
   transcriptionResult?: TranscriptionResult;
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
+  onClearAnalysis?: () => void;
 }
 
 const ANALYSIS_PERSIST_KEY = "radio-content-analysis";
 
-const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult, onSegmentsGenerated }: RadioAnalysisProps) => {
+const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult, onSegmentsGenerated, onClearAnalysis }: RadioAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis, removeAnalysis] = usePersistentState<string>(
     `${ANALYSIS_PERSIST_KEY}-${transcriptionId || "draft"}`,
@@ -32,6 +32,15 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
   const { categories } = useCategories();
   const { clients } = useClientData();
 
+  useEffect(() => {
+    if (onClearAnalysis) {
+      onClearAnalysis(() => {
+        setAnalysis("");
+        removeAnalysis();
+      });
+    }
+  }, [onClearAnalysis, setAnalysis, removeAnalysis]);
+
   const analyzeContent = async () => {
     if (!transcriptionText) {
       toast.error("No hay texto para analizar");
@@ -40,7 +49,6 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
 
     setIsAnalyzing(true);
     try {
-      // Format categories and clients for the prompt
       const formattedCategories = categories.map(cat => cat.name_es);
       const formattedClients = clients.map(client => ({
         name: client.name,
@@ -59,30 +67,24 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
       if (error) throw error;
 
       if (data?.analysis) {
-        setAnalysis(data.analysis); // Store analysis in persistent state
+        setAnalysis(data.analysis);
         toast.success("El contenido ha sido analizado exitosamente.");
         
-        // Generate radio segments based on analysis result
         if (onSegmentsGenerated) {
           if (transcriptionResult) {
-            // Pass full result object for timestamp-aware segmentation
             generateRadioSegments(transcriptionResult);
           } else {
-            // Fallback to text-only segmentation
             generateRadioSegments(transcriptionText);
           }
         }
         
-        // Create notification for radio content analysis
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            // Extract category and keywords from analysis text if available
             let category = "";
             let keywords: string[] = [];
             let matchedClients: string[] = [];
             
-            // Try to parse category, keywords and clients from the analysis text
             const categoryMatch = data.analysis.match(/Categoría[s]?:?\s*([A-ZÁ-ÚÑ\s&]+)/i);
             if (categoryMatch && categoryMatch[1]) {
               category = categoryMatch[1].trim();
@@ -98,7 +100,6 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
               matchedClients = clientsMatch[1].split(',').map((c: string) => c.trim()).filter(Boolean);
             }
             
-            // Only create notification if we found some useful info
             if (category || keywords.length > 0 || matchedClients.length > 0) {
               await createNotification({
                 client_id: user.id,
@@ -113,7 +114,6 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
                   relevantKeywords: keywords
                 }
               });
-              
               console.log("Created notification for radio content analysis");
             }
           }
@@ -136,10 +136,8 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
     }
 
     if (transcriptionResult) {
-      // Use the full result object for timestamp-aware segmentation
       generateRadioSegments(transcriptionResult);
     } else if (transcriptionText) {
-      // Fallback to text-only segmentation
       generateRadioSegments(transcriptionText);
     }
     
@@ -160,7 +158,6 @@ const RadioAnalysis = ({ transcriptionText, transcriptionId, transcriptionResult
           canGenerateSegments={!!(transcriptionText || transcriptionResult)}
           onGenerateSegments={generateImprovedSegments}
         />
-        
         <AnalysisResult analysis={analysis} />
       </CardContent>
     </Card>
