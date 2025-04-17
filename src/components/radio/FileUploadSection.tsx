@@ -5,6 +5,7 @@ import { useAudioTranscription } from "@/hooks/useAudioTranscription";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useFileUploadHandlers } from "./useFileUploadHandlers";
 import { UploadedFile } from "./types";
+import { toast } from "@/components/ui/use-toast";
 
 interface FileUploadSectionProps {
   files: UploadedFile[];
