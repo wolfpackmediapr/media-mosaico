@@ -28,13 +28,13 @@ export const useTranscriptionEditor = ({
     { storage: 'sessionStorage' }
   );
   
-  // Determine initial showTimestamps state based on available data
+  // Prefer show timestamps view if any timestamps available
   const hasTimestampData = Boolean(
     transcriptionResult?.sentences?.length || 
     transcriptionResult?.words?.length ||
     transcriptionResult?.utterances?.length
   );
-  
+
   // Use persistent state for timestamp view preference
   const [showTimestamps, setShowTimestamps] = usePersistentState(
     `transcription-timestamp-view-${transcriptionId || "draft"}`,
@@ -62,49 +62,51 @@ export const useTranscriptionEditor = ({
   }, [transcriptionResult]);
 
   useEffect(() => {
-    // Update showTimestamps state when transcriptionResult changes
-    if (hasTimestampData && !isEditing) {
-      setShowTimestamps(true);
-    }
-  }, [transcriptionResult, hasTimestampData, isEditing]);
-
-  useEffect(() => {
-    const fetchSpeakerData = async () => {
-      if (
-        transcriptionId && 
-        showTimestamps && 
-        transcriptionResult && 
-        (!transcriptionResult.utterances || transcriptionResult.utterances.length === 0)
-      ) {
+    // When new utterances are fetched, if not already present, show timestamped view
+    if (
+      transcriptionResult &&
+      !transcriptionResult.utterances?.length &&
+      transcriptionId &&
+      showTimestamps
+    ) {
+      const fetchSpeakerData = async () => {
+        setIsLoadingUtterances(true);
         try {
-          setIsLoadingUtterances(true);
           console.log('Fetching utterances for transcript ID:', transcriptionId);
           const utterances = await fetchUtterances(transcriptionId);
-          
           if (utterances && utterances.length > 0) {
-            console.log(`Retrieved ${utterances.length} utterances for transcript`);
             setEnhancedTranscriptionResult(prev => ({
               ...(prev || transcriptionResult),
               utterances
             }));
-          } else {
-            console.warn('No utterances found for transcript ID:', transcriptionId);
+            // Optionally: show toast when successfully loaded
+            toast({
+              title: "Vista de hablantes disponible",
+              description: "Se han cargado los labels de hablante automáticamente.",
+            });
           }
         } catch (error) {
           console.error('Error fetching utterances:', error);
           toast({
             title: "No se pudieron cargar los datos de hablantes",
             description: "Intente nuevamente o use otro modo de visualización",
-            variant: "destructive",
+            variant: "destructive"
           });
         } finally {
           setIsLoadingUtterances(false);
         }
-      }
-    };
+      };
 
-    fetchSpeakerData();
-  }, [transcriptionId, showTimestamps, transcriptionResult, toast]);
+      fetchSpeakerData();
+    }
+  }, [transcriptionId, transcriptionResult, showTimestamps, toast]);
+
+  useEffect(() => {
+    // Update showTimestamps state when transcriptionResult changes
+    if (hasTimestampData && !isEditing) {
+      setShowTimestamps(true);
+    }
+  }, [transcriptionResult, hasTimestampData, isEditing, setShowTimestamps]);
 
   const { isSaving, saveSuccess } = useAutosave({
     data: { text: localText, id: transcriptionId },
@@ -113,7 +115,6 @@ export const useTranscriptionEditor = ({
         console.warn('No transcription ID provided for saving');
         return;
       }
-      
       try {
         const { error } = await supabase
           .from('transcriptions')
@@ -152,7 +153,6 @@ export const useTranscriptionEditor = ({
     const newText = e.target.value;
     setLocalText(newText);
     onTranscriptionChange(newText);
-    
     if (!isEditing) {
       setIsEditing(true);
     }
@@ -170,7 +170,6 @@ export const useTranscriptionEditor = ({
 
   const toggleTimestampView = () => {
     setShowTimestamps(!showTimestamps);
-    
     if (!showTimestamps && isEditing) {
       setIsEditing(false);
     }
