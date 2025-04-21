@@ -19,13 +19,13 @@ interface RightSectionProps {
   currentTime: number;
   duration: number;
   isMuted: boolean;
-  volume: number;
+  volume: number[];  // Changed from number to number[]
   playbackRate: number;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (direction: 'forward' | 'backward') => void;
   onToggleMute: () => void;
-  onVolumeChange: (value: number) => void;
+  onVolumeChange: (value: number[]) => void;  // Changed from (value: number) => void to (value: number[]) => void
   onPlaybackRateChange: () => void;
   handleTrackSelect: (index: number) => void;
 }
