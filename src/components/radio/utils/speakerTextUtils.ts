@@ -9,10 +9,17 @@ import { TranscriptionResult, UtteranceTimestamp } from "@/services/audio/transc
  */
 export function formatSpeakerText(utterances: UtteranceTimestamp[]): string {
   if (!utterances || utterances.length === 0) return "";
+  
   return utterances
     .map(
-      (u) =>
-        `SPEAKER ${u.speaker}: ${u.text}`.trim()
+      (u) => {
+        // Extract numeric part if speaker comes as "speaker_1" format from AssemblyAI
+        const speakerNum = typeof u.speaker === 'string' ? 
+          u.speaker.includes('_') ? u.speaker.split('_')[1] : u.speaker 
+          : u.speaker;
+          
+        return `SPEAKER ${speakerNum}: ${u.text}`.trim();
+      }
     )
     .join("\n\n");
 }
@@ -23,11 +30,8 @@ export function formatSpeakerText(utterances: UtteranceTimestamp[]): string {
  */
 export function parseSpeakerTextToUtterances(text: string): UtteranceTimestamp[] {
   // Uses RegExp to find all utterances
-  const utteranceRegex = /^SPEAKER (\d+)\:(.*)$/gm;
   const utterances: UtteranceTimestamp[] = [];
-  let match: RegExpExecArray | null;
-  let lastIndex = 0;
-  let lineMatches: string[] = text.split(/\n\s*\n/);
+  const lineMatches: string[] = text.split(/\n\s*\n/);
 
   lineMatches.forEach((line) => {
     // Match the format SPEAKER X: text

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -42,26 +43,41 @@ export const useTranscriptionEditor = ({
     { storage: 'sessionStorage' }
   );
 
+  // Effect for handling updates to transcription result with utterances
   useEffect(() => {
     if (
       hasSpeakerLabels &&
       enhancedTranscriptionResult?.utterances &&
       enhancedTranscriptionResult.utterances.length > 0
     ) {
+      console.log('[useTranscriptionEditor] Formatting speaker text from utterances:', 
+        enhancedTranscriptionResult.utterances.length);
       const formatted = formatSpeakerText(enhancedTranscriptionResult.utterances);
-      if (localSpeakerText !== formatted) setLocalSpeakerText(formatted);
+      if (localSpeakerText !== formatted) {
+        console.log('[useTranscriptionEditor] Updating local speaker text');
+        setLocalSpeakerText(formatted);
+      }
     } else if (transcriptionText && !hasSpeakerLabels) {
-      if (localSpeakerText !== transcriptionText) setLocalSpeakerText(transcriptionText);
+      if (localSpeakerText !== transcriptionText) {
+        console.log('[useTranscriptionEditor] Using plain transcription text (no speaker labels)');
+        setLocalSpeakerText(transcriptionText);
+      }
     } else if (!transcriptionText && !hasSpeakerLabels) {
       if (localSpeakerText !== "") setLocalSpeakerText("");
     }
-    // eslint-disable-next-line
-  }, [enhancedTranscriptionResult?.utterances, transcriptionText]);
+  }, [enhancedTranscriptionResult?.utterances, transcriptionText, hasSpeakerLabels, setLocalSpeakerText]);
 
+  // Update when new transcription result comes in
   useEffect(() => {
-    setEnhancedTranscriptionResult(transcriptionResult);
+    if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
+      console.log('[useTranscriptionEditor] New transcription result with utterances received');
+      setEnhancedTranscriptionResult(transcriptionResult);
+    } else {
+      setEnhancedTranscriptionResult(transcriptionResult);
+    }
   }, [transcriptionResult]);
 
+  // Fetch utterances if transcriptionId is available but no utterances in result
   useEffect(() => {
     const fetchSpeakerData = async () => {
       if (
@@ -71,15 +87,27 @@ export const useTranscriptionEditor = ({
       ) {
         try {
           setIsLoadingUtterances(true);
+          console.log('[useTranscriptionEditor] Fetching utterances for ID:', transcriptionId);
           const utterances = await fetchUtterances(transcriptionId);
+          
           if (utterances && utterances.length > 0) {
+            console.log('[useTranscriptionEditor] Received utterances:', utterances.length);
             setEnhancedTranscriptionResult(prev => ({
               ...(prev || transcriptionResult),
               utterances
             }));
-            setLocalSpeakerText(formatSpeakerText(utterances));
+            
+            const formattedText = formatSpeakerText(utterances);
+            console.log('[useTranscriptionEditor] Setting formatted speaker text');
+            setLocalSpeakerText(formattedText);
+            
+            // Also update parent's transcription text
+            onTranscriptionChange(formattedText);
+          } else {
+            console.log('[useTranscriptionEditor] No utterances returned from fetch');
           }
         } catch (error) {
+          console.error('[useTranscriptionEditor] Error fetching utterances:', error);
           toast({
             title: "No se pudieron cargar los datos de hablantes",
             description: "Intente nuevamente más tarde.",
@@ -91,8 +119,7 @@ export const useTranscriptionEditor = ({
       }
     };
     fetchSpeakerData();
-    // eslint-disable-next-line
-  }, [transcriptionId, enhancedTranscriptionResult]);
+  }, [transcriptionId, enhancedTranscriptionResult, onTranscriptionChange, setLocalSpeakerText, toast]);
 
   const { isSaving, saveSuccess } = useAutosave({
     data: { text: localSpeakerText, id: transcriptionId },
@@ -138,9 +165,8 @@ export const useTranscriptionEditor = ({
           ? { ...prev, utterances: newUtterances }
           : { utterances: newUtterances, text: newText }
       );
-      const formatted = formatSpeakerText(newUtterances);
-      setLocalSpeakerText(formatted);
-      onTranscriptionChange(formatted);
+      setLocalSpeakerText(newText);
+      onTranscriptionChange(newText);
     } else {
       setLocalSpeakerText(newText);
       onTranscriptionChange(newText);
@@ -149,8 +175,10 @@ export const useTranscriptionEditor = ({
   };
 
   const resetLocalSpeakerText = () => {
+    console.log('[useTranscriptionEditor] Resetting local speaker text');
     removeLocalSpeakerText();
     setLocalSpeakerText("");
+    setIsEditing(false);
   };
 
   const toggleEditMode = () => {

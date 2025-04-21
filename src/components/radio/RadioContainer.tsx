@@ -217,37 +217,70 @@ const RadioContainer = ({
 
   const clearAnalysisRef = useRef<(() => void) | null>(null);
   
-  // Add a reference to editor reset
   const editorResetRef = useRef<null | (() => void)>(null);
 
-  // Find and pass resetLocalSpeakerText from the editor to keep centralized clearing
   const handleEditorRegisterReset = (resetFn: () => void) => {
     editorResetRef.current = resetFn;
   };
 
   const handleClearAll = () => {
     console.log('[RadioContainer] handleClearAll: Removing all files and state');
-    sessionStorage.removeItem(`${persistKey}-metadata`);
-    sessionStorage.removeItem(`${persistKey}-current-index`);
-    sessionStorage.removeItem("radio-transcription");
-    sessionStorage.removeItem("radio-transcription-draft");
-    sessionStorage.removeItem("radio-content-analysis-draft");
-    sessionStorage.removeItem("radio-content-analysis");
-    sessionStorage.removeItem("radio-transcription-draft");
-    sessionStorage.removeItem("transcription-timestamp-view-draft");
-    sessionStorage.removeItem("transcription-editor-mode-draft");
+    
+    const keysToDelete = [
+      `${persistKey}-metadata`,
+      `${persistKey}-current-index`,
+      "radio-transcription",
+      "radio-transcription-draft",
+      "radio-content-analysis-draft",
+      "radio-content-analysis",
+      "radio-transcription-speaker-draft",
+      "transcription-timestamp-view-draft",
+      "transcription-editor-mode-draft",
+    ];
+
     if (transcriptionId) {
-      sessionStorage.removeItem(`radio-transcription-${transcriptionId}`);
-      sessionStorage.removeItem(`transcription-timestamp-view-${transcriptionId}`);
-      sessionStorage.removeItem(`transcription-editor-mode-${transcriptionId}`);
-      sessionStorage.removeItem(`radio-content-analysis-${transcriptionId}`);
+      keysToDelete.push(
+        `radio-transcription-${transcriptionId}`,
+        `radio-transcription-speaker-${transcriptionId}`,
+        `transcription-timestamp-view-${transcriptionId}`,
+        `transcription-editor-mode-${transcriptionId}`,
+        `radio-content-analysis-${transcriptionId}`
+      );
     }
+
+    keysToDelete.forEach(key => {
+      sessionStorage.removeItem(key);
+    });
+
+    const allKeys = Object.keys(sessionStorage);
+    const patternPrefixes = [
+      'radio-transcription',
+      'transcription-editor',
+      'transcription-timestamp',
+      'radio-content-analysis'
+    ];
+
+    allKeys.forEach(key => {
+      if (patternPrefixes.some(prefix => key.startsWith(prefix))) {
+        console.log(`[RadioContainer] Clearing additional key: ${key}`);
+        sessionStorage.removeItem(key);
+      }
+    });
+
     setFiles([]);
     setCurrentFileIndex(0);
     resetTranscription();
     setNewsSegments([]);
+
     clearAnalysisRef.current?.();
-    editorResetRef.current?.(); // <-- clear local speaker state
+
+    if (editorResetRef.current) {
+      console.log('[RadioContainer] Calling editor reset function');
+      editorResetRef.current();
+    } else {
+      console.log('[RadioContainer] No editor reset function registered');
+    }
+
     if (onTextChange) onTextChange("");
     console.log('[RadioContainer] handleClearAll: All state, segments, and callbacks cleared');
   };
