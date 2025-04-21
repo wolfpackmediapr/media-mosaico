@@ -11,7 +11,6 @@ import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
 import TrackList from "./TrackList";
 import ClearAllButton from "./ClearAllButton";
-import SpeakerUtterancesDisplay from "./SpeakerUtterancesDisplay";
 
 const RadioContainerLeftSection = ({
   files,
@@ -289,8 +288,6 @@ const RadioContainer = ({
     }
   };
 
-  const hasSpeakerUtterances = !!(transcriptionResult?.utterances && transcriptionResult.utterances.length > 0);
-
   return (
     <>
       <RadioContainerTopSection
@@ -339,25 +336,17 @@ const RadioContainer = ({
           />
         }
         transcriptionSection={
-          <>
-            {hasSpeakerUtterances && (
-              <SpeakerUtterancesDisplay 
-                utterances={transcriptionResult?.utterances}
-                onUtteranceClick={handleSeekToSegment}
-              />
-            )}
-            <RadioContainerTranscriptionSection
-              isProcessing={isProcessing}
-              transcriptionText={transcriptionText}
-              transcriptionId={transcriptionId}
-              transcriptionResult={transcriptionResult}
-              metadata={metadata}
-              handleTranscriptionTextChange={handleTranscriptionTextChange}
-              handleSegmentsReceived={handleSegmentsReceived}
-              handleMetadataChange={handleMetadataChange}
-              handleSeekToSegment={handleSeekToSegment}
-            />
-          </>
+          <RadioContainerTranscriptionSection
+            isProcessing={isProcessing}
+            transcriptionText={transcriptionText}
+            transcriptionId={transcriptionId}
+            transcriptionResult={transcriptionResult}
+            metadata={metadata}
+            handleTranscriptionTextChange={handleTranscriptionTextChange}
+            handleSegmentsReceived={handleSegmentsReceived}
+            handleMetadataChange={handleMetadataChange}
+            handleSeekToSegment={handleSeekToSegment}
+          />
         }
         analysisSection={
           <RadioContainerAnalysisSection
