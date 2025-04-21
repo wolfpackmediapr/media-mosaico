@@ -1,171 +1,19 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import FileUploadSection from "./FileUploadSection";
-import RadioTranscriptionSlot from "./RadioTranscriptionSlot";
-import RadioNewsSegmentsContainer from "./RadioNewsSegmentsContainer";
+import { useRef, useEffect } from "react";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { useAudioPlayer } from "@/hooks/radio/use-audio-player";
-import MediaControls from "./MediaControls";
-import RadioAnalysis from "./RadioAnalysis";
 import RadioLayout from "./RadioLayout";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
-import TrackList from "./TrackList";
-import ClearAllButton from "./ClearAllButton";
 
-const RadioContainerLeftSection = ({
-  files,
-  setFiles,
-  currentFileIndex,
-  setCurrentFileIndex,
-  isProcessing,
-  setIsProcessing,
-  progress,
-  setProgress,
-  transcriptionText,
-  setTranscriptionText,
-  setTranscriptionId,
-  handleTranscriptionReceived,
-  handleFilesAdded
-}) => (
-  <FileUploadSection 
-    files={files}
-    setFiles={setFiles}
-    currentFileIndex={currentFileIndex}
-    setCurrentFileIndex={setCurrentFileIndex}
-    isProcessing={isProcessing}
-    setIsProcessing={setIsProcessing}
-    progress={progress}
-    setProgress={setProgress}
-    transcriptionText={transcriptionText}
-    setTranscriptionText={setTranscriptionText}
-    setTranscriptionId={setTranscriptionId}
-    onTranscriptionComplete={handleTranscriptionReceived}
-    onFilesAdded={handleFilesAdded}
-  />
-);
-
-const RadioContainerRightSection = ({
-  currentFile,
-  metadata,
-  files,
-  currentFileIndex,
-  isPlaying,
-  currentTime,
-  duration,
-  isMuted,
-  volume,
-  playbackRate,
-  onPlayPause,
-  onSeek,
-  onSkip,
-  onToggleMute,
-  onVolumeChange,
-  onPlaybackRateChange,
-  handleTrackSelect
-}) => (
-  <div className="space-y-4">
-    {currentFile && (
-      <MediaControls
-        currentFile={currentFile}
-        metadata={metadata}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-        isMuted={isMuted}
-        volume={volume}
-        playbackRate={playbackRate}
-        onPlayPause={onPlayPause}
-        onSeek={onSeek}
-        onSkip={onSkip}
-        onToggleMute={onToggleMute}
-        onVolumeChange={onVolumeChange}
-        onPlaybackRateChange={onPlaybackRateChange}
-      />
-    )}
-    {files.length > 0 && (
-      <TrackList
-        files={files}
-        currentFileIndex={currentFileIndex}
-        onSelectTrack={handleTrackSelect}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-      />
-    )}
-  </div>
-);
-
-const RadioContainerTranscriptionSection = ({
-  isProcessing,
-  transcriptionText,
-  transcriptionId,
-  transcriptionResult,
-  metadata,
-  handleTranscriptionTextChange,
-  handleSegmentsReceived,
-  handleMetadataChange,
-  handleSeekToSegment,
-  registerEditorReset
-}) => (
-  <RadioTranscriptionSlot
-    isProcessing={isProcessing}
-    transcriptionText={transcriptionText}
-    transcriptionId={transcriptionId}
-    transcriptionResult={transcriptionResult}
-    metadata={metadata}
-    onTranscriptionChange={handleTranscriptionTextChange}
-    onSegmentsReceived={handleSegmentsReceived}
-    onMetadataChange={handleMetadataChange}
-    onTimestampClick={handleSeekToSegment}
-    registerEditorReset={registerEditorReset}
-  />
-);
-
-const RadioContainerAnalysisSection = ({
-  transcriptionText,
-  transcriptionId,
-  transcriptionResult,
-  handleSegmentsReceived,
-  onClearAnalysis
-}) => (
-  <RadioAnalysis 
-    transcriptionText={transcriptionText} 
-    transcriptionId={transcriptionId}
-    transcriptionResult={transcriptionResult}
-    onSegmentsGenerated={handleSegmentsReceived}
-    onClearAnalysis={onClearAnalysis}
-  />
-);
-
-const RadioContainerNewsSegmentsSection = ({
-  newsSegments,
-  setNewsSegments,
-  handleSeekToSegment,
-  isProcessing
-}) => newsSegments.length > 0 ? (
-  <RadioNewsSegmentsContainer
-    segments={newsSegments}
-    onSegmentsChange={setNewsSegments}
-    onSeek={handleSeekToSegment}
-    isProcessing={isProcessing}
-  />
-) : null;
-
-const RadioContainerTopSection = ({
-  handleClearAll,
-  files,
-  transcriptionText
-}) => (
-  <div className="flex justify-end mb-2">
-    <ClearAllButton
-      onClearAll={handleClearAll}
-      disabled={
-        files.length === 0 &&
-        !transcriptionText
-      }
-    />
-  </div>
-);
+// Import the refactored component sections using barrel exports
+import {
+  TopSection,
+  LeftSection,
+  RightSection,
+  TranscriptionSection,
+  AnalysisSection,
+  NewsSegmentsSection
+} from "./containers";
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -216,7 +64,6 @@ const RadioContainer = ({
   } = useRadioTranscription();
 
   const clearAnalysisRef = useRef<(() => void) | null>(null);
-  
   const editorResetRef = useRef<null | (() => void)>(null);
 
   const handleEditorRegisterReset = (resetFn: () => void) => {
@@ -285,12 +132,14 @@ const RadioContainer = ({
     console.log('[RadioContainer] handleClearAll: All state, segments, and callbacks cleared');
   };
 
+  // Effect to handle persisted text from parent
   useEffect(() => {
     if (persistedText && persistedText !== transcriptionText) {
       setTranscriptionText(persistedText);
     }
   }, [persistedText, setTranscriptionText]);
 
+  // Effect to update parent with transcription changes
   useEffect(() => {
     if (onTextChange && transcriptionText && transcriptionText !== persistedText) {
       onTextChange(transcriptionText);
@@ -334,7 +183,7 @@ const RadioContainer = ({
 
   return (
     <>
-      <RadioContainerTopSection
+      <TopSection
         handleClearAll={handleClearAll}
         files={files}
         transcriptionText={transcriptionText}
@@ -342,7 +191,7 @@ const RadioContainer = ({
       <RadioLayout
         isAuthenticated={isAuthenticated}
         leftSection={
-          <RadioContainerLeftSection
+          <LeftSection
             files={files}
             setFiles={setFiles}
             currentFileIndex={currentFileIndex}
@@ -359,7 +208,7 @@ const RadioContainer = ({
           />
         }
         rightSection={
-          <RadioContainerRightSection
+          <RightSection
             currentFile={currentFile}
             metadata={metadata}
             files={files}
@@ -380,7 +229,7 @@ const RadioContainer = ({
           />
         }
         transcriptionSection={
-          <RadioContainerTranscriptionSection
+          <TranscriptionSection
             isProcessing={isProcessing}
             transcriptionText={transcriptionText}
             transcriptionId={transcriptionId}
@@ -394,7 +243,7 @@ const RadioContainer = ({
           />
         }
         analysisSection={
-          <RadioContainerAnalysisSection
+          <AnalysisSection
             transcriptionText={transcriptionText}
             transcriptionId={transcriptionId}
             transcriptionResult={transcriptionResult}
@@ -403,7 +252,7 @@ const RadioContainer = ({
           />
         }
         newsSegmentsSection={
-          <RadioContainerNewsSegmentsSection
+          <NewsSegmentsSection
             newsSegments={newsSegments}
             setNewsSegments={setNewsSegments}
             handleSeekToSegment={handleSeekToSegment}
