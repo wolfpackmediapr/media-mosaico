@@ -32,6 +32,8 @@ interface RadioTranscriptionSlotProps {
     program_id: string;
   }) => void;
   onTimestampClick?: (timestamp: number) => void;
+  // Add prop to allow parent to get access to the editor's reset method
+  registerEditorReset?: (fn: () => void) => void;
 }
 
 const RadioTranscriptionSlot = ({
@@ -43,20 +45,27 @@ const RadioTranscriptionSlot = ({
   onTranscriptionChange,
   onSegmentsReceived,
   onMetadataChange,
-  onTimestampClick
+  onTimestampClick,
+  registerEditorReset,
 }: RadioTranscriptionSlotProps) => {
   const { checkAndGenerateSegments } = useRadioSegmentGenerator(onSegmentsReceived);
-
   // Check for segment generation when transcription changes
   useEffect(() => {
-    // If we have a full result object, use it for better timestamp accuracy
     if (transcriptionResult) {
       checkAndGenerateSegments(transcriptionResult);
     } else {
-      // Fallback to just text-based segmentation
       checkAndGenerateSegments(transcriptionText);
     }
   }, [transcriptionText, transcriptionResult, checkAndGenerateSegments]);
+
+  // Provide the editor's reset function upwards if registerEditorReset is used.
+  const editorRef = useRef<{ resetLocalSpeakerText?: () => void }>(null);
+
+  useEffect(() => {
+    if (registerEditorReset && editorRef.current?.resetLocalSpeakerText) {
+      registerEditorReset(editorRef.current.resetLocalSpeakerText);
+    }
+  }, [registerEditorReset]);
 
   return (
     <div className="space-y-4 md:space-y-6 w-full">
@@ -64,6 +73,7 @@ const RadioTranscriptionSlot = ({
         <RadioTranscriptionMetadata metadata={metadata} onMetadataChange={onMetadataChange} />
         <CardContent className="p-4 space-y-4">
           <RadioTranscriptionEditor
+            ref={editorRef}
             transcriptionText={transcriptionText}
             isProcessing={isProcessing}
             onTranscriptionChange={onTranscriptionChange}

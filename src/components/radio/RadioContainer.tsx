@@ -104,7 +104,8 @@ const RadioContainerTranscriptionSection = ({
   handleTranscriptionTextChange,
   handleSegmentsReceived,
   handleMetadataChange,
-  handleSeekToSegment
+  handleSeekToSegment,
+  registerEditorReset
 }) => (
   <RadioTranscriptionSlot
     isProcessing={isProcessing}
@@ -116,6 +117,7 @@ const RadioContainerTranscriptionSection = ({
     onSegmentsReceived={handleSegmentsReceived}
     onMetadataChange={handleMetadataChange}
     onTimestampClick={handleSeekToSegment}
+    registerEditorReset={registerEditorReset}
   />
 );
 
@@ -214,6 +216,14 @@ const RadioContainer = ({
   } = useRadioTranscription();
 
   const clearAnalysisRef = useRef<(() => void) | null>(null);
+  
+  // Add a reference to editor reset
+  const editorResetRef = useRef<null | (() => void)>(null);
+
+  // Find and pass resetLocalSpeakerText from the editor to keep centralized clearing
+  const handleEditorRegisterReset = (resetFn: () => void) => {
+    editorResetRef.current = resetFn;
+  };
 
   const handleClearAll = () => {
     console.log('[RadioContainer] handleClearAll: Removing all files and state');
@@ -237,6 +247,7 @@ const RadioContainer = ({
     resetTranscription();
     setNewsSegments([]);
     clearAnalysisRef.current?.();
+    editorResetRef.current?.(); // <-- clear local speaker state
     if (onTextChange) onTextChange("");
     console.log('[RadioContainer] handleClearAll: All state, segments, and callbacks cleared');
   };
@@ -346,6 +357,7 @@ const RadioContainer = ({
             handleSegmentsReceived={handleSegmentsReceived}
             handleMetadataChange={handleMetadataChange}
             handleSeekToSegment={handleSeekToSegment}
+            registerEditorReset={handleEditorRegisterReset}
           />
         }
         analysisSection={

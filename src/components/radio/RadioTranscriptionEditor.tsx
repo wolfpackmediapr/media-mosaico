@@ -24,6 +24,7 @@ const RadioTranscriptionEditor = ({
   onTranscriptionChange,
   transcriptionId,
   transcriptionResult,
+  onTimestampClick,
 }: RadioTranscriptionEditorProps) => {
   const {
     localText,
@@ -33,6 +34,7 @@ const RadioTranscriptionEditor = ({
     handleTextChange,
     toggleEditMode,
     hasSpeakerLabels,
+    resetLocalSpeakerText,
   } = useTranscriptionEditor({
     transcriptionText,
     transcriptionId,
@@ -40,7 +42,7 @@ const RadioTranscriptionEditor = ({
     onTranscriptionChange,
   });
 
-  // Always show the editable textarea with speaker-labeled text if available.
+  // Always show editable textarea with speaker blocks if available
   return (
     <div className="relative">
       <Textarea

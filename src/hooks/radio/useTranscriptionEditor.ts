@@ -13,7 +13,6 @@ interface UseTranscriptionEditorProps {
   onTranscriptionChange: (text: string) => void;
 }
 
-// This hook now always forces utterance-labeled editing if utterances exist
 export const useTranscriptionEditor = ({
   transcriptionText,
   transcriptionId,
@@ -32,31 +31,29 @@ export const useTranscriptionEditor = ({
     useState<TranscriptionResult | undefined>(transcriptionResult);
   const [isLoadingUtterances, setIsLoadingUtterances] = useState(false);
 
-  // If utterances exist, show them as editable speaker-labeled text, else fall back to plain
   const hasSpeakerLabels = Boolean(
     enhancedTranscriptionResult?.utterances &&
     enhancedTranscriptionResult.utterances.length > 0
   );
 
-  // Always use formatted speaker-labeled text for textarea when utterances exist.
-  const [localSpeakerText, setLocalSpeakerText] = usePersistentState(
+  const [localSpeakerText, setLocalSpeakerText, removeLocalSpeakerText] = usePersistentState(
     `radio-transcription-speaker-${transcriptionId || "draft"}`,
-    hasSpeakerLabels && enhancedTranscriptionResult?.utterances
-      ? formatSpeakerText(enhancedTranscriptionResult.utterances)
-      : transcriptionText,
+    "",
     { storage: 'sessionStorage' }
   );
 
-  // Sync localSpeakerText to utterances updates or plain text, only if not editing right now
   useEffect(() => {
     if (
       hasSpeakerLabels &&
       enhancedTranscriptionResult?.utterances &&
       enhancedTranscriptionResult.utterances.length > 0
     ) {
-      setLocalSpeakerText(formatSpeakerText(enhancedTranscriptionResult.utterances));
+      const formatted = formatSpeakerText(enhancedTranscriptionResult.utterances);
+      if (localSpeakerText !== formatted) setLocalSpeakerText(formatted);
     } else if (transcriptionText && !hasSpeakerLabels) {
-      setLocalSpeakerText(transcriptionText);
+      if (localSpeakerText !== transcriptionText) setLocalSpeakerText(transcriptionText);
+    } else if (!transcriptionText && !hasSpeakerLabels) {
+      if (localSpeakerText !== "") setLocalSpeakerText("");
     }
     // eslint-disable-next-line
   }, [enhancedTranscriptionResult?.utterances, transcriptionText]);
@@ -66,7 +63,6 @@ export const useTranscriptionEditor = ({
   }, [transcriptionResult]);
 
   useEffect(() => {
-    // Always fetch utterances if not present, if a transcriptId is available
     const fetchSpeakerData = async () => {
       if (
         transcriptionId &&
@@ -98,7 +94,6 @@ export const useTranscriptionEditor = ({
     // eslint-disable-next-line
   }, [transcriptionId, enhancedTranscriptionResult]);
 
-  // Autosave: always save current editable text to the database
   const { isSaving, saveSuccess } = useAutosave({
     data: { text: localSpeakerText, id: transcriptionId },
     onSave: async (data) => {
@@ -134,24 +129,28 @@ export const useTranscriptionEditor = ({
     }
   }, [saveSuccess, toast]);
 
-  // Always keep the speaker format in the textarea if there are utterances
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
-    setLocalSpeakerText(newText);
-
-    // If utterances are present, try to parse them from the edited text
     if (hasSpeakerLabels) {
-      // Parse back into utterances, then reformat and sync
       const newUtterances: UtteranceTimestamp[] = parseSpeakerTextToUtterances(newText);
       setEnhancedTranscriptionResult(prev =>
         prev
           ? { ...prev, utterances: newUtterances }
           : { utterances: newUtterances, text: newText }
       );
+      const formatted = formatSpeakerText(newUtterances);
+      setLocalSpeakerText(formatted);
+      onTranscriptionChange(formatted);
+    } else {
+      setLocalSpeakerText(newText);
+      onTranscriptionChange(newText);
     }
-
-    onTranscriptionChange(newText);
     if (!isEditing) setIsEditing(true);
+  };
+
+  const resetLocalSpeakerText = () => {
+    removeLocalSpeakerText();
+    setLocalSpeakerText("");
   };
 
   const toggleEditMode = () => {
@@ -166,5 +165,6 @@ export const useTranscriptionEditor = ({
     handleTextChange,
     toggleEditMode,
     hasSpeakerLabels,
+    resetLocalSpeakerText
   };
 };
