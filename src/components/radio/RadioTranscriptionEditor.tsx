@@ -5,6 +5,10 @@ import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
 import { Textarea } from "@/components/ui/textarea";
 import TranscriptionFeedback from "./editor/TranscriptionFeedback";
 
+/**
+ * This editor always shows/edit speaker-labeled format if utterances are present,
+ * otherwise falls back to plain text editing. No view toggle: always display SPEAKER X blocks if possible.
+ */
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
   isProcessing: boolean;
@@ -14,10 +18,6 @@ interface RadioTranscriptionEditorProps {
   onTimestampClick?: (timestamp: number) => void;
 }
 
-/**
- * This editor always shows/edit speaker-labeled format if utterances are present,
- * otherwise falls back to plain text editing. There is no view toggle.
- */
 const RadioTranscriptionEditor = ({
   transcriptionText,
   isProcessing,
@@ -40,7 +40,7 @@ const RadioTranscriptionEditor = ({
     onTranscriptionChange,
   });
 
-  // Always show the editable textarea with speaker-labeled text.
+  // Always show the editable textarea with speaker-labeled text if available.
   return (
     <div className="relative">
       <Textarea
@@ -54,6 +54,9 @@ const RadioTranscriptionEditor = ({
         onChange={handleTextChange}
         readOnly={isProcessing}
         onClick={!isEditing ? toggleEditMode : undefined}
+        spellCheck={true}
+        autoCorrect="on"
+        autoComplete="off"
       />
       {/* Mini status, feedback, etc */}
       <div className="absolute top-2 right-2 flex flex-col gap-2">

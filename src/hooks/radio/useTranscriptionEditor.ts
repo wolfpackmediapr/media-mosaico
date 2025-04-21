@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { TranscriptionResult, fetchUtterances } from "@/services/audio/transcriptionService";
+import { TranscriptionResult, fetchUtterances, UtteranceTimestamp } from "@/services/audio/transcriptionService";
 import { formatSpeakerText, parseSpeakerTextToUtterances } from "@/components/radio/utils/speakerTextUtils";
 
 interface UseTranscriptionEditorProps {
@@ -14,7 +13,7 @@ interface UseTranscriptionEditorProps {
   onTranscriptionChange: (text: string) => void;
 }
 
-// This hook now always promotes utterance-labeled editing if utterances exist
+// This hook now always forces utterance-labeled editing if utterances exist
 export const useTranscriptionEditor = ({
   transcriptionText,
   transcriptionId,
@@ -29,16 +28,17 @@ export const useTranscriptionEditor = ({
     { storage: 'sessionStorage' }
   );
 
-  // Speaker text handling (single source-of-truth for editor if utterances available)
   const [enhancedTranscriptionResult, setEnhancedTranscriptionResult] =
     useState<TranscriptionResult | undefined>(transcriptionResult);
   const [isLoadingUtterances, setIsLoadingUtterances] = useState(false);
 
-  // If utterances exist, show them as editable text, else fall back to plain
+  // If utterances exist, show them as editable speaker-labeled text, else fall back to plain
   const hasSpeakerLabels = Boolean(
     enhancedTranscriptionResult?.utterances &&
     enhancedTranscriptionResult.utterances.length > 0
   );
+
+  // Always use formatted speaker-labeled text for textarea when utterances exist.
   const [localSpeakerText, setLocalSpeakerText] = usePersistentState(
     `radio-transcription-speaker-${transcriptionId || "draft"}`,
     hasSpeakerLabels && enhancedTranscriptionResult?.utterances
@@ -47,8 +47,8 @@ export const useTranscriptionEditor = ({
     { storage: 'sessionStorage' }
   );
 
+  // Sync localSpeakerText to utterances updates or plain text, only if not editing right now
   useEffect(() => {
-    // When new utterances arrive, update the text shown in editor
     if (
       hasSpeakerLabels &&
       enhancedTranscriptionResult?.utterances &&
@@ -58,7 +58,6 @@ export const useTranscriptionEditor = ({
     } else if (transcriptionText && !hasSpeakerLabels) {
       setLocalSpeakerText(transcriptionText);
     }
-    // Only fire when utterances/transcriptionText updates
     // eslint-disable-next-line
   }, [enhancedTranscriptionResult?.utterances, transcriptionText]);
 
@@ -82,6 +81,7 @@ export const useTranscriptionEditor = ({
               ...(prev || transcriptionResult),
               utterances
             }));
+            setLocalSpeakerText(formatSpeakerText(utterances));
           }
         } catch (error) {
           toast({
@@ -134,11 +134,23 @@ export const useTranscriptionEditor = ({
     }
   }, [saveSuccess, toast]);
 
+  // Always keep the speaker format in the textarea if there are utterances
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
     setLocalSpeakerText(newText);
-    onTranscriptionChange(newText);
 
+    // If utterances are present, try to parse them from the edited text
+    if (hasSpeakerLabels) {
+      // Parse back into utterances, then reformat and sync
+      const newUtterances: UtteranceTimestamp[] = parseSpeakerTextToUtterances(newText);
+      setEnhancedTranscriptionResult(prev =>
+        prev
+          ? { ...prev, utterances: newUtterances }
+          : { utterances: newUtterances, text: newText }
+      );
+    }
+
+    onTranscriptionChange(newText);
     if (!isEditing) setIsEditing(true);
   };
 
