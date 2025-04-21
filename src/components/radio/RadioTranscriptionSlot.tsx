@@ -59,11 +59,6 @@ const RadioTranscriptionSlot = ({
     }
   }, [transcriptionText, transcriptionResult, checkAndGenerateSegments]);
 
-  // Provide the editor's reset function upwards if registerEditorReset is used, without using ref
-  // We'll create a local "reset" instance here to lift up
-  // NOTE: RadioTranscriptionEditor is not using forwardRef so we can't use .current/reset method through refs
-  // Instead, expose the local reset logic by prop-drilling a callback
-
   // Local state to store the reset method
   const resetFnRef = useRef<() => void>(() => {});
   // Pass a callback down to RadioTranscriptionEditor that lets it "register" its reset function
@@ -103,4 +98,3 @@ const RadioTranscriptionSlot = ({
 };
 
 export default RadioTranscriptionSlot;
-

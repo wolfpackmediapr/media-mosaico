@@ -16,6 +16,8 @@ interface RadioTranscriptionEditorProps {
   transcriptionId?: string;
   transcriptionResult?: TranscriptionResult;
   onTimestampClick?: (timestamp: number) => void;
+  // Add the registerReset prop
+  registerReset?: (resetFn: () => void) => void;
 }
 
 const RadioTranscriptionEditor = ({
@@ -25,6 +27,7 @@ const RadioTranscriptionEditor = ({
   transcriptionId,
   transcriptionResult,
   onTimestampClick,
+  registerReset,
 }: RadioTranscriptionEditorProps) => {
   const {
     localText,
@@ -41,6 +44,13 @@ const RadioTranscriptionEditor = ({
     transcriptionResult,
     onTranscriptionChange,
   });
+
+  // Register the reset function if the prop is provided
+  React.useEffect(() => {
+    if (registerReset && resetLocalSpeakerText) {
+      registerReset(resetLocalSpeakerText);
+    }
+  }, [registerReset, resetLocalSpeakerText]);
 
   // Always show editable textarea with speaker blocks if available
   return (
