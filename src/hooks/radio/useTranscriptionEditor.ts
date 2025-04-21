@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { TranscriptionResult, fetchUtterances } from "@/services/audio/transcriptionService";
+import { formatSpeakerText, parseSpeakerTextToUtterances } from "@/components/radio/utils/speakerTextUtils";
 
 interface UseTranscriptionEditorProps {
   transcriptionText: string;
@@ -13,6 +14,7 @@ interface UseTranscriptionEditorProps {
   onTranscriptionChange: (text: string) => void;
 }
 
+// This hook now always promotes utterance-labeled editing if utterances exist
 export const useTranscriptionEditor = ({
   transcriptionText,
   transcriptionId,
@@ -20,81 +22,71 @@ export const useTranscriptionEditor = ({
   onTranscriptionChange,
 }: UseTranscriptionEditorProps) => {
   const { toast } = useToast();
-  
-  // Use persistent state for editor mode
+
   const [isEditing, setIsEditing] = usePersistentState(
     `transcription-editor-mode-${transcriptionId || "draft"}`,
     false,
     { storage: 'sessionStorage' }
   );
-  
-  // Determine initial showTimestamps state based on available data
-  const hasTimestampData = Boolean(
-    transcriptionResult?.sentences?.length || 
-    transcriptionResult?.words?.length ||
-    transcriptionResult?.utterances?.length
-  );
-  
-  // Use persistent state for timestamp view preference
-  const [showTimestamps, setShowTimestamps] = usePersistentState(
-    `transcription-timestamp-view-${transcriptionId || "draft"}`,
-    hasTimestampData,
-    { storage: 'sessionStorage' }
-  );
-  
-  const [enhancedTranscriptionResult, setEnhancedTranscriptionResult] = 
+
+  // Speaker text handling (single source-of-truth for editor if utterances available)
+  const [enhancedTranscriptionResult, setEnhancedTranscriptionResult] =
     useState<TranscriptionResult | undefined>(transcriptionResult);
   const [isLoadingUtterances, setIsLoadingUtterances] = useState(false);
-  
-  // Use persistent state for the text content
-  const [localText, setLocalText] = usePersistentState(
-    `radio-transcription-${transcriptionId || "draft"}`,
-    transcriptionText,
+
+  // If utterances exist, show them as editable text, else fall back to plain
+  const hasSpeakerLabels = Boolean(
+    enhancedTranscriptionResult?.utterances &&
+    enhancedTranscriptionResult.utterances.length > 0
+  );
+  const [localSpeakerText, setLocalSpeakerText] = usePersistentState(
+    `radio-transcription-speaker-${transcriptionId || "draft"}`,
+    hasSpeakerLabels && enhancedTranscriptionResult?.utterances
+      ? formatSpeakerText(enhancedTranscriptionResult.utterances)
+      : transcriptionText,
     { storage: 'sessionStorage' }
   );
 
   useEffect(() => {
-    setLocalText(transcriptionText);
-  }, [transcriptionText, setLocalText]);
+    // When new utterances arrive, update the text shown in editor
+    if (
+      hasSpeakerLabels &&
+      enhancedTranscriptionResult?.utterances &&
+      enhancedTranscriptionResult.utterances.length > 0
+    ) {
+      setLocalSpeakerText(formatSpeakerText(enhancedTranscriptionResult.utterances));
+    } else if (transcriptionText && !hasSpeakerLabels) {
+      setLocalSpeakerText(transcriptionText);
+    }
+    // Only fire when utterances/transcriptionText updates
+    // eslint-disable-next-line
+  }, [enhancedTranscriptionResult?.utterances, transcriptionText]);
 
   useEffect(() => {
     setEnhancedTranscriptionResult(transcriptionResult);
   }, [transcriptionResult]);
 
   useEffect(() => {
-    // Update showTimestamps state when transcriptionResult changes
-    if (hasTimestampData && !isEditing) {
-      setShowTimestamps(true);
-    }
-  }, [transcriptionResult, hasTimestampData, isEditing]);
-
-  useEffect(() => {
+    // Always fetch utterances if not present, if a transcriptId is available
     const fetchSpeakerData = async () => {
       if (
-        transcriptionId && 
-        showTimestamps && 
-        transcriptionResult && 
-        (!transcriptionResult.utterances || transcriptionResult.utterances.length === 0)
+        transcriptionId &&
+        enhancedTranscriptionResult &&
+        (!enhancedTranscriptionResult.utterances || enhancedTranscriptionResult.utterances.length === 0)
       ) {
         try {
           setIsLoadingUtterances(true);
-          console.log('Fetching utterances for transcript ID:', transcriptionId);
           const utterances = await fetchUtterances(transcriptionId);
-          
           if (utterances && utterances.length > 0) {
-            console.log(`Retrieved ${utterances.length} utterances for transcript`);
             setEnhancedTranscriptionResult(prev => ({
               ...(prev || transcriptionResult),
               utterances
             }));
-          } else {
-            console.warn('No utterances found for transcript ID:', transcriptionId);
           }
         } catch (error) {
-          console.error('Error fetching utterances:', error);
           toast({
             title: "No se pudieron cargar los datos de hablantes",
-            description: "Intente nuevamente o use otro modo de visualización",
+            description: "Intente nuevamente más tarde.",
             variant: "destructive",
           });
         } finally {
@@ -102,31 +94,25 @@ export const useTranscriptionEditor = ({
         }
       }
     };
-
     fetchSpeakerData();
-  }, [transcriptionId, showTimestamps, transcriptionResult, toast]);
+    // eslint-disable-next-line
+  }, [transcriptionId, enhancedTranscriptionResult]);
 
+  // Autosave: always save current editable text to the database
   const { isSaving, saveSuccess } = useAutosave({
-    data: { text: localText, id: transcriptionId },
+    data: { text: localSpeakerText, id: transcriptionId },
     onSave: async (data) => {
-      if (!data.id) {
-        console.warn('No transcription ID provided for saving');
-        return;
-      }
-      
+      if (!data.id) return;
       try {
         const { error } = await supabase
           .from('transcriptions')
-          .update({ 
+          .update({
             transcription_text: data.text,
             updated_at: new Date().toISOString()
           })
           .eq('id', data.id);
-
         if (error) throw error;
-        return;
       } catch (error) {
-        console.error('Error saving transcription:', error);
         toast({
           title: "Error al guardar",
           description: "No se pudo guardar la transcripción",
@@ -150,42 +136,23 @@ export const useTranscriptionEditor = ({
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
-    setLocalText(newText);
+    setLocalSpeakerText(newText);
     onTranscriptionChange(newText);
-    
-    if (!isEditing) {
-      setIsEditing(true);
-    }
+
+    if (!isEditing) setIsEditing(true);
   };
 
   const toggleEditMode = () => {
     setIsEditing(!isEditing);
-    if (!isEditing) {
-      setTimeout(() => {
-        const textarea = document.querySelector('textarea');
-        if (textarea) textarea.focus();
-      }, 0);
-    }
-  };
-
-  const toggleTimestampView = () => {
-    setShowTimestamps(!showTimestamps);
-    
-    if (!showTimestamps && isEditing) {
-      setIsEditing(false);
-    }
   };
 
   return {
-    localText,
+    localText: localSpeakerText,
     isEditing,
-    showTimestamps,
-    hasTimestampData,
-    enhancedTranscriptionResult,
     isLoadingUtterances,
     isSaving,
     handleTextChange,
     toggleEditMode,
-    toggleTimestampView,
+    hasSpeakerLabels,
   };
 };

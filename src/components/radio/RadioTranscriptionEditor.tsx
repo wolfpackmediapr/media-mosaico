@@ -1,9 +1,8 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
-import EditorContent from "./editor/EditorContent";
-import EditorControls from "./editor/EditorControls";
+import { Textarea } from "@/components/ui/textarea";
 import TranscriptionFeedback from "./editor/TranscriptionFeedback";
 
 interface RadioTranscriptionEditorProps {
@@ -15,25 +14,25 @@ interface RadioTranscriptionEditorProps {
   onTimestampClick?: (timestamp: number) => void;
 }
 
+/**
+ * This editor always shows/edit speaker-labeled format if utterances are present,
+ * otherwise falls back to plain text editing. There is no view toggle.
+ */
 const RadioTranscriptionEditor = ({
   transcriptionText,
   isProcessing,
   onTranscriptionChange,
   transcriptionId,
   transcriptionResult,
-  onTimestampClick = () => {}
 }: RadioTranscriptionEditorProps) => {
   const {
     localText,
     isEditing,
-    showTimestamps,
-    hasTimestampData,
-    enhancedTranscriptionResult,
     isLoadingUtterances,
     isSaving,
     handleTextChange,
     toggleEditMode,
-    toggleTimestampView,
+    hasSpeakerLabels,
   } = useTranscriptionEditor({
     transcriptionText,
     transcriptionId,
@@ -41,37 +40,37 @@ const RadioTranscriptionEditor = ({
     onTranscriptionChange,
   });
 
+  // Always show the editable textarea with speaker-labeled text.
   return (
     <div className="relative">
-      <EditorContent 
-        showTimestamps={showTimestamps}
-        hasTimestampData={hasTimestampData}
-        isEditing={isEditing}
-        isProcessing={isProcessing}
-        isLoadingUtterances={isLoadingUtterances}
-        text={localText}
-        transcriptionResult={enhancedTranscriptionResult}
-        onTextChange={handleTextChange}
-        onTimestampClick={onTimestampClick}
-        onTextAreaClick={() => !isEditing && toggleEditMode()}
+      <Textarea
+        placeholder={
+          hasSpeakerLabels
+            ? "SPEAKER 1: Aquí aparecerá la transcripción con etiquetas de hablante editables..."
+            : "Aquí aparecerá el texto transcrito..."
+        }
+        className={`min-h-[200px] resize-y pr-12 border-primary focus:border-primary focus-visible:ring-1`}
+        value={localText}
+        onChange={handleTextChange}
+        readOnly={isProcessing}
+        onClick={!isEditing ? toggleEditMode : undefined}
       />
-      
-      <EditorControls 
-        showTimestamps={showTimestamps}
-        isEditing={isEditing}
-        hasTimestampData={hasTimestampData}
-        isProcessing={isProcessing}
-        isSaving={isSaving}
-        toggleTimestampView={toggleTimestampView}
-        toggleEditMode={toggleEditMode}
-        text={localText}
-      />
-      
+      {/* Mini status, feedback, etc */}
+      <div className="absolute top-2 right-2 flex flex-col gap-2">
+        {isSaving && (
+          <span className="text-sm text-primary animate-pulse">
+            Guardando...
+          </span>
+        )}
+        {isLoadingUtterances && (
+          <span className="text-xs text-muted-foreground">Cargando hablantes...</span>
+        )}
+      </div>
       <TranscriptionFeedback
         isEmpty={!localText}
         isProcessing={isProcessing}
-        showTimestamps={showTimestamps}
-        hasTimestampData={hasTimestampData}
+        showTimestamps={!!hasSpeakerLabels}
+        hasTimestampData={!!hasSpeakerLabels}
       />
     </div>
   );
