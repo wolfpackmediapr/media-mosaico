@@ -1,6 +1,6 @@
 
 import { Card, CardContent } from "@/components/ui/card";
-import { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
 import RadioReportButton from "./RadioReportButton";
@@ -49,6 +49,7 @@ const RadioTranscriptionSlot = ({
   registerEditorReset,
 }: RadioTranscriptionSlotProps) => {
   const { checkAndGenerateSegments } = useRadioSegmentGenerator(onSegmentsReceived);
+
   // Check for segment generation when transcription changes
   useEffect(() => {
     if (transcriptionResult) {
@@ -58,14 +59,20 @@ const RadioTranscriptionSlot = ({
     }
   }, [transcriptionText, transcriptionResult, checkAndGenerateSegments]);
 
-  // Provide the editor's reset function upwards if registerEditorReset is used.
-  const editorRef = useRef<{ resetLocalSpeakerText?: () => void }>(null);
+  // Provide the editor's reset function upwards if registerEditorReset is used, without using ref
+  // We'll create a local "reset" instance here to lift up
+  // NOTE: RadioTranscriptionEditor is not using forwardRef so we can't use .current/reset method through refs
+  // Instead, expose the local reset logic by prop-drilling a callback
 
-  useEffect(() => {
-    if (registerEditorReset && editorRef.current?.resetLocalSpeakerText) {
-      registerEditorReset(editorRef.current.resetLocalSpeakerText);
+  // Local state to store the reset method
+  const resetFnRef = useRef<() => void>(() => {});
+  // Pass a callback down to RadioTranscriptionEditor that lets it "register" its reset function
+  const handleRegisterReset = (fn: () => void) => {
+    resetFnRef.current = fn;
+    if (registerEditorReset) {
+      registerEditorReset(fn);
     }
-  }, [registerEditorReset]);
+  };
 
   return (
     <div className="space-y-4 md:space-y-6 w-full">
@@ -73,13 +80,14 @@ const RadioTranscriptionSlot = ({
         <RadioTranscriptionMetadata metadata={metadata} onMetadataChange={onMetadataChange} />
         <CardContent className="p-4 space-y-4">
           <RadioTranscriptionEditor
-            ref={editorRef}
             transcriptionText={transcriptionText}
             isProcessing={isProcessing}
             onTranscriptionChange={onTranscriptionChange}
             transcriptionId={transcriptionId}
             transcriptionResult={transcriptionResult}
             onTimestampClick={onTimestampClick}
+            // Pass the reset registration callback (if implemented in the editor hook)
+            registerReset={handleRegisterReset}
           />
           <div className="flex justify-end">
             <RadioReportButton
@@ -95,3 +103,4 @@ const RadioTranscriptionSlot = ({
 };
 
 export default RadioTranscriptionSlot;
+
