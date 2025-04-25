@@ -2,11 +2,11 @@
 import { useRadioTranscription } from './useRadioTranscription';
 import { RadioNewsSegment } from '@/components/radio/RadioNewsSegmentsContainer';
 import { TranscriptionResult } from '@/services/audio/transcriptionService';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 export const useTranscriptionManagement = () => {
-  // Track component mounted state to prevent operations after unmount
   const isMountedRef = useRef(true);
+  const cleanupFnsRef = useRef<Array<() => void>>([]);
   
   const {
     isProcessing,
@@ -28,16 +28,29 @@ export const useTranscriptionManagement = () => {
     resetTranscription
   } = useRadioTranscription();
 
-  const handleTranscriptionTextChange = (text: string) => {
+  const handleTranscriptionTextChange = useCallback((text: string) => {
     if (isMountedRef.current) {
       handleTranscriptionChange(text);
     }
-  };
+  }, [handleTranscriptionChange]);
 
-  // Cleanup when component unmounts
+  const registerCleanup = useCallback((cleanupFn: () => void) => {
+    cleanupFnsRef.current.push(cleanupFn);
+  }, []);
+
+  // Enhanced cleanup when component unmounts
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
+      // Execute all cleanup functions
+      cleanupFnsRef.current.forEach(cleanup => {
+        try {
+          cleanup();
+        } catch (error) {
+          console.error('Error during cleanup:', error);
+        }
+      });
+      cleanupFnsRef.current = [];
     };
   }, []);
 
@@ -58,6 +71,7 @@ export const useTranscriptionManagement = () => {
     handleSegmentsReceived,
     handleMetadataChange,
     handleTranscriptionReceived,
-    resetTranscription
+    resetTranscription,
+    registerCleanup
   };
 };

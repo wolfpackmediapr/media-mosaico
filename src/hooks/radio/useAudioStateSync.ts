@@ -1,5 +1,6 @@
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
+import { debounce } from 'lodash';
 
 interface AudioStateSyncOptions {
   persistedText?: string;
@@ -14,9 +15,18 @@ export const useAudioStateSync = ({
   setTranscriptionText,
   onTextChange,
 }: AudioStateSyncOptions) => {
-  // Use a ref to track previous values and avoid unnecessary updates
   const prevPersistedTextRef = useRef(persistedText);
   const prevTranscriptionTextRef = useRef(transcriptionText);
+  
+  // Debounced text change handler to reduce unnecessary updates
+  const debouncedTextChange = useCallback(
+    debounce((text: string) => {
+      if (onTextChange) {
+        onTextChange(text);
+      }
+    }, 500),
+    [onTextChange]
+  );
   
   // Sync with persisted text when it changes
   useEffect(() => {
@@ -28,14 +38,20 @@ export const useAudioStateSync = ({
     }
   }, [persistedText, transcriptionText, setTranscriptionText]);
 
-  // Notify parent of text changes
+  // Handle text changes with debouncing
   useEffect(() => {
-    if (onTextChange && 
-        transcriptionText && 
+    if (transcriptionText && 
         transcriptionText !== persistedText && 
         transcriptionText !== prevTranscriptionTextRef.current) {
-      onTextChange(transcriptionText);
+      debouncedTextChange(transcriptionText);
       prevTranscriptionTextRef.current = transcriptionText;
     }
-  }, [transcriptionText, onTextChange, persistedText]);
+  }, [transcriptionText, persistedText, debouncedTextChange]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      debouncedTextChange.cancel();
+    };
+  }, [debouncedTextChange]);
 };

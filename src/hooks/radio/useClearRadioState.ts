@@ -15,6 +15,7 @@ export const useClearRadioState = ({
   const clearAnalysisRef = useRef<(() => void) | null>(null);
   const editorResetRef = useRef<null | (() => void)>(null);
   const cleanupAttemptsRef = useRef<number>(0);
+  const mountedRef = useRef(true);
 
   const handleEditorRegisterReset = useCallback((resetFn: () => void) => {
     editorResetRef.current = resetFn;
@@ -24,35 +25,37 @@ export const useClearRadioState = ({
     clearAnalysisRef.current = fn;
   }, []);
 
-  // Cleanup function that ensures all resources are properly released
+  // Enhanced cleanup verification
   const ensureCleanup = useCallback(() => {
-    // Only try up to 3 times to prevent infinite loops
-    if (cleanupAttemptsRef.current >= 3) return;
+    if (!mountedRef.current || cleanupAttemptsRef.current >= 3) return;
     
     console.log('[useClearRadioState] Running cleanup verification');
     cleanupAttemptsRef.current += 1;
     
-    // Check for any lingering storage items that should have been cleared
-    if (transcriptionId) {
-      const keysToCheck = [
-        `radio-transcription-${transcriptionId}`,
-        `radio-transcription-speaker-${transcriptionId}`,
-        `transcription-timestamp-view-${transcriptionId}`,
-        `transcription-editor-mode-${transcriptionId}`,
-        `radio-content-analysis-${transcriptionId}`,
-        `radio-transcription-text-content-${transcriptionId}`
-      ];
-      
-      keysToCheck.forEach(key => {
+    const keysToCheck = [
+      `radio-transcription-${transcriptionId}`,
+      `radio-transcription-speaker-${transcriptionId}`,
+      `transcription-timestamp-view-${transcriptionId}`,
+      `transcription-editor-mode-${transcriptionId}`,
+      `radio-content-analysis-${transcriptionId}`,
+      `radio-transcription-text-content-${transcriptionId}`
+    ];
+    
+    keysToCheck.forEach(key => {
+      try {
         if (sessionStorage.getItem(key)) {
           console.log(`[useClearRadioState] Cleaning up missed key: ${key}`);
           sessionStorage.removeItem(key);
         }
-      });
-    }
+      } catch (error) {
+        console.error(`[useClearRadioState] Error cleaning up key ${key}:`, error);
+      }
+    });
   }, [transcriptionId]);
 
   const clearAllState = useCallback(() => {
+    if (!mountedRef.current) return;
+
     console.log('[useClearRadioState] Clearing all state');
     
     const keysToDelete = [
@@ -81,36 +84,28 @@ export const useClearRadioState = ({
     }
 
     keysToDelete.forEach(key => {
-      sessionStorage.removeItem(key);
-      console.log(`[useClearRadioState] Cleared storage key: ${key}`);
-    });
-
-    const allKeys = Object.keys(sessionStorage);
-    const patternPrefixes = [
-      'radio-transcription',
-      'transcription-editor',
-      'transcription-timestamp',
-      'radio-content-analysis',
-      'radio-transcription-text'
-    ];
-
-    allKeys.forEach(key => {
-      if (patternPrefixes.some(prefix => key.startsWith(prefix))) {
-        console.log(`[useClearRadioState] Clearing additional key: ${key}`);
+      try {
         sessionStorage.removeItem(key);
+        console.log(`[useClearRadioState] Cleared storage key: ${key}`);
+      } catch (error) {
+        console.error(`[useClearRadioState] Error clearing key ${key}:`, error);
       }
     });
 
     if (clearAnalysisRef.current) {
-      console.log('[useClearRadioState] Clearing analysis state');
-      clearAnalysisRef.current();
+      try {
+        clearAnalysisRef.current();
+      } catch (error) {
+        console.error('[useClearRadioState] Error clearing analysis state:', error);
+      }
     }
 
     if (editorResetRef.current) {
-      console.log('[useClearRadioState] Calling editor reset function');
-      editorResetRef.current();
-    } else {
-      console.log('[useClearRadioState] No editor reset function registered');
+      try {
+        editorResetRef.current();
+      } catch (error) {
+        console.error('[useClearRadioState] Error in editor reset:', error);
+      }
     }
 
     if (onTextChange) {
@@ -123,10 +118,10 @@ export const useClearRadioState = ({
     console.log('[useClearRadioState] All state cleared');
   }, [persistKey, transcriptionId, onTextChange, ensureCleanup]);
 
-  // Run cleanup check when the component unmounts
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Final verification before unmounting
+      mountedRef.current = false;
       ensureCleanup();
     };
   }, [ensureCleanup]);

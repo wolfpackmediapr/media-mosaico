@@ -1,7 +1,7 @@
 
 import { useAudioPlayer } from './use-audio-player';
 import { UploadedFile } from '@/components/radio/types';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 interface AudioProcessingOptions {
   currentFile?: UploadedFile;
@@ -10,6 +10,7 @@ interface AudioProcessingOptions {
 export const useAudioProcessing = ({ currentFile }: AudioProcessingOptions) => {
   // Track if component is mounted to prevent memory leaks
   const isMountedRef = useRef(true);
+  const audioCleanupFnsRef = useRef<Array<() => void>>([]);
 
   const {
     isPlaying,
@@ -29,17 +30,25 @@ export const useAudioProcessing = ({ currentFile }: AudioProcessingOptions) => {
     file: currentFile
   });
 
-  const handleSeekToSegment = (timestamp: number) => {
+  const handleSeekToSegment = useCallback((timestamp: number) => {
     if (isMountedRef.current) {
       seekToTimestamp(timestamp);
     }
-  };
+  }, [seekToTimestamp]);
 
-  // Cleanup function to prevent memory leaks when component unmounts
+  // Enhanced cleanup function to prevent memory leaks
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
+      // Execute all cleanup functions
+      audioCleanupFnsRef.current.forEach(cleanup => cleanup());
+      audioCleanupFnsRef.current = [];
     };
+  }, []);
+
+  // Register a cleanup function
+  const registerCleanup = useCallback((cleanupFn: () => void) => {
+    audioCleanupFnsRef.current.push(cleanupFn);
   }, []);
 
   return {
@@ -55,6 +64,7 @@ export const useAudioProcessing = ({ currentFile }: AudioProcessingOptions) => {
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    handleSeekToSegment
+    handleSeekToSegment,
+    registerCleanup
   };
 };
