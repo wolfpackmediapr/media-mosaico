@@ -29,9 +29,7 @@ export const downloadSrtFile = (timestampedItems: TimestampedItem[]) => {
   const { toast } = useToast();
   
   if (timestampedItems.length === 0) {
-    toast.error("Error al descargar", {
-      description: "No hay datos de timestamping disponibles"
-    });
+    toast.error("Error al descargar", "No hay datos de timestamping disponibles");
     return;
   }
 
@@ -46,7 +44,5 @@ export const downloadSrtFile = (timestampedItems: TimestampedItem[]) => {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   
-  toast.success("Descarga completada", {
-    description: "Archivo SRT de subtítulos creado correctamente"
-  });
+  toast.success("Descarga completada", "Archivo SRT de subtítulos creado correctamente");
 };

@@ -1,40 +1,54 @@
 
-import { toast } from 'sonner';
+import { toast as sonnerToast } from 'sonner';
 
 // Re-export the Sonner toast for backward compatibility
-export { toast };
+export { sonnerToast as toast };
 
 // For components expecting the old toast API structure
 export const useToast = () => {
-  return {
-    toast: {
-      // Map the old toast API to Sonner
-      call: function(options: any): void {
-        if (!options) return;
-        
-        if (options.variant === 'destructive') {
-          toast.error(options.title, {
-            description: options.description
-          });
-        } else {
-          toast.success(options.title, {
-            description: options.description
-          });
-        }
-      },
-      // Add specific toast variants for compatibility
-      error: function(title: string, description?: string): void {
-        toast.error(title, { description });
-      },
-      success: function(title: string, description?: string): void {
-        toast.success(title, { description });
-      },
-      warning: function(title: string, description?: string): void {
-        toast.warning(title, { description });
-      },
-      info: function(title: string, description?: string): void {
-        toast.info(title, { description });
-      }
+  // Create a callable function that also has methods
+  const toastFunction = (options: any) => {
+    if (!options) return;
+    
+    if (options.variant === 'destructive') {
+      sonnerToast.error(options.title, {
+        description: options.description
+      });
+    } else {
+      sonnerToast.success(options.title, {
+        description: options.description
+      });
     }
   };
+
+  // Add the callable methods
+  const toast = Object.assign(toastFunction, {
+    call: function(options: any): void {
+      if (!options) return;
+      
+      if (options.variant === 'destructive') {
+        sonnerToast.error(options.title, {
+          description: options.description
+        });
+      } else {
+        sonnerToast.success(options.title, {
+          description: options.description
+        });
+      }
+    },
+    error: function(title: string, description?: string): void {
+      sonnerToast.error(title, { description });
+    },
+    success: function(title: string, description?: string): void {
+      sonnerToast.success(title, { description });
+    },
+    warning: function(title: string, description?: string): void {
+      sonnerToast.warning(title, { description });
+    },
+    info: function(title: string, description?: string): void {
+      sonnerToast.info(title, { description });
+    }
+  });
+
+  return { toast };
 };

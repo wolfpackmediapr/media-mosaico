@@ -1,3 +1,4 @@
+
 import { Dispatch, SetStateAction } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileList from "./AudioFileList";
@@ -39,6 +40,7 @@ const FileUploadSection = ({
   onFilesAdded
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
+  const { toast } = useToast();
 
   const { handleFilesAdded, handleRemoveFile } = useFileUploadHandlers({
     files,
@@ -86,11 +88,7 @@ const FileUploadSection = ({
       return transcriptionResult;
     } catch (error) {
       console.error("[FileUploadSection] Error processing file:", error);
-      useToast().toast({
-        title: "Error",
-        description: "Error al procesar el archivo",
-        variant: "destructive"
-      });
+      toast.error("Error", "Error al procesar el archivo");
       return null;
     } finally {
       setIsProcessing(false);
