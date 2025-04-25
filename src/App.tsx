@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -25,14 +26,18 @@ const PageLoader = () => (
 );
 
 // ErrorBoundary component for catching loading errors
-class ErrorBoundary extends React.Component {
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasError: boolean; error: Error | null }> {
   state = { hasError: false, error: null };
   
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
   
-  componentDidCatch(error, errorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Component Error:", error, errorInfo);
   }
   
