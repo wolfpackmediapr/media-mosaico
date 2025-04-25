@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { handleSocialFeedError } from "@/services/social/error-handler";
 import { useState } from "react";
+import { transformArticlesToPosts, transformPlatformData, calculatePlatformCounts } from "@/services/social/utils";
+import type { SocialPost, SocialPlatform } from "@/types/social";
 
 // Add the useSocialFeeds hook for the RedesSociales page
 export function useSocialFeeds() {
@@ -16,7 +18,7 @@ export function useSocialFeeds() {
     
     let query = supabase
       .from("news_articles")
-      .select("*", { count: "exact" });
+      .select("*, feed_source:feed_source_id(*)", { count: "exact" });
       
     // Apply search filter if provided
     if (searchTerm) {
@@ -37,19 +39,29 @@ export function useSocialFeeds() {
       setTotalCount(count);
     }
     
-    return data || [];
+    // Transform the data to match the SocialPost type
+    return transformArticlesToPosts(data || []);
   };
   
   // Fetch available platforms
   const fetchPlatforms = async () => {
-    const { data, error } = await supabase
+    const { data: feedSources, error } = await supabase
       .from("feed_sources")
       .select("*")
       .order("name", { ascending: true });
       
     if (error) throw error;
     
-    return data || [];
+    // Fetch articles to calculate counts per platform
+    const { data: articles } = await supabase
+      .from("news_articles")
+      .select("feed_source_id, feed_source:feed_source_id(name)");
+    
+    // Calculate platform counts from the articles
+    const platformCounts = calculatePlatformCounts(articles || []);
+    
+    // Transform the data to match the SocialPlatform type
+    return transformPlatformData(feedSources || [], platformCounts);
   };
   
   // Manual refresh function
