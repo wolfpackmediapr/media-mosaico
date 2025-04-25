@@ -122,7 +122,9 @@ class SubscriptionManager {
       };
       
       // Add error handling for the channel
-      channel.on('error', (error) => {
+      // Fix: The channel.on method expects 3 arguments when listening for events
+      // The third argument is the callback function
+      channel.on('error', (error: any) => {
         this.log(`Channel error on ${channelName}:`, error);
         this._globalErrorListeners.forEach(listener => {
           try {
@@ -131,7 +133,7 @@ class SubscriptionManager {
             console.error('Error in subscription error listener:', err);
           }
         });
-      });
+      }, () => {}); // Empty callback as the third argument
     } else {
       this.log(`Using existing channel: ${channelName}`);
     }
@@ -169,8 +171,10 @@ class SubscriptionManager {
     this.log(`Channel ${channelName} now has ${subscription.refCount} subscribers`);
     
     // Add listener for this specific subscription
+    // Fix: Use the correct syntax for postgres_changes by replacing the generic 'on' call
+    // with the specific 'postgres_changes' event type
     channel.on(
-      'postgres_changes',
+      'postgres_changes', 
       {
         event: config.event,
         schema: config.schema || 'public',
