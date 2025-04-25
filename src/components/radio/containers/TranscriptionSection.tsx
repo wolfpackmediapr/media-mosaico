@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { RadioTranscriptionMetadata } from "@/components/radio/RadioTranscriptionMetadata";
-import { RadioTranscriptionSlot } from "@/components/radio/RadioTranscriptionSlot";
+import RadioTranscriptionMetadata from "@/components/radio/RadioTranscriptionMetadata";
+import RadioTranscriptionSlot from "@/components/radio/RadioTranscriptionSlot";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { UtteranceTimestamp } from "@/hooks/useRealTimeTranscription";
-import { RadioTranscriptionEditor } from "@/components/radio/RadioTranscriptionEditor";
-import { RadioTimestampedTranscription } from "@/components/radio/RadioTimestampedTranscription";
+import RadioTranscriptionEditor from "@/components/radio/RadioTranscriptionEditor";
+import RadioTimestampedTranscription from "@/components/radio/RadioTimestampedTranscription";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useTranscriptionEditor } from "@/hooks/useTranscriptionEditor";
 import ViewModeToggle from "@/components/radio/interactive-transcription/ViewModeToggle";
@@ -144,8 +144,9 @@ const TranscriptionSection: React.FC<TranscriptionSectionProps> = ({
             <TabsContent value="timestamped" className="mt-0">
               <RadioTimestampedTranscription
                 transcriptionResult={transcriptionResult}
-                transcriptionId={transcriptionId}
-                onSeek={handleSeekToSegment}
+                text={transcriptionText}
+                onTimestampClick={handleSeekToSegment}
+                isLoading={isLoadingUtterances}
               />
             </TabsContent>
             

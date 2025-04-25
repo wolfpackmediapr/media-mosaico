@@ -1,4 +1,3 @@
-
 import React from "react";
 import { motion } from "framer-motion";
 import { UtteranceTimestamp, Word } from "@/hooks/useRealTimeTranscription";
@@ -22,7 +21,6 @@ export const RealTimeSpeakerSegment: React.FC<RealTimeSpeakerSegmentProps> = ({
 }) => {
   const speakerColor = getSpeakerColor(utterance.speaker);
   
-  // Format speaker name for display
   const getSpeakerName = (speaker: string | number) => {
     if (typeof speaker === 'string') {
       return speaker.includes('_') ? 
@@ -90,3 +88,5 @@ export const RealTimeSpeakerSegment: React.FC<RealTimeSpeakerSegmentProps> = ({
     </div>
   );
 };
+
+export default RealTimeSpeakerSegment;

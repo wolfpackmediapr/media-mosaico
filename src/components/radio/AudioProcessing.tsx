@@ -59,10 +59,19 @@ export const processAudioFileRealTime = async (
       onTranscriptionComplete,
       onUtterancesReceived: utterances => {
         if (onUtterancesReceived) {
-          onUtterancesReceived({
+          // Convert utterances to the expected format if needed
+          const result: TranscriptionResult = {
             text: transcription,
-            utterances: utterances
-          });
+            utterances: utterances.map(u => ({
+              speaker: String(u.speaker), // Convert to string to match expected type
+              text: u.text,
+              start: u.start,
+              end: u.end,
+              words: u.words
+            }))
+          };
+          
+          onUtterancesReceived(result);
         }
       }
     });

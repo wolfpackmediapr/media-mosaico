@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { debounce } from "lodash";
@@ -59,14 +58,12 @@ export function useRealTimeTranscription({
   const maxReconnectAttempts = 5;
   const audioStreamRef = useRef<MediaStream | null>(null);
 
-  // Get WebSocket token from AssemblyAI
   const getToken = async (): Promise<string> => {
     try {
       if (!ASSEMBLYAI_API_KEY) {
         throw new Error("AssemblyAI API key is not configured");
       }
       
-      // First try to use Edge Function for security
       try {
         const { data, error } = await supabase.functions.invoke("get-assemblyai-token", {
           body: { expires_in: 3600 }
@@ -77,7 +74,6 @@ export function useRealTimeTranscription({
       } catch (e) {
         console.warn("Edge function failed, falling back to direct API call:", e);
         
-        // Fallback to direct API call in development
         const response = await fetch("https://api.assemblyai.com/v2/realtime/token", {
           method: "POST",
           headers: {
@@ -101,12 +97,10 @@ export function useRealTimeTranscription({
     }
   };
 
-  // Connect to AssemblyAI WebSocket
   const connectWebSocket = async () => {
     try {
       const token = await getToken();
       
-      // Close existing connection if any
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.close();
       }
@@ -118,7 +112,6 @@ export function useRealTimeTranscription({
       socketRef.current.onopen = () => {
         console.log("[RealTimeTranscription] WebSocket connected");
         
-        // Send configuration to AssemblyAI
         socketRef.current?.send(
           JSON.stringify({
             language_code: languageCode,
@@ -128,10 +121,8 @@ export function useRealTimeTranscription({
           })
         );
         
-        // Reset reconnection attempts on successful connection
         reconnectAttemptsRef.current = 0;
         
-        // Send any buffered audio chunks
         audioBufferRef.current.forEach((chunk) => socketRef.current?.send(chunk));
         audioBufferRef.current = [];
       };
@@ -141,10 +132,8 @@ export function useRealTimeTranscription({
           const data: WebSocketMessage = JSON.parse(message.data);
           
           if (data.message_type === "FinalTranscript") {
-            // Update full transcription text
             setTranscription(prev => prev + " " + data.text);
             
-            // Create UtteranceTimestamp from the response
             const utterance: UtteranceTimestamp = {
               speaker: data.speaker || "unknown",
               text: data.text,
@@ -153,10 +142,8 @@ export function useRealTimeTranscription({
               words: data.words || []
             };
             
-            // Add new utterance
             setUtterances(prev => [...prev, utterance]);
             
-            // Call callback if provided
             if (onUtterancesReceived) {
               onUtterancesReceived([...utterances, utterance]);
             }
@@ -174,9 +161,8 @@ export function useRealTimeTranscription({
       socketRef.current.onclose = (event) => {
         console.log("[RealTimeTranscription] WebSocket closed:", event.code, event.reason);
         
-        // Attempt to reconnect if needed
         if (isProcessing && reconnectAttemptsRef.current < maxReconnectAttempts) {
-          const delay = Math.pow(2, reconnectAttemptsRef.current) * 1000; // Exponential backoff
+          const delay = Math.pow(2, reconnectAttemptsRef.current) * 1000;
           
           setTimeout(() => {
             reconnectAttemptsRef.current += 1;
@@ -195,7 +181,6 @@ export function useRealTimeTranscription({
     }
   };
 
-  // Start processing from microphone input
   const startFromMicrophone = async () => {
     try {
       setIsProcessing(true);
@@ -203,13 +188,11 @@ export function useRealTimeTranscription({
       setTranscription("");
       setUtterances([]);
       
-      // Get microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
       
       await connectWebSocket();
       
-      // Create media recorder to capture audio
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       
@@ -222,10 +205,8 @@ export function useRealTimeTranscription({
             
             if (socketRef.current?.readyState === WebSocket.OPEN) {
               socketRef.current.send(message);
-              // Update progress when data is sent
               setProgress(prev => Math.min(99, prev + 1));
             } else {
-              // Buffer if disconnected
               audioBufferRef.current.push(message);
             }
           } catch (error) {
@@ -234,7 +215,7 @@ export function useRealTimeTranscription({
         }
       };
       
-      mediaRecorder.start(500); // Capture in 500ms chunks for better performance
+      mediaRecorder.start(500);
       audioStartTimeRef.current = Date.now();
       
     } catch (error) {
@@ -244,7 +225,6 @@ export function useRealTimeTranscription({
     }
   };
 
-  // Start processing from audio file
   const startFromFile = async (file: File) => {
     try {
       if (!validateAudioFile(file)) {
@@ -259,15 +239,13 @@ export function useRealTimeTranscription({
       
       await connectWebSocket();
       
-      // Convert file to audio stream with AudioContext
       const fileBuffer = await file.arrayBuffer();
       const audioContext = new AudioContext();
       const audioBuffer = await audioContext.decodeAudioData(fileBuffer);
       
-      // Sample rate conversion if needed
-      const sampleRate = 16000; // AssemblyAI expected sample rate
+      const sampleRate = 16000;
       const offlineContext = new OfflineAudioContext(
-        1, // mono
+        1,
         audioBuffer.duration * sampleRate,
         sampleRate
       );
@@ -277,22 +255,19 @@ export function useRealTimeTranscription({
       source.connect(offlineContext.destination);
       source.start();
       
-      // Process audio
       const renderedBuffer = await offlineContext.startRendering();
       const audioData = renderedBuffer.getChannelData(0);
       
-      // Send in chunks to avoid memory issues
-      const chunkSize = sampleRate; // 1 second chunks
+      const chunkSize = sampleRate;
       const totalChunks = Math.ceil(audioData.length / chunkSize);
       
       for (let i = 0; i < totalChunks; i++) {
-        if (!isProcessing) break; // Stop if processing is canceled
+        if (!isProcessing) break;
         
         const start = i * chunkSize;
         const end = Math.min((i + 1) * chunkSize, audioData.length);
         const chunk = audioData.slice(start, end);
         
-        // Convert to base64
         const bytes = new Uint8Array(chunk.length * 4);
         let pos = 0;
         for (let j = 0; j < chunk.length; j++) {
@@ -307,20 +282,16 @@ export function useRealTimeTranscription({
         
         if (socketRef.current?.readyState === WebSocket.OPEN) {
           socketRef.current.send(message);
-          // Update progress based on chunks sent
           setProgress(Math.round((i / totalChunks) * 100));
           
-          // Add small delay to prevent overwhelming the server
           await new Promise(resolve => setTimeout(resolve, 100));
         } else {
           audioBufferRef.current.push(message);
         }
       }
       
-      // Final progress update
       setProgress(100);
       
-      // Allow some time for final transcription to arrive
       setTimeout(() => {
         if (onTranscriptionComplete) {
           onTranscriptionComplete(transcription);
@@ -335,30 +306,24 @@ export function useRealTimeTranscription({
     }
   };
 
-  // Stop transcription and clean up
   const stopTranscription = useCallback(() => {
     try {
-      // Close WebSocket connection
       if (socketRef.current) {
         socketRef.current.close();
         socketRef.current = null;
       }
       
-      // Stop MediaRecorder if active
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
       
-      // Stop audio stream if active
       if (audioStreamRef.current) {
         audioStreamRef.current.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
       }
       
-      // Clear buffers
       audioBufferRef.current = [];
       
-      // Call onTranscriptionComplete with full text
       if (onTranscriptionComplete) {
         onTranscriptionComplete(transcription);
       }
@@ -370,7 +335,6 @@ export function useRealTimeTranscription({
     }
   }, [transcription, onTranscriptionComplete]);
 
-  // Utility: Convert ArrayBuffer to base64 string
   const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
     const bytes = new Uint8Array(buffer);
     let binary = "";
@@ -381,11 +345,9 @@ export function useRealTimeTranscription({
     return btoa(binary);
   };
 
-  // Handle progress update for highlighting
   const updateHighlight = useCallback(debounce((currentTime: number) => {
     let foundIndex = -1;
     
-    // Find which word corresponds to the current time
     utterances.forEach(utterance => {
       if (utterance.words) {
         utterance.words.forEach((word, index) => {
@@ -402,21 +364,18 @@ export function useRealTimeTranscription({
     setCurrentWordIndex(foundIndex);
   }, 50), [utterances]);
 
-  // Start transcription when audioFile changes
   useEffect(() => {
     if (audioFile && !isProcessing) {
       startFromFile(audioFile);
     }
     
     return () => {
-      // Cleanup on unmount or file change
       if (isProcessing) {
         stopTranscription();
       }
     };
   }, [audioFile]);
 
-  // Clean up on component unmount
   useEffect(() => {
     return () => {
       stopTranscription();
