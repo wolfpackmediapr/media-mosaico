@@ -3,7 +3,8 @@ import { RealtimeChannelOptions } from "@supabase/supabase-js";
 import { 
   ActiveSubscription, 
   SubscriptionConfig, 
-  SubscriptionHandler 
+  SubscriptionHandler,
+  ConnectionStatus
 } from "./types";
 import { getSubscriptionKey, getHandlerKey, debugLog } from "./utils";
 import { channelManager } from "./channelManager";
@@ -22,7 +23,8 @@ class SubscriptionManager {
       const activeChannels = Object.values(this.activeSubscriptions);
       if (activeChannels.length > 0) {
         const anyChannel = activeChannels[0].channel;
-        const status = anyChannel?.state || 'DISCONNECTED';
+        // Convert the state to ConnectionStatus type
+        const status: ConnectionStatus = anyChannel?.state || 'DISCONNECTED';
         connectionMonitor.setStatus(status);
       }
     };
