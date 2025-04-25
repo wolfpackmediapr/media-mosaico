@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { RealtimeChannel, RealtimeChannelOptions } from "@supabase/supabase-js";
 import { 
@@ -77,20 +76,16 @@ class SubscriptionManager {
         handlers: new Map()
       };
       
-      channel.on(
-        'system',
-        { event: 'error' },
-        (error: any) => {
-          debugLog(this._debugMode, `Channel error on ${channelName}:`, error);
-          this._globalErrorListeners.forEach(listener => {
-            try {
-              listener(error);
-            } catch (err) {
-              console.error('Error in subscription error listener:', err);
-            }
-          });
-        }
-      );
+      channel.on('system', { event: 'error' }, (error: any) => {
+        debugLog(this._debugMode, `Channel error on ${channelName}:`, error);
+        this._globalErrorListeners.forEach(listener => {
+          try {
+            listener(error);
+          } catch (err) {
+            console.error('Error in subscription error listener:', err);
+          }
+        });
+      });
     } else {
       debugLog(this._debugMode, `Using existing channel: ${channelName}`);
     }
@@ -120,19 +115,17 @@ class SubscriptionManager {
     debugLog(this._debugMode, `Subscribing to ${config.table} (${config.event}) on channel ${channelName}`);
     debugLog(this._debugMode, `Channel ${channelName} now has ${subscription.refCount} subscribers`);
     
-    // Fix: Correctly specify the event type as appropriate for "postgres_changes"
-    // This is what was causing the TypeScript error
-    channel.on(
-      'postgres_changes', 
-      { 
-        event: config.event, 
-        schema: config.schema || 'public', 
-        table: config.table, 
-        filter: config.filter 
+    const changes = channel.on(
+      'postgres_changes' as const,
+      {
+        event: config.event,
+        schema: config.schema || 'public',
+        table: config.table,
+        filter: config.filter
       },
-      payload => handler(payload)
+      (payload) => handler(payload)
     );
-    
+
     if (subscription.refCount === 1) {
       debugLog(this._debugMode, `Activating channel ${channelName}`);
       channel.subscribe();

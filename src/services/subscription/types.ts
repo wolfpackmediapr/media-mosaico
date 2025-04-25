@@ -1,7 +1,7 @@
 
-import { RealtimeChannel, RealtimeChannelOptions } from "@supabase/supabase-js";
+import { RealtimeChannel, RealtimeChannelOptions, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
-export type SubscriptionHandler = (payload: any) => void;
+export type ConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED';
 
 export interface SubscriptionConfig {
   schema?: string;
@@ -10,11 +10,11 @@ export interface SubscriptionConfig {
   filter?: string;
 }
 
+export type SubscriptionHandler = (payload: RealtimePostgresChangesPayload<any>) => void;
+
 export interface ActiveSubscription {
   channel: RealtimeChannel;
   configs: SubscriptionConfig[];
   refCount: number;
   handlers: Map<string, SubscriptionHandler[]>;
 }
-
-export type ConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED';
