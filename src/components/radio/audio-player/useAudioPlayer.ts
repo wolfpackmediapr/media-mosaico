@@ -1,50 +1,30 @@
 
-import { useRef, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
 import { useMediaControls } from './hooks/useMediaControls';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useAudioProgress } from './hooks/useAudioProgress';
 import { usePlaybackControls } from './hooks/usePlaybackControls';
 import { useVolumeControls } from './hooks/useVolumeControls';
+import { useAudioProgress } from './hooks/useAudioProgress';
 import { formatTime } from './utils/timeFormatter';
-import type { AudioPlayerHookReturn } from './types';
 
-export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (error: string) => void): AudioPlayerHookReturn {
+interface AudioPlayerOptions {
+  file: File;
+  onEnded?: () => void;
+  onError?: (error: string) => void;
+}
+
+export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) => {
   const howler = useRef<Howl | null>(null);
-  const [duration, setDuration] = useState(0);
-
-  const { isPlaying, playbackRate, handlePlayPause, handleSeek, handleSkip, changePlaybackRate, setIsPlaying } 
-    = usePlaybackControls({ howler, duration });
-  
-  const { volume, isMuted, handleVolumeChange, toggleMute } 
-    = useVolumeControls();
-  
-  const { progress, lastPosition } 
-    = useAudioProgress({ howler, file, isPlaying });
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   useEffect(() => {
-    if (howler.current) {
-      howler.current.unload();
-    }
-
     try {
       const fileUrl = URL.createObjectURL(file);
       const sound = new Howl({
         src: [fileUrl],
-        format: ['mp3', 'wav', 'ogg', 'm4a'],
-        onload: () => {
-          setDuration(sound.duration());
-          
-          const fileId = file.name + '-' + file.size;
-          if (lastPosition[fileId]) {
-            sound.seek(lastPosition[fileId]);
-          }
-        },
-        onplay: () => {
-          setIsPlaying(true);
-          sound.rate(playbackRate);
-        },
+        onplay: () => setIsPlaying(true),
         onpause: () => setIsPlaying(false),
         onend: () => {
           setIsPlaying(false);
@@ -63,12 +43,11 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
         }
       });
 
-      sound.volume(volume[0] / 100);
       howler.current = sound;
 
       return () => {
-        URL.revokeObjectURL(fileUrl);
         sound.unload();
+        URL.revokeObjectURL(fileUrl);
       };
     } catch (error) {
       console.error('Error initializing audio player:', error);
@@ -77,29 +56,20 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
     }
   }, [file, onEnded, onError]);
 
-  useEffect(() => {
-    if (howler.current) {
-      howler.current.volume(isMuted ? 0 : volume[0] / 100);
-    }
-  }, [volume, isMuted]);
+  const { isPlaying, handlePlayPause, handleSeek, handleSkip, changePlaybackRate, setIsPlaying } = usePlaybackControls({ 
+    howler, 
+    duration: howler.current?.duration() || 0 
+  });
 
-  useEffect(() => {
-    if (howler.current && isPlaying) {
-      howler.current.rate(playbackRate);
-    }
-  }, [playbackRate, isPlaying]);
+  const { volume, isMuted, handleVolumeChange, toggleMute } = useVolumeControls();
+
+  const { progress } = useAudioProgress({ howler, file, isPlaying });
 
   useMediaControls({
     onPlay: () => !isPlaying && handlePlayPause(),
     onPause: () => isPlaying && handlePlayPause(),
-    onSeekBackward: (details) => {
-      const seekAmount = details.seekOffset || 10;
-      handleSkip('backward', seekAmount);
-    },
-    onSeekForward: (details) => {
-      const seekAmount = details.seekOffset || 10;
-      handleSkip('forward', seekAmount);
-    },
+    onSeekBackward: (details) => handleSkip('backward', details.seekOffset),
+    onSeekForward: (details) => handleSkip('forward', details.seekOffset),
     title: file.name
   });
 
@@ -118,15 +88,13 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
   });
 
   return {
-    howler,
     playbackState: {
       isPlaying,
       progress,
-      duration,
+      duration: howler.current?.duration() || 0,
       isMuted
     },
     playbackRate,
-    setPlaybackRate,
     volumeControls: {
       isMuted,
       volume,
@@ -138,7 +106,6 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
       handleSkip,
       handleSeek
     },
-    formatTime,
     changePlaybackRate
   };
-}
+};

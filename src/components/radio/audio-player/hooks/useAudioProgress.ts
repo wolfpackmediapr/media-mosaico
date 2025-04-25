@@ -1,5 +1,5 @@
 
-import { useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Howl } from 'howler';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 
