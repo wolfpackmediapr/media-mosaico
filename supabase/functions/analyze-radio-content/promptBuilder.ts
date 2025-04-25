@@ -52,10 +52,12 @@ PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
 5. Duración aproximada
 
 PARA CADA SECCIÓN DE PROGRAMA REGULAR:
-1. Resumen del contenido (10-15 oraciones)
+1. Resumen del contenido (30-40 oraciones)
    - Incluir desarrollo cronológico de los temas
    - Destacar citas textuales relevantes
    - Mencionar interacciones entre participantes si las hay
+   - Identificación de los participantes en la conversación (cuántos hablantes participan y si se pueden identificar sus roles o nombres) [si hay etiquetas de hablante]
+
 2. Temas principales tratados
    - Listar temas por orden de importancia
    - Incluir subtemas relacionados
@@ -68,26 +70,20 @@ PARA CADA SECCIÓN DE PROGRAMA REGULAR:
    - Justificar la selección de cada categoría
    - Indicar categoría principal y secundarias`;
 
-  // Add specific speaker analysis if speaker labels are available
-  if (hasSpeakerLabels) {
-    prompt += `
-5. Identificación de los participantes en la conversación (cuántos hablantes participan y si se pueden identificar sus roles o nombres)`;
-  }
-
   // Add clients section if available
   if (clientsText) {
     prompt += `
-${hasSpeakerLabels ? '6' : '5'}. Presencia de personas o entidades relevantes mencionadas
-${hasSpeakerLabels ? '7' : '6'}. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}`;
+5. Presencia de personas o entidades relevantes mencionadas
+6. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}`;
   } else {
     prompt += `
-${hasSpeakerLabels ? '6' : '5'}. Presencia de personas o entidades relevantes mencionadas`;
+5. Presencia de personas o entidades relevantes mencionadas`;
   }
 
   // Add keyword mapping if available
   if (clientKeywordMap) {
     prompt += `
-${hasSpeakerLabels ? '8' : '7'}. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
+7. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
 ${clientKeywordMap}
 
 Responde en español de manera concisa y profesional. Asegúrate de:
