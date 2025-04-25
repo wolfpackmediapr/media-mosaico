@@ -4,12 +4,24 @@ import { createBrowserRouter, Outlet } from "react-router-dom";
 import { lazyRoutes, settingsRoutes, publitecaRoutes, Index } from "./config/routes";
 import Layout from "./components/layout/Layout";
 import PageLoader from "./components/common/PageLoader";
+import { MediaPersistenceProvider } from "@/context/MediaPersistenceContext";
+
+// Create a wrapper component that includes MediaPersistenceProvider
+const LayoutWithProviders = () => {
+  return (
+    <Layout>
+      <MediaPersistenceProvider>
+        <Outlet />
+      </MediaPersistenceProvider>
+    </Layout>
+  );
+};
 
 // Create routes with layout wrapper and suspense fallback
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <Layout><Outlet /></Layout>,
+    element: <LayoutWithProviders />,
     children: [
       {
         index: true,
