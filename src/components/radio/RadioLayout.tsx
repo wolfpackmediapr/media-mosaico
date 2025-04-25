@@ -6,8 +6,8 @@ import TypeformAlert from "./TypeformAlert";
 interface RadioLayoutProps {
   isAuthenticated: boolean | null;
   leftSection: ReactNode;
-  rightSection: ReactNode | null; // Made rightSection optional by adding | null
-  transcriptionSection: ReactNode;
+  rightSection: ReactNode;
+  transcriptionSection: ReactNode;  // Renamed for clarity
   analysisSection: ReactNode;
   newsSegmentsSection?: ReactNode;
 }
@@ -37,11 +37,9 @@ const RadioLayout = ({
           {leftSection}
         </div>
         {/* Right section with audio files and media controls */}
-        {rightSection && (
-          <div className="space-y-4 w-full">
-            {rightSection}
-          </div>
-        )}
+        <div className="space-y-4 w-full">
+          {rightSection}
+        </div>
       </div>
       
       {/* Second row - Transcription section (full width) */}

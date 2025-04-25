@@ -28,7 +28,7 @@ const FileUploadZone = ({
   message = "Arrastra y suelta archivos aquí o selecciónalos manualmente"
 }: FileUploadZoneProps) => {
   return (
-    <Card className="min-h-[400px] w-full">
+    <Card>
       <CardHeader>
         <CardTitle>Subir Archivos</CardTitle>
         <CardDescription>
@@ -37,7 +37,7 @@ const FileUploadZone = ({
       </CardHeader>
       <CardContent>
         <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center min-h-[280px] flex flex-col items-center justify-center ${
+          className={`border-2 border-dashed rounded-lg p-8 text-center ${
             isDragging ? "border-primary bg-primary/10" : "border-gray-300"
           }`}
           onDragOver={onDragOver}
@@ -46,13 +46,13 @@ const FileUploadZone = ({
         >
           <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
           {isUploading ? (
-            <div className="space-y-4 w-full max-w-xs">
+            <div className="space-y-4">
               <p className="text-sm text-gray-500">Subiendo archivo...</p>
               <Progress value={uploadProgress} className="w-full h-2" />
               <p className="text-xs text-gray-500">{uploadProgress.toFixed(0)}% completado</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <>
               <p className="mb-2 text-sm text-gray-500">
                 {message}
               </p>
@@ -65,7 +65,7 @@ const FileUploadZone = ({
               >
                 Seleccionar Archivos
               </Button>
-            </div>
+            </>
           )}
           <input
             id="fileInput"

@@ -15,7 +15,7 @@ interface LeftSectionProps {
   transcriptionText: string;
   setTranscriptionText: (text: string) => void;
   setTranscriptionId: (id?: string) => void;
-  onTranscriptionComplete?: (result: TranscriptionResult) => void; // Made optional with ?
+  handleTranscriptionReceived: (result: TranscriptionResult) => void;
   handleFilesAdded: (newFiles: File[]) => void;
 }
 
@@ -31,26 +31,24 @@ const LeftSection = ({
   transcriptionText,
   setTranscriptionText,
   setTranscriptionId,
-  onTranscriptionComplete,
+  handleTranscriptionReceived,
   handleFilesAdded
 }: LeftSectionProps) => (
-  <div className="flex flex-col min-h-[400px]">
-    <FileUploadSection 
-      files={files}
-      setFiles={setFiles}
-      currentFileIndex={currentFileIndex}
-      setCurrentFileIndex={setCurrentFileIndex}
-      isProcessing={isProcessing}
-      setIsProcessing={setIsProcessing}
-      progress={progress}
-      setProgress={setProgress}
-      transcriptionText={transcriptionText}
-      setTranscriptionText={setTranscriptionText}
-      setTranscriptionId={setTranscriptionId}
-      onTranscriptionComplete={onTranscriptionComplete}
-      onFilesAdded={handleFilesAdded}
-    />
-  </div>
+  <FileUploadSection 
+    files={files}
+    setFiles={setFiles}
+    currentFileIndex={currentFileIndex}
+    setCurrentFileIndex={setCurrentFileIndex}
+    isProcessing={isProcessing}
+    setIsProcessing={setIsProcessing}
+    progress={progress}
+    setProgress={setProgress}
+    transcriptionText={transcriptionText}
+    setTranscriptionText={setTranscriptionText}
+    setTranscriptionId={setTranscriptionId}
+    onTranscriptionComplete={handleTranscriptionReceived}
+    onFilesAdded={handleFilesAdded}
+  />
 );
 
 export default LeftSection;
