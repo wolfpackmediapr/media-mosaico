@@ -1,12 +1,14 @@
 
 import { Card, CardContent } from "@/components/ui/card";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
 import RadioReportButton from "./RadioReportButton";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import { usePersistentState } from "@/hooks/use-persistent-state";
+import { InteractiveTranscription, ViewModeToggle } from "./interactive-transcription";
 
 interface RadioTranscriptionSlotProps {
   isProcessing: boolean;
@@ -34,6 +36,11 @@ interface RadioTranscriptionSlotProps {
   onTimestampClick?: (timestamp: number) => void;
   // Add prop to allow parent to get access to the editor's reset method
   registerEditorReset?: (fn: () => void) => void;
+  // New props for audio player integration
+  isPlaying?: boolean;
+  currentTime?: number;
+  onPlayPause?: () => void;
+  onSeek?: (timestamp: number) => void;
 }
 
 const RadioTranscriptionSlot = ({
@@ -47,8 +54,23 @@ const RadioTranscriptionSlot = ({
   onMetadataChange,
   onTimestampClick,
   registerEditorReset,
+  // Audio player props with defaults
+  isPlaying = false,
+  currentTime = 0,
+  onPlayPause = () => {},
+  onSeek = () => {},
 }: RadioTranscriptionSlotProps) => {
   const { checkAndGenerateSegments } = useRadioSegmentGenerator(onSegmentsReceived);
+  
+  // Add view mode state (interactive or edit)
+  const [viewMode, setViewMode] = usePersistentState<'interactive' | 'edit'>(
+    `transcription-view-mode-${transcriptionId || "draft"}`,
+    'edit',
+    { storage: 'sessionStorage' }
+  );
+
+  const hasUtterances = !!transcriptionResult?.utterances && 
+                        transcriptionResult.utterances.length > 0;
 
   // Check for segment generation when transcription changes
   useEffect(() => {
@@ -69,21 +91,45 @@ const RadioTranscriptionSlot = ({
     }
   };
 
+  // Handle view mode change
+  const handleViewModeChange = (mode: 'interactive' | 'edit') => {
+    setViewMode(mode);
+  };
+
   return (
     <div className="space-y-4 md:space-y-6 w-full">
       <Card className="overflow-hidden w-full">
         <RadioTranscriptionMetadata metadata={metadata} onMetadataChange={onMetadataChange} />
-        <CardContent className="p-4 space-y-4">
-          <RadioTranscriptionEditor
-            transcriptionText={transcriptionText}
-            isProcessing={isProcessing}
-            onTranscriptionChange={onTranscriptionChange}
-            transcriptionId={transcriptionId}
-            transcriptionResult={transcriptionResult}
-            onTimestampClick={onTimestampClick}
-            // Pass the reset registration callback (if implemented in the editor hook)
-            registerReset={handleRegisterReset}
+        
+        <div className="p-4 border-b">
+          <ViewModeToggle 
+            mode={viewMode}
+            onChange={handleViewModeChange}
+            hasUtterances={hasUtterances}
           />
+        </div>
+
+        <CardContent className="p-4 space-y-4">
+          {viewMode === 'interactive' && hasUtterances ? (
+            <InteractiveTranscription
+              transcriptionResult={transcriptionResult}
+              currentTime={currentTime}
+              isPlaying={isPlaying}
+              onPlayPause={onPlayPause}
+              onSeek={onSeek}
+            />
+          ) : (
+            <RadioTranscriptionEditor
+              transcriptionText={transcriptionText}
+              isProcessing={isProcessing}
+              onTranscriptionChange={onTranscriptionChange}
+              transcriptionId={transcriptionId}
+              transcriptionResult={transcriptionResult}
+              onTimestampClick={onTimestampClick}
+              registerReset={handleRegisterReset}
+            />
+          )}
+          
           <div className="flex justify-end">
             <RadioReportButton
               transcriptionText={transcriptionText}

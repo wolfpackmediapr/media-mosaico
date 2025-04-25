@@ -1,4 +1,3 @@
-
 import { useRef, useEffect } from "react";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { useAudioPlayer } from "@/hooks/radio/use-audio-player";
@@ -133,14 +132,12 @@ const RadioContainer = ({
     console.log('[RadioContainer] handleClearAll: All state, segments, and callbacks cleared');
   };
 
-  // Effect to handle persisted text from parent
   useEffect(() => {
     if (persistedText && persistedText !== transcriptionText) {
       setTranscriptionText(persistedText);
     }
   }, [persistedText, setTranscriptionText]);
 
-  // Effect to update parent with transcription changes
   useEffect(() => {
     if (onTextChange && transcriptionText && transcriptionText !== persistedText) {
       onTextChange(transcriptionText);
@@ -241,6 +238,9 @@ const RadioContainer = ({
             handleMetadataChange={handleMetadataChange}
             handleSeekToSegment={handleSeekToSegment}
             registerEditorReset={handleEditorRegisterReset}
+            isPlaying={isPlaying}
+            currentTime={currentTime}
+            onPlayPause={handlePlayPause}
           />
         }
         analysisSection={

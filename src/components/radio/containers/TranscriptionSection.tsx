@@ -29,6 +29,10 @@ interface TranscriptionSectionProps {
   }) => void;
   handleSeekToSegment: (timestamp: number) => void;
   registerEditorReset: (resetFn: () => void) => void;
+  // Add audio player state and control props
+  isPlaying?: boolean;
+  currentTime?: number;
+  onPlayPause?: () => void;
 }
 
 const TranscriptionSection = ({
@@ -41,7 +45,11 @@ const TranscriptionSection = ({
   handleSegmentsReceived,
   handleMetadataChange,
   handleSeekToSegment,
-  registerEditorReset
+  registerEditorReset,
+  // Audio player props
+  isPlaying = false,
+  currentTime = 0,
+  onPlayPause = () => {},
 }: TranscriptionSectionProps) => (
   <RadioTranscriptionSlot
     isProcessing={isProcessing}
@@ -54,6 +62,11 @@ const TranscriptionSection = ({
     onMetadataChange={handleMetadataChange}
     onTimestampClick={handleSeekToSegment}
     registerEditorReset={registerEditorReset}
+    // Pass audio player props
+    isPlaying={isPlaying}
+    currentTime={currentTime}
+    onPlayPause={onPlayPause}
+    onSeek={handleSeekToSegment}
   />
 );
 
