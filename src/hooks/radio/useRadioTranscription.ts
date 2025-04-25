@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 
@@ -42,12 +43,31 @@ export const useRadioTranscription = () => {
 
   const handleTranscriptionReceived = (result: TranscriptionResult) => {
     console.log('[useRadioTranscription] Received transcription result:', result);
+    
+    // Force processing state to be false immediately
+    setIsProcessing(false);
+    
+    // Set all data in a single update cycle if possible
     setTranscriptionText(result.text || "");
     setTranscriptionResult(result);
     setTranscriptionId(result.transcript_id);
-    setIsProcessing(false); // Ensure we clear the processing state
+    
+    // Log that processing state has been cleared
     console.log('[useRadioTranscription] Processing state cleared');
   };
+
+  // Add an effect to ensure processing state is cleared after a timeout
+  // This is a safety measure in case something goes wrong
+  useEffect(() => {
+    if (isProcessing) {
+      const timeout = setTimeout(() => {
+        console.log('[useRadioTranscription] Clearing processing state due to timeout');
+        setIsProcessing(false);
+      }, 60000); // 1 minute timeout
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [isProcessing]);
 
   const resetTranscription = () => {
     setTranscriptionText("");

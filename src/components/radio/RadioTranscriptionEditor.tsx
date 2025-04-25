@@ -55,12 +55,21 @@ const RadioTranscriptionEditor = ({
     handleTextChange(text);
   };
 
+  // Calculate the final processing state with more granular logging
   const finalIsProcessing = isProcessing || isLoadingUtterances;
-  console.log('[RadioTranscriptionEditor] Processing state:', {
+  console.log('[RadioTranscriptionEditor] Processing state details:', {
     isProcessing,
     isLoadingUtterances,
-    finalIsProcessing
+    finalIsProcessing,
+    hasTranscriptionText: !!transcriptionText,
+    hasTranscriptionResult: !!transcriptionResult,
+    hasEnhancedResult: !!enhancedTranscriptionResult
   });
+
+  // Log when the processing state changes
+  React.useEffect(() => {
+    console.log('[RadioTranscriptionEditor] Processing state changed:', finalIsProcessing);
+  }, [finalIsProcessing]);
 
   return (
     <TranscriptionEditorWrapper
