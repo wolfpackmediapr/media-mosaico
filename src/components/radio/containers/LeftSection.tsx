@@ -34,7 +34,7 @@ const LeftSection = ({
   onTranscriptionComplete,
   handleFilesAdded
 }: LeftSectionProps) => (
-  <div className="h-full">
+  <div className="flex flex-col min-h-[400px]">
     <FileUploadSection 
       files={files}
       setFiles={setFiles}

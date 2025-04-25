@@ -67,8 +67,8 @@ const FileManagementSection = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-6">
-      <div className="w-full md:w-1/2 min-w-0">
+    <div className="flex flex-col lg:flex-row gap-6">
+      <div className="w-full lg:w-1/2 min-w-0 flex-shrink-0">
         <LeftSection
           files={files}
           setFiles={setFiles}
@@ -85,7 +85,7 @@ const FileManagementSection = ({
           handleFilesAdded={handleFilesAdded}
         />
       </div>
-      <div className="w-full md:w-1/2 min-w-0">
+      <div className="w-full lg:w-1/2 min-w-0 flex-shrink-0">
         <RightSection
           currentFile={currentFile}
           metadata={metadata}

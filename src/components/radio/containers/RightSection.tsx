@@ -49,7 +49,7 @@ const RightSection = ({
   onPlaybackRateChange,
   handleTrackSelect
 }: RightSectionProps) => (
-  <div className="h-full flex flex-col gap-4">
+  <div className="flex flex-col gap-4 min-h-[400px]">
     {currentFile && (
       <div className="flex-none">
         <MediaControls
