@@ -30,9 +30,12 @@ export const EnhancedTranscriptionEditor = ({
   useEffect(() => {
     if (transcriptionResult?.utterances) {
       setUtterances(transcriptionResult.utterances);
-      onTranscriptionChange(formatSpeakerText(transcriptionResult.utterances));
+      const formattedText = formatSpeakerText(transcriptionResult.utterances);
+      if (formattedText !== transcriptionText) {
+        onTranscriptionChange(formattedText);
+      }
     }
-  }, [transcriptionResult?.utterances, onTranscriptionChange]);
+  }, [transcriptionResult?.utterances, onTranscriptionChange, transcriptionText]);
 
   useEffect(() => {
     if (currentTime && utterances.length > 0) {

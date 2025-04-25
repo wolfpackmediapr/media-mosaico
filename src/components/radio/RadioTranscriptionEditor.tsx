@@ -1,4 +1,3 @@
-
 import React from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
@@ -50,9 +49,7 @@ const RadioTranscriptionEditor = ({
 
   // Create a wrapper function that adapts between the expected types
   const handleTranscriptionChange = (text: string) => {
-    // Pass the text directly to the handleTextChange function
-    // instead of expecting an event object
-    onTranscriptionChange(text);
+    handleTextChange(text);
   };
 
   return (

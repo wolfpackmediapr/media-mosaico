@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -43,7 +42,6 @@ export const useTranscriptionEditor = ({
     { storage: 'sessionStorage' }
   );
 
-  // Effect for handling updates to transcription result with utterances
   useEffect(() => {
     if (
       hasSpeakerLabels &&
@@ -67,7 +65,6 @@ export const useTranscriptionEditor = ({
     }
   }, [enhancedTranscriptionResult?.utterances, transcriptionText, hasSpeakerLabels, setLocalSpeakerText]);
 
-  // Update when new transcription result comes in
   useEffect(() => {
     if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
       console.log('[useTranscriptionEditor] New transcription result with utterances received');
@@ -77,7 +74,6 @@ export const useTranscriptionEditor = ({
     }
   }, [transcriptionResult]);
 
-  // Fetch utterances if transcriptionId is available but no utterances in result
   useEffect(() => {
     const fetchSpeakerData = async () => {
       if (
@@ -101,7 +97,6 @@ export const useTranscriptionEditor = ({
             console.log('[useTranscriptionEditor] Setting formatted speaker text');
             setLocalSpeakerText(formattedText);
             
-            // Also update parent's transcription text
             onTranscriptionChange(formattedText);
           } else {
             console.log('[useTranscriptionEditor] No utterances returned from fetch');
@@ -156,8 +151,7 @@ export const useTranscriptionEditor = ({
     }
   }, [saveSuccess, toast]);
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = e.target.value;
+  const handleTextChange = (newText: string) => {
     if (hasSpeakerLabels) {
       const newUtterances: UtteranceTimestamp[] = parseSpeakerTextToUtterances(newText);
       setEnhancedTranscriptionResult(prev =>
