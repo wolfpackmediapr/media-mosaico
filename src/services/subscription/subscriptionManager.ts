@@ -1,93 +1,58 @@
-import { supabase } from "@/integrations/supabase/client";
-import { RealtimeChannel, RealtimeChannelOptions } from "@supabase/supabase-js";
+
+import { RealtimeChannelOptions } from "@supabase/supabase-js";
 import { 
   ActiveSubscription, 
   SubscriptionConfig, 
-  SubscriptionHandler, 
-  ConnectionStatus 
+  SubscriptionHandler 
 } from "./types";
 import { getSubscriptionKey, getHandlerKey, debugLog } from "./utils";
+import { channelManager } from "./channelManager";
+import { connectionMonitor } from "./connectionMonitor";
 
 class SubscriptionManager {
   private activeSubscriptions: Record<string, ActiveSubscription> = {};
   private _debugMode = false;
-  private _connectionStatus: ConnectionStatus = 'DISCONNECTED';
-  private _connectionListeners: Set<(status: string) => void> = new Set();
-  private _globalErrorListeners: Set<(error: any) => void> = new Set();
   
   constructor() {
-    if (typeof window !== 'undefined') {
-      this.setupConnectionMonitoring();
-    }
+    this.setupConnectionMonitoring();
   }
   
   private setupConnectionMonitoring(): void {
-    setInterval(() => {
+    const updateStatus = () => {
       const activeChannels = Object.values(this.activeSubscriptions);
-      
       if (activeChannels.length > 0) {
         const anyChannel = activeChannels[0].channel;
         const status = anyChannel?.state || 'DISCONNECTED';
-        
-        if (status !== this._connectionStatus) {
-          this._connectionStatus = status as ConnectionStatus;
-          this.notifyConnectionListeners();
-        }
+        connectionMonitor.setStatus(status as ConnectionStatus);
       }
-    }, 10000);
-  }
-  
-  private notifyConnectionListeners(): void {
-    this._connectionListeners.forEach(listener => {
-      try {
-        listener(this._connectionStatus);
-      } catch (error) {
-        console.error('Error in subscription connection listener:', error);
-      }
-    });
+    };
+    setInterval(updateStatus, 10000);
   }
   
   addConnectionListener(listener: (status: string) => void): () => void {
-    this._connectionListeners.add(listener);
-    return () => this._connectionListeners.delete(listener);
+    return connectionMonitor.addListener(listener);
   }
   
   addErrorListener(listener: (error: any) => void): () => void {
-    this._globalErrorListeners.add(listener);
-    return () => this._globalErrorListeners.delete(listener);
+    return channelManager.addErrorListener(listener);
   }
   
   setDebugMode(enabled: boolean) {
     this._debugMode = enabled;
+    channelManager.setDebugMode(enabled);
   }
   
-  private getOrCreateChannel(channelName: string, options?: RealtimeChannelOptions): RealtimeChannel {
+  private getOrCreateChannel(channelName: string, options?: RealtimeChannelOptions) {
     const key = getSubscriptionKey(channelName);
     
     if (!this.activeSubscriptions[key]) {
-      debugLog(this._debugMode, `Creating new channel: ${channelName}`);
-      
-      const channel = supabase.channel(channelName, options);
-      
+      const channel = channelManager.createChannel(channelName, options);
       this.activeSubscriptions[key] = {
         channel,
         configs: [],
         refCount: 0,
         handlers: new Map()
       };
-      
-      channel.on('system', { event: 'error' }, (error: any) => {
-        debugLog(this._debugMode, `Channel error on ${channelName}:`, error);
-        this._globalErrorListeners.forEach(listener => {
-          try {
-            listener(error);
-          } catch (err) {
-            console.error('Error in subscription error listener:', err);
-          }
-        });
-      });
-    } else {
-      debugLog(this._debugMode, `Using existing channel: ${channelName}`);
     }
     
     return this.activeSubscriptions[key].channel;
@@ -169,7 +134,7 @@ class SubscriptionManager {
     
     if (subscription.refCount <= 0) {
       debugLog(this._debugMode, `Removing channel ${channelName}`);
-      supabase.removeChannel(subscription.channel);
+      channelManager.removeChannel(subscription.channel);
       delete this.activeSubscriptions[key];
     }
   }
@@ -179,7 +144,7 @@ class SubscriptionManager {
     
     Object.keys(this.activeSubscriptions).forEach(key => {
       const { channel } = this.activeSubscriptions[key];
-      supabase.removeChannel(channel);
+      channelManager.removeChannel(channel);
     });
     
     this.activeSubscriptions = {};
@@ -197,7 +162,7 @@ class SubscriptionManager {
   }
   
   getConnectionStatus(): string {
-    return this._connectionStatus;
+    return connectionMonitor.getCurrentStatus();
   }
 }
 
