@@ -1,6 +1,7 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/services/toastService";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   transcribeWithAssemblyAI, 
@@ -102,9 +103,8 @@ export const useAudioTranscription = () => {
           onTranscriptionComplete(data);
         }
 
-        toast({
-          title: "Transcripción completada",
-          description: "El archivo ha sido procesado exitosamente",
+        toast.success("Transcripción completada", {
+          description: "El archivo ha sido procesado exitosamente"
         });
 
         return data;
@@ -118,9 +118,8 @@ export const useAudioTranscription = () => {
             if (onTranscriptionComplete) {
               onTranscriptionComplete(fallbackResult);
             }
-            toast({
-              title: "Transcripción completada (método alternativo)",
-              description: "El archivo ha sido procesado usando un método alternativo",
+            toast.success("Transcripción completada (método alternativo)", {
+              description: "El archivo ha sido procesado usando un método alternativo"
             });
             return fallbackResult;
           }
@@ -137,10 +136,8 @@ export const useAudioTranscription = () => {
         throw error;
       }
       
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
-        variant: "destructive",
+      toast.error("Error", {
+        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente."
       });
       throw error;
     } finally {
