@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
@@ -42,12 +41,14 @@ export const useRadioTranscription = () => {
   };
 
   const handleTranscriptionReceived = (result: TranscriptionResult) => {
+    console.log('[useRadioTranscription] Received transcription result:', result);
     setTranscriptionText(result.text || "");
     setTranscriptionResult(result);
     setTranscriptionId(result.transcript_id);
+    setIsProcessing(false); // Ensure we clear the processing state
+    console.log('[useRadioTranscription] Processing state cleared');
   };
 
-  // RESET method to clear all transcription/segment state
   const resetTranscription = () => {
     setTranscriptionText("");
     setTranscriptionId(undefined);
@@ -74,6 +75,6 @@ export const useRadioTranscription = () => {
     handleSegmentsReceived,
     handleMetadataChange,
     handleTranscriptionReceived,
-    resetTranscription // <-- expose new reset function
+    resetTranscription
   };
 };

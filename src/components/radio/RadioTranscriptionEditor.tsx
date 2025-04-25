@@ -55,11 +55,18 @@ const RadioTranscriptionEditor = ({
     handleTextChange(text);
   };
 
+  const finalIsProcessing = isProcessing || isLoadingUtterances;
+  console.log('[RadioTranscriptionEditor] Processing state:', {
+    isProcessing,
+    isLoadingUtterances,
+    finalIsProcessing
+  });
+
   return (
     <TranscriptionEditorWrapper
       transcriptionResult={enhancedTranscriptionResult || transcriptionResult}
       transcriptionText={localText || transcriptionText}
-      isProcessing={isProcessing || isLoadingUtterances}
+      isProcessing={finalIsProcessing}
       onTranscriptionChange={handleTranscriptionChange}
       onTimestampClick={onTimestampClick}
       currentTime={currentTime}

@@ -78,7 +78,7 @@ export const useTranscriptionEditor = ({
       if (parsedUtterances.length > 0) {
         setEnhancedTranscriptionResult(prev => ({
           ...(prev || {}),
-          text: formattedText, // Ensure text is always provided
+          text: formattedText,
           utterances: parsedUtterances
         }) as TranscriptionResult);
       }
