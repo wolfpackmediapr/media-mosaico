@@ -2,13 +2,9 @@
 import React from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
-import { Textarea } from "@/components/ui/textarea";
 import TranscriptionFeedback from "./editor/TranscriptionFeedback";
+import { EnhancedTranscriptionEditor } from "./enhanced-editor/EnhancedTranscriptionEditor";
 
-/**
- * This editor always shows/edit speaker-labeled format if utterances are present,
- * otherwise falls back to plain text editing. No view toggle: always display SPEAKER X blocks if possible.
- */
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
   isProcessing: boolean;
@@ -16,8 +12,8 @@ interface RadioTranscriptionEditorProps {
   transcriptionId?: string;
   transcriptionResult?: TranscriptionResult;
   onTimestampClick?: (timestamp: number) => void;
-  // Add the registerReset prop
   registerReset?: (resetFn: () => void) => void;
+  currentTime?: number;
 }
 
 const RadioTranscriptionEditor = ({
@@ -28,6 +24,7 @@ const RadioTranscriptionEditor = ({
   transcriptionResult,
   onTimestampClick,
   registerReset,
+  currentTime,
 }: RadioTranscriptionEditorProps) => {
   const {
     localText,
@@ -35,7 +32,6 @@ const RadioTranscriptionEditor = ({
     isLoadingUtterances,
     isSaving,
     handleTextChange,
-    toggleEditMode,
     hasSpeakerLabels,
     resetLocalSpeakerText,
   } = useTranscriptionEditor({
@@ -52,35 +48,23 @@ const RadioTranscriptionEditor = ({
     }
   }, [registerReset, resetLocalSpeakerText]);
 
-  // Always show editable textarea with speaker blocks if available
   return (
     <div className="relative">
-      <Textarea
-        placeholder={
-          hasSpeakerLabels
-            ? "SPEAKER 1: Aquí aparecerá la transcripción con etiquetas de hablante editables..."
-            : "Aquí aparecerá el texto transcrito..."
-        }
-        className={`min-h-[200px] resize-y pr-12 border-primary focus:border-primary focus-visible:ring-1`}
-        value={localText}
-        onChange={handleTextChange}
-        readOnly={isProcessing}
-        onClick={!isEditing ? toggleEditMode : undefined}
-        spellCheck={true}
-        autoCorrect="on"
-        autoComplete="off"
+      <EnhancedTranscriptionEditor
+        transcriptionResult={transcriptionResult}
+        transcriptionText={localText}
+        isProcessing={isProcessing}
+        onTranscriptionChange={handleTextChange}
+        onTimestampClick={onTimestampClick}
+        currentTime={currentTime}
       />
-      {/* Mini status, feedback, etc */}
-      <div className="absolute top-2 right-2 flex flex-col gap-2">
-        {isSaving && (
+      {isSaving && (
+        <div className="absolute top-2 right-2">
           <span className="text-sm text-primary animate-pulse">
             Guardando...
           </span>
-        )}
-        {isLoadingUtterances && (
-          <span className="text-xs text-muted-foreground">Cargando hablantes...</span>
-        )}
-      </div>
+        </div>
+      )}
       <TranscriptionFeedback
         isEmpty={!localText}
         isProcessing={isProcessing}
