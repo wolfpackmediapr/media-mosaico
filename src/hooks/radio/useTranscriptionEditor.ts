@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -136,6 +137,7 @@ export const useTranscriptionEditor = ({
     fetchSpeakerData();
   }, [transcriptionId, setLocalSpeakerText, onTranscriptionChange, toast, transcriptionText, enhancedTranscriptionResult?.utterances, isLoadingUtterances]);
 
+  // Use the autosave hook with showSuccessToast set to false to prevent loops
   const { isSaving, saveSuccess } = useAutosave({
     data: { text: localSpeakerText, id: transcriptionId },
     onSave: async (data) => {

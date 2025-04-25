@@ -21,6 +21,7 @@ export const SaveStatus = ({ isSaving, saveError, saveSuccess }: SaveStatusProps
     }
   }, [saveSuccess]);
 
+  // Don't render anything if there's nothing to show
   if (!isSaving && !saveError && !showSuccess) return null;
 
   return (
