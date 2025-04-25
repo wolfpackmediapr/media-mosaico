@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useAudioTranscription } from "@/hooks/useAudioTranscription";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { validateAudioFile } from "@/utils/file-validation";
+import { useRealTimeTranscription } from "@/hooks/useRealTimeTranscription";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -42,7 +43,65 @@ export const processAudioFile = async (
   }
 };
 
+export const processAudioFileRealTime = async (
+  file: UploadedFile,
+  onTranscriptionComplete?: (text: string) => void,
+  onUtterancesReceived?: (result: TranscriptionResult) => void
+) => {
+  // Validate file before processing
+  if (!validateAudioFile(file)) {
+    return false;
+  }
+
+  try {
+    const { startFromFile, utterances, transcription } = useRealTimeTranscription({
+      audioFile: file,
+      onTranscriptionComplete,
+      onUtterancesReceived: utterances => {
+        if (onUtterancesReceived) {
+          onUtterancesReceived({
+            text: transcription,
+            utterances: utterances
+          });
+        }
+      }
+    });
+    
+    // Start processing in real-time
+    await startFromFile(file);
+
+    return true;
+  } catch (error) {
+    console.error("[processAudioFileRealTime] Error:", error);
+    toast.error("Error al procesar el archivo en tiempo real. Intente nuevamente.");
+    return false;
+  }
+};
+
 export const useAudioProcessingWithAuth = () => {
   const { processWithAuth } = useAudioTranscription();
   return processWithAuth;
+};
+
+// New hook to expose real-time processing capabilities
+export const useRealTimeAudioProcessing = () => {
+  const {
+    startFromFile,
+    startFromMicrophone,
+    stopTranscription,
+    isProcessing,
+    progress,
+    transcription,
+    utterances
+  } = useRealTimeTranscription({});
+  
+  return {
+    startFromFile,
+    startFromMicrophone,
+    stopTranscription,
+    isProcessing,
+    progress,
+    transcription,
+    utterances
+  };
 };
