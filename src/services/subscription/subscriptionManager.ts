@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { RealtimeChannel, RealtimeChannelOptions } from "@supabase/supabase-js";
 import { 
@@ -77,8 +76,10 @@ class SubscriptionManager {
         handlers: new Map()
       };
       
-      channel
-        .on('system', { event: 'error' }, (error: any) => {
+      channel.on(
+        'system',
+        { event: 'error' },
+        (error: any) => {
           debugLog(this._debugMode, `Channel error on ${channelName}:`, error);
           this._globalErrorListeners.forEach(listener => {
             try {
@@ -87,7 +88,8 @@ class SubscriptionManager {
               console.error('Error in subscription error listener:', err);
             }
           });
-        });
+        }
+      );
     } else {
       debugLog(this._debugMode, `Using existing channel: ${channelName}`);
     }
