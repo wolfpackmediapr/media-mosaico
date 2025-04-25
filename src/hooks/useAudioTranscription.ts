@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -65,7 +64,7 @@ export const useAudioTranscription = () => {
           console.error('Transcription error:', error);
           throw error;
         }
-
+        
         if (!data) {
           throw new Error('No data received from transcription service');
         }
