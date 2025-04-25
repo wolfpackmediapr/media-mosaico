@@ -62,7 +62,7 @@ const RadioTranscriptionSlot = ({
 }: RadioTranscriptionSlotProps) => {
   const { checkAndGenerateSegments } = useRadioSegmentGenerator(onSegmentsReceived);
   
-  // Add view mode state (interactive or edit)
+  // Store view mode with proper key including transcription ID
   const [viewMode, setViewMode] = usePersistentState<'interactive' | 'edit'>(
     `transcription-view-mode-${transcriptionId || "draft"}`,
     'edit',
@@ -80,6 +80,13 @@ const RadioTranscriptionSlot = ({
       checkAndGenerateSegments(transcriptionText);
     }
   }, [transcriptionText, transcriptionResult, checkAndGenerateSegments]);
+
+  // Reset view mode to edit when transcription text is cleared
+  useEffect(() => {
+    if (!transcriptionText) {
+      setViewMode('edit');
+    }
+  }, [transcriptionText, setViewMode]);
 
   // Local state to store the reset method
   const resetFnRef = useRef<() => void>(() => {});

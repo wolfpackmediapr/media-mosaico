@@ -38,7 +38,8 @@ export const useClearRadioState = ({
       `transcription-timestamp-view-${transcriptionId}`,
       `transcription-editor-mode-${transcriptionId}`,
       `radio-content-analysis-${transcriptionId}`,
-      `radio-transcription-text-content-${transcriptionId}`
+      `radio-transcription-text-content-${transcriptionId}`,
+      `transcription-view-mode-${transcriptionId || "draft"}`
     ];
     
     keysToCheck.forEach(key => {
@@ -68,6 +69,7 @@ export const useClearRadioState = ({
       "radio-transcription-speaker-draft",
       "transcription-timestamp-view-draft",
       "transcription-editor-mode-draft",
+      "transcription-view-mode-draft",
       `${persistKey}-text-content`,
       "radio-transcription-text-content"
     ];
@@ -79,7 +81,8 @@ export const useClearRadioState = ({
         `transcription-timestamp-view-${transcriptionId}`,
         `transcription-editor-mode-${transcriptionId}`,
         `radio-content-analysis-${transcriptionId}`,
-        `radio-transcription-text-content-${transcriptionId}`
+        `radio-transcription-text-content-${transcriptionId}`,
+        `transcription-view-mode-${transcriptionId}`
       );
     }
 
