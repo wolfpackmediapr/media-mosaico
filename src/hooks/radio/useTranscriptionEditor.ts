@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -52,9 +51,7 @@ export const useTranscriptionEditor = ({
     { storage: 'sessionStorage' }
   );
 
-  // Process the initial transcription text or result when they change
   useEffect(() => {
-    // When we receive a transcription result with utterances
     if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
       console.log('[useTranscriptionEditor] New transcription result with utterances received');
       setEnhancedTranscriptionResult(transcriptionResult);
@@ -65,15 +62,12 @@ export const useTranscriptionEditor = ({
         onTranscriptionChange(formattedText);
       }
     } 
-    // When we have just plain text but no utterances
     else if (transcriptionText && (!localSpeakerText || localSpeakerText !== transcriptionText)) {
       console.log('[useTranscriptionEditor] Processing plain transcription text');
-      // Try to format the text properly if it's plain text
       const formattedText = formatPlainTextAsSpeaker(transcriptionText);
       setLocalSpeakerText(formattedText);
       onTranscriptionChange(formattedText);
       
-      // Try to parse utterances from the text if possible
       const parsedUtterances = parseSpeakerTextToUtterances(formattedText);
       if (parsedUtterances.length > 0) {
         setEnhancedTranscriptionResult(prev => ({
@@ -85,7 +79,6 @@ export const useTranscriptionEditor = ({
     }
   }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText]);
 
-  // Fetch additional data (utterances) when we have a transcript ID but no utterances
   useEffect(() => {
     const fetchSpeakerData = async () => {
       if (
@@ -106,7 +99,7 @@ export const useTranscriptionEditor = ({
             
             setEnhancedTranscriptionResult(prev => ({
               ...(prev || {}),
-              text: formattedText, // Ensure text is always provided
+              text: formattedText,
               utterances
             }) as TranscriptionResult);
             
@@ -115,7 +108,6 @@ export const useTranscriptionEditor = ({
             onTranscriptionChange(formattedText);
           } else {
             console.log('[useTranscriptionEditor] No utterances returned from fetch');
-            // If no utterances were found but we have text, format it properly
             if (transcriptionText) {
               const formattedText = formatPlainTextAsSpeaker(transcriptionText);
               setLocalSpeakerText(formattedText);
@@ -130,7 +122,6 @@ export const useTranscriptionEditor = ({
             variant: "default",
           });
           
-          // Fallback to simple text formatting
           if (transcriptionText) {
             const formattedText = formatPlainTextAsSpeaker(transcriptionText);
             setLocalSpeakerText(formattedText);
@@ -151,7 +142,6 @@ export const useTranscriptionEditor = ({
       if (!data.id) return;
       try {
         setSaveError(null);
-        // Update to match the correct table schema
         const { error } = await supabase
           .from('radio_transcriptions')
           .update({
@@ -170,26 +160,16 @@ export const useTranscriptionEditor = ({
         const errorMessage = error instanceof Error ? error.message : "Error desconocido";
         setSaveError(errorMessage);
         toast({
-          title: "Error al guardar",
-          description: "No se pudo guardar la transcripción",
           variant: "destructive",
+          description: "No se pudo guardar la transcripción"
         });
         throw error;
       }
     },
     debounce: 2000,
     enabled: !!transcriptionId && !!localSpeakerText,
+    showSuccessToast: false
   });
-
-  useEffect(() => {
-    if (saveSuccess === true) {
-      setSaveError(null);
-      toast({
-        title: "Guardado automático",
-        description: "La transcripción se ha guardado correctamente",
-      });
-    }
-  }, [saveSuccess, toast]);
 
   const handleTextChange = (newText: string) => {
     if (!newText) return;
@@ -197,13 +177,12 @@ export const useTranscriptionEditor = ({
     setLocalSpeakerText(newText);
     onTranscriptionChange(newText);
     
-    // Try to parse the new text to update utterances
     const newUtterances = parseSpeakerTextToUtterances(newText);
     if (newUtterances.length > 0) {
       setEnhancedTranscriptionResult(prev => {
         return {
           ...(prev || {}),
-          text: newText, // Ensure text is always provided
+          text: newText,
           utterances: newUtterances
         } as TranscriptionResult;
       });
