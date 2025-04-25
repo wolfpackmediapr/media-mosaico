@@ -15,7 +15,7 @@ interface LeftSectionProps {
   transcriptionText: string;
   setTranscriptionText: (text: string) => void;
   setTranscriptionId: (id?: string) => void;
-  handleTranscriptionReceived: (result: TranscriptionResult) => void;
+  onTranscriptionComplete?: (result: TranscriptionResult) => void; // Made optional with ?
   handleFilesAdded: (newFiles: File[]) => void;
 }
 
@@ -31,7 +31,7 @@ const LeftSection = ({
   transcriptionText,
   setTranscriptionText,
   setTranscriptionId,
-  handleTranscriptionReceived,
+  onTranscriptionComplete,
   handleFilesAdded
 }: LeftSectionProps) => (
   <FileUploadSection 
@@ -46,7 +46,7 @@ const LeftSection = ({
     transcriptionText={transcriptionText}
     setTranscriptionText={setTranscriptionText}
     setTranscriptionId={setTranscriptionId}
-    onTranscriptionComplete={handleTranscriptionReceived}
+    onTranscriptionComplete={onTranscriptionComplete}
     onFilesAdded={handleFilesAdded}
   />
 );

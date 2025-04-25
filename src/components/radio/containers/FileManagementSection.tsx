@@ -81,7 +81,7 @@ const FileManagementSection = ({
         setTranscriptionText={setTranscriptionText}
         setTranscriptionId={setTranscriptionId}
         onTranscriptionComplete={handleTranscriptionReceived}
-        onFilesAdded={handleFilesAdded}
+        handleFilesAdded={handleFilesAdded}
       />
       <RightSection
         currentFile={currentFile}
