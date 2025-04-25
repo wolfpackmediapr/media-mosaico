@@ -78,9 +78,9 @@ export const useTranscriptionEditor = ({
       if (parsedUtterances.length > 0) {
         setEnhancedTranscriptionResult(prev => ({
           ...(prev || {}),
-          utterances: parsedUtterances,
-          text: formattedText
-        }));
+          text: formattedText, // Ensure text is always provided
+          utterances: parsedUtterances
+        }) as TranscriptionResult);
       }
     }
   }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText]);
@@ -102,12 +102,14 @@ export const useTranscriptionEditor = ({
           if (utterances && utterances.length > 0) {
             console.log('[useTranscriptionEditor] Received utterances:', utterances.length);
             
+            const formattedText = formatSpeakerText(utterances);
+            
             setEnhancedTranscriptionResult(prev => ({
               ...(prev || {}),
+              text: formattedText, // Ensure text is always provided
               utterances
-            }));
+            }) as TranscriptionResult);
             
-            const formattedText = formatSpeakerText(utterances);
             console.log('[useTranscriptionEditor] Setting formatted speaker text from fetched utterances');
             setLocalSpeakerText(formattedText);
             onTranscriptionChange(formattedText);
@@ -198,11 +200,13 @@ export const useTranscriptionEditor = ({
     // Try to parse the new text to update utterances
     const newUtterances = parseSpeakerTextToUtterances(newText);
     if (newUtterances.length > 0) {
-      setEnhancedTranscriptionResult(prev =>
-        prev
-          ? { ...prev, utterances: newUtterances }
-          : { utterances: newUtterances, text: newText }
-      );
+      setEnhancedTranscriptionResult(prev => {
+        return {
+          ...(prev || {}),
+          text: newText, // Ensure text is always provided
+          utterances: newUtterances
+        } as TranscriptionResult;
+      });
     }
     
     if (!isEditing) setIsEditing(true);
