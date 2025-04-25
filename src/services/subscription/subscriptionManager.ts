@@ -23,7 +23,7 @@ class SubscriptionManager {
       if (activeChannels.length > 0) {
         const anyChannel = activeChannels[0].channel;
         const status = anyChannel?.state || 'DISCONNECTED';
-        connectionMonitor.setStatus(status as ConnectionStatus);
+        connectionMonitor.setStatus(status);
       }
     };
     setInterval(updateStatus, 10000);
@@ -80,15 +80,16 @@ class SubscriptionManager {
     debugLog(this._debugMode, `Subscribing to ${config.table} (${config.event}) on channel ${channelName}`);
     debugLog(this._debugMode, `Channel ${channelName} now has ${subscription.refCount} subscribers`);
     
-    const changes = channel.on(
-      'postgres_changes' as const,
+    // Cast to any to avoid TypeScript error with postgres_changes
+    (channel as any).on(
+      'postgres_changes',
       {
         event: config.event,
         schema: config.schema || 'public',
         table: config.table,
         filter: config.filter
       },
-      (payload) => handler(payload)
+      (payload: any) => handler(payload)
     );
 
     if (subscription.refCount === 1) {
