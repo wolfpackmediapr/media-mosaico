@@ -90,6 +90,11 @@ const TranscriptionSection: React.FC<TranscriptionSectionProps> = ({
     }
   };
 
+  // Modified handleTextChange to accept a string directly
+  const handleTextChangeWrapper = (text: string) => {
+    handleTextChange({ target: { value: text } } as React.ChangeEvent<HTMLTextAreaElement>);
+  };
+
   return (
     <div className="w-full space-y-6">
       <RadioTranscriptionMetadata
@@ -132,7 +137,7 @@ const TranscriptionSection: React.FC<TranscriptionSectionProps> = ({
                 <RadioTranscriptionEditor
                   transcriptionText={localText}
                   isProcessing={isProcessing}
-                  onTranscriptionChange={handleTextChange}
+                  onTranscriptionChange={handleTextChangeWrapper}
                   transcriptionId={transcriptionId}
                   transcriptionResult={transcriptionResult}
                   onTimestampClick={handleSeekToSegment}
