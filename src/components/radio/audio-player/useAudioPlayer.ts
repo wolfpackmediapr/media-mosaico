@@ -5,6 +5,9 @@ import { toast } from 'sonner';
 import { useMediaSession } from '@/hooks/use-media-session';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 import { AudioPlayerHookReturn } from './types';
+import { formatTime } from './utils/timeFormatter';
+import { useMediaControls } from './hooks/useMediaControls';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (error: string) => void): AudioPlayerHookReturn {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -97,53 +100,11 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
 
       howler.current = sound;
 
-      // Add keyboard shortcuts for audio control
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (!howler.current) return;
-
-        // Only capture keystrokes if this component is focused
-        // or media keys which work globally
-        switch(e.key) {
-          case ' ': // Space key
-            e.preventDefault();
-            handlePlayPause();
-            break;
-          case 'ArrowLeft': // Left arrow key
-            handleSkip('backward');
-            break;
-          case 'ArrowRight': // Right arrow key
-            handleSkip('forward');
-            break;
-          case 'ArrowUp': // Up arrow key
-            if (e.ctrlKey) { // Only if Ctrl is pressed
-              e.preventDefault();
-              const newVolume = Math.min(100, volume[0] + 5);
-              setVolume([newVolume]);
-              if (howler.current) {
-                howler.current.volume(newVolume / 100);
-              }
-            }
-            break;
-          case 'ArrowDown': // Down arrow key
-            if (e.ctrlKey) { // Only if Ctrl is pressed
-              e.preventDefault();
-              const newVolume = Math.max(0, volume[0] - 5);
-              setVolume([newVolume]);
-              if (howler.current) {
-                howler.current.volume(newVolume / 100);
-              }
-            }
-            break;
-        }
-      };
-
-      window.addEventListener('keydown', handleKeyDown);
-
       return () => {
         if (progressInterval.current) {
           clearInterval(progressInterval.current);
         }
-        window.removeEventListener('keydown', handleKeyDown);
+        
         const fileId = file.name + '-' + file.size;
         if (sound) {
           const currentPos = sound.seek() as number;
@@ -175,19 +136,10 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
     }
   }, [playbackRate, isPlaying]);
 
-  useMediaSession({
-    title: file.name,
-    artist: 'Transcripción de Audio',
-    onPlay: () => {
-      if (!isPlaying && howler.current) {
-        howler.current.play();
-      }
-    },
-    onPause: () => {
-      if (isPlaying && howler.current) {
-        howler.current.pause();
-      }
-    },
+  // Setup media session controls
+  useMediaControls({
+    onPlay: () => !isPlaying && handlePlayPause(),
+    onPause: () => isPlaying && handlePlayPause(),
     onSeekBackward: (details) => {
       const seekAmount = details.seekOffset || 10;
       handleSkip('backward', seekAmount);
@@ -195,6 +147,22 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
     onSeekForward: (details) => {
       const seekAmount = details.seekOffset || 10;
       handleSkip('forward', seekAmount);
+    },
+    title: file.name
+  });
+
+  // Setup keyboard shortcuts for audio controls
+  useKeyboardShortcuts({
+    onPlayPause: handlePlayPause,
+    onSkipBackward: () => handleSkip('backward'),
+    onSkipForward: () => handleSkip('forward'),
+    onVolumeUp: () => {
+      const newVolume = Math.min(100, volume[0] + 5);
+      handleVolumeChange([newVolume]);
+    },
+    onVolumeDown: () => {
+      const newVolume = Math.max(0, volume[0] - 5);
+      handleVolumeChange([newVolume]);
     }
   });
 
@@ -222,17 +190,10 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
     }
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSeek = (time: number) => {
     if (!howler.current) return;
-
-    const container = e.currentTarget;
-    const rect = container.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = x / rect.width;
-    const newPosition = percentage * duration;
-
-    howler.current.seek(newPosition);
-    setProgress(newPosition);
+    howler.current.seek(time);
+    setProgress(time);
   };
 
   const handleSkip = (direction: 'forward' | 'backward', amount: number = 10) => {
@@ -267,12 +228,6 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
     const nextIndex = (currentIndex + 1) % rates.length;
     setPlaybackRate(rates[nextIndex]);
     toast.info(`Velocidad: ${rates[nextIndex]}x`);
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return {

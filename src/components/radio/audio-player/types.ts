@@ -1,3 +1,4 @@
+
 import { Howl } from 'howler';
 
 export interface AudioPlayerProps {
@@ -24,4 +25,15 @@ export interface VolumeControls {
   volume: number[];
   handleVolumeChange: (value: number[]) => void;
   toggleMute: () => void;
+}
+
+export interface AudioPlayerHookReturn {
+  howler: React.MutableRefObject<Howl | null>;
+  playbackState: PlaybackState;
+  playbackRate: number;
+  setPlaybackRate: (rate: number) => void;
+  volumeControls: VolumeControls;
+  playbackControls: PlaybackControls;
+  formatTime: (seconds: number) => string;
+  changePlaybackRate: () => void;
 }
