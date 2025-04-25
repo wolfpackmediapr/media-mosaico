@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -15,59 +15,72 @@ import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
 
-// Protected pages
-import Index from "./pages/Index";
-import Tv from "./pages/Tv";
-import Radio from "./pages/Radio";
-import Prensa from "./pages/Prensa";
-import PrensaEscrita from "./pages/PrensaEscrita";
-import RedesSociales from "./pages/RedesSociales";
-import Notificaciones from "./pages/Notificaciones";
-import Reportes from "./pages/Reportes";
-import EnvioAlertas from "./pages/EnvioAlertas";
-import Ajustes from "./pages/Ajustes";
-import Ayuda from "./pages/Ayuda";
-import MediaMonitoring from "./pages/MediaMonitoring";
-import { 
-  GeneralSettings,
-  NotificationsSettings,
-  UsersSettings,
-  ClientsSettings,
-  NotificationMonitoring,
-  RadioSettings,
-  PressSettings
-} from "./pages/configuracion";
-import MediaSettings from "./pages/configuracion/MediaSettings";
-import CategoriesSettings from "./pages/configuracion/categories/CategoriesSettings";
-import TvSettings from "./pages/configuracion/TvSettings";
-import { seedMediaOutlets } from "./services/media/mediaImportService";
-import { defaultCsvData } from "./services/media/defaultMediaData";
-import { seedTvData } from "@/services/tv";
-import { GenresSettings } from "./pages/configuracion/press/GenresSettings";
-import { SourcesSettings } from "./pages/configuracion/press/SourcesSettings";
-import { SectionsSettings } from "./pages/configuracion/press/SectionsSettings";
-import { RatesSettings } from "./pages/configuracion/press/RatesSettings";
-import { TvTarifasSettings } from "./pages/configuracion/tv/TvTarifasSettings";
-import { ParticipantesSettings } from "./pages/configuracion/participantes/ParticipantesSettings";
-import { ParticipantesGestionSettings } from "./pages/configuracion/participantes/ParticipantesGestionSettings";
-import { ParticipantesCategoriasSettings } from "./pages/configuracion/participantes/ParticipantesCategoriasSettings";
-import { InstitucionesSettings } from "./pages/configuracion/instituciones/InstitucionesSettings";
-import { InstitucionesGestionSettings } from "./pages/configuracion/instituciones/InstitucionesGestionSettings";
-import { InstitucionesCategoriasSettings } from "./pages/configuracion/instituciones/InstitucionesCategoriasSettings";
-import { InstitucionesAgenciasSettings } from "./pages/configuracion/instituciones/InstitucionesAgenciasSettings";
-import Admin from "./pages/Admin";
+// Lazy loaded protected pages
+const Index = React.lazy(() => import("./pages/Index"));
+const Radio = React.lazy(() => import("./pages/Radio"));
+const Tv = React.lazy(() => import("./pages/Tv"));
+const Prensa = React.lazy(() => import("./pages/Prensa"));
+const PrensaEscrita = React.lazy(() => import("./pages/PrensaEscrita"));
+const RedesSociales = React.lazy(() => import("./pages/RedesSociales"));
+const Notificaciones = React.lazy(() => import("./pages/Notificaciones"));
+const Reportes = React.lazy(() => import("./pages/Reportes"));
+const EnvioAlertas = React.lazy(() => import("./pages/EnvioAlertas"));
+const Ajustes = React.lazy(() => import("./pages/Ajustes"));
+const Ayuda = React.lazy(() => import("./pages/Ayuda"));
+const MediaMonitoring = React.lazy(() => import("./pages/MediaMonitoring"));
+const Admin = React.lazy(() => import("./pages/Admin"));
 
-// Publiteca pages import
-import PublitecaPrensa from "./pages/publiteca/Prensa";
-import PublitecaRadio from "./pages/publiteca/Radio";
-import PublitecaTv from "./pages/publiteca/Tv";
-import PublitecaRedesSociales from "./pages/publiteca/RedesSociales";
+// Lazy loaded settings pages
+const GeneralSettings = React.lazy(() => import("./pages/configuracion/GeneralSettings"));
+const NotificationsSettings = React.lazy(() => import("./pages/configuracion/NotificationsSettings"));
+const UsersSettings = React.lazy(() => import("./pages/configuracion/UsersSettings"));
+const ClientsSettings = React.lazy(() => import("./pages/configuracion/ClientsSettings"));
+const NotificationMonitoring = React.lazy(() => import("./pages/configuracion/NotificationMonitoring"));
+const RadioSettings = React.lazy(() => import("./pages/configuracion/RadioSettings"));
+const PressSettings = React.lazy(() => import("./pages/configuracion/PressSettings"));
+const MediaSettings = React.lazy(() => import("./pages/configuracion/MediaSettings"));
+const CategoriesSettings = React.lazy(() => import("./pages/configuracion/categories/CategoriesSettings"));
+const TvSettings = React.lazy(() => import("./pages/configuracion/TvSettings"));
+const GenresSettings = React.lazy(() => import("./pages/configuracion/press/GenresSettings"));
+const SourcesSettings = React.lazy(() => import("./pages/configuracion/press/SourcesSettings"));
+const SectionsSettings = React.lazy(() => import("./pages/configuracion/press/SectionsSettings"));
+const RatesSettings = React.lazy(() => import("./pages/configuracion/press/RatesSettings"));
+const TvTarifasSettings = React.lazy(() => import("./pages/configuracion/tv/TvTarifasSettings"));
+const ParticipantesSettings = React.lazy(() => import("./pages/configuracion/participantes/ParticipantesSettings"));
+const ParticipantesGestionSettings = React.lazy(() => import("./pages/configuracion/participantes/ParticipantesGestionSettings"));
+const ParticipantesCategoriasSettings = React.lazy(() => import("./pages/configuracion/participantes/ParticipantesCategoriasSettings"));
+const InstitucionesSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesSettings"));
+const InstitucionesGestionSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesGestionSettings"));
+const InstitucionesCategoriasSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesCategoriasSettings"));
+const InstitucionesAgenciasSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesAgenciasSettings"));
 
-import "./App.css";
+// Lazy loaded publiteca pages
+const PublitecaPrensa = React.lazy(() => import("./pages/publiteca/Prensa"));
+const PublitecaRadio = React.lazy(() => import("./pages/publiteca/Radio"));
+const PublitecaTv = React.lazy(() => import("./pages/publiteca/Tv"));
+const PublitecaRedesSociales = React.lazy(() => import("./pages/publiteca/RedesSociales"));
+
+// Loading fallback component
+const PageLoader = () => (
+  <div className="flex h-screen w-full items-center justify-center">
+    <div className="flex flex-col items-center space-y-4">
+      <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      <p className="text-lg font-medium text-gray-600 dark:text-gray-300">Cargando...</p>
+    </div>
+  </div>
+);
 
 function App() {
   const [initialized, setInitialized] = useState(false);
-  const queryClient = new QueryClient();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: 1,
+        staleTime: 30000,
+        refetchOnWindowFocus: false
+      }
+    }
+  });
 
   useEffect(() => {
     const initializeData = async () => {
@@ -117,7 +130,9 @@ function App() {
                 <Route path="/" element={
                   <ProtectedRoute>
                     <Layout>
-                      <Index />
+                      <Suspense fallback={<PageLoader />}>
+                        <Index />
+                      </Suspense>
                     </Layout>
                   </ProtectedRoute>
                 } />
@@ -129,7 +144,9 @@ function App() {
                 <Route path="/" element={
                   <ProtectedRoute>
                     <Layout>
-                      <Outlet />
+                      <Suspense fallback={<PageLoader />}>
+                        <Outlet />
+                      </Suspense>
                     </Layout>
                   </ProtectedRoute>
                 }>
@@ -196,5 +213,9 @@ function App() {
     </ThemeProvider>
   );
 }
+
+import { seedMediaOutlets } from "./services/media/mediaImportService";
+import { defaultCsvData } from "./services/media/defaultMediaData";
+import { seedTvData } from "@/services/tv";
 
 export default App;

@@ -10,6 +10,7 @@ const corsHeaders = {
 
 const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const VALID_MIME_TYPES = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'video/mp4'];
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -34,26 +35,36 @@ serve(async (req) => {
       throw new Error('Missing required file or user ID');
     }
 
-    // Validate file size
-    if (file instanceof File) {
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        console.error(`File too large: ${file.size} bytes (max: ${MAX_FILE_SIZE_BYTES} bytes)`);
-        throw new Error(`File size exceeds the maximum allowed size of ${MAX_FILE_SIZE_MB}MB`);
-      }
-      
-      // Validate file type
-      const validTypes = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'video/mp4'];
-      if (!validTypes.includes(file.type)) {
-        console.error(`Invalid file type: ${file.type}`);
-        throw new Error('File type not supported. Please upload an MP3, WAV, OGG, or MP4 file.');
-      }
-      
-      console.log(`File validated: ${file.name}, ${file.size} bytes, ${file.type}`);
-    } else {
+    // Validate file is actual File object
+    if (!(file instanceof File)) {
       console.error('File is not a valid File object');
       throw new Error('Invalid file format');
     }
 
+    // Log file details for debugging
+    console.log(`File details: name=${file.name}, size=${file.size} bytes, type=${file.type}`);
+    
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      console.error(`File too large: ${file.size} bytes (max: ${MAX_FILE_SIZE_BYTES} bytes)`);
+      throw new Error(`File size exceeds the maximum allowed size of ${MAX_FILE_SIZE_MB}MB`);
+    }
+    
+    // Validate file type
+    if (!VALID_MIME_TYPES.includes(file.type)) {
+      console.error(`Invalid file type: ${file.type}`);
+      throw new Error('File type not supported. Please upload an MP3, WAV, OGG, or MP4 file.');
+    }
+
+    // Check if file has actual content
+    if (file.size === 0) {
+      console.error('File is empty');
+      throw new Error('The uploaded file is empty');
+    }
+    
+    console.log(`File validated: ${file.name}, ${file.size} bytes, ${file.type}`);
+
+    // Verify OpenAI API key exists
     console.log('Processing file with OpenAI Whisper API');
     const openAIKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIKey) {
@@ -72,9 +83,12 @@ serve(async (req) => {
     let response;
     let retries = 0;
     const maxRetries = 2;
+    let lastError = null;
     
     while (retries <= maxRetries) {
       try {
+        console.log(`Attempt ${retries + 1}/${maxRetries + 1} to call Whisper API`);
+        
         response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
           method: 'POST',
           headers: {
@@ -84,14 +98,22 @@ serve(async (req) => {
         });
         
         if (response.ok) {
+          console.log('OpenAI API response received successfully');
           break;
         } else {
           const errorText = await response.text();
+          lastError = new Error(`OpenAI API error: ${errorText}`);
           console.error(`OpenAI API error (attempt ${retries + 1}/${maxRetries + 1}):`, errorText);
+          
+          // Check for specific error types that we can't recover from
+          if (errorText.includes('Invalid file format')) {
+            console.error('Invalid file format detected by OpenAI, aborting retries');
+            throw new Error(`OpenAI API cannot process this file format. Please convert to a supported audio format.`);
+          }
           
           // If we've reached max retries, throw the error
           if (retries === maxRetries) {
-            throw new Error(`OpenAI API error: ${errorText}`);
+            throw lastError;
           }
           
           // Wait before retrying
@@ -99,6 +121,7 @@ serve(async (req) => {
           retries++;
         }
       } catch (fetchError) {
+        lastError = fetchError;
         console.error(`Network error (attempt ${retries + 1}/${maxRetries + 1}):`, fetchError);
         
         // If we've reached max retries, throw the error
@@ -114,6 +137,7 @@ serve(async (req) => {
 
     // Parse response
     const result = await response.json();
+    console.log('Processing OpenAI response');
     
     // Transform segments into word-like format for consistency
     const segments = result.segments || [];
@@ -152,7 +176,10 @@ serve(async (req) => {
             has_segment_timestamps: true,
             language_code: 'es',
             model: 'whisper-1',
-            fallback: true
+            fallback: true,
+            file_name: file.name,
+            file_type: file.type,
+            file_size: file.size
           }
         })
         .select('id')
