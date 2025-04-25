@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Trash } from "lucide-react";
+import { toast } from "sonner";
 
 interface ClearAllButtonProps {
   onClearAll: () => void;
@@ -11,10 +12,20 @@ interface ClearAllButtonProps {
 
 const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll, disabled }) => {
   const [open, setOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
-  const handleConfirm = () => {
-    onClearAll();
-    setOpen(false);
+  const handleConfirm = async () => {
+    try {
+      setIsClearing(true);
+      await onClearAll();
+      setOpen(false);
+      toast.success("Se han borrado todos los archivos y transcripciones");
+    } catch (error) {
+      console.error("Error clearing state:", error);
+      toast.error("No se pudieron borrar todos los elementos");
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   return (
@@ -24,10 +35,10 @@ const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll, disabled })
           variant="destructive"
           className="flex items-center gap-2"
           size="sm"
-          disabled={disabled}
+          disabled={disabled || isClearing}
         >
           <Trash className="w-4 h-4" />
-          Borrar todo
+          {isClearing ? "Borrando..." : "Borrar todo"}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -38,11 +49,19 @@ const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll, disabled })
           Esto eliminará todos los archivos y borrará todo el texto de transcripción. ¿Estás seguro? Esta acción no se puede deshacer.
         </div>
         <DialogFooter>
-          <Button variant="secondary" onClick={() => setOpen(false)}>
+          <Button 
+            variant="secondary" 
+            onClick={() => setOpen(false)}
+            disabled={isClearing}
+          >
             Cancelar
           </Button>
-          <Button variant="destructive" onClick={handleConfirm}>
-            Borrar todo
+          <Button 
+            variant="destructive" 
+            onClick={handleConfirm}
+            disabled={isClearing}
+          >
+            {isClearing ? "Borrando..." : "Borrar todo"}
           </Button>
         </DialogFooter>
       </DialogContent>

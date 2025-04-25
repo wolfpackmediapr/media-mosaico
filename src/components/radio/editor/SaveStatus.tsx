@@ -20,6 +20,13 @@ export const SaveStatus = ({ isSaving, saveError, saveSuccess }: SaveStatusProps
       return () => clearTimeout(timer);
     }
   }, [saveSuccess]);
+  
+  useEffect(() => {
+    // Reset success state if an error occurs
+    if (saveError) {
+      setShowSuccess(false);
+    }
+  }, [saveError]);
 
   // Don't render anything if there's nothing to show
   if (!isSaving && !saveError && !showSuccess) return null;
