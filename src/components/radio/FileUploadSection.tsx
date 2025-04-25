@@ -1,4 +1,3 @@
-
 import { Dispatch, SetStateAction } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileList from "./AudioFileList";
@@ -6,7 +5,7 @@ import { useAudioTranscription } from "@/hooks/useAudioTranscription";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useFileUploadHandlers } from "./useFileUploadHandlers";
 import { UploadedFile } from "./types";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface FileUploadSectionProps {
   files: UploadedFile[];
@@ -87,7 +86,7 @@ const FileUploadSection = ({
       return transcriptionResult;
     } catch (error) {
       console.error("[FileUploadSection] Error processing file:", error);
-      toast({
+      useToast().toast({
         title: "Error",
         description: "Error al procesar el archivo",
         variant: "destructive"

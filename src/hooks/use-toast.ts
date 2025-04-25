@@ -9,9 +9,8 @@ export const useToast = () => {
   return {
     toast: {
       // Map the old toast API to Sonner
-      (...args: any[]): void {
-        const [options] = args;
-        
+      // We can't use spread syntax as object method, so use a regular function
+      call: function(options: any): void {
         if (!options) return;
         
         if (options.variant === 'destructive') {
@@ -22,19 +21,19 @@ export const useToast = () => {
           toast.success(options.title, {
             description: options.description,
           });
-        }
+        },
       },
       // Add specific toast variants for compatibility
-      error(title: string, description?: string): void {
+      error: function(title: string, description?: string): void {
         toast.error(title, { description });
       },
-      success(title: string, description?: string): void {
+      success: function(title: string, description?: string): void {
         toast.success(title, { description });
       },
-      warning(title: string, description?: string): void {
+      warning: function(title: string, description?: string): void {
         toast.warning(title, { description });
       },
-      info(title: string, description?: string): void {
+      info: function(title: string, description?: string): void {
         toast.info(title, { description });
       }
     }
