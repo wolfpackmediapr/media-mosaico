@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   transcribeWithAssemblyAI, 
   transcribeWithOpenAI, 
@@ -28,12 +29,12 @@ export const useAudioTranscription = () => {
     try {
       setIsProcessing(true);
       
-      // Check authentication first
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // Verify user authentication and get user ID
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
         throw new Error("AUTH_REQUIRED");
       }
-      
+
       // Validate file
       if (!validateAudioFile(file)) {
         return null;
@@ -50,12 +51,6 @@ export const useAudioTranscription = () => {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('userId', user.id);
-
-      console.log('Sending request to transcribe with formData:', {
-        fileName: file.name,
-        fileSize: file.size,
-        userId: user.id
-      });
 
       // Try primary transcription service (AssemblyAI)
       try {
@@ -79,7 +74,7 @@ export const useAudioTranscription = () => {
         if (data?.transcript_id) {
           setTranscriptId(data.transcript_id);
         }
-        
+
         // If we don't have sentence timestamps yet but we have an ID, fetch them
         if (data?.transcript_id && (!data.sentences || data.sentences.length === 0)) {
           try {
@@ -91,7 +86,7 @@ export const useAudioTranscription = () => {
             console.error('Error fetching sentences:', sentenceError);
           }
         }
-        
+
         // If we don't have speaker utterances but have an ID, fetch them
         if (data?.transcript_id && (!data.utterances || data.utterances.length === 0)) {
           try {
@@ -103,21 +98,37 @@ export const useAudioTranscription = () => {
             console.error('Error fetching utterances:', utteranceError);
           }
         }
-        
+
         if (onTranscriptionComplete) {
           onTranscriptionComplete(data);
         }
-        
+
         toast({
           title: "Transcripción completada",
           description: "El archivo ha sido procesado exitosamente",
         });
-        
+
         return data;
 
       } catch (transcriptionError) {
-        console.error('Transcription failed:', transcriptionError);
-        throw transcriptionError;
+        console.error('Primary transcription failed, attempting fallback:', transcriptionError);
+        // Try fallback transcription service (OpenAI)
+        try {
+          const fallbackResult = await transcribeWithOpenAI(formData);
+          if (fallbackResult?.text) {
+            if (onTranscriptionComplete) {
+              onTranscriptionComplete(fallbackResult);
+            }
+            toast({
+              title: "Transcripción completada (método alternativo)",
+              description: "El archivo ha sido procesado usando un método alternativo",
+            });
+            return fallbackResult;
+          }
+        } catch (fallbackError) {
+          console.error('Fallback transcription failed:', fallbackError);
+          throw new Error('No se pudo procesar el archivo con ningún método disponible');
+        }
       }
 
     } catch (error: any) {
