@@ -1,9 +1,11 @@
-import { useRef, useEffect } from "react";
+
+import { useEffect } from "react";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { useAudioPlayer } from "@/hooks/radio/use-audio-player";
 import RadioLayout from "./RadioLayout";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
+import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 
 import {
   TopSection,
@@ -40,7 +42,7 @@ const RadioContainer = ({
     persistKey,
     storage
   });
-  
+
   const {
     isProcessing,
     setIsProcessing,
@@ -51,7 +53,6 @@ const RadioContainer = ({
     transcriptionId,
     setTranscriptionId,
     transcriptionResult,
-    setTranscriptionResult,
     metadata,
     newsSegments,
     setNewsSegments,
@@ -62,85 +63,23 @@ const RadioContainer = ({
     resetTranscription
   } = useRadioTranscription();
 
-  const clearAnalysisRef = useRef<(() => void) | null>(null);
-  const editorResetRef = useRef<null | (() => void)>(null);
-
-  const handleEditorRegisterReset = (resetFn: () => void) => {
-    editorResetRef.current = resetFn;
-  };
+  const { 
+    clearAllState, 
+    handleEditorRegisterReset, 
+    setClearAnalysis 
+  } = useClearRadioState({
+    transcriptionId,
+    persistKey,
+    onTextChange
+  });
 
   const handleClearAll = () => {
-    console.log('[RadioContainer] handleClearAll: Removing all files and state');
-    
+    console.log('[RadioContainer] handleClearAll: Starting clear sequence');
     resetTranscription();
     setNewsSegments([]);
-    
     setFiles([]);
     setCurrentFileIndex(0);
-    
-    const keysToDelete = [
-      `${persistKey}-metadata`,
-      `${persistKey}-current-index`,
-      "radio-transcription",
-      "radio-transcription-draft",
-      "radio-content-analysis-draft",
-      "radio-content-analysis",
-      "radio-transcription-speaker-draft",
-      "transcription-timestamp-view-draft",
-      "transcription-editor-mode-draft",
-      `${persistKey}-text-content`,
-      "radio-transcription-text-content"
-    ];
-
-    if (transcriptionId) {
-      keysToDelete.push(
-        `radio-transcription-${transcriptionId}`,
-        `radio-transcription-speaker-${transcriptionId}`,
-        `transcription-timestamp-view-${transcriptionId}`,
-        `transcription-editor-mode-${transcriptionId}`,
-        `radio-content-analysis-${transcriptionId}`,
-        `radio-transcription-text-content-${transcriptionId}`
-      );
-    }
-
-    keysToDelete.forEach(key => {
-      sessionStorage.removeItem(key);
-      console.log(`[RadioContainer] Cleared storage key: ${key}`);
-    });
-
-    const allKeys = Object.keys(sessionStorage);
-    const patternPrefixes = [
-      'radio-transcription',
-      'transcription-editor',
-      'transcription-timestamp',
-      'radio-content-analysis',
-      'radio-transcription-text'
-    ];
-
-    allKeys.forEach(key => {
-      if (patternPrefixes.some(prefix => key.startsWith(prefix))) {
-        console.log(`[RadioContainer] Clearing additional key: ${key}`);
-        sessionStorage.removeItem(key);
-      }
-    });
-
-    if (clearAnalysisRef.current) {
-      console.log('[RadioContainer] Clearing analysis state');
-      clearAnalysisRef.current();
-    }
-
-    if (editorResetRef.current) {
-      console.log('[RadioContainer] Calling editor reset function');
-      editorResetRef.current();
-    } else {
-      console.log('[RadioContainer] No editor reset function registered');
-    }
-
-    if (onTextChange) {
-      onTextChange("");
-    }
-
-    console.log('[RadioContainer] handleClearAll: All state, segments, and callbacks cleared');
+    clearAllState();
   };
 
   useEffect(() => {
@@ -260,7 +199,7 @@ const RadioContainer = ({
             transcriptionId={transcriptionId}
             transcriptionResult={transcriptionResult}
             handleSegmentsReceived={handleSegmentsReceived}
-            onClearAnalysis={(fn) => { clearAnalysisRef.current = fn; }}
+            onClearAnalysis={setClearAnalysis}
           />
         }
         newsSegmentsSection={
