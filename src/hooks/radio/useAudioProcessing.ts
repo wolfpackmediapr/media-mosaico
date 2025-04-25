@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAudioPlayer } from "./use-audio-player";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 
@@ -17,6 +17,7 @@ export const useAudioProcessing = ({
   onPlayingChange = () => {}
 }: AudioProcessingOptions) => {
   const [prevPlayingState, setPrevPlayingState] = useState(false);
+  const wasPlayingBeforeTabChange = useRef<boolean>(false);
 
   const {
     isPlaying,
@@ -33,8 +34,40 @@ export const useAudioProcessing = ({
     handlePlaybackRateChange,
     seekToTimestamp,
   } = useAudioPlayer({ 
-    file: currentFile || undefined 
+    file: currentFile || undefined,
+    // Add these options to persist audio across tab changes
+    preservePlaybackOnBlur: true,
+    resumeOnFocus: true
   });
+
+  // Handle document visibility changes to persist playback across tab changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden, store current playing state
+        wasPlayingBeforeTabChange.current = isPlaying;
+        console.log("[useAudioProcessing] Tab hidden, saving playback state:", isPlaying);
+      } else {
+        // Tab is visible again
+        console.log("[useAudioProcessing] Tab visible again, previous state:", wasPlayingBeforeTabChange.current);
+        
+        // If it was playing before tab change and not playing now, resume playback
+        if (wasPlayingBeforeTabChange.current && !isPlaying && currentFile) {
+          console.log("[useAudioProcessing] Resuming playback after tab change");
+          // Small delay to ensure audio context is ready
+          setTimeout(() => {
+            originalHandlePlayPause();
+          }, 100);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isPlaying, currentFile, originalHandlePlayPause]);
 
   // Sync our playing state with external state
   useEffect(() => {

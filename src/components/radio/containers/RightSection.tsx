@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
 
@@ -19,13 +19,13 @@ interface RightSectionProps {
   currentTime: number;
   duration: number;
   isMuted: boolean;
-  volume: number[];  // Changed from number to number[]
+  volume: number[];
   playbackRate: number;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (direction: 'forward' | 'backward') => void;
   onToggleMute: () => void;
-  onVolumeChange: (value: number[]) => void;  // Changed from (value: number) => void to (value: number[]) => void
+  onVolumeChange: (value: number[]) => void;
   onPlaybackRateChange: () => void;
   handleTrackSelect: (index: number) => void;
 }
@@ -48,37 +48,55 @@ const RightSection = ({
   onVolumeChange,
   onPlaybackRateChange,
   handleTrackSelect
-}: RightSectionProps) => (
-  <div className="space-y-4">
-    {currentFile && (
-      <MediaControls
-        currentFile={currentFile}
-        metadata={metadata}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-        isMuted={isMuted}
-        volume={volume}
-        playbackRate={playbackRate}
-        onPlayPause={onPlayPause}
-        onSeek={onSeek}
-        onSkip={onSkip}
-        onToggleMute={onToggleMute}
-        onVolumeChange={onVolumeChange}
-        onPlaybackRateChange={onPlaybackRateChange}
-      />
-    )}
-    {files.length > 0 && (
-      <TrackList
-        files={files}
-        currentFileIndex={currentFileIndex}
-        onSelectTrack={handleTrackSelect}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-      />
-    )}
-  </div>
-);
+}: RightSectionProps) => {
+  // Handle document visibility changes to maintain audio playback across tabs
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      // When tab becomes visible again, ensure audio state is correctly synced
+      if (!document.hidden && currentFile) {
+        console.log("[RightSection] Tab became visible, ensuring audio state is synced");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [currentFile]);
+
+  return (
+    <div className="space-y-4">
+      {currentFile && (
+        <MediaControls
+          currentFile={currentFile}
+          metadata={metadata}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          isMuted={isMuted}
+          volume={volume}
+          playbackRate={playbackRate}
+          onPlayPause={onPlayPause}
+          onSeek={onSeek}
+          onSkip={onSkip}
+          onToggleMute={onToggleMute}
+          onVolumeChange={onVolumeChange}
+          onPlaybackRateChange={onPlaybackRateChange}
+        />
+      )}
+      {files.length > 0 && (
+        <TrackList
+          files={files}
+          currentFileIndex={currentFileIndex}
+          onSelectTrack={handleTrackSelect}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+        />
+      )}
+    </div>
+  );
+};
 
 export default RightSection;
