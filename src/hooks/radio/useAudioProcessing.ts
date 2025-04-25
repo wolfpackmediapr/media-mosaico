@@ -1,16 +1,22 @@
 
-import { useAudioPlayer } from './use-audio-player';
-import { UploadedFile } from '@/components/radio/types';
-import { useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from "react";
+import { useAudioPlayer } from "./use-audio-player";
+import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 
 interface AudioProcessingOptions {
-  currentFile?: UploadedFile;
+  currentFile: File | null;
+  isActiveMediaRoute?: boolean;
+  externalIsPlaying?: boolean;
+  onPlayingChange?: (isPlaying: boolean) => void;
 }
 
-export const useAudioProcessing = ({ currentFile }: AudioProcessingOptions) => {
-  // Track if component is mounted to prevent memory leaks
-  const isMountedRef = useRef(true);
-  const audioCleanupFnsRef = useRef<Array<() => void>>([]);
+export const useAudioProcessing = ({ 
+  currentFile,
+  isActiveMediaRoute = true,
+  externalIsPlaying = false,
+  onPlayingChange = () => {}
+}: AudioProcessingOptions) => {
+  const [prevPlayingState, setPrevPlayingState] = useState(false);
 
   const {
     isPlaying,
@@ -19,37 +25,55 @@ export const useAudioProcessing = ({ currentFile }: AudioProcessingOptions) => {
     volume,
     isMuted,
     playbackRate,
-    handlePlayPause,
+    handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp
-  } = useAudioPlayer({
-    file: currentFile
+    seekToTimestamp,
+  } = useAudioPlayer({ 
+    file: currentFile || undefined 
   });
 
-  const handleSeekToSegment = useCallback((timestamp: number) => {
-    if (isMountedRef.current) {
-      seekToTimestamp(timestamp);
-    }
-  }, [seekToTimestamp]);
-
-  // Enhanced cleanup function to prevent memory leaks
+  // Sync our playing state with external state
   useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      // Execute all cleanup functions
-      audioCleanupFnsRef.current.forEach(cleanup => cleanup());
-      audioCleanupFnsRef.current = [];
-    };
-  }, []);
+    // Only update if this is the active media route and the external state has changed
+    if (isActiveMediaRoute && externalIsPlaying !== isPlaying) {
+      if (externalIsPlaying) {
+        // If external state says we should be playing but we're not, try to play
+        if (!isPlaying && currentFile) {
+          originalHandlePlayPause();
+        }
+      } else {
+        // If external state says we should not be playing but we are, pause
+        if (isPlaying) {
+          originalHandlePlayPause();
+        }
+      }
+    }
+    
+    // Save previous playing state to detect changes
+    if (isPlaying !== prevPlayingState) {
+      setPrevPlayingState(isPlaying);
+      // Notify parent about playing state changes
+      onPlayingChange(isPlaying);
+    }
+  }, [isActiveMediaRoute, externalIsPlaying, isPlaying, prevPlayingState, currentFile]);
 
-  // Register a cleanup function
-  const registerCleanup = useCallback((cleanupFn: () => void) => {
-    audioCleanupFnsRef.current.push(cleanupFn);
-  }, []);
+  // Wrapper for play/pause that also updates external state
+  const handlePlayPause = () => {
+    originalHandlePlayPause();
+    onPlayingChange(!isPlaying);
+  };
+
+  // Handler to seek to a specific segment
+  const handleSeekToSegment = (segment: RadioNewsSegment) => {
+    if (segment.startTime) {
+      seekToTimestamp(segment.startTime);
+      onPlayingChange(true);
+    }
+  };
 
   return {
     isPlaying,
@@ -65,6 +89,5 @@ export const useAudioProcessing = ({ currentFile }: AudioProcessingOptions) => {
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
-    registerCleanup
   };
 };

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useTvTabState } from "@/hooks/tv/useTvTabState";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
+import { usePersistentVideoState } from "@/hooks/tv/usePersistentVideoState";
 import VideoSection from "@/components/tv/VideoSection";
 import TvTranscriptionSection from "@/components/tv/TvTranscriptionSection";
 import TvTypeformEmbed from "@/components/tv/TvTypeformEmbed";
@@ -19,7 +20,11 @@ const Tv = () => {
     { storage: 'sessionStorage' }
   );
   
+  // Initialize local isPlaying state but sync with global persistent state
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Use persistent video state to maintain playback across routes
+  const { isActiveMediaRoute, isMediaPlaying, setIsMediaPlaying } = usePersistentVideoState();
   
   // Use persistent state for volume preference
   const [volume, setVolume] = usePersistentState<number[]>(
@@ -34,6 +39,13 @@ const Tv = () => {
     storage: 'sessionStorage',
     persistTextContent: true
   });
+
+  // Sync local playing state with global state
+  useEffect(() => {
+    if (isActiveMediaRoute) {
+      setIsPlaying(isMediaPlaying);
+    }
+  }, [isActiveMediaRoute, isMediaPlaying]);
 
   const {
     isProcessing,
@@ -91,7 +103,9 @@ const Tv = () => {
   };
 
   const togglePlayback = () => {
-    setIsPlaying(!isPlaying);
+    const newPlayingState = !isPlaying;
+    setIsPlaying(newPlayingState);
+    setIsMediaPlaying(newPlayingState);
   };
 
   const handleTranscriptionComplete = (text: string) => {
@@ -110,6 +124,8 @@ const Tv = () => {
       const videoElement = videoElements[0];
       videoElement.currentTime = timeInSeconds;
       videoElement.play();
+      setIsPlaying(true);
+      setIsMediaPlaying(true);
     } else {
       console.warn('No video element found to seek');
     }
@@ -136,6 +152,7 @@ const Tv = () => {
         onProcess={processVideo}
         onTranscriptionComplete={handleTranscriptionComplete}
         onRemoveFile={handleRemoveFile}
+        isActiveMediaRoute={isActiveMediaRoute}
       />
 
       {textContent && (

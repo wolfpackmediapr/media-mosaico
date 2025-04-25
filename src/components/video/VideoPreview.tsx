@@ -18,15 +18,21 @@ interface VideoPreviewProps {
   onProcess: (file: UploadedFile) => void;
   onTranscriptionComplete?: (text: string) => void;
   onRemoveFile?: (index: number) => void;
+  isActiveMediaRoute?: boolean;
 }
 
 const VideoPreview = ({
   uploadedFiles,
+  isPlaying,
+  volume,
   isProcessing,
   progress,
+  onTogglePlayback,
+  onVolumeChange,
   onProcess,
   onTranscriptionComplete,
   onRemoveFile,
+  isActiveMediaRoute = true
 }: VideoPreviewProps) => {
   const handleProcess = async (file: UploadedFile) => {
     await processVideoFile(file, onTranscriptionComplete);
@@ -38,6 +44,11 @@ const VideoPreview = ({
       <CardHeader>
         <CardTitle>Videos Subidos</CardTitle>
         <CardDescription>Lista de videos listos para procesar</CardDescription>
+        {!isActiveMediaRoute && isPlaying && (
+          <div className="mt-2 text-xs text-amber-500 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-md">
+            Este video se está reproduciendo en otra pestaña
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <div className="space-y-4">

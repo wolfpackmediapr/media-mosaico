@@ -20,13 +20,19 @@ interface RadioContainerProps {
   onTextChange?: (text: string) => void;
   persistKey?: string;
   storage?: 'localStorage' | 'sessionStorage';
+  isActiveMediaRoute?: boolean;
+  isMediaPlaying?: boolean;
+  setIsMediaPlaying?: (isPlaying: boolean) => void;
 }
 
 const RadioContainer = ({ 
   persistedText = "", 
   onTextChange,
   persistKey = "radio-files",
-  storage = "sessionStorage"
+  storage = "sessionStorage",
+  isActiveMediaRoute = true,
+  isMediaPlaying = false,
+  setIsMediaPlaying = () => {}
 }: RadioContainerProps) => {
   const { isAuthenticated } = useAuthStatus();
   
@@ -84,7 +90,7 @@ const RadioContainer = ({
     onTextChange
   });
 
-  // Audio processing
+  // Audio processing with persistence support
   const {
     isPlaying,
     currentTime,
@@ -100,7 +106,10 @@ const RadioContainer = ({
     handlePlaybackRateChange,
     handleSeekToSegment
   } = useAudioProcessing({
-    currentFile
+    currentFile,
+    isActiveMediaRoute,
+    externalIsPlaying: isMediaPlaying,
+    onPlayingChange: setIsMediaPlaying
   });
 
   const handleClearAll = () => {

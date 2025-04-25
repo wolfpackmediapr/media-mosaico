@@ -1,5 +1,6 @@
 
 import { useRadioTabState } from "@/hooks/radio/useRadioTabState";
+import { usePersistentAudioState } from "@/hooks/radio/usePersistentAudioState";
 import RadioContainer from "@/components/radio/RadioContainer";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from "react";
@@ -11,6 +12,9 @@ const Radio = () => {
     storage: 'sessionStorage',
     persistTextContent: true
   });
+
+  // Use persistent audio state to maintain playback across routes
+  const { isActiveMediaRoute, isMediaPlaying, setIsMediaPlaying } = usePersistentAudioState();
 
   // Add effect to preserve audio playback state between tab changes
   useEffect(() => {
@@ -37,6 +41,9 @@ const Radio = () => {
         onTextChange={setTextContent}
         persistKey="radio-files"
         storage="sessionStorage"
+        isActiveMediaRoute={isActiveMediaRoute}
+        isMediaPlaying={isMediaPlaying}
+        setIsMediaPlaying={setIsMediaPlaying}
       />
     </TooltipProvider>
   );

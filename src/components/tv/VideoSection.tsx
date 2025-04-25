@@ -19,6 +19,7 @@ interface VideoSectionProps {
   onProcess: (file: UploadedFile) => void;
   onTranscriptionComplete: (text: string) => void;
   onRemoveFile: (index: number) => void;
+  isActiveMediaRoute?: boolean;
 }
 
 const VideoSection = ({
@@ -32,7 +33,8 @@ const VideoSection = ({
   onVolumeChange,
   onProcess,
   onTranscriptionComplete,
-  onRemoveFile
+  onRemoveFile,
+  isActiveMediaRoute = true
 }: VideoSectionProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -58,6 +60,7 @@ const VideoSection = ({
         onProcess={onProcess}
         onTranscriptionComplete={onTranscriptionComplete}
         onRemoveFile={onRemoveFile}
+        isActiveMediaRoute={isActiveMediaRoute}
       />
     </div>
   );
