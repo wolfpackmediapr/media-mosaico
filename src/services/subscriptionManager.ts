@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { RealtimeChannel, RealtimeChannelOptions } from "@supabase/supabase-js";
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 type SubscriptionHandler = (payload: any) => void;
 
@@ -170,7 +170,7 @@ class SubscriptionManager {
     
     // Add listener for this specific subscription
     channel.on(
-      'postgres_changes' as any,
+      'postgres_changes',
       {
         event: config.event,
         schema: config.schema || 'public',
@@ -302,9 +302,9 @@ export function useRealtimeSubscription(
 
 // Hook for monitoring connection status
 export function useSubscriptionStatus() {
-  const [status, setStatus] = React.useState(subscriptionManager.getConnectionStatus());
+  const [status, setStatus] = useState(subscriptionManager.getConnectionStatus());
   
-  React.useEffect(() => {
+  useEffect(() => {
     const unsubscribe = subscriptionManager.addConnectionListener(setStatus);
     return unsubscribe;
   }, []);

@@ -1,12 +1,22 @@
 
-import React, { useState, useRef } from 'react';
-import ProcessButton from './ProcessButton';
+import React from 'react';
+import { UploadedFile } from '@/components/radio/types';
 import AudioFileHeader from './AudioFileHeader';
+import ProcessButton from './ProcessButton';
 import ProgressIndicator from './ProgressIndicator';
-import { useAudioTranscription } from '@/hooks/useAudioTranscription';
-import { AudioFileItemProps } from './types';
-import { toast } from "sonner";
-import { validateAudioFile } from '@/utils/file-validation';
+import { TranscriptionResult } from '@/services/audio/transcriptionService';
+
+export interface AudioFileItemProps {
+  file: UploadedFile;
+  index: number;
+  onProcess: (file: UploadedFile) => void;
+  onTranscriptionComplete?: (text: string) => void;
+  onRemove?: (index: number) => void;
+  isProcessing?: boolean;
+  progress?: number;
+  setIsProcessing?: React.Dispatch<React.SetStateAction<boolean>>;
+  setProgress?: React.Dispatch<React.SetStateAction<number>>;
+}
 
 const AudioFileItem: React.FC<AudioFileItemProps> = ({
   file,
@@ -17,124 +27,57 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   isProcessing = false,
   progress = 0,
   setIsProcessing,
-  setProgress,
+  setProgress
 }) => {
-  const [showPlayer, setShowPlayer] = useState(false);
-  const [processingComplete, setProcessingComplete] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const { processWithAuth } = useAudioTranscription();
+  const [processingComplete, setProcessingComplete] = React.useState(false);
+  const [showPlayer, setShowPlayer] = React.useState(false);
 
   const handleProcess = async () => {
     if (isProcessing || processingComplete) return;
     
+    if (setIsProcessing) setIsProcessing(true);
+    
     try {
-      // Validate file before processing
-      if (!validateAudioFile(file)) {
-        return;
-      }
-
-      if (setIsProcessing) setIsProcessing(true);
-      
-      // Create a simulation of progress for better UX
-      const progressInterval = simulateProgressUpdates(setProgress);
-      
-      // Process the file
-      const success = await processWithAuth(file, (result) => {
-        const text = result.text;
-        onTranscriptionComplete?.(text);
-        setProcessingComplete(true);
-        clearInterval(progressInterval);
-        if (setProgress) setProgress(100);
-        
-        toast.success("Transcripción completada", {
-          description: "Puede editar el texto haciendo clic en el área de texto."
-        });
-      });
-      
-      if (!success) {
-        clearInterval(progressInterval);
-        if (setIsProcessing) setIsProcessing(false);
-        if (setProgress) setProgress(0);
-      }
-    } catch (error) {
-      console.error('Error processing file:', error);
+      await onProcess(file);
+      setProcessingComplete(true);
+    } finally {
       if (setIsProcessing) setIsProcessing(false);
-      if (setProgress) setProgress(0);
-      toast.error("Error procesando el archivo. Por favor, intente nuevamente.");
     }
   };
-  
-  const simulateProgressUpdates = (setProgressFn?: React.Dispatch<React.SetStateAction<number>>) => {
-    if (!setProgressFn) return 0;
-    
-    let currentProgress = 0;
-    return setInterval(() => {
-      // Simulate exponential progress that never quite reaches 100%
-      // until processing is actually complete
-      const increment = Math.max(1, (95 - currentProgress) / 10);
-      currentProgress = Math.min(95, currentProgress + increment);
-      setProgressFn(currentProgress);
-    }, 1000);
+
+  const handleRemove = () => {
+    if (onRemove) onRemove(index);
   };
 
   const handleTogglePlayer = () => {
-    setShowPlayer(!showPlayer);
-    
-    // If showing the player and we have an audio reference, play it
-    if (!showPlayer && audioRef.current) {
-      audioRef.current.play().catch(error => {
-        console.error('Error playing audio:', error);
-        setAudioError("Error al reproducir el audio. El archivo podría estar dañado.");
-        toast.error("Error al reproducir el audio");
-      });
-    }
+    setShowPlayer(prev => !prev);
   };
-
-  const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
-    console.error('Audio error:', e);
-    setAudioError("Error al cargar el audio. El formato podría no ser compatible.");
-    toast.error("Error al cargar el audio");
-  };
-
-  // Create audio URL from file if it doesn't have a preview
-  const audioSrc = file.preview || (file instanceof File ? URL.createObjectURL(file) : '');
 
   return (
-    <div className="border rounded-lg overflow-hidden bg-card mb-4">
-      <div className="p-3">
-        <AudioFileHeader 
-          file={file}
-          index={index}
-          onRemove={onRemove}
-          onTogglePlayer={handleTogglePlayer}
-        />
-      </div>
+    <div className="p-4 bg-muted rounded-lg space-y-4">
+      <AudioFileHeader
+        file={file}
+        index={index}
+        onRemove={handleRemove}
+        onTogglePlayer={handleTogglePlayer}
+      />
       
-      {showPlayer && (
-        <div className="px-3 pb-3">
-          <audio 
-            ref={audioRef}
+      {showPlayer && file.preview && (
+        <div className="mt-3">
+          <audio
             controls
-            src={audioSrc} 
-            className="w-full" 
-            onError={handleAudioError}
+            src={file.preview}
+            className="w-full"
           />
-          {audioError && (
-            <p className="text-red-500 text-sm mt-1">{audioError}</p>
-          )}
         </div>
       )}
       
-      <ProgressIndicator 
-        isProcessing={isProcessing} 
-        progress={progress} 
-      />
-      
-      <div className="p-3 pt-0">
-        <ProcessButton 
-          isProcessing={isProcessing} 
-          processingComplete={processingComplete} 
+      <div className="space-y-2">
+        <ProgressIndicator isProcessing={isProcessing} progress={progress} />
+        
+        <ProcessButton
+          isProcessing={isProcessing}
+          processingComplete={processingComplete}
           progress={progress}
           onProcess={handleProcess}
         />
