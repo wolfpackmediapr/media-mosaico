@@ -1,4 +1,3 @@
-
 import { Howl } from 'howler';
 
 export interface AudioPlayerProps {
@@ -17,7 +16,7 @@ export interface PlaybackState {
 export interface PlaybackControls {
   handlePlayPause: () => void;
   handleSkip: (direction: 'forward' | 'backward', amount?: number) => void;
-  handleSeek: (e: React.MouseEvent<HTMLDivElement>) => void;
+  handleSeek: (time: number) => void;
 }
 
 export interface VolumeControls {
@@ -25,15 +24,4 @@ export interface VolumeControls {
   volume: number[];
   handleVolumeChange: (value: number[]) => void;
   toggleMute: () => void;
-}
-
-export interface AudioPlayerHookReturn {
-  howler: React.MutableRefObject<Howl | null>;
-  playbackState: PlaybackState;
-  playbackRate: number;
-  setPlaybackRate: (rate: number) => void;
-  volumeControls: VolumeControls;
-  playbackControls: PlaybackControls;
-  formatTime: (seconds: number) => string;
-  changePlaybackRate: () => void;
 }
