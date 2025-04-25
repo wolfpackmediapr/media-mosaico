@@ -1,50 +1,58 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { usePersistentState } from './use-persistent-state';
 
-interface StickyOptions {
+interface StickySateOptions {
   persistKey?: string;
   defaultSticky?: boolean;
-  persistInSession?: boolean;
+  storage?: 'localStorage' | 'sessionStorage';
 }
 
 /**
- * Hook for managing sticky UI components that can be toggled and persisted
+ * Hook for creating UI components that can be "sticky" or detached
+ * from their original position (like picture-in-picture mode)
  */
-export function useStickyState(options: StickyOptions = {}) {
+export function useStickyState(options: StickySateOptions = {}) {
   const {
     persistKey,
     defaultSticky = false,
-    persistInSession = true,
+    storage = 'sessionStorage'
   } = options;
-  
-  // If persistKey is provided, use persistent storage
+
+  // Use persistent state if key is provided
   const [isSticky, setIsSticky] = persistKey 
-    ? usePersistentState(
-        `sticky-${persistKey}`,
-        defaultSticky,
-        { storage: persistInSession ? 'sessionStorage' : 'localStorage' }
-      )
+    ? usePersistentState(persistKey, defaultSticky, { storage })
     : useState(defaultSticky);
-  
-  // Ref to the sticky element
+
   const stickyRef = useRef<HTMLDivElement>(null);
   
   // Toggle sticky state
   const toggleSticky = () => setIsSticky(!isSticky);
   
-  // Scroll the sticky element into view when needed
-  const scrollIntoView = (options: ScrollIntoViewOptions = { behavior: 'smooth' }) => {
-    if (stickyRef.current && isSticky) {
-      stickyRef.current.scrollIntoView(options);
-    }
-  };
+  // Set sticky state explicitly
+  const setSticky = (sticky: boolean) => setIsSticky(sticky);
+  
+  // Effect to handle click outside sticky element to restore
+  useEffect(() => {
+    if (!isSticky) return;
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (stickyRef.current && !stickyRef.current.contains(event.target as Node)) {
+        // Uncomment below line if you want clicking outside to restore position
+        // setIsSticky(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSticky, setIsSticky]);
   
   return {
     isSticky,
-    setIsSticky,
+    setIsSticky: setSticky,
     toggleSticky,
-    stickyRef,
-    scrollIntoView
+    stickyRef
   };
 }

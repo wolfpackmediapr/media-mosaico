@@ -1,56 +1,50 @@
 
 import React from 'react';
-import { useAudioPlayer } from './useAudioPlayer';
 import { AudioPlayerHeader } from './AudioPlayerHeader';
 import { ProgressBar } from './ProgressBar';
 import { AudioPlayerControls } from './AudioPlayerControls';
-import { KeyboardShortcuts } from './KeyboardShortcuts';
-import { AudioPlayerProps } from './types';
 import { formatTime } from './utils/timeFormatter';
+import { Card, CardContent } from "@/components/ui/card";
+import { useAudioPlayer } from './hooks/useAudioPlayer';
+import { AudioPlayerProps } from './types';
 
-export function AudioPlayer({ file, onEnded, onError }: AudioPlayerProps) {
+export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
   const {
-    playbackState,
+    playbackState: { isPlaying, progress, duration, isMuted },
     playbackRate,
     volumeControls,
     playbackControls,
     changePlaybackRate
-  } = useAudioPlayer({
-    file,
-    onEnded,
-    onError
-  });
+  } = useAudioPlayer({ file, onEnded });
 
-  const { isPlaying, progress, duration } = playbackState;
-  
-  const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const progressBar = e.currentTarget;
-    const rect = progressBar.getBoundingClientRect();
-    const clickPosition = (e.clientX - rect.left) / progressBar.clientWidth;
-    const seekTime = duration * clickPosition;
-    playbackControls.handleSeek(seekTime);
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const container = e.currentTarget;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = x / rect.width;
+    playbackControls.handleSeek(percentage * duration);
   };
 
   return (
-    <div className="w-full bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl p-4 shadow-xl transition-all duration-300">
-      <AudioPlayerHeader fileName={file.name} />
-
-      <ProgressBar 
-        progress={progress} 
-        duration={duration} 
-        onSeek={handleProgressBarClick} 
-        formatTime={formatTime} 
-      />
-
-      <AudioPlayerControls 
-        isPlaying={isPlaying}
-        playbackControls={playbackControls}
-        volumeControls={volumeControls}
-        playbackRate={playbackRate}
-        onChangePlaybackRate={changePlaybackRate}
-      />
-      
-      <KeyboardShortcuts />
-    </div>
+    <Card className="w-full">
+      <CardContent className="p-4">
+        <AudioPlayerHeader fileName={file.name} />
+        
+        <ProgressBar
+          progress={progress}
+          duration={duration}
+          onSeek={handleSeek}
+          formatTime={formatTime}
+        />
+        
+        <AudioPlayerControls
+          isPlaying={isPlaying}
+          playbackControls={playbackControls}
+          volumeControls={volumeControls}
+          playbackRate={playbackRate}
+          onChangePlaybackRate={changePlaybackRate}
+        />
+      </CardContent>
+    </Card>
   );
-}
+};
