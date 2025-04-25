@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useMediaControls } from './useMediaControls';
@@ -138,14 +139,14 @@ export const useAudioPlayer = ({ file, onEnded, onError, preservePlaybackOnBlur 
     handleVolumeChange([newVolume]);
   };
 
-  const toggleMute = () => {
+  const handleToggleMute = () => {
     if (!audioRef.current) return;
     const newMutedState = !isMuted;
     audioRef.current.muted = newMutedState;
     setIsMuted(newMutedState);
   };
 
-  const changePlaybackRate = () => {
+  const handlePlaybackRateChange = () => {
     if (!audioRef.current) return;
     const rates = [0.5, 1.0, 1.5, 2.0];
     const currentIndex = rates.indexOf(playbackRate);
@@ -220,7 +221,7 @@ export const useAudioPlayer = ({ file, onEnded, onError, preservePlaybackOnBlur 
     onPause: () => isPlaying && handlePlayPause(),
     onSeekBackward: (details) => handleSkip('backward', details.seekOffset),
     onSeekForward: (details) => handleSkip('forward', details.seekOffset),
-    title: file.name
+    title: file?.name || 'Audio'
   });
 
   useKeyboardShortcuts({
