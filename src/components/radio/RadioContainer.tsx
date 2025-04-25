@@ -1,12 +1,11 @@
 
-import { useEffect } from "react";
 import { useAuthStatus } from "@/hooks/use-auth-status";
-import { useAudioPlayer } from "@/hooks/radio/use-audio-player";
-import RadioLayout from "./RadioLayout";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
-import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
-
+import { useAudioStateSync } from "@/hooks/radio/useAudioStateSync";
+import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
+import { useAudioProcessing } from "@/hooks/radio/useAudioProcessing";
+import RadioLayout from "./RadioLayout";
 import {
   TopSection,
   LeftSection,
@@ -30,6 +29,8 @@ const RadioContainer = ({
   storage = "sessionStorage"
 }: RadioContainerProps) => {
   const { isAuthenticated } = useAuthStatus();
+  
+  // Files management
   const {
     files,
     setFiles,
@@ -43,6 +44,7 @@ const RadioContainer = ({
     storage
   });
 
+  // Transcription management
   const {
     isProcessing,
     setIsProcessing,
@@ -56,13 +58,14 @@ const RadioContainer = ({
     metadata,
     newsSegments,
     setNewsSegments,
-    handleTranscriptionChange,
+    handleTranscriptionTextChange,
     handleSegmentsReceived,
     handleMetadataChange,
     handleTranscriptionReceived,
     resetTranscription
-  } = useRadioTranscription();
+  } = useTranscriptionManagement();
 
+  // Clear state management
   const { 
     clearAllState, 
     handleEditorRegisterReset, 
@@ -73,27 +76,15 @@ const RadioContainer = ({
     onTextChange
   });
 
-  const handleClearAll = () => {
-    console.log('[RadioContainer] handleClearAll: Starting clear sequence');
-    resetTranscription();
-    setNewsSegments([]);
-    setFiles([]);
-    setCurrentFileIndex(0);
-    clearAllState();
-  };
+  // Audio state synchronization
+  useAudioStateSync({
+    persistedText,
+    transcriptionText,
+    setTranscriptionText,
+    onTextChange
+  });
 
-  useEffect(() => {
-    if (persistedText && persistedText !== transcriptionText) {
-      setTranscriptionText(persistedText);
-    }
-  }, [persistedText, setTranscriptionText]);
-
-  useEffect(() => {
-    if (onTextChange && transcriptionText && transcriptionText !== persistedText) {
-      onTextChange(transcriptionText);
-    }
-  }, [transcriptionText, onTextChange, persistedText]);
-
+  // Audio processing
   const {
     isPlaying,
     currentTime,
@@ -107,25 +98,23 @@ const RadioContainer = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp
-  } = useAudioPlayer({
-    file: currentFile
+    handleSeekToSegment
+  } = useAudioProcessing({
+    currentFile
   });
 
-  const handleSeekToSegment = (timestamp: number) => {
-    seekToTimestamp(timestamp);
+  const handleClearAll = () => {
+    console.log('[RadioContainer] handleClearAll: Starting clear sequence');
+    resetTranscription();
+    setNewsSegments([]);
+    setFiles([]);
+    setCurrentFileIndex(0);
+    clearAllState();
   };
 
   const handleTrackSelect = (index: number) => {
     if (index !== currentFileIndex) {
       setCurrentFileIndex(index);
-    }
-  };
-
-  const handleTranscriptionTextChange = (text: string) => {
-    handleTranscriptionChange(text);
-    if (onTextChange) {
-      onTextChange(text);
     }
   };
 
