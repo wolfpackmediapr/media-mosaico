@@ -125,8 +125,9 @@ export const useTranscriptionEditor = ({
       if (!data.id) return;
       try {
         setSaveError(null);
+        // Update to match the correct table schema
         const { error } = await supabase
-          .from('transcriptions')
+          .from('radio_transcriptions')
           .update({
             transcription_text: data.text,
             updated_at: new Date().toISOString()

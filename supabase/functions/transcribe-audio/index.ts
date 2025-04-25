@@ -1,6 +1,8 @@
 
+// deno-lint-ignore-file no-explicit-any
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { corsHeaders } from "../_shared/cors.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
@@ -150,7 +152,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Save transcription with robust error handling
+    // Save transcription with robust error handling that matches the table schema
     try {
       console.log('Saving transcription to database...');
       const { data: transcriptionData, error: insertError } = await supabase
@@ -158,7 +160,6 @@ serve(async (req) => {
         .insert({
           user_id: userId,
           transcription_text: transcript.text,
-          transcript_id: transcriptId,
           emisora: 'default',
           programa: 'default',
           horario: new Date().toISOString(),
