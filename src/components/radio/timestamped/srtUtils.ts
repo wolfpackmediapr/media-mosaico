@@ -1,6 +1,5 @@
-
 import { formatSrtTime } from "./timeUtils";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 interface TimestampedItem {
   text: string;
