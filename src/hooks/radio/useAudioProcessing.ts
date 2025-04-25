@@ -18,6 +18,7 @@ export const useAudioProcessing = ({
 }: AudioProcessingOptions) => {
   const [prevPlayingState, setPrevPlayingState] = useState(false);
   const wasPlayingBeforeTabChange = useRef<boolean>(false);
+  const lastSeenTabVisible = useRef<number>(Date.now());
 
   const {
     isPlaying,
@@ -43,16 +44,23 @@ export const useAudioProcessing = ({
   // Handle document visibility changes to persist playback across tab changes
   useEffect(() => {
     const handleVisibilityChange = () => {
+      const now = Date.now();
+      
       if (document.hidden) {
         // Tab is hidden, store current playing state
         wasPlayingBeforeTabChange.current = isPlaying;
+        lastSeenTabVisible.current = now;
         console.log("[useAudioProcessing] Tab hidden, saving playback state:", isPlaying);
       } else {
         // Tab is visible again
         console.log("[useAudioProcessing] Tab visible again, previous state:", wasPlayingBeforeTabChange.current);
+        console.log("[useAudioProcessing] Time hidden:", Math.round((now - lastSeenTabVisible.current)/1000) + "s");
         
-        // If it was playing before tab change and not playing now, resume playback
-        if (wasPlayingBeforeTabChange.current && !isPlaying && currentFile) {
+        // If it was playing before tab change, and we've been away for a short time
+        // Note: we only auto-resume if we've been away less than 30 minutes
+        const wasAwayLessThan30Min = (now - lastSeenTabVisible.current) < 30 * 60 * 1000;
+        
+        if (wasPlayingBeforeTabChange.current && !isPlaying && currentFile && wasAwayLessThan30Min) {
           console.log("[useAudioProcessing] Resuming playback after tab change");
           // Small delay to ensure audio context is ready
           setTimeout(() => {
@@ -91,8 +99,13 @@ export const useAudioProcessing = ({
       setPrevPlayingState(isPlaying);
       // Notify parent about playing state changes
       onPlayingChange(isPlaying);
+      
+      // Update media session state
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      }
     }
-  }, [isActiveMediaRoute, externalIsPlaying, isPlaying, prevPlayingState, currentFile]);
+  }, [isActiveMediaRoute, externalIsPlaying, isPlaying, prevPlayingState, currentFile, originalHandlePlayPause, onPlayingChange]);
 
   // Wrapper for play/pause that also updates external state
   const handlePlayPause = () => {

@@ -1,7 +1,8 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
+import { useMediaPersistence } from "@/context/MediaPersistenceContext";
 
 interface RightSectionProps {
   currentFile: File | null;
@@ -49,6 +50,9 @@ const RightSection = ({
   onPlaybackRateChange,
   handleTrackSelect
 }: RightSectionProps) => {
+  const { lastPlaybackPosition, setLastPlaybackPosition } = useMediaPersistence();
+  const previousTimeRef = useRef<number>(currentTime);
+
   // Handle document visibility changes to maintain audio playback across tabs
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -64,6 +68,50 @@ const RightSection = ({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [currentFile]);
+
+  // Save playback position when it changes significantly
+  useEffect(() => {
+    if (currentFile && Math.abs(currentTime - previousTimeRef.current) > 1) {
+      previousTimeRef.current = currentTime;
+      
+      // Only update if we have a valid position
+      if (currentTime > 0) {
+        const fileId = currentFile.name + '-' + currentFile.size;
+        setLastPlaybackPosition({
+          ...lastPlaybackPosition,
+          [fileId]: currentTime
+        });
+      }
+    }
+  }, [currentTime, currentFile, lastPlaybackPosition, setLastPlaybackPosition]);
+
+  // Register for Media Session API when available
+  useEffect(() => {
+    if ('mediaSession' in navigator && currentFile) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentFile.name,
+        artist: metadata?.emisora || 'Radio',
+        album: metadata?.programa || 'Transcripción'
+      });
+      
+      // Set playback state
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      
+      // Register action handlers
+      navigator.mediaSession.setActionHandler('play', onPlayPause);
+      navigator.mediaSession.setActionHandler('pause', onPlayPause);
+      navigator.mediaSession.setActionHandler('seekbackward', () => onSkip('backward'));
+      navigator.mediaSession.setActionHandler('seekforward', () => onSkip('forward'));
+      
+      return () => {
+        // Clear handlers when component unmounts
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+      };
+    }
+  }, [currentFile, metadata, isPlaying, onPlayPause, onSkip]);
 
   return (
     <div className="space-y-4">

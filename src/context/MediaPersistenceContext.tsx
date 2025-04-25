@@ -8,6 +8,8 @@ interface MediaPersistenceContextType {
   isMediaPlaying: boolean;
   setIsMediaPlaying: (isPlaying: boolean) => void;
   lastActiveRoute: string | null;
+  lastPlaybackPosition: { [fileId: string]: number };
+  setLastPlaybackPosition: (positions: { [fileId: string]: number }) => void;
 }
 
 const MediaPersistenceContext = createContext<MediaPersistenceContextType | undefined>(undefined);
@@ -25,6 +27,11 @@ export function MediaPersistenceProvider({ children }: { children: ReactNode }) 
   
   const [lastActiveRoute, setLastActiveRoute] = useState<string | null>(() => {
     return sessionStorage.getItem('last-active-route');
+  });
+
+  const [lastPlaybackPosition, setLastPlaybackPosition] = useState<{ [fileId: string]: number }>(() => {
+    const saved = sessionStorage.getItem('media-playback-positions');
+    return saved ? JSON.parse(saved) : {};
   });
   
   const location = useLocation();
@@ -46,6 +53,13 @@ export function MediaPersistenceProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     sessionStorage.setItem('media-playing', isMediaPlaying.toString());
   }, [isMediaPlaying]);
+
+  // Persist playback positions to session storage
+  useEffect(() => {
+    if (Object.keys(lastPlaybackPosition).length > 0) {
+      sessionStorage.setItem('media-playback-positions', JSON.stringify(lastPlaybackPosition));
+    }
+  }, [lastPlaybackPosition]);
   
   // Handle page visibility changes to help maintain audio state
   useEffect(() => {
@@ -55,12 +69,21 @@ export function MediaPersistenceProvider({ children }: { children: ReactNode }) 
       }
     };
     
+    // Handle page unload to save state
+    const handleBeforeUnload = () => {
+      // Ensure latest state is persisted
+      sessionStorage.setItem('media-playing', isMediaPlaying.toString());
+      sessionStorage.setItem('media-playback-positions', JSON.stringify(lastPlaybackPosition));
+    };
+    
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("beforeunload", handleBeforeUnload);
     
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [activeMediaRoute]);
+  }, [activeMediaRoute, isMediaPlaying, lastPlaybackPosition]);
 
   return (
     <MediaPersistenceContext.Provider
@@ -69,7 +92,9 @@ export function MediaPersistenceProvider({ children }: { children: ReactNode }) 
         setActiveMediaRoute,
         isMediaPlaying,
         setIsMediaPlaying,
-        lastActiveRoute
+        lastActiveRoute,
+        lastPlaybackPosition,
+        setLastPlaybackPosition
       }}
     >
       {children}
