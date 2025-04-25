@@ -1,8 +1,8 @@
 
-import { toast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useAudioTranscription } from "@/hooks/useAudioTranscription";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import { validateAudioFile } from "@/utils/file-validation";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -10,19 +10,38 @@ interface UploadedFile extends File {
 
 export const processAudioFile = async (
   file: UploadedFile,
-  onTranscriptionComplete?: (text: string) => void
+  onTranscriptionComplete?: (text: string) => void,
+  onUtterancesReceived?: (result: TranscriptionResult) => void
 ) => {
   const { processWithAuth } = useAudioTranscription();
   
-  // Wrap the callback to convert TranscriptionResult to text string
-  return processWithAuth(file, result => {
-    if (onTranscriptionComplete) {
-      onTranscriptionComplete(result.text);
-    }
-  });
+  // Validate file before processing
+  if (!validateAudioFile(file)) {
+    return false;
+  }
+
+  try {
+    // Process with AssemblyAI with speaker diarization enabled
+    const result = await processWithAuth(file, (result) => {
+      console.log("[processAudioFile] Transcription result:", result);
+      
+      if (result.text && onTranscriptionComplete) {
+        onTranscriptionComplete(result.text);
+      }
+      
+      if (result.utterances && onUtterancesReceived) {
+        onUtterancesReceived(result);
+      }
+    });
+
+    return result;
+  } catch (error) {
+    console.error("[processAudioFile] Error:", error);
+    toast.error("Error al procesar el archivo. Intente nuevamente.");
+    return false;
+  }
 };
 
-// Helper function to handle auth redirection from components
 export const useAudioProcessingWithAuth = () => {
   const { processWithAuth } = useAudioTranscription();
   return processWithAuth;
