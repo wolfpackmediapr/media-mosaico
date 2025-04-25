@@ -1,6 +1,6 @@
 
 import React, { Suspense } from "react";
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Outlet } from "react-router-dom";
 import { lazyRoutes, settingsRoutes, publitecaRoutes, Index } from "./config/routes";
 import Layout from "./components/layout/Layout";
 import PageLoader from "./components/common/PageLoader";
@@ -9,7 +9,7 @@ import PageLoader from "./components/common/PageLoader";
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <Layout />,
+    element: <Layout><Outlet /></Layout>,
     children: [
       {
         index: true,
