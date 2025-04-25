@@ -2,8 +2,12 @@
 import { useRadioTranscription } from './useRadioTranscription';
 import { RadioNewsSegment } from '@/components/radio/RadioNewsSegmentsContainer';
 import { TranscriptionResult } from '@/services/audio/transcriptionService';
+import { useEffect, useRef } from 'react';
 
 export const useTranscriptionManagement = () => {
+  // Track component mounted state to prevent operations after unmount
+  const isMountedRef = useRef(true);
+  
   const {
     isProcessing,
     setIsProcessing,
@@ -25,8 +29,17 @@ export const useTranscriptionManagement = () => {
   } = useRadioTranscription();
 
   const handleTranscriptionTextChange = (text: string) => {
-    handleTranscriptionChange(text);
+    if (isMountedRef.current) {
+      handleTranscriptionChange(text);
+    }
   };
+
+  // Cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   return {
     isProcessing,

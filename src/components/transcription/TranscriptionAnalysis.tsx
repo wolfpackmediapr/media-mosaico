@@ -2,7 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, ScrollText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,17 +20,47 @@ const TranscriptionAnalysis = ({
 }: TranscriptionAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState("");
+  const analyzeInProgressRef = useRef(false);
+  const mountedRef = useRef(true);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const analyzeContent = async () => {
     if (!transcriptionText) {
       toast.error("No hay texto para analizar");
       return;
     }
+    
+    // Prevent duplicate requests
+    if (analyzeInProgressRef.current) {
+      console.log('Analysis already in progress, ignoring request');
+      return;
+    }
 
     setIsAnalyzing(true);
+    analyzeInProgressRef.current = true;
+    
     try {
+      // Process transcription in chunks if it's too large
+      const maxChunkSize = 15000; // Characters
+      let text = transcriptionText;
+      let result = null;
+      
+      if (text.length > maxChunkSize) {
+        console.log(`Transcription text is large (${text.length} chars), processing in chunks`);
+        
+        // For large text, process only the first chunk
+        text = text.substring(0, maxChunkSize);
+        toast.info("El texto es muy largo. Analizando solo la primera parte para mejorar el rendimiento.");
+      }
+      
       const { data, error } = await supabase.functions.invoke('analyze-content', {
-        body: { transcriptionText }
+        body: { transcriptionText: text }
       });
 
       if (error) throw error;
@@ -41,8 +71,10 @@ const TranscriptionAnalysis = ({
           .replace(/\[[\s\S]*?\]/g, '') // Remove arrays
           .replace(/{[\s\S]*?}/g, '');  // Remove objects
           
-        setAnalysis(cleanedAnalysis);
-        toast.success("El contenido ha sido analizado exitosamente.");
+        if (mountedRef.current) {
+          setAnalysis(cleanedAnalysis);
+          toast.success("El contenido ha sido analizado exitosamente.");
+        }
         
         // Handle segments if they exist
         if (data.segments && Array.isArray(data.segments) && onSegmentsReceived) {
@@ -60,7 +92,7 @@ const TranscriptionAnalysis = ({
         }
         
         // Create notification for matched categories, clients, and keywords if they exist
-        if (data.category || data.matched_clients || data.keywords) {
+        if (mountedRef.current && (data.category || data.matched_clients || data.keywords)) {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
             // Only create notification if we have matches
@@ -98,7 +130,10 @@ const TranscriptionAnalysis = ({
       console.error('Error analyzing content:', error);
       toast.error("No se pudo analizar el contenido. Por favor, intenta nuevamente.");
     } finally {
-      setIsAnalyzing(false);
+      if (mountedRef.current) {
+        setIsAnalyzing(false);
+      }
+      analyzeInProgressRef.current = false;
     }
   };
 
@@ -141,7 +176,7 @@ const TranscriptionAnalysis = ({
         <div className="flex justify-end">
           <Button
             onClick={analyzeContent}
-            disabled={isAnalyzing || !transcriptionText}
+            disabled={isAnalyzing || !transcriptionText || analyzeInProgressRef.current}
             className="w-full sm:w-auto"
           >
             {isAnalyzing ? (

@@ -8,7 +8,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const MAX_FILE_SIZE_MB = 20;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -16,13 +20,38 @@ serve(async (req) => {
   try {
     console.log('Starting secure-transcribe process...');
     
-    const formData = await req.formData();
+    // Get the form data
+    const formData = await req.formData().catch(error => {
+      console.error('Error parsing form data:', error);
+      throw new Error('Invalid form data');
+    });
+    
     const file = formData.get('file');
     const userId = formData.get('userId');
 
     if (!file || !userId) {
       console.error('Missing required data:', { hasFile: !!file, hasUserId: !!userId });
       throw new Error('Missing required file or user ID');
+    }
+
+    // Validate file size
+    if (file instanceof File) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        console.error(`File too large: ${file.size} bytes (max: ${MAX_FILE_SIZE_BYTES} bytes)`);
+        throw new Error(`File size exceeds the maximum allowed size of ${MAX_FILE_SIZE_MB}MB`);
+      }
+      
+      // Validate file type
+      const validTypes = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'video/mp4'];
+      if (!validTypes.includes(file.type)) {
+        console.error(`Invalid file type: ${file.type}`);
+        throw new Error('File type not supported. Please upload an MP3, WAV, OGG, or MP4 file.');
+      }
+      
+      console.log(`File validated: ${file.name}, ${file.size} bytes, ${file.type}`);
+    } else {
+      console.error('File is not a valid File object');
+      throw new Error('Invalid file format');
     }
 
     console.log('Processing file with OpenAI Whisper API');
@@ -39,21 +68,51 @@ serve(async (req) => {
     whisperFormData.append('language', 'es');
     whisperFormData.append('response_format', 'verbose_json');
 
-    // Send to OpenAI Whisper
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIKey}`,
-      },
-      body: whisperFormData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenAI API error:', errorText);
-      throw new Error(`OpenAI API error: ${errorText}`);
+    // Send to OpenAI Whisper with retries
+    let response;
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openAIKey}`,
+          },
+          body: whisperFormData,
+        });
+        
+        if (response.ok) {
+          break;
+        } else {
+          const errorText = await response.text();
+          console.error(`OpenAI API error (attempt ${retries + 1}/${maxRetries + 1}):`, errorText);
+          
+          // If we've reached max retries, throw the error
+          if (retries === maxRetries) {
+            throw new Error(`OpenAI API error: ${errorText}`);
+          }
+          
+          // Wait before retrying
+          await new Promise(r => setTimeout(r, 1000 * (retries + 1)));
+          retries++;
+        }
+      } catch (fetchError) {
+        console.error(`Network error (attempt ${retries + 1}/${maxRetries + 1}):`, fetchError);
+        
+        // If we've reached max retries, throw the error
+        if (retries === maxRetries) {
+          throw fetchError;
+        }
+        
+        // Wait before retrying
+        await new Promise(r => setTimeout(r, 1000 * (retries + 1)));
+        retries++;
+      }
     }
 
+    // Parse response
     const result = await response.json();
     
     // Transform segments into word-like format for consistency
@@ -73,10 +132,15 @@ serve(async (req) => {
     // Store the transcription in the database
     let dbTranscriptionId = null;
     try {
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
+      const supabaseUrl = Deno.env.get('SUPABASE_URL');
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      
+      if (!supabaseUrl || !supabaseServiceKey) {
+        console.error('Supabase credentials not found');
+        throw new Error('Database credentials not configured');
+      }
+      
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
       const { data: insertData, error: insertError } = await supabase
         .from('radio_transcriptions')

@@ -1,12 +1,16 @@
 
 import { useAudioPlayer } from './use-audio-player';
 import { UploadedFile } from '@/components/radio/types';
+import { useEffect, useRef } from 'react';
 
 interface AudioProcessingOptions {
   currentFile?: UploadedFile;
 }
 
 export const useAudioProcessing = ({ currentFile }: AudioProcessingOptions) => {
+  // Track if component is mounted to prevent memory leaks
+  const isMountedRef = useRef(true);
+
   const {
     isPlaying,
     currentTime,
@@ -26,8 +30,17 @@ export const useAudioProcessing = ({ currentFile }: AudioProcessingOptions) => {
   });
 
   const handleSeekToSegment = (timestamp: number) => {
-    seekToTimestamp(timestamp);
+    if (isMountedRef.current) {
+      seekToTimestamp(timestamp);
+    }
   };
+
+  // Cleanup function to prevent memory leaks when component unmounts
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   return {
     isPlaying,
