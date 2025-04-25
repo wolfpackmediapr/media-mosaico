@@ -1,7 +1,12 @@
 
 import { Button } from "@/components/ui/button";
 import { Edit, Headphones } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { 
+  Tooltip, 
+  TooltipContent, 
+  TooltipTrigger, 
+  TooltipProvider 
+} from "@/components/ui/tooltip";
 
 interface ViewModeToggleProps {
   mode: 'interactive' | 'edit';
@@ -20,35 +25,39 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
 
   return (
     <div className="flex border rounded-md overflow-hidden">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={mode === 'edit' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => onChange('edit')}
-            className="rounded-none border-0 flex-1"
-          >
-            <Edit className="h-4 w-4 mr-2" />
-            Editar
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Modo de edición</TooltipContent>
-      </Tooltip>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={mode === 'edit' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => onChange('edit')}
+              className="rounded-none border-0 flex-1"
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Editar
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Modo de edición</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={mode === 'interactive' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => onChange('interactive')}
-            className="rounded-none border-0 flex-1"
-          >
-            <Headphones className="h-4 w-4 mr-2" />
-            Interactivo
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Transcripción interactiva</TooltipContent>
-      </Tooltip>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={mode === 'interactive' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => onChange('interactive')}
+              className="rounded-none border-0 flex-1"
+            >
+              <Headphones className="h-4 w-4 mr-2" />
+              Interactivo
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Transcripción interactiva</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 };

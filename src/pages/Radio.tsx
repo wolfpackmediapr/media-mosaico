@@ -1,6 +1,7 @@
 
 import { useRadioTabState } from "@/hooks/radio/useRadioTabState";
 import RadioContainer from "@/components/radio/RadioContainer";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const Radio = () => {
   // Use radio tab state for persisting transcription text
@@ -11,12 +12,14 @@ const Radio = () => {
   });
 
   return (
-    <RadioContainer 
-      persistedText={textContent} 
-      onTextChange={setTextContent}
-      persistKey="radio-files"
-      storage="sessionStorage"
-    />
+    <TooltipProvider>
+      <RadioContainer 
+        persistedText={textContent} 
+        onTextChange={setTextContent}
+        persistKey="radio-files"
+        storage="sessionStorage"
+      />
+    </TooltipProvider>
   );
 };
 
