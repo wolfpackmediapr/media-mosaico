@@ -87,6 +87,28 @@ const RadioContainer = ({
     clearAllState();
   };
 
+  // Create file management section (left and right sections combined)
+  const fileManagementSection = (
+    <FileManagementSection
+      files={files}
+      setFiles={setFiles}
+      currentFileIndex={currentFileIndex}
+      setCurrentFileIndex={setCurrentFileIndex}
+      currentFile={currentFile}
+      isProcessing={isProcessing}
+      setIsProcessing={setIsProcessing}
+      progress={progress}
+      setProgress={setProgress}
+      transcriptionText={transcriptionText}
+      setTranscriptionText={setTranscriptionText}
+      setTranscriptionId={setTranscriptionId}
+      handleTranscriptionReceived={handleTranscriptionReceived}
+      handleFilesAdded={handleFilesAdded}
+      metadata={metadata}
+      audioControls={audioControls}
+    />
+  );
+
   return (
     <>
       <TopSection
@@ -96,26 +118,8 @@ const RadioContainer = ({
       />
       <RadioLayout
         isAuthenticated={isAuthenticated}
-        leftSection={
-          <FileManagementSection
-            files={files}
-            setFiles={setFiles}
-            currentFileIndex={currentFileIndex}
-            setCurrentFileIndex={setCurrentFileIndex}
-            currentFile={currentFile}
-            isProcessing={isProcessing}
-            setIsProcessing={setIsProcessing}
-            progress={progress}
-            setProgress={setProgress}
-            transcriptionText={transcriptionText}
-            setTranscriptionText={setTranscriptionText}
-            setTranscriptionId={setTranscriptionId}
-            handleTranscriptionReceived={handleTranscriptionReceived}
-            handleFilesAdded={handleFilesAdded}
-            metadata={metadata}
-            audioControls={audioControls}
-          />
-        }
+        leftSection={fileManagementSection}
+        rightSection={null} // Adding this to satisfy the prop requirement
         transcriptionSection={
           <TranscriptionSection
             isProcessing={isProcessing}
