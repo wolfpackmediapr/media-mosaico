@@ -6,7 +6,7 @@ interface TranscriptionFeedbackProps {
   hasTimestampData: boolean;
 }
 
-const TranscriptionFeedback = ({ 
+export const TranscriptionFeedback = ({ 
   isEmpty, 
   isProcessing, 
   showTimestamps,
@@ -30,5 +30,3 @@ const TranscriptionFeedback = ({
 
   return null;
 };
-
-export default TranscriptionFeedback;

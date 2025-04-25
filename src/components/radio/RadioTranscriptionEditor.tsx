@@ -1,8 +1,8 @@
+
 import React from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
-import TranscriptionFeedback from "./editor/TranscriptionFeedback";
-import { EnhancedTranscriptionEditor } from "./enhanced-editor/EnhancedTranscriptionEditor";
+import { TranscriptionEditorWrapper } from "./editor/TranscriptionEditorWrapper";
 
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
@@ -53,29 +53,16 @@ const RadioTranscriptionEditor = ({
   };
 
   return (
-    <div className="relative">
-      <EnhancedTranscriptionEditor
-        transcriptionResult={transcriptionResult}
-        transcriptionText={localText}
-        isProcessing={isProcessing}
-        onTranscriptionChange={handleTranscriptionChange}
-        onTimestampClick={onTimestampClick}
-        currentTime={currentTime}
-      />
-      {isSaving && (
-        <div className="absolute top-2 right-2">
-          <span className="text-sm text-primary animate-pulse">
-            Guardando...
-          </span>
-        </div>
-      )}
-      <TranscriptionFeedback
-        isEmpty={!localText}
-        isProcessing={isProcessing}
-        showTimestamps={!!hasSpeakerLabels}
-        hasTimestampData={!!hasSpeakerLabels}
-      />
-    </div>
+    <TranscriptionEditorWrapper
+      transcriptionResult={transcriptionResult}
+      transcriptionText={localText}
+      isProcessing={isProcessing}
+      onTranscriptionChange={handleTranscriptionChange}
+      onTimestampClick={onTimestampClick}
+      currentTime={currentTime}
+      isSaving={isSaving}
+      hasSpeakerLabels={hasSpeakerLabels}
+    />
   );
 };
 
