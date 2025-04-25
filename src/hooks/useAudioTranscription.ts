@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -28,7 +29,10 @@ export const useAudioTranscription = () => {
       setIsProcessing(true);
       
       // Check authentication first
-      const user = await verifyAuthentication();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("AUTH_REQUIRED");
+      }
       
       // Validate file
       if (!validateAudioFile(file)) {
@@ -55,8 +59,22 @@ export const useAudioTranscription = () => {
 
       // Try primary transcription service (AssemblyAI)
       try {
-        const data = await transcribeWithAssemblyAI(formData);
-        
+        const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+          body: formData,
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+
+        if (error) {
+          console.error('Transcription error:', error);
+          throw error;
+        }
+
+        if (!data) {
+          throw new Error('No data received from transcription service');
+        }
+
         // Store transcript ID for potential later use
         if (data?.transcript_id) {
           setTranscriptId(data.transcript_id);
@@ -71,7 +89,6 @@ export const useAudioTranscription = () => {
             }
           } catch (sentenceError) {
             console.error('Error fetching sentences:', sentenceError);
-            // Non-fatal, continue without sentences
           }
         }
         
@@ -84,38 +101,28 @@ export const useAudioTranscription = () => {
             }
           } catch (utteranceError) {
             console.error('Error fetching utterances:', utteranceError);
-            // Non-fatal, continue without utterances
           }
         }
         
-        onTranscriptionComplete?.(data);
+        if (onTranscriptionComplete) {
+          onTranscriptionComplete(data);
+        }
         
         toast({
           title: "Transcripción completada",
-          description: "El archivo ha sido procesado exitosamente con AssemblyAI",
+          description: "El archivo ha sido procesado exitosamente",
         });
+        
         return data;
-      } catch (assemblyError) {
-        console.error('AssemblyAI transcription failed, falling back to OpenAI:', assemblyError);
+
+      } catch (transcriptionError) {
+        console.error('Transcription failed:', transcriptionError);
+        throw transcriptionError;
       }
 
-      // Fallback to OpenAI Whisper
-      try {
-        const data = await transcribeWithOpenAI(formData);
-        onTranscriptionComplete?.(data);
-        toast({
-          title: "Transcripción completada",
-          description: "El archivo ha sido procesado exitosamente con OpenAI Whisper",
-        });
-        return data;
-      } catch (openaiError) {
-        console.error('OpenAI transcription failed:', openaiError);
-        throw openaiError;
-      }
     } catch (error: any) {
       console.error('Error processing file:', error);
       
-      // Special handling for authentication errors
       if (error.message === "AUTH_REQUIRED") {
         throw error;
       }
@@ -136,16 +143,14 @@ export const useAudioTranscription = () => {
     onTranscriptionComplete?: (result: TranscriptionResult) => void
   ) => {
     try {
-      await processAudioFile(file, onTranscriptionComplete);
-      return true;
+      const result = await processAudioFile(file, onTranscriptionComplete);
+      return result;
     } catch (error: any) {
       if (error.message === "AUTH_REQUIRED") {
-        // Store the current path to return after login
         sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
         navigate('/auth');
-        return false;
+        return null;
       }
-      // Let other errors bubble up
       throw error;
     }
   };

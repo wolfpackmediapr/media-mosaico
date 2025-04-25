@@ -20,18 +20,26 @@ serve(async (req) => {
     const file = formData.get('file');
     const userId = formData.get('userId');
 
-    // Validate request data
-    if (!file || !userId) {
-      console.error('Missing required data:', { hasFile: !!file, hasUserId: !!userId });
-      throw new Error('Missing required file or user ID');
+    // Enhanced validation
+    if (!file) {
+      throw new Error('File is missing from request');
     }
 
-    // Validate file size
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    // Validate file size and contents
     if (file.size === 0) {
-      throw new Error('File is empty or corrupted');
+      throw new Error('File is empty');
     }
 
-    console.log('Received file:', {
+    const buffer = await file.arrayBuffer();
+    if (buffer.byteLength === 0) {
+      throw new Error('File buffer is empty');
+    }
+
+    console.log('File validation passed:', {
       name: file.name,
       type: file.type,
       size: file.size,
@@ -40,16 +48,10 @@ serve(async (req) => {
 
     const assemblyKey = Deno.env.get('ASSEMBLYAI_API_KEY');
     if (!assemblyKey) {
-      console.error('AssemblyAI API key not found');
       throw new Error('AssemblyAI API key not configured');
     }
 
-    // Validate file before upload
-    const buffer = await file.arrayBuffer();
-    if (buffer.byteLength === 0) {
-      throw new Error('File buffer is empty');
-    }
-
+    // Upload file to AssemblyAI
     console.log('Uploading file to AssemblyAI...');
     const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
       method: 'POST',
@@ -64,14 +66,14 @@ serve(async (req) => {
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
       console.error('Upload failed:', errorText);
-      throw new Error(`Failed to upload audio to AssemblyAI: ${errorText}`);
+      throw new Error(`Failed to upload audio: ${errorText}`);
     }
 
     const uploadResult = await uploadResponse.json();
     console.log('File uploaded successfully:', uploadResult);
 
-    // Start transcription with Nano model for Spanish
-    console.log('Starting AssemblyAI transcription with Nano model for Spanish...');
+    // Start transcription with enhanced configuration
+    console.log('Starting AssemblyAI transcription...');
     const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
@@ -82,12 +84,10 @@ serve(async (req) => {
         audio_url: uploadResult.upload_url,
         language_code: 'es',
         speech_model: 'nano',
-        speaker_labels: true,     // Enable speaker diarization
-        punctuate: true,          // Enable smart punctuation
-        format_text: true,        // Enable text formatting
-        entity_detection: true,
-        word_boost: ["radio", "noticia", "programa"],
-        boost_param: "high"       // Force stronger boost effect
+        speaker_labels: true,
+        punctuate: true,
+        format_text: true,
+        entity_detection: true
       }),
     });
 
@@ -99,13 +99,13 @@ serve(async (req) => {
 
     const transcribeResult = await transcribeResponse.json();
     console.log('Transcription started:', transcribeResult);
+    
     const transcriptId = transcribeResult.id;
-
-    // Poll for completion
     let transcript;
     let attempts = 0;
     const maxAttempts = 60;
     
+    // Poll for completion with enhanced error handling
     while (attempts < maxAttempts) {
       attempts++;
       console.log(`Polling AssemblyAI (attempt ${attempts}/${maxAttempts})...`);
@@ -145,115 +145,64 @@ serve(async (req) => {
       throw new Error('Transcription timed out');
     }
 
-    // Fetch sentences for better segmentation (if available)
-    let sentences = [];
-    try {
-      console.log('Fetching sentence-level timestamps...');
-      const sentencesResponse = await fetch(
-        `https://api.assemblyai.com/v2/transcript/${transcriptId}/sentences`,
-        {
-          headers: {
-            'Authorization': assemblyKey,
-          },
-        }
-      );
-      
-      if (sentencesResponse.ok) {
-        const sentencesData = await sentencesResponse.json();
-        sentences = sentencesData.sentences || [];
-        console.log(`Retrieved ${sentences.length} sentences with timestamps`);
-      } else {
-        console.warn('Failed to fetch sentences, continuing without sentence data');
-      }
-    } catch (sentenceError) {
-      console.error('Error fetching sentences:', sentenceError);
-      // Continue execution even if sentence fetch fails
-    }
+    // Initialize Supabase client for database operations
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch utterances (speaker segments) if diarization was enabled
-    let utterances = [];
+    // Save transcription with robust error handling
     try {
-      console.log('Fetching speaker diarization data...');
-      const utterancesResponse = await fetch(
-        `https://api.assemblyai.com/v2/transcript/${transcriptId}/utterances`,
-        {
-          headers: {
-            'Authorization': assemblyKey,
-          },
-        }
-      );
-      
-      if (utterancesResponse.ok) {
-        const utterancesData = await utterancesResponse.json();
-        utterances = utterancesData.utterances || [];
-        console.log(`Retrieved ${utterances.length} speaker utterances`);
-      } else {
-        console.warn('Failed to fetch utterances, continuing without speaker data');
-      }
-    } catch (utteranceError) {
-      console.error('Error fetching utterances:', utteranceError);
-      // Continue execution even if utterance fetch fails
-    }
-
-    // Store the transcription in the database
-    let dbTranscriptionId = null;
-    try {
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
-
-      const { data: insertData, error: insertError } = await supabase
+      console.log('Saving transcription to database...');
+      const { data: transcriptionData, error: insertError } = await supabase
         .from('radio_transcriptions')
         .insert({
           user_id: userId,
           transcription_text: transcript.text,
           transcript_id: transcriptId,
-          metadata: {
-            audio_duration: transcript.audio_duration,
-            has_word_timestamps: true,
-            has_sentence_timestamps: sentences.length > 0,
-            has_speaker_labels: utterances.length > 0,
-            entity_detection: transcript.entities ? true : false,
-            language_code: 'es',
-            model: 'nano'
+          emisora: 'default',
+          programa: 'default',
+          horario: new Date().toISOString(),
+          analysis_result: {
+            entities: transcript.entities,
+            content_safety: transcript.content_safety_labels,
+            topics: transcript.iab_categories_result
           }
         })
         .select('id')
         .single();
 
       if (insertError) {
-        console.error('Error saving to database:', insertError);
-      } else {
-        dbTranscriptionId = insertData.id;
-        console.log('Transcription saved to database with ID:', dbTranscriptionId);
+        console.error('Database insertion error:', insertError);
+        throw new Error(`Failed to save transcription: ${insertError.message}`);
       }
-    } catch (dbError) {
-      console.error('Error saving to database:', dbError);
-      // Continue execution even if database save fails
-    }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        text: transcript.text,
-        words: transcript.words,
-        sentences: sentences,
-        utterances: utterances, // Include speaker utterances in the response
-        content_safety: transcript.content_safety_labels,
-        entities: transcript.entities,
-        topics: transcript.iab_categories_result,
-        audio_duration: transcript.audio_duration,
-        transcript_id: transcriptId,
-        db_transcription_id: dbTranscriptionId
-      }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+      if (!transcriptionData) {
+        throw new Error('No data returned from database insertion');
       }
-    );
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          text: transcript.text,
+          transcript_id: transcriptId,
+          transcription_id: transcriptionData.id,
+          metadata: {
+            audio_duration: transcript.audio_duration,
+            confidence: transcript.confidence
+          }
+        }),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+
+    } catch (dbError) {
+      console.error('Database operation failed:', dbError);
+      throw new Error(`Database operation failed: ${dbError.message}`);
+    }
 
   } catch (error) {
     console.error('Error in transcribe-audio function:', error);
@@ -261,10 +210,9 @@ serve(async (req) => {
       JSON.stringify({ 
         success: false, 
         error: error.message,
-        details: error.stack
       }),
       { 
-        status: 500,
+        status: 400,
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json' 
