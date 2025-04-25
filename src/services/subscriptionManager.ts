@@ -122,9 +122,8 @@ class SubscriptionManager {
       };
       
       // Add error handling for the channel
-      // Fix: The channel.on method expects 3 arguments when listening for events
-      // The third argument is the callback function
-      channel.on('error', (error: any) => {
+      // Fix: Use the system event with proper event name
+      channel.on('system', { event: 'error' }, (error: any) => {
         this.log(`Channel error on ${channelName}:`, error);
         this._globalErrorListeners.forEach(listener => {
           try {
@@ -133,7 +132,7 @@ class SubscriptionManager {
             console.error('Error in subscription error listener:', err);
           }
         });
-      }, () => {}); // Empty callback as the third argument
+      });
     } else {
       this.log(`Using existing channel: ${channelName}`);
     }
@@ -170,19 +169,16 @@ class SubscriptionManager {
     this.log(`Subscribing to ${config.table} (${config.event}) on channel ${channelName}`);
     this.log(`Channel ${channelName} now has ${subscription.refCount} subscribers`);
     
-    // Add listener for this specific subscription
-    // Fix: Use the correct syntax for postgres_changes by replacing the generic 'on' call
-    // with the specific 'postgres_changes' event type
-    channel.on(
-      'postgres_changes', 
-      {
-        event: config.event,
-        schema: config.schema || 'public',
-        table: config.table,
-        filter: config.filter
-      },
-      handler
-    );
+    // Fix: Use correct event registration format for postgres_changes
+    // The first argument should be the event category "postgres_changes"
+    // Second argument is the filter object
+    // Third argument is the handler function
+    channel.on('postgres_changes', {
+      event: config.event,
+      schema: config.schema || 'public',
+      table: config.table,
+      filter: config.filter
+    }, handler);
     
     // If this is the first subscription for this channel, subscribe to it
     if (subscription.refCount === 1) {
