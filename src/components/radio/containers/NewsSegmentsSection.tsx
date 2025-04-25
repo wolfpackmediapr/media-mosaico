@@ -5,7 +5,7 @@ import RadioNewsSegmentsContainer, { RadioNewsSegment } from "../RadioNewsSegmen
 interface NewsSegmentsSectionProps {
   newsSegments: RadioNewsSegment[];
   setNewsSegments: (segments: RadioNewsSegment[]) => void;
-  handleSeekToSegment: (segment: RadioNewsSegment) => void; // Changed type from number to RadioNewsSegment
+  handleSeekToSegment: (segment: RadioNewsSegment) => void;
   isProcessing: boolean;
 }
 
