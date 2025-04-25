@@ -120,25 +120,25 @@ const TranscriptionSection: React.FC<TranscriptionSectionProps> = ({
             </div>
 
             <TabsContent value="editor" className="mt-0">
-              <RadioTranscriptionSlot isProcessing={isProcessing}>
-                {speakerViewMode === "interactive" && hasSpeakerLabels ? (
-                  <InteractiveTranscription
-                    transcriptionResult={transcriptionResult}
-                    currentTime={currentTime}
-                    isPlaying={isPlaying}
-                    onPlayPause={onPlayPause}
-                    onSeek={handleSeekToSegment}
-                  />
-                ) : (
-                  <RadioTranscriptionEditor
-                    value={localText}
-                    onChange={handleTextChange}
-                    isEditing={isEditing}
-                    onToggleEditMode={toggleEditMode}
-                    isLoading={isLoadingUtterances}
-                  />
-                )}
-              </RadioTranscriptionSlot>
+              {speakerViewMode === "interactive" && hasSpeakerLabels ? (
+                <InteractiveTranscription
+                  transcriptionResult={transcriptionResult}
+                  currentTime={currentTime}
+                  isPlaying={isPlaying}
+                  onPlayPause={onPlayPause}
+                  onSeek={handleSeekToSegment}
+                />
+              ) : (
+                <RadioTranscriptionEditor
+                  transcriptionText={localText}
+                  isProcessing={isProcessing}
+                  onTranscriptionChange={handleTextChange}
+                  transcriptionId={transcriptionId}
+                  transcriptionResult={transcriptionResult}
+                  onTimestampClick={handleSeekToSegment}
+                  registerReset={registerEditorReset}
+                />
+              )}
             </TabsContent>
 
             <TabsContent value="timestamped" className="mt-0">
