@@ -1,16 +1,17 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useMediaControls } from './useMediaControls';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 
 interface AudioPlayerOptions {
-  file: File;
+  file?: File;
   onEnded?: () => void;
   onError?: (error: string) => void;
+  preservePlaybackOnBlur?: boolean;
+  resumeOnFocus?: boolean;
 }
 
-export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) => {
+export const useAudioPlayer = ({ file, onEnded, onError, preservePlaybackOnBlur = true, resumeOnFocus = true }: AudioPlayerOptions) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -20,8 +21,11 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval>>();
+  const wasPlayingBeforeBlur = useRef<boolean>(false);
 
   useEffect(() => {
+    if (!file) return;
+
     try {
       const fileUrl = URL.createObjectURL(file);
       const audio = new Audio(fileUrl);
@@ -43,6 +47,16 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
       };
 
       audioRef.current = audio;
+      
+      // Load stored position if available
+      const storedPosition = sessionStorage.getItem('audio-position');
+      if (storedPosition) {
+        const position = parseFloat(storedPosition);
+        if (!isNaN(position) && position > 0) {
+          audio.currentTime = position;
+          setProgress(position);
+        }
+      }
       
       return () => {
         audio.pause();
@@ -143,6 +157,64 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     toast.info(`Velocidad: ${newRate}x`);
   };
 
+  // Add enhanced tab visibility handling
+  useEffect(() => {
+    if (!file) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is being hidden, remember playback state
+        wasPlayingBeforeBlur.current = isPlaying;
+        
+        // Store state in session storage for recovery
+        if (preservePlaybackOnBlur) {
+          sessionStorage.setItem('audio-was-playing', isPlaying ? 'true' : 'false');
+          if (audioRef.current) {
+            sessionStorage.setItem('audio-position', String(audioRef.current.currentTime));
+          }
+        }
+      } else {
+        // Tab is becoming visible again
+        if (resumeOnFocus && wasPlayingBeforeBlur.current) {
+          // Try to resume playback if it was playing before
+          if (audioRef.current && !isPlaying) {
+            const playPromise = audioRef.current.play();
+            if (playPromise !== undefined) {
+              playPromise
+                .then(() => {
+                  setIsPlaying(true);
+                  updateProgress();
+                })
+                .catch(error => {
+                  console.error('Error resuming audio on tab focus:', error);
+                  // Don't show error toast on autoplay restrictions
+                  if (!(error.name === 'NotAllowedError')) {
+                    toast.error('Couldn\'t resume audio automatically');
+                  }
+                });
+            }
+          }
+        }
+        
+        // Recover position if needed
+        const storedPosition = sessionStorage.getItem('audio-position');
+        if (storedPosition && audioRef.current) {
+          const position = parseFloat(storedPosition);
+          if (!isNaN(position) && position > 0) {
+            audioRef.current.currentTime = position;
+            setProgress(position);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [file, isPlaying, preservePlaybackOnBlur, resumeOnFocus]);
+  
   useMediaControls({
     onPlay: () => !isPlaying && handlePlayPause(),
     onPause: () => isPlaying && handlePlayPause(),
@@ -160,25 +232,19 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
   });
 
   return {
-    playbackState: {
-      isPlaying,
-      progress,
-      duration,
-      isMuted
-    },
+    isPlaying,
+    currentTime: progress,
+    duration,
+    volume,
+    isMuted,
     playbackRate,
-    setPlaybackRate,
-    volumeControls: {
-      isMuted,
-      volume,
-      handleVolumeChange,
-      toggleMute
-    },
-    playbackControls: {
-      handlePlayPause,
-      handleSkip,
-      handleSeek
-    },
-    changePlaybackRate
+    handlePlayPause,
+    handleSeek,
+    handleSkip,
+    handleToggleMute,
+    handleVolumeChange,
+    handlePlaybackRateChange,
+    seekToTimestamp: handleSeek,
+    setIsPlaying
   };
 };

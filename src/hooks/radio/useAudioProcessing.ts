@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from "react";
-import { useAudioPlayer } from "./use-audio-player";
+import { useAudioPlayer } from "../radio/audio-player/hooks/useAudioPlayer";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 
 interface AudioProcessingOptions {

@@ -1,3 +1,4 @@
 
 // This file now re-exports from the main implementation
-export * from "./useAudioPlayer";
+// Fix the import path to point to the correct file
+export * from "../radio/audio-player/hooks/useAudioPlayer";
