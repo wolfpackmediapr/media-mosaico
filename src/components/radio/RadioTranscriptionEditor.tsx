@@ -48,13 +48,20 @@ const RadioTranscriptionEditor = ({
     }
   }, [registerReset, resetLocalSpeakerText]);
 
+  // Create a wrapper function that adapts between the expected types
+  const handleTranscriptionChange = (text: string) => {
+    // Pass the text directly to the handleTextChange function
+    // instead of expecting an event object
+    onTranscriptionChange(text);
+  };
+
   return (
     <div className="relative">
       <EnhancedTranscriptionEditor
         transcriptionResult={transcriptionResult}
         transcriptionText={localText}
         isProcessing={isProcessing}
-        onTranscriptionChange={handleTextChange}
+        onTranscriptionChange={handleTranscriptionChange}
         onTimestampClick={onTimestampClick}
         currentTime={currentTime}
       />
