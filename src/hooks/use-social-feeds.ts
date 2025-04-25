@@ -9,7 +9,7 @@ export function useSocialPlatforms() {
     queryFn: async () => {
       try {
         const { data, error } = await supabase
-          .from("social_platforms")
+          .from("feed_sources")
           .select("*")
           .order("name", { ascending: true });
 
@@ -32,10 +32,10 @@ export function useSocialPosts(platformId?: string) {
 
       try {
         const { data, error } = await supabase
-          .from("social_posts")
+          .from("news_articles")
           .select("*")
-          .eq("platform_id", platformId)
-          .order("published_at", { ascending: false });
+          .eq("feed_source_id", platformId)
+          .order("pub_date", { ascending: false });
 
         if (error) throw error;
 
@@ -55,9 +55,9 @@ export function useJayFonsecaFeed() {
     queryFn: async () => {
       try {
         const { data: feed, error } = await supabase
-          .from("jay_fonseca_feed")
+          .from("news_articles")
           .select("*")
-          .order("published_at", { ascending: false })
+          .order("pub_date", { ascending: false })
           .limit(20);
 
         if (error) throw error;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 // Adjust max file size to match Supabase's practical limits
 // Supabase can technically handle 5GB files, but for video processing
@@ -22,29 +22,23 @@ export const useFileUpload = () => {
 
   const uploadFile = async (file: File) => {
     if (!file.type.startsWith("video/")) {
-      toast({
-        title: "Error",
-        description: "Por favor, sube únicamente archivos de video.",
-        variant: "destructive",
+      toast.error("Error", {
+        description: "Por favor, sube únicamente archivos de video."
       });
       return null;
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      toast({
-        title: "Archivo demasiado grande",
-        description: "El archivo excede el límite de 80MB. Por favor, reduce su tamaño antes de subirlo.",
-        variant: "destructive",
+      toast.error("Archivo demasiado grande", {
+        description: "El archivo excede el límite de 80MB. Por favor, reduce su tamaño antes de subirlo."
       });
       return null;
     }
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast({
-        title: "Error",
-        description: "Debes iniciar sesión para subir archivos.",
-        variant: "destructive",
+      toast.error("Error", {
+        description: "Debes iniciar sesión para subir archivos."
       });
       return null;
     }
@@ -92,20 +86,17 @@ export const useFileUpload = () => {
 
       setUploadProgress(100);
       
-      toast({
-        title: "Archivo subido exitosamente",
+      toast.success("Archivo subido exitosamente", {
         description: file.size > 20 * 1024 * 1024 
           ? "El archivo será convertido a audio automáticamente."
-          : "Listo para procesar la transcripción.",
+          : "Listo para procesar la transcripción."
       });
 
       return { fileName, preview: URL.createObjectURL(file) };
     } catch (error) {
       console.error('Error uploading file:', error);
-      toast({
-        title: "Error al subir el archivo",
-        description: error instanceof Error ? error.message : "Ocurrió un error al subir el archivo. Por favor, intenta nuevamente.",
-        variant: "destructive",
+      toast.error("Error al subir el archivo", {
+        description: error instanceof Error ? error.message : "Ocurrió un error al subir el archivo. Por favor, intenta nuevamente."
       });
       return null;
     } finally {
