@@ -1,5 +1,4 @@
-
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 // Error message mapping
 const ERROR_MESSAGES = {
@@ -11,11 +10,9 @@ const ERROR_MESSAGES = {
   default: "Ha ocurrido un error inesperado"
 };
 
-// Error handler utility function
 export const handleSocialFeedError = (
   error: unknown, 
-  errorType: keyof typeof ERROR_MESSAGES, 
-  toast: ReturnType<typeof useToast>["toast"]
+  errorType: keyof typeof ERROR_MESSAGES
 ) => {
   console.error(`Error ${errorType}:`, error);
   
@@ -23,9 +20,7 @@ export const handleSocialFeedError = (
     ? error.message 
     : ERROR_MESSAGES[errorType] || ERROR_MESSAGES.default;
 
-  toast({
-    title: "Error",
-    description: errorMessage,
-    variant: "destructive",
+  toast.error(errorMessage, {
+    description: error instanceof Error ? error.message : undefined,
   });
 };
