@@ -3,16 +3,10 @@ import { useAuthStatus } from "@/hooks/use-auth-status";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
-import { useRadioPlayer } from "@/hooks/radio/useRadioPlayer";
+import { useRadioControlsState } from "@/hooks/radio/useRadioControlsState";
 import RadioLayout from "./RadioLayout";
-import {
-  TopSection,
-  LeftSection,
-  RightSection,
-  TranscriptionSection,
-  AnalysisSection,
-  NewsSegmentsSection
-} from "./containers";
+import { TopSection, TranscriptionSection, AnalysisSection, NewsSegmentsSection } from "./containers";
+import FileManagementSection from "./containers/FileManagementSection";
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -78,44 +72,19 @@ const RadioContainer = ({
     onTextChange
   });
 
-  const {
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    isMuted,
-    playbackRate,
-    handlePlayPause,
-    handleSeek,
-    handleSkip,
-    handleToggleMute,
-    handleVolumeChange,
-    handlePlaybackRateChange,
-    handleSeekToSegment
-  } = useRadioPlayer({
+  const audioControls = useRadioControlsState({
     currentFile,
     isActiveMediaRoute,
     isMediaPlaying,
-    setIsMediaPlaying,
-    persistedText,
-    transcriptionText,
-    setTranscriptionText,
-    onTextChange
+    setIsMediaPlaying
   });
 
   const handleClearAll = () => {
-    console.log('[RadioContainer] handleClearAll: Starting clear sequence');
     resetTranscription();
     setNewsSegments([]);
     setFiles([]);
     setCurrentFileIndex(0);
     clearAllState();
-  };
-
-  const handleTrackSelect = (index: number) => {
-    if (index !== currentFileIndex) {
-      setCurrentFileIndex(index);
-    }
   };
 
   return (
@@ -128,11 +97,12 @@ const RadioContainer = ({
       <RadioLayout
         isAuthenticated={isAuthenticated}
         leftSection={
-          <LeftSection
+          <FileManagementSection
             files={files}
             setFiles={setFiles}
             currentFileIndex={currentFileIndex}
             setCurrentFileIndex={setCurrentFileIndex}
+            currentFile={currentFile}
             isProcessing={isProcessing}
             setIsProcessing={setIsProcessing}
             progress={progress}
@@ -142,27 +112,8 @@ const RadioContainer = ({
             setTranscriptionId={setTranscriptionId}
             handleTranscriptionReceived={handleTranscriptionReceived}
             handleFilesAdded={handleFilesAdded}
-          />
-        }
-        rightSection={
-          <RightSection
-            currentFile={currentFile}
             metadata={metadata}
-            files={files}
-            currentFileIndex={currentFileIndex}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            duration={duration}
-            isMuted={isMuted}
-            volume={volume}
-            playbackRate={playbackRate}
-            onPlayPause={handlePlayPause}
-            onSeek={handleSeek}
-            onSkip={handleSkip}
-            onToggleMute={handleToggleMute}
-            onVolumeChange={handleVolumeChange}
-            onPlaybackRateChange={handlePlaybackRateChange}
-            handleTrackSelect={handleTrackSelect}
+            audioControls={audioControls}
           />
         }
         transcriptionSection={
@@ -175,11 +126,11 @@ const RadioContainer = ({
             handleTranscriptionTextChange={handleTranscriptionTextChange}
             handleSegmentsReceived={handleSegmentsReceived}
             handleMetadataChange={handleMetadataChange}
-            handleSeekToSegment={handleSeekToSegment}
+            handleSeekToSegment={audioControls.handleSeekToSegment}
             registerEditorReset={handleEditorRegisterReset}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            onPlayPause={handlePlayPause}
+            isPlaying={audioControls.isPlaying}
+            currentTime={audioControls.currentTime}
+            onPlayPause={audioControls.handlePlayPause}
           />
         }
         analysisSection={
@@ -195,7 +146,7 @@ const RadioContainer = ({
           <NewsSegmentsSection
             newsSegments={newsSegments}
             setNewsSegments={setNewsSegments}
-            handleSeekToSegment={handleSeekToSegment}
+            handleSeekToSegment={audioControls.handleSeekToSegment}
             isProcessing={isProcessing}
           />
         }
