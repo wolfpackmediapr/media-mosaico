@@ -28,16 +28,6 @@ export const useTranscriptionManagement = () => {
     resetTranscription
   } = useRadioTranscription();
 
-  const handleTranscriptionTextChange = useCallback((text: string) => {
-    if (isMountedRef.current) {
-      handleTranscriptionChange(text);
-    }
-  }, [handleTranscriptionChange]);
-
-  const registerCleanup = useCallback((cleanupFn: () => void) => {
-    cleanupFnsRef.current.push(cleanupFn);
-  }, []);
-
   // Enhanced cleanup when component unmounts
   useEffect(() => {
     return () => {
@@ -53,6 +43,17 @@ export const useTranscriptionManagement = () => {
       cleanupFnsRef.current = [];
     };
   }, []);
+
+  // Register a cleanup function
+  const registerCleanup = useCallback((cleanupFn: () => void) => {
+    cleanupFnsRef.current.push(cleanupFn);
+  }, []);
+
+  const handleTranscriptionTextChange = useCallback((text: string) => {
+    if (isMountedRef.current) {
+      handleTranscriptionChange(text);
+    }
+  }, [handleTranscriptionChange]);
 
   return {
     isProcessing,
