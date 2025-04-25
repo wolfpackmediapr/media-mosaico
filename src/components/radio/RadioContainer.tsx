@@ -5,7 +5,6 @@ import RadioLayout from "./RadioLayout";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useRadioTranscription } from "@/hooks/radio/useRadioTranscription";
 
-// Import the refactored component sections using barrel exports
 import {
   TopSection,
   LeftSection,
@@ -73,6 +72,12 @@ const RadioContainer = ({
   const handleClearAll = () => {
     console.log('[RadioContainer] handleClearAll: Removing all files and state');
     
+    resetTranscription();
+    setNewsSegments([]);
+    
+    setFiles([]);
+    setCurrentFileIndex(0);
+    
     const keysToDelete = [
       `${persistKey}-metadata`,
       `${persistKey}-current-index`,
@@ -83,6 +88,8 @@ const RadioContainer = ({
       "radio-transcription-speaker-draft",
       "transcription-timestamp-view-draft",
       "transcription-editor-mode-draft",
+      `${persistKey}-text-content`,
+      "radio-transcription-text-content"
     ];
 
     if (transcriptionId) {
@@ -91,12 +98,14 @@ const RadioContainer = ({
         `radio-transcription-speaker-${transcriptionId}`,
         `transcription-timestamp-view-${transcriptionId}`,
         `transcription-editor-mode-${transcriptionId}`,
-        `radio-content-analysis-${transcriptionId}`
+        `radio-content-analysis-${transcriptionId}`,
+        `radio-transcription-text-content-${transcriptionId}`
       );
     }
 
     keysToDelete.forEach(key => {
       sessionStorage.removeItem(key);
+      console.log(`[RadioContainer] Cleared storage key: ${key}`);
     });
 
     const allKeys = Object.keys(sessionStorage);
@@ -104,7 +113,8 @@ const RadioContainer = ({
       'radio-transcription',
       'transcription-editor',
       'transcription-timestamp',
-      'radio-content-analysis'
+      'radio-content-analysis',
+      'radio-transcription-text'
     ];
 
     allKeys.forEach(key => {
@@ -114,12 +124,10 @@ const RadioContainer = ({
       }
     });
 
-    setFiles([]);
-    setCurrentFileIndex(0);
-    resetTranscription();
-    setNewsSegments([]);
-
-    clearAnalysisRef.current?.();
+    if (clearAnalysisRef.current) {
+      console.log('[RadioContainer] Clearing analysis state');
+      clearAnalysisRef.current();
+    }
 
     if (editorResetRef.current) {
       console.log('[RadioContainer] Calling editor reset function');
@@ -128,7 +136,10 @@ const RadioContainer = ({
       console.log('[RadioContainer] No editor reset function registered');
     }
 
-    if (onTextChange) onTextChange("");
+    if (onTextChange) {
+      onTextChange("");
+    }
+
     console.log('[RadioContainer] handleClearAll: All state, segments, and callbacks cleared');
   };
 
