@@ -1,9 +1,9 @@
+
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
-import { useAudioStateSync } from "@/hooks/radio/useAudioStateSync";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
-import { useAudioProcessing } from "@/hooks/radio/useAudioProcessing";
+import { useRadioPlayer } from "@/hooks/radio/useRadioPlayer";
 import RadioLayout from "./RadioLayout";
 import {
   TopSection,
@@ -13,7 +13,6 @@ import {
   AnalysisSection,
   NewsSegmentsSection
 } from "./containers";
-import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -79,13 +78,6 @@ const RadioContainer = ({
     onTextChange
   });
 
-  useAudioStateSync({
-    persistedText,
-    transcriptionText,
-    setTranscriptionText,
-    onTextChange
-  });
-
   const {
     isPlaying,
     currentTime,
@@ -100,11 +92,15 @@ const RadioContainer = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment
-  } = useAudioProcessing({
+  } = useRadioPlayer({
     currentFile,
     isActiveMediaRoute,
-    externalIsPlaying: isMediaPlaying,
-    onPlayingChange: setIsMediaPlaying
+    isMediaPlaying,
+    setIsMediaPlaying,
+    persistedText,
+    transcriptionText,
+    setTranscriptionText,
+    onTextChange
   });
 
   const handleClearAll = () => {

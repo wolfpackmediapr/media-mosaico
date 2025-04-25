@@ -1,4 +1,3 @@
-
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 import { extractHeadline, extractKeywords } from "../utils/segmentUtils";
 
@@ -16,7 +15,7 @@ export const createSegmentsFromTextChunks = (
     return {
       headline: headline || `Segmento ${index + 1}`,
       text: chunk,
-      start: index * 60000, // use milliseconds consistently
+      startTime: index * 60000, // use milliseconds consistently
       end: (index + 1) * 60000, // use milliseconds consistently
       keywords: extractKeywords(chunk)
     };
@@ -25,7 +24,7 @@ export const createSegmentsFromTextChunks = (
   // Log timestamps for debugging
   console.log("Generated segments from text chunks with estimated timestamps:", segments.map(s => ({
     headline: s.headline,
-    start: s.start,
+    startTime: s.startTime,
     end: s.end
   })));
   
@@ -67,7 +66,7 @@ export const createLengthBasedSegments = (
       segments.push({
         headline: headline || `Segmento ${i + 1}`,
         text: segmentText,
-        start: i * 60000,
+        startTime: i * 60000,
         end: (i + 1) * 60000,
         keywords: extractKeywords(segmentText)
       });
@@ -77,7 +76,7 @@ export const createLengthBasedSegments = (
   if (segments.length > 0) {
     console.log("Generated segments with timestamps:", segments.map(s => ({
       headline: s.headline,
-      start: s.start,
+      startTime: s.startTime,
       end: s.end
     })));
     

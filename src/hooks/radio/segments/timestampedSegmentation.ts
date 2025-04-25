@@ -1,4 +1,3 @@
-
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 import { SentenceTimestamp } from "@/services/audio/transcriptionService";
 import { extractHeadline, extractKeywords } from "../utils/segmentUtils";
@@ -39,7 +38,7 @@ export const createSegmentsFromSentences = (
     segments.push({
       headline: headline || `Segmento ${i + 1}`,
       text: segmentText,
-      start: startTime,
+      startTime: startTime,
       end: endTime,
       keywords: extractKeywords(segmentText)
     });
@@ -49,7 +48,7 @@ export const createSegmentsFromSentences = (
     // Log timestamps for debugging
     console.log("Generated segments from sentences with timestamps:", segments.map(s => ({
       headline: s.headline,
-      start: s.start,
+      startTime: s.startTime,
       end: s.end
     })));
     
@@ -102,7 +101,7 @@ export const createSegmentsFromWords = (
         segments.push({
           headline: headline || `Segmento ${segmentIndex + 1}`,
           text: segmentText,
-          start: segmentStartTime,
+          startTime: segmentStartTime,
           end: currentWordEnd,
           keywords: extractKeywords(segmentText)
         });
@@ -118,7 +117,7 @@ export const createSegmentsFromWords = (
     // Log timestamps for debugging
     console.log("Generated segments from words with timestamps:", segments.map(s => ({
       headline: s.headline,
-      start: s.start,
+      startTime: s.startTime,
       end: s.end
     })));
     
@@ -166,7 +165,7 @@ export const createSegmentsFromWhisperSegments = (
     segments.push({
       headline: headline || `Segmento ${i + 1}`,
       text: segmentText,
-      start: startTime,
+      startTime: startTime,
       end: endTime,
       keywords: extractKeywords(segmentText)
     });
@@ -176,7 +175,7 @@ export const createSegmentsFromWhisperSegments = (
     // Log timestamps for debugging
     console.log("Generated segments from Whisper with timestamps:", segments.map(s => ({
       headline: s.headline,
-      start: s.start,
+      startTime: s.startTime,
       end: s.end,
       from: "whisper"
     })));
