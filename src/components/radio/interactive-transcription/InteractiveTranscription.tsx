@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { TranscriptionResult, UtteranceTimestamp } from "@/services/audio/transcriptionService";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import SpeakerSegment from "./SpeakerSegment";
 import SpeakerLegend from "./SpeakerLegend";
@@ -11,7 +11,7 @@ import { Play, Pause } from "lucide-react";
 
 interface InteractiveTranscriptionProps {
   transcriptionResult?: TranscriptionResult;
-  currentTime: number; // Current audio playback position in seconds
+  currentTime: number;
   isPlaying: boolean;
   onPlayPause: () => void;
   onSeek: (timestamp: number) => void;
@@ -41,7 +41,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     }
   }, [currentTime, hasUtterances, transcriptionResult?.utterances]);
 
-  // Auto-scroll to active segment
+  // Auto-scroll to active segment with smooth behavior
   useEffect(() => {
     if (activeSegmentId && activeSegmentRef.current && scrollAreaRef.current) {
       activeSegmentRef.current.scrollIntoView({ 

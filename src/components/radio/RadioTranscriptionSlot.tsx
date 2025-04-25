@@ -1,6 +1,5 @@
-
 import { Card, CardContent } from "@/components/ui/card";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
 import RadioReportButton from "./RadioReportButton";
@@ -54,7 +53,6 @@ const RadioTranscriptionSlot = ({
   onMetadataChange,
   onTimestampClick,
   registerEditorReset,
-  // Audio player props with defaults
   isPlaying = false,
   currentTime = 0,
   onPlayPause = () => {},
@@ -62,15 +60,24 @@ const RadioTranscriptionSlot = ({
 }: RadioTranscriptionSlotProps) => {
   const { checkAndGenerateSegments } = useRadioSegmentGenerator(onSegmentsReceived);
   
-  // Add view mode state (interactive or edit)
+  // Always start in interactive mode if we have utterances
+  const defaultViewMode = transcriptionResult?.utterances?.length ? 'interactive' : 'edit';
+  
   const [viewMode, setViewMode] = usePersistentState<'interactive' | 'edit'>(
     `transcription-view-mode-${transcriptionId || "draft"}`,
-    'edit',
+    defaultViewMode,
     { storage: 'sessionStorage' }
   );
 
   const hasUtterances = !!transcriptionResult?.utterances && 
-                        transcriptionResult.utterances.length > 0;
+                       transcriptionResult.utterances.length > 0;
+
+  // Effect to automatically switch to interactive mode when utterances become available
+  useEffect(() => {
+    if (hasUtterances && viewMode === 'edit') {
+      setViewMode('interactive');
+    }
+  }, [hasUtterances, viewMode, setViewMode]);
 
   // Check for segment generation when transcription changes
   useEffect(() => {
@@ -91,23 +98,20 @@ const RadioTranscriptionSlot = ({
     }
   };
 
-  // Handle view mode change
-  const handleViewModeChange = (mode: 'interactive' | 'edit') => {
-    setViewMode(mode);
-  };
-
   return (
     <div className="space-y-4 md:space-y-6 w-full">
       <Card className="overflow-hidden w-full">
         <RadioTranscriptionMetadata metadata={metadata} onMetadataChange={onMetadataChange} />
         
-        <div className="p-4 border-b">
-          <ViewModeToggle 
-            mode={viewMode}
-            onChange={handleViewModeChange}
-            hasUtterances={hasUtterances}
-          />
-        </div>
+        {hasUtterances && (
+          <div className="p-4 border-b">
+            <ViewModeToggle 
+              mode={viewMode}
+              onChange={setViewMode}
+              hasUtterances={hasUtterances}
+            />
+          </div>
+        )}
 
         <CardContent className="p-4 space-y-4">
           {viewMode === 'interactive' && hasUtterances ? (
@@ -126,7 +130,7 @@ const RadioTranscriptionSlot = ({
               transcriptionId={transcriptionId}
               transcriptionResult={transcriptionResult}
               onTimestampClick={onTimestampClick}
-              registerReset={handleRegisterReset}
+              registerReset={registerEditorReset}
             />
           )}
           
