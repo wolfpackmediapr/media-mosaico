@@ -6,6 +6,7 @@ import ProgressIndicator from './ProgressIndicator';
 import { useAudioTranscription } from '@/hooks/useAudioTranscription';
 import { AudioFileItemProps } from './types';
 import { toast } from "sonner";
+import { validateAudioFile } from '@/utils/file-validation';
 
 const AudioFileItem: React.FC<AudioFileItemProps> = ({
   file,
@@ -28,6 +29,11 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
     if (isProcessing || processingComplete) return;
     
     try {
+      // Validate file before processing
+      if (!validateAudioFile(file)) {
+        return;
+      }
+
       if (setIsProcessing) setIsProcessing(true);
       
       // Create a simulation of progress for better UX
@@ -35,18 +41,14 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
       
       // Process the file
       const success = await processWithAuth(file, (result) => {
-        // Extract the text from the TranscriptionResult object
         const text = result.text;
-        
-        // Pass the transcription text to the parent component
         onTranscriptionComplete?.(text);
         setProcessingComplete(true);
         clearInterval(progressInterval);
         if (setProgress) setProgress(100);
         
-        // Show a toast notification that the text is ready for editing
-        toast.success("Transcripción completada. Puede editar el texto.", {
-          description: "Haga clic en el área de texto para editar la transcripción."
+        toast.success("Transcripción completada", {
+          description: "Puede editar el texto haciendo clic en el área de texto."
         });
       });
       
@@ -59,7 +61,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
       console.error('Error processing file:', error);
       if (setIsProcessing) setIsProcessing(false);
       if (setProgress) setProgress(0);
-      toast.error("Error procesando el archivo");
+      toast.error("Error procesando el archivo. Por favor, intente nuevamente.");
     }
   };
   

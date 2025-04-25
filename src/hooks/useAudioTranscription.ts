@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -9,7 +8,8 @@ import {
   fetchUtterances, 
   TranscriptionResult 
 } from "@/services/audio/transcriptionService";
-import { verifyAuthentication, validateAudioFile } from "@/utils/authUtils";
+import { verifyAuthentication } from "@/utils/authUtils";
+import { validateAudioFile } from "@/utils/file-validation";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -26,27 +26,30 @@ export const useAudioTranscription = () => {
   ) => {
     try {
       setIsProcessing(true);
+      
       // Check authentication first
       const user = await verifyAuthentication();
       
-      // Validate file type and size
-      const validFile = validateAudioFile(file);
-      
+      // Validate file
+      if (!validateAudioFile(file)) {
+        return null;
+      }
+
       console.log('Processing file:', {
-        name: validFile.name,
-        size: validFile.size,
-        type: validFile.type,
+        name: file.name,
+        size: file.size,
+        type: file.type,
         userId: user.id
       });
 
       // Create FormData and append file and user ID
       const formData = new FormData();
-      formData.append('file', validFile);
+      formData.append('file', file);
       formData.append('userId', user.id);
 
       console.log('Sending request to transcribe with formData:', {
-        fileName: validFile.name,
-        fileSize: validFile.size,
+        fileName: file.name,
+        fileSize: file.size,
         userId: user.id
       });
 

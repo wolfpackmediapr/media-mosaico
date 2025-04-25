@@ -20,9 +20,15 @@ serve(async (req) => {
     const file = formData.get('file');
     const userId = formData.get('userId');
 
+    // Validate request data
     if (!file || !userId) {
       console.error('Missing required data:', { hasFile: !!file, hasUserId: !!userId });
       throw new Error('Missing required file or user ID');
+    }
+
+    // Validate file size
+    if (file.size === 0) {
+      throw new Error('File is empty or corrupted');
     }
 
     console.log('Received file:', {
@@ -38,9 +44,12 @@ serve(async (req) => {
       throw new Error('AssemblyAI API key not configured');
     }
 
-    console.log('AssemblyAI API key retrieved successfully');
+    // Validate file before upload
+    const buffer = await file.arrayBuffer();
+    if (buffer.byteLength === 0) {
+      throw new Error('File buffer is empty');
+    }
 
-    // Upload to AssemblyAI
     console.log('Uploading file to AssemblyAI...');
     const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
       method: 'POST',
@@ -49,7 +58,7 @@ serve(async (req) => {
         'Content-Type': 'application/octet-stream',
         'Transfer-Encoding': 'chunked'
       },
-      body: await file.arrayBuffer()
+      body: buffer
     });
 
     if (!uploadResponse.ok) {
