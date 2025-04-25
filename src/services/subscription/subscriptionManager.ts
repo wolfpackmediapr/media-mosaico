@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { RealtimeChannel, RealtimeChannelOptions } from "@supabase/supabase-js";
 import { 
@@ -119,15 +120,17 @@ class SubscriptionManager {
     debugLog(this._debugMode, `Subscribing to ${config.table} (${config.event}) on channel ${channelName}`);
     debugLog(this._debugMode, `Channel ${channelName} now has ${subscription.refCount} subscribers`);
     
+    // Fix: Correctly specify the event type as appropriate for "postgres_changes"
+    // This is what was causing the TypeScript error
     channel.on(
-      'postgres_changes',
+      'postgres_changes', 
       { 
         event: config.event, 
         schema: config.schema || 'public', 
         table: config.table, 
         filter: config.filter 
       },
-      handler
+      payload => handler(payload)
     );
     
     if (subscription.refCount === 1) {
