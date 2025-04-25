@@ -33,6 +33,8 @@ const RadioTranscriptionEditor = ({
     handleTextChange,
     hasSpeakerLabels,
     resetLocalSpeakerText,
+    saveError,
+    saveSuccess
   } = useTranscriptionEditor({
     transcriptionText,
     transcriptionId,
@@ -62,6 +64,8 @@ const RadioTranscriptionEditor = ({
       currentTime={currentTime}
       isSaving={isSaving}
       hasSpeakerLabels={hasSpeakerLabels}
+      saveError={saveError}
+      saveSuccess={saveSuccess}
     />
   );
 };

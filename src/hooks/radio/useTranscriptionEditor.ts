@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,7 @@ export const useTranscriptionEditor = ({
   onTranscriptionChange,
 }: UseTranscriptionEditorProps) => {
   const { toast } = useToast();
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [isEditing, setIsEditing] = usePersistentState(
     `transcription-editor-mode-${transcriptionId || "draft"}`,
@@ -103,6 +105,7 @@ export const useTranscriptionEditor = ({
           }
         } catch (error) {
           console.error('[useTranscriptionEditor] Error fetching utterances:', error);
+          setSaveError("No se pudieron cargar los datos de hablantes");
           toast({
             title: "No se pudieron cargar los datos de hablantes",
             description: "Intente nuevamente más tarde.",
@@ -121,6 +124,7 @@ export const useTranscriptionEditor = ({
     onSave: async (data) => {
       if (!data.id) return;
       try {
+        setSaveError(null);
         const { error } = await supabase
           .from('transcriptions')
           .update({
@@ -128,8 +132,16 @@ export const useTranscriptionEditor = ({
             updated_at: new Date().toISOString()
           })
           .eq('id', data.id);
-        if (error) throw error;
+        
+        if (error) {
+          console.error('[useTranscriptionEditor] Error saving:', error);
+          setSaveError(error.message);
+          throw error;
+        }
       } catch (error) {
+        console.error('[useTranscriptionEditor] Error in save operation:', error);
+        const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+        setSaveError(errorMessage);
         toast({
           title: "Error al guardar",
           description: "No se pudo guardar la transcripción",
@@ -144,6 +156,7 @@ export const useTranscriptionEditor = ({
 
   useEffect(() => {
     if (saveSuccess === true) {
+      setSaveError(null);
       toast({
         title: "Guardado automático",
         description: "La transcripción se ha guardado correctamente",
@@ -184,6 +197,8 @@ export const useTranscriptionEditor = ({
     isEditing,
     isLoadingUtterances,
     isSaving,
+    saveError,
+    saveSuccess,
     handleTextChange,
     toggleEditMode,
     hasSpeakerLabels,

@@ -13,6 +13,8 @@ interface TranscriptionEditorWrapperProps {
   currentTime?: number;
   isSaving: boolean;
   hasSpeakerLabels: boolean;
+  saveError?: string | null;
+  saveSuccess?: boolean;
 }
 
 export const TranscriptionEditorWrapper = ({
@@ -24,6 +26,8 @@ export const TranscriptionEditorWrapper = ({
   currentTime,
   isSaving,
   hasSpeakerLabels,
+  saveError,
+  saveSuccess,
 }: TranscriptionEditorWrapperProps) => {
   return (
     <div className="relative">
@@ -35,7 +39,11 @@ export const TranscriptionEditorWrapper = ({
         onTimestampClick={onTimestampClick}
         currentTime={currentTime}
       />
-      <SaveStatus isSaving={isSaving} />
+      <SaveStatus 
+        isSaving={isSaving} 
+        saveError={saveError}
+        saveSuccess={saveSuccess}
+      />
       <TranscriptionFeedback
         isEmpty={!transcriptionText}
         isProcessing={isProcessing}
