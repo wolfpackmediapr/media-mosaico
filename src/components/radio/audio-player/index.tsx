@@ -6,6 +6,7 @@ import { ProgressBar } from './ProgressBar';
 import { AudioPlayerControls } from './AudioPlayerControls';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { AudioPlayerProps } from './types';
+import { formatTime } from './utils/timeFormatter';
 
 export function AudioPlayer({ file, onEnded, onError }: AudioPlayerProps) {
   const {
@@ -13,9 +14,12 @@ export function AudioPlayer({ file, onEnded, onError }: AudioPlayerProps) {
     playbackRate,
     volumeControls,
     playbackControls,
-    formatTime,
     changePlaybackRate
-  } = useAudioPlayer(file, onEnded, onError);
+  } = useAudioPlayer({
+    file,
+    onEnded,
+    onError
+  });
 
   const { isPlaying, progress, duration } = playbackState;
   
