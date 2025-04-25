@@ -8,7 +8,7 @@ import RadioNewsSegmentCard from "./RadioNewsSegmentCard";
 export interface RadioNewsSegment {
   headline: string;
   text: string;
-  start: number;
+  startTime: number; // Changed from "start" to "startTime"
   end: number;
   keywords?: string[];
 }
@@ -16,7 +16,7 @@ export interface RadioNewsSegment {
 interface RadioNewsSegmentsContainerProps {
   segments: RadioNewsSegment[];
   onSegmentsChange: (segments: RadioNewsSegment[]) => void;
-  onSeek?: (timestamp: number) => void;
+  onSeek?: (segment: RadioNewsSegment) => void; // Changed type from timestamp: number to segment: RadioNewsSegment
   isProcessing: boolean;
 }
 
@@ -113,7 +113,7 @@ const RadioNewsSegmentsContainer = ({
                 segment={segment}
                 index={index}
                 onEdit={handleSegmentEdit}
-                onSeek={onSeek}
+                onSeek={onSeek ? () => onSeek(segment) : undefined} // Update to pass the segment instead of timestamp
                 isReadOnly={index >= segments.length}
               />
             ))}

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,7 @@ interface RadioNewsSegmentCardProps {
   segment: RadioNewsSegment;
   index: number;
   onEdit?: (index: number, text: string) => void;
-  onSeek?: (timestamp: number) => void;
+  onSeek?: (segment: RadioNewsSegment) => void;
   isReadOnly?: boolean;
 }
 
@@ -54,7 +53,7 @@ const RadioNewsSegmentCard = ({
           <div className="flex items-center gap-1 text-sm text-gray-500">
             <Clock className="w-3 h-3" />
             <span>
-              {formatTime(segment.start)} - {formatTime(segment.end)}
+              {formatTime(segment.startTime)} - {formatTime(segment.end)}
             </span>
           </div>
         </div>
@@ -127,7 +126,7 @@ const RadioNewsSegmentCard = ({
               size="sm"
               variant="secondary"
               className="ml-auto"
-              onClick={() => onSeek(segment.start)}
+              onClick={() => onSeek(segment)}
             >
               <Play className="h-4 w-4 mr-1" />
               Reproducir

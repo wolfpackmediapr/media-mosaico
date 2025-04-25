@@ -1,4 +1,3 @@
-
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
@@ -14,6 +13,7 @@ import {
   AnalysisSection,
   NewsSegmentsSection
 } from "./containers";
+import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -36,7 +36,6 @@ const RadioContainer = ({
 }: RadioContainerProps) => {
   const { isAuthenticated } = useAuthStatus();
   
-  // Files management
   const {
     files,
     setFiles,
@@ -50,7 +49,6 @@ const RadioContainer = ({
     storage
   });
 
-  // Transcription management
   const {
     isProcessing,
     setIsProcessing,
@@ -71,7 +69,6 @@ const RadioContainer = ({
     resetTranscription
   } = useTranscriptionManagement();
 
-  // Clear state management
   const { 
     clearAllState, 
     handleEditorRegisterReset, 
@@ -82,7 +79,6 @@ const RadioContainer = ({
     onTextChange
   });
 
-  // Audio state synchronization
   useAudioStateSync({
     persistedText,
     transcriptionText,
@@ -90,7 +86,6 @@ const RadioContainer = ({
     onTextChange
   });
 
-  // Audio processing with persistence support
   const {
     isPlaying,
     currentTime,
