@@ -1,9 +1,10 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 import { toast } from 'sonner';
 import { UploadedFile } from '@/components/radio/types';
 import { v4 as uuidv4 } from 'uuid';
+import { useResourceManager } from '@/utils/resourceCleanup';
 
 interface UseRadioFilesOptions {
   persistKey?: string;
@@ -14,13 +15,30 @@ export function useOptimisticRadioFiles({ persistKey = "radio-files", storage = 
   const [isUploading, setIsUploading] = useState(false);
   const [files, setFiles] = usePersistentState<UploadedFile[]>(persistKey, [], { storage });
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(`${persistKey}-current-index`, 0, { storage });
+  const resourceManager = useResourceManager();
   
   /**
    * Generate preview for file
    */
   const getFilePreview = useCallback((file: File): string => {
-    return URL.createObjectURL(file);
-  }, []);
+    const preview = URL.createObjectURL(file);
+    resourceManager.trackUrl(preview);
+    return preview;
+  }, [resourceManager]);
+  
+  /**
+   * Ensure previews are revoked on component unmount
+   */
+  useEffect(() => {
+    return () => {
+      // Clean up all URL objects to prevent memory leaks
+      files.forEach(file => {
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview);
+        }
+      });
+    };
+  }, [files]);
   
   /**
    * Add files with optimistic UI
@@ -34,7 +52,7 @@ export function useOptimisticRadioFiles({ persistKey = "radio-files", storage = 
       
       if (audioFiles.length === 0) {
         toast.error('No se encontraron archivos de audio válidos');
-        return;
+        return [];
       }
       
       if (audioFiles.length !== newFiles.length) {
@@ -42,13 +60,30 @@ export function useOptimisticRadioFiles({ persistKey = "radio-files", storage = 
       }
       
       // Create optimistic updates with previews
-      const uploadedFiles = audioFiles.map(file => {
-        // Create a new object that satisfies UploadedFile interface requirements
-        const uploadedFile = Object.assign(file, {
-          preview: getFilePreview(file),
-          id: uuidv4(),
-          isOptimistic: true
-        }) as unknown as UploadedFile;
+      const uploadedFiles: UploadedFile[] = audioFiles.map(file => {
+        // Create preview URL
+        const preview = getFilePreview(file);
+        
+        // Create unique ID for file
+        const id = uuidv4();
+        
+        // Create a new file object with additional properties
+        const uploadedFile = new File([file], file.name, { 
+          type: file.type,
+          lastModified: file.lastModified 
+        }) as UploadedFile;
+        
+        // Add the custom properties
+        uploadedFile.preview = preview;
+        uploadedFile.id = id;
+        uploadedFile.isOptimistic = true;
+        
+        // Copy other properties from the original file
+        Object.entries(file).forEach(([key, value]) => {
+          if (!(key in uploadedFile) && key !== 'stream') {
+            (uploadedFile as any)[key] = value;
+          }
+        });
         
         return uploadedFile;
       });

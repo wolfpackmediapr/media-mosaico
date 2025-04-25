@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { RealtimeChannel } from "@supabase/supabase-js";
+import { RealtimeChannel, RealtimeChannelOptions } from "@supabase/supabase-js";
 import { useEffect } from 'react';
 
 type SubscriptionHandler = (payload: any) => void;
@@ -16,11 +16,71 @@ interface ActiveSubscription {
   channel: RealtimeChannel;
   configs: SubscriptionConfig[];
   refCount: number;
+  handlers: Map<string, SubscriptionHandler[]>;
 }
 
 class SubscriptionManager {
   private activeSubscriptions: Record<string, ActiveSubscription> = {};
   private _debugMode = false;
+  private _connectionStatus: 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' = 'DISCONNECTED';
+  private _connectionListeners: Set<(status: string) => void> = new Set();
+  private _globalErrorListeners: Set<(error: any) => void> = new Set();
+  
+  constructor() {
+    // Initialize health check for all subscriptions
+    if (typeof window !== 'undefined') {
+      this.setupConnectionMonitoring();
+    }
+  }
+  
+  /**
+   * Set up periodic connection health check
+   */
+  private setupConnectionMonitoring(): void {
+    setInterval(() => {
+      const activeChannels = Object.values(this.activeSubscriptions);
+      
+      if (activeChannels.length > 0) {
+        // Check the state of any channel as indicator of overall health
+        const anyChannel = activeChannels[0].channel;
+        const status = anyChannel?.state || 'DISCONNECTED';
+        
+        if (status !== this._connectionStatus) {
+          this._connectionStatus = status as any;
+          this.notifyConnectionListeners();
+        }
+      }
+    }, 10000); // Check every 10 seconds
+  }
+  
+  /**
+   * Notify all connection status listeners
+   */
+  private notifyConnectionListeners(): void {
+    this._connectionListeners.forEach(listener => {
+      try {
+        listener(this._connectionStatus);
+      } catch (error) {
+        console.error('Error in subscription connection listener:', error);
+      }
+    });
+  }
+  
+  /**
+   * Add a connection status listener
+   */
+  addConnectionListener(listener: (status: string) => void): () => void {
+    this._connectionListeners.add(listener);
+    return () => this._connectionListeners.delete(listener);
+  }
+  
+  /**
+   * Add a global error listener for all subscriptions
+   */
+  addErrorListener(listener: (error: any) => void): () => void {
+    this._globalErrorListeners.add(listener);
+    return () => this._globalErrorListeners.delete(listener);
+  }
   
   /**
    * Enable or disable debug logging
@@ -37,21 +97,41 @@ class SubscriptionManager {
   }
   
   /**
+   * Generate a unique handler key for a config
+   */
+  private getHandlerKey(config: SubscriptionConfig): string {
+    return `${config.schema || 'public'}.${config.table}.${config.event}.${config.filter || ''}`;
+  }
+  
+  /**
    * Create a subscription channel if it doesn't exist
    */
-  private getOrCreateChannel(channelName: string): RealtimeChannel {
+  private getOrCreateChannel(channelName: string, options?: RealtimeChannelOptions): RealtimeChannel {
     const key = this.getSubscriptionKey(channelName);
     
     if (!this.activeSubscriptions[key]) {
       this.log(`Creating new channel: ${channelName}`);
       
-      const channel = supabase.channel(channelName);
+      const channel = supabase.channel(channelName, options);
       
       this.activeSubscriptions[key] = {
         channel,
         configs: [],
-        refCount: 0
+        refCount: 0,
+        handlers: new Map()
       };
+      
+      // Add error handling for the channel
+      channel.on('error', (error) => {
+        this.log(`Channel error on ${channelName}:`, error);
+        this._globalErrorListeners.forEach(listener => {
+          try {
+            listener(error);
+          } catch (err) {
+            console.error('Error in subscription error listener:', err);
+          }
+        });
+      });
     } else {
       this.log(`Using existing channel: ${channelName}`);
     }
@@ -65,11 +145,13 @@ class SubscriptionManager {
   subscribe(
     channelName: string,
     config: SubscriptionConfig,
-    handler: SubscriptionHandler
+    handler: SubscriptionHandler,
+    channelOptions?: RealtimeChannelOptions
   ): () => void {
     const key = this.getSubscriptionKey(channelName);
-    const channel = this.getOrCreateChannel(channelName);
+    const channel = this.getOrCreateChannel(channelName, channelOptions);
     const subscription = this.activeSubscriptions[key];
+    const handlerKey = this.getHandlerKey(config);
     
     // Add to reference count
     subscription.refCount++;
@@ -77,18 +159,24 @@ class SubscriptionManager {
     // Store config for debugging
     subscription.configs.push(config);
     
+    // Store handler
+    if (!subscription.handlers.has(handlerKey)) {
+      subscription.handlers.set(handlerKey, []);
+    }
+    subscription.handlers.get(handlerKey)?.push(handler);
+    
     this.log(`Subscribing to ${config.table} (${config.event}) on channel ${channelName}`);
     this.log(`Channel ${channelName} now has ${subscription.refCount} subscribers`);
     
     // Add listener for this specific subscription
     channel.on(
-      'postgres_changes',
+      'postgres_changes' as any,
       {
         event: config.event,
         schema: config.schema || 'public',
         table: config.table,
         filter: config.filter
-      } as any, // Cast to any to bypass TypeScript strict checking
+      },
       handler
     );
     
@@ -102,14 +190,18 @@ class SubscriptionManager {
     
     // Return unsubscribe function
     return () => {
-      this.unsubscribe(channelName, config);
+      this.unsubscribe(channelName, config, handler);
     };
   }
   
   /**
    * Unsubscribe from a channel
    */
-  private unsubscribe(channelName: string, config: SubscriptionConfig): void {
+  private unsubscribe(
+    channelName: string, 
+    config: SubscriptionConfig, 
+    handler: SubscriptionHandler
+  ): void {
     const key = this.getSubscriptionKey(channelName);
     
     if (!this.activeSubscriptions[key]) {
@@ -117,6 +209,21 @@ class SubscriptionManager {
     }
     
     const subscription = this.activeSubscriptions[key];
+    const handlerKey = this.getHandlerKey(config);
+    
+    // Remove the specific handler
+    if (subscription.handlers.has(handlerKey)) {
+      const handlers = subscription.handlers.get(handlerKey) || [];
+      const index = handlers.indexOf(handler);
+      if (index !== -1) {
+        handlers.splice(index, 1);
+      }
+      
+      if (handlers.length === 0) {
+        subscription.handlers.delete(handlerKey);
+      }
+    }
+    
     subscription.refCount--;
     
     this.log(`Unsubscribing from ${config.table} (${config.event}) on channel ${channelName}`);
@@ -161,6 +268,13 @@ class SubscriptionManager {
   }
   
   /**
+   * Get the current connection status
+   */
+  getConnectionStatus(): string {
+    return this._connectionStatus;
+  }
+  
+  /**
    * Logger that respects debug mode
    */
   private log(...args: any[]): void {
@@ -177,10 +291,23 @@ export const subscriptionManager = new SubscriptionManager();
 export function useRealtimeSubscription(
   channelName: string,
   config: SubscriptionConfig,
-  handler: SubscriptionHandler
+  handler: SubscriptionHandler,
+  options?: RealtimeChannelOptions
 ) {
   useEffect(() => {
-    const unsubscribe = subscriptionManager.subscribe(channelName, config, handler);
+    const unsubscribe = subscriptionManager.subscribe(channelName, config, handler, options);
     return unsubscribe;
   }, [channelName, config.table, config.event, config.filter, handler]);
+}
+
+// Hook for monitoring connection status
+export function useSubscriptionStatus() {
+  const [status, setStatus] = React.useState(subscriptionManager.getConnectionStatus());
+  
+  React.useEffect(() => {
+    const unsubscribe = subscriptionManager.addConnectionListener(setStatus);
+    return unsubscribe;
+  }, []);
+  
+  return status;
 }
