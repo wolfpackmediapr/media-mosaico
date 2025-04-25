@@ -34,21 +34,23 @@ const LeftSection = ({
   onTranscriptionComplete,
   handleFilesAdded
 }: LeftSectionProps) => (
-  <FileUploadSection 
-    files={files}
-    setFiles={setFiles}
-    currentFileIndex={currentFileIndex}
-    setCurrentFileIndex={setCurrentFileIndex}
-    isProcessing={isProcessing}
-    setIsProcessing={setIsProcessing}
-    progress={progress}
-    setProgress={setProgress}
-    transcriptionText={transcriptionText}
-    setTranscriptionText={setTranscriptionText}
-    setTranscriptionId={setTranscriptionId}
-    onTranscriptionComplete={onTranscriptionComplete}
-    onFilesAdded={handleFilesAdded}
-  />
+  <div className="h-full">
+    <FileUploadSection 
+      files={files}
+      setFiles={setFiles}
+      currentFileIndex={currentFileIndex}
+      setCurrentFileIndex={setCurrentFileIndex}
+      isProcessing={isProcessing}
+      setIsProcessing={setIsProcessing}
+      progress={progress}
+      setProgress={setProgress}
+      transcriptionText={transcriptionText}
+      setTranscriptionText={setTranscriptionText}
+      setTranscriptionId={setTranscriptionId}
+      onTranscriptionComplete={onTranscriptionComplete}
+      onFilesAdded={handleFilesAdded}
+    />
+  </div>
 );
 
 export default LeftSection;

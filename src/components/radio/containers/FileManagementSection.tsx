@@ -67,41 +67,45 @@ const FileManagementSection = ({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <LeftSection
-        files={files}
-        setFiles={setFiles}
-        currentFileIndex={currentFileIndex}
-        setCurrentFileIndex={setCurrentFileIndex}
-        isProcessing={isProcessing}
-        setIsProcessing={setIsProcessing}
-        progress={progress}
-        setProgress={setProgress}
-        transcriptionText={transcriptionText}
-        setTranscriptionText={setTranscriptionText}
-        setTranscriptionId={setTranscriptionId}
-        onTranscriptionComplete={handleTranscriptionReceived}
-        handleFilesAdded={handleFilesAdded}
-      />
-      <RightSection
-        currentFile={currentFile}
-        metadata={metadata}
-        files={files}
-        currentFileIndex={currentFileIndex}
-        isPlaying={audioControls.isPlaying}
-        currentTime={audioControls.currentTime}
-        duration={audioControls.duration}
-        isMuted={audioControls.isMuted}
-        volume={audioControls.volume}
-        playbackRate={audioControls.playbackRate}
-        onPlayPause={audioControls.handlePlayPause}
-        onSeek={audioControls.handleSeek}
-        onSkip={audioControls.handleSkip}
-        onToggleMute={audioControls.handleToggleMute}
-        onVolumeChange={audioControls.handleVolumeChange}
-        onPlaybackRateChange={audioControls.handlePlaybackRateChange}
-        handleTrackSelect={handleTrackSelect}
-      />
+    <div className="flex flex-col md:flex-row gap-6">
+      <div className="w-full md:w-1/2 min-w-0">
+        <LeftSection
+          files={files}
+          setFiles={setFiles}
+          currentFileIndex={currentFileIndex}
+          setCurrentFileIndex={setCurrentFileIndex}
+          isProcessing={isProcessing}
+          setIsProcessing={setIsProcessing}
+          progress={progress}
+          setProgress={setProgress}
+          transcriptionText={transcriptionText}
+          setTranscriptionText={setTranscriptionText}
+          setTranscriptionId={setTranscriptionId}
+          onTranscriptionComplete={handleTranscriptionReceived}
+          handleFilesAdded={handleFilesAdded}
+        />
+      </div>
+      <div className="w-full md:w-1/2 min-w-0">
+        <RightSection
+          currentFile={currentFile}
+          metadata={metadata}
+          files={files}
+          currentFileIndex={currentFileIndex}
+          isPlaying={audioControls.isPlaying}
+          currentTime={audioControls.currentTime}
+          duration={audioControls.duration}
+          isMuted={audioControls.isMuted}
+          volume={audioControls.volume}
+          playbackRate={audioControls.playbackRate}
+          onPlayPause={audioControls.handlePlayPause}
+          onSeek={audioControls.handleSeek}
+          onSkip={audioControls.handleSkip}
+          onToggleMute={audioControls.handleToggleMute}
+          onVolumeChange={audioControls.handleVolumeChange}
+          onPlaybackRateChange={audioControls.handlePlaybackRateChange}
+          handleTrackSelect={handleTrackSelect}
+        />
+      </div>
     </div>
   );
 };

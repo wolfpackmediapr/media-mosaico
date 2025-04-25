@@ -49,34 +49,38 @@ const RightSection = ({
   onPlaybackRateChange,
   handleTrackSelect
 }: RightSectionProps) => (
-  <div className="space-y-4">
+  <div className="h-full flex flex-col gap-4">
     {currentFile && (
-      <MediaControls
-        currentFile={currentFile}
-        metadata={metadata}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-        isMuted={isMuted}
-        volume={volume}
-        playbackRate={playbackRate}
-        onPlayPause={onPlayPause}
-        onSeek={onSeek}
-        onSkip={onSkip}
-        onToggleMute={onToggleMute}
-        onVolumeChange={onVolumeChange}
-        onPlaybackRateChange={onPlaybackRateChange}
-      />
+      <div className="flex-none">
+        <MediaControls
+          currentFile={currentFile}
+          metadata={metadata}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          isMuted={isMuted}
+          volume={volume}
+          playbackRate={playbackRate}
+          onPlayPause={onPlayPause}
+          onSeek={onSeek}
+          onSkip={onSkip}
+          onToggleMute={onToggleMute}
+          onVolumeChange={onVolumeChange}
+          onPlaybackRateChange={onPlaybackRateChange}
+        />
+      </div>
     )}
     {files.length > 0 && (
-      <TrackList
-        files={files}
-        currentFileIndex={currentFileIndex}
-        onSelectTrack={handleTrackSelect}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-      />
+      <div className="flex-1 overflow-auto">
+        <TrackList
+          files={files}
+          currentFileIndex={currentFileIndex}
+          onSelectTrack={handleTrackSelect}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+        />
+      </div>
     )}
   </div>
 );
