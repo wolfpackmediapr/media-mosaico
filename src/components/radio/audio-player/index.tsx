@@ -10,19 +10,26 @@ import { AudioPlayerProps } from './types';
 
 export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
   const {
-    playbackState: { isPlaying, progress, duration, isMuted },
+    isPlaying,
+    currentTime,
+    duration,
+    isMuted,
+    volume,
     playbackRate,
-    volumeControls,
-    playbackControls,
-    changePlaybackRate
+    handlePlayPause,
+    handleSeek,
+    handleSkip,
+    handleToggleMute,
+    handleVolumeChange,
+    handlePlaybackRateChange
   } = useAudioPlayer({ file, onEnded });
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSeekWithClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
     const rect = container.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
-    playbackControls.handleSeek(percentage * duration);
+    handleSeek(percentage * duration);
   };
 
   return (
@@ -31,18 +38,27 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
         <AudioPlayerHeader fileName={file.name} />
         
         <ProgressBar
-          progress={progress}
+          progress={currentTime}
           duration={duration}
-          onSeek={handleSeek}
+          onSeek={handleSeekWithClick}
           formatTime={formatTime}
         />
         
         <AudioPlayerControls
           isPlaying={isPlaying}
-          playbackControls={playbackControls}
-          volumeControls={volumeControls}
+          playbackControls={{
+            handlePlayPause,
+            handleSeek,
+            handleSkip
+          }}
+          volumeControls={{
+            isMuted,
+            volume,
+            handleVolumeChange,
+            toggleMute: handleToggleMute
+          }}
           playbackRate={playbackRate}
-          onChangePlaybackRate={changePlaybackRate}
+          onChangePlaybackRate={handlePlaybackRateChange}
         />
       </CardContent>
     </Card>
