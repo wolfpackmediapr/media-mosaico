@@ -8,7 +8,7 @@ import RadioNewsSegmentCard from "./RadioNewsSegmentCard";
 export interface RadioNewsSegment {
   headline: string;
   text: string;
-  startTime: number; // Changed from "start" to "startTime"
+  startTime: number;
   end: number;
   keywords?: string[];
 }
@@ -16,7 +16,7 @@ export interface RadioNewsSegment {
 interface RadioNewsSegmentsContainerProps {
   segments: RadioNewsSegment[];
   onSegmentsChange: (segments: RadioNewsSegment[]) => void;
-  onSeek?: (segment: RadioNewsSegment) => void; // Changed type from timestamp: number to segment: RadioNewsSegment
+  onSeek?: (segment: RadioNewsSegment) => void;
   isProcessing: boolean;
 }
 
@@ -43,7 +43,7 @@ const RadioNewsSegmentsContainer = ({
     const newSegment: RadioNewsSegment = {
       headline: `Nuevo Segmento ${segments.length + 1}`,
       text: "",
-      start: 0,
+      startTime: 0,
       end: 0,
       keywords: []
     };
@@ -60,7 +60,7 @@ const RadioNewsSegmentsContainer = ({
     .map((_, i) => ({
       headline: `Segmento ${segments.length + i + 1}`,
       text: "",
-      start: 0,
+      startTime: 0,
       end: 0,
       keywords: []
     }));
@@ -113,7 +113,7 @@ const RadioNewsSegmentsContainer = ({
                 segment={segment}
                 index={index}
                 onEdit={handleSegmentEdit}
-                onSeek={onSeek ? () => onSeek(segment) : undefined} // Update to pass the segment instead of timestamp
+                onSeek={onSeek ? () => onSeek(segment) : undefined}
                 isReadOnly={index >= segments.length}
               />
             ))}

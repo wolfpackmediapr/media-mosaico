@@ -33,14 +33,14 @@ interface RadioTranscriptionSlotProps {
     station_id: string;
     program_id: string;
   }) => void;
-  onTimestampClick?: (timestamp: number) => void;
+  onTimestampClick?: (segment: RadioNewsSegment) => void;
   // Add prop to allow parent to get access to the editor's reset method
   registerEditorReset?: (fn: () => void) => void;
   // New props for audio player integration
   isPlaying?: boolean;
   currentTime?: number;
   onPlayPause?: () => void;
-  onSeek?: (timestamp: number) => void;
+  onSeek?: (timeOrSegment: number | RadioNewsSegment) => void;
 }
 
 const RadioTranscriptionSlot = ({
@@ -103,6 +103,22 @@ const RadioTranscriptionSlot = ({
     setViewMode(mode);
   };
 
+  const handleTimestampClick = (timestamp: number) => {
+    if (onTimestampClick) {
+      // Create a temporary segment object for the timestamp
+      const tempSegment: RadioNewsSegment = {
+        headline: "Timestamp",
+        text: "",
+        startTime: timestamp,
+        end: timestamp + 1000,
+        keywords: []
+      };
+      onTimestampClick(tempSegment);
+    } else if (onSeek) {
+      onSeek(timestamp);
+    }
+  };
+
   return (
     <div className="space-y-4 md:space-y-6 w-full">
       <Card className="overflow-hidden w-full">
@@ -123,7 +139,7 @@ const RadioTranscriptionSlot = ({
               currentTime={currentTime}
               isPlaying={isPlaying}
               onPlayPause={onPlayPause}
-              onSeek={onSeek}
+              onSeek={handleTimestampClick}
             />
           ) : (
             <RadioTranscriptionEditor
@@ -132,7 +148,7 @@ const RadioTranscriptionSlot = ({
               onTranscriptionChange={onTranscriptionChange}
               transcriptionId={transcriptionId}
               transcriptionResult={transcriptionResult}
-              onTimestampClick={onTimestampClick}
+              onTimestampClick={handleTimestampClick}
               registerReset={handleRegisterReset}
             />
           )}

@@ -9,7 +9,7 @@ interface TranscriptionSectionProps {
   transcriptionText: string;
   transcriptionId?: string;
   transcriptionResult?: TranscriptionResult;
-  metadata: {
+  metadata?: {
     emisora?: string;
     programa?: string;
     horario?: string;
@@ -27,12 +27,11 @@ interface TranscriptionSectionProps {
     station_id: string;
     program_id: string;
   }) => void;
-  handleSeekToSegment: (timestamp: number) => void;
+  handleSeekToSegment: (segment: RadioNewsSegment) => void;
   registerEditorReset: (resetFn: () => void) => void;
-  // Add audio player state and control props
-  isPlaying?: boolean;
-  currentTime?: number;
-  onPlayPause?: () => void;
+  isPlaying: boolean;
+  currentTime: number;
+  onPlayPause: () => void;
 }
 
 const TranscriptionSection = ({
@@ -46,28 +45,42 @@ const TranscriptionSection = ({
   handleMetadataChange,
   handleSeekToSegment,
   registerEditorReset,
-  // Audio player props
-  isPlaying = false,
-  currentTime = 0,
-  onPlayPause = () => {},
-}: TranscriptionSectionProps) => (
-  <RadioTranscriptionSlot
-    isProcessing={isProcessing}
-    transcriptionText={transcriptionText}
-    transcriptionId={transcriptionId}
-    transcriptionResult={transcriptionResult}
-    metadata={metadata}
-    onTranscriptionChange={handleTranscriptionTextChange}
-    onSegmentsReceived={handleSegmentsReceived}
-    onMetadataChange={handleMetadataChange}
-    onTimestampClick={handleSeekToSegment}
-    registerEditorReset={registerEditorReset}
-    // Pass audio player props
-    isPlaying={isPlaying}
-    currentTime={currentTime}
-    onPlayPause={onPlayPause}
-    onSeek={handleSeekToSegment}
-  />
-);
+  isPlaying,
+  currentTime,
+  onPlayPause,
+}: TranscriptionSectionProps) => {
+  return (
+    <RadioTranscriptionSlot
+      isProcessing={isProcessing}
+      transcriptionText={transcriptionText}
+      transcriptionResult={transcriptionResult}
+      transcriptionId={transcriptionId}
+      metadata={metadata}
+      onTranscriptionChange={handleTranscriptionTextChange}
+      onSegmentsReceived={handleSegmentsReceived}
+      onMetadataChange={handleMetadataChange}
+      onTimestampClick={handleSeekToSegment}
+      registerEditorReset={registerEditorReset}
+      isPlaying={isPlaying}
+      currentTime={currentTime}
+      onPlayPause={onPlayPause}
+      onSeek={(time) => {
+        if (typeof time === 'number') {
+          // Create a temporary segment object for the timestamp
+          const tempSegment: RadioNewsSegment = {
+            headline: "Timestamp",
+            text: "",
+            startTime: time,
+            end: time + 1000,
+            keywords: []
+          };
+          handleSeekToSegment(tempSegment);
+        } else {
+          handleSeekToSegment(time);
+        }
+      }}
+    />
+  );
+};
 
 export default TranscriptionSection;

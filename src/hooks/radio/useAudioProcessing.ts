@@ -69,7 +69,7 @@ export const useAudioProcessing = ({
 
   // Handler to seek to a specific segment
   const handleSeekToSegment = (segment: RadioNewsSegment) => {
-    if (segment.startTime !== undefined) {
+    if (segment && segment.startTime !== undefined) {
       seekToTimestamp(segment.startTime);
       onPlayingChange(true);
     }
