@@ -36,6 +36,71 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
     { storage: 'sessionStorage' }
   );
 
+  // Function declarations before use
+  const updateProgress = () => {
+    if (!howler.current) return;
+
+    progressInterval.current = setInterval(() => {
+      if (howler.current) {
+        const seek = howler.current.seek() || 0;
+        setProgress(seek);
+        
+        const fileId = file.name + '-' + file.size;
+        setLastPosition({...lastPosition, [fileId]: seek});
+      }
+    }, 1000);
+  };
+
+  const handlePlayPause = () => {
+    if (!howler.current) return;
+
+    if (isPlaying) {
+      howler.current.pause();
+    } else {
+      howler.current.play();
+    }
+  };
+
+  const handleSeek = (time: number) => {
+    if (!howler.current) return;
+    howler.current.seek(time);
+    setProgress(time);
+  };
+
+  const handleSkip = (direction: 'forward' | 'backward', amount: number = 10) => {
+    if (!howler.current) return;
+
+    const currentTime = howler.current.seek() as number;
+    const newTime = direction === 'forward'
+      ? Math.min(currentTime + amount, duration)
+      : Math.max(currentTime - amount, 0);
+
+    howler.current.seek(newTime);
+    setProgress(newTime);
+  };
+
+  const handleVolumeChange = (value: number[]) => {
+    setVolume(value);
+    if (value[0] === 0) {
+      setIsMuted(true);
+    } else if (isMuted) {
+      setIsMuted(false);
+    }
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
+
+  const changePlaybackRate = () => {
+    // Cycle through common playback rates: 0.5, 1.0, 1.5, 2.0
+    const rates = [0.5, 1.0, 1.5, 2.0];
+    const currentIndex = rates.indexOf(playbackRate);
+    const nextIndex = (currentIndex + 1) % rates.length;
+    setPlaybackRate(rates[nextIndex]);
+    toast.info(`Velocidad: ${rates[nextIndex]}x`);
+  };
+
   useEffect(() => {
     if (howler.current) {
       howler.current.unload();
@@ -165,70 +230,6 @@ export function useAudioPlayer(file: File, onEnded?: () => void, onError?: (erro
       handleVolumeChange([newVolume]);
     }
   });
-
-  const updateProgress = () => {
-    if (!howler.current) return;
-
-    progressInterval.current = setInterval(() => {
-      if (howler.current) {
-        const seek = howler.current.seek() || 0;
-        setProgress(seek);
-        
-        const fileId = file.name + '-' + file.size;
-        setLastPosition({...lastPosition, [fileId]: seek});
-      }
-    }, 1000);
-  };
-
-  const handlePlayPause = () => {
-    if (!howler.current) return;
-
-    if (isPlaying) {
-      howler.current.pause();
-    } else {
-      howler.current.play();
-    }
-  };
-
-  const handleSeek = (time: number) => {
-    if (!howler.current) return;
-    howler.current.seek(time);
-    setProgress(time);
-  };
-
-  const handleSkip = (direction: 'forward' | 'backward', amount: number = 10) => {
-    if (!howler.current) return;
-
-    const currentTime = howler.current.seek() as number;
-    const newTime = direction === 'forward'
-      ? Math.min(currentTime + amount, duration)
-      : Math.max(currentTime - amount, 0);
-
-    howler.current.seek(newTime);
-    setProgress(newTime);
-  };
-
-  const handleVolumeChange = (value: number[]) => {
-    setVolume(value);
-    if (value[0] === 0) {
-      setIsMuted(true);
-    } else if (isMuted) {
-      setIsMuted(false);
-    }
-  };
-
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-  };
-
-  const changePlaybackRate = () => {
-    // Cycle through common playback rates: 0.5, 1.0, 1.5, 2.0
-    const rates = [0.5, 1.0, 1.5, 2.0];
-    const currentIndex = rates.indexOf(playbackRate);
-    const nextIndex = (currentIndex + 1) % rates.length;
-    setPlaybackRate(rates[nextIndex]);
-    toast.info(`Velocidad: ${rates[nextIndex]}x`);
-  };
 
   return {
     howler,
