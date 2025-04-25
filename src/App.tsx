@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -15,8 +14,57 @@ import Auth from "./pages/Auth";
 import Registro from "./pages/Registro";
 import RecuperarPassword from "./pages/RecuperarPassword";
 
-// Lazy loaded protected pages
-const Index = React.lazy(() => import("./pages/Index"));
+// Improved error handling for lazy loaded components
+const PageLoader = () => (
+  <div className="flex h-screen w-full items-center justify-center">
+    <div className="flex flex-col items-center space-y-4">
+      <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      <p className="text-lg font-medium text-gray-600 dark:text-gray-300">Cargando...</p>
+    </div>
+  </div>
+);
+
+// ErrorBoundary component for catching loading errors
+class ErrorBoundary extends React.Component {
+  state = { hasError: false, error: null };
+  
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  
+  componentDidCatch(error, errorInfo) {
+    console.error("Component Error:", error, errorInfo);
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex h-screen w-full items-center justify-center">
+          <div className="flex flex-col items-center space-y-4 max-w-md p-4 text-center">
+            <div className="text-red-500 text-4xl mb-4">⚠️</div>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Algo salió mal</h2>
+            <p className="text-gray-600 dark:text-gray-300">
+              No se pudo cargar esta página. Por favor, intenta recargar.
+            </p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+            >
+              Recargar página
+            </button>
+          </div>
+        </div>
+      );
+    }
+    
+    return this.props.children;
+  }
+}
+
+// Import directly instead of lazy loading the Index component
+import Index from "./pages/Index";
+
+// Keep lazy loading for other components
 const Radio = React.lazy(() => import("./pages/Radio"));
 const Tv = React.lazy(() => import("./pages/Tv"));
 const Prensa = React.lazy(() => import("./pages/Prensa"));
@@ -59,16 +107,6 @@ const PublitecaPrensa = React.lazy(() => import("./pages/publiteca/Prensa"));
 const PublitecaRadio = React.lazy(() => import("./pages/publiteca/Radio"));
 const PublitecaTv = React.lazy(() => import("./pages/publiteca/Tv"));
 const PublitecaRedesSociales = React.lazy(() => import("./pages/publiteca/RedesSociales"));
-
-// Loading fallback component
-const PageLoader = () => (
-  <div className="flex h-screen w-full items-center justify-center">
-    <div className="flex flex-col items-center space-y-4">
-      <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      <p className="text-lg font-medium text-gray-600 dark:text-gray-300">Cargando...</p>
-    </div>
-  </div>
-);
 
 function App() {
   const [initialized, setInitialized] = useState(false);
@@ -130,9 +168,9 @@ function App() {
                 <Route path="/" element={
                   <ProtectedRoute>
                     <Layout>
-                      <Suspense fallback={<PageLoader />}>
+                      <ErrorBoundary>
                         <Index />
-                      </Suspense>
+                      </ErrorBoundary>
                     </Layout>
                   </ProtectedRoute>
                 } />
@@ -144,9 +182,11 @@ function App() {
                 <Route path="/" element={
                   <ProtectedRoute>
                     <Layout>
-                      <Suspense fallback={<PageLoader />}>
-                        <Outlet />
-                      </Suspense>
+                      <ErrorBoundary>
+                        <Suspense fallback={<PageLoader />}>
+                          <Outlet />
+                        </Suspense>
+                      </ErrorBoundary>
                     </Layout>
                   </ProtectedRoute>
                 }>

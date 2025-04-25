@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import NotificationFeed from "@/components/notifications/NotificationFeed";
@@ -34,6 +35,7 @@ const stats = [
   },
 ];
 
+// Changed to default export with no type annotations to ensure compatibility
 const Index = () => {
   return (
     <div className="space-y-6">
