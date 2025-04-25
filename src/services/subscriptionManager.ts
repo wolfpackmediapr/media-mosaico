@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { RealtimeChannel } from "@supabase/supabase-js";
+import { useEffect } from 'react';
 
 type SubscriptionHandler = (payload: any) => void;
 
@@ -87,7 +88,7 @@ class SubscriptionManager {
         schema: config.schema || 'public',
         table: config.table,
         filter: config.filter
-      },
+      } as any, // Cast to any to bypass TypeScript strict checking
       handler
     );
     
@@ -178,10 +179,8 @@ export function useRealtimeSubscription(
   config: SubscriptionConfig,
   handler: SubscriptionHandler
 ) {
-  import { useEffect } from 'react';
-  
   useEffect(() => {
     const unsubscribe = subscriptionManager.subscribe(channelName, config, handler);
     return unsubscribe;
-  }, [channelName, config.table, config.event, config.filter]);
+  }, [channelName, config.table, config.event, config.filter, handler]);
 }

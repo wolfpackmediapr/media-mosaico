@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 
 interface PerformanceMetrics {
@@ -17,6 +16,12 @@ interface MonitoringOptions {
   collectResourceTiming?: boolean;
   logToConsole?: boolean;
   onMetricsCollected?: (metrics: PerformanceMetrics) => void;
+}
+
+interface PerformanceEntryExtended extends PerformanceEntry {
+  processingStart?: number;
+  hadRecentInput?: boolean;
+  value?: number;
 }
 
 export function usePerformanceMonitoring({
@@ -39,7 +44,6 @@ export function usePerformanceMonitoring({
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return;
 
-    // Collect basic navigation timing
     const collectNavigationTiming = () => {
       if (performance && performance.timing) {
         const timing = performance.timing;
@@ -67,7 +71,6 @@ export function usePerformanceMonitoring({
       }
     };
 
-    // Collect memory usage if available
     const collectMemoryUsage = () => {
       if (performance && (performance as any).memory) {
         const memory = (performance as any).memory;
@@ -96,8 +99,7 @@ export function usePerformanceMonitoring({
         }
       }
     };
-    
-    // Collect resource timing data
+
     const collectResourceTiming = () => {
       if (performance && performance.getEntriesByType && collectResourceTiming) {
         const resources = performance.getEntriesByType('resource');
@@ -105,7 +107,6 @@ export function usePerformanceMonitoring({
         
         resources.forEach(resource => {
           const { name, duration } = resource;
-          // Create short name for the resource
           const shortName = name.split('/').pop() || name;
           resourceLoadTimes[shortName] = duration;
         });
@@ -126,14 +127,11 @@ export function usePerformanceMonitoring({
         }
       }
     };
-    
-    // Collect Web Vitals
+
     const collectWebVitals = () => {
-      // First Contentful Paint
       const paintEntries = performance.getEntriesByType('paint');
       const fcp = paintEntries.find(entry => entry.name === 'first-contentful-paint');
       
-      // If supported, observe Largest Contentful Paint
       let lcpObserver: any;
       if ('PerformanceObserver' in window) {
         try {
@@ -163,26 +161,29 @@ export function usePerformanceMonitoring({
         }
       }
       
-      // First Input Delay
       let fidObserver: any;
       if ('PerformanceObserver' in window) {
         try {
           fidObserver = new PerformanceObserver((entryList) => {
-            const firstInput = entryList.getEntries()[0];
+            const firstInput = entryList.getEntries()[0] as PerformanceEntryExtended;
             
-            const updatedMetrics = {
-              ...metrics,
-              firstInputDelay: firstInput.processingStart - firstInput.startTime
-            };
-            
-            setMetrics(updatedMetrics);
-            
-            if (logToConsole) {
-              console.log('[Performance] FID:', `${updatedMetrics.firstInputDelay}ms`);
-            }
-            
-            if (onMetricsCollected) {
-              onMetricsCollected(updatedMetrics);
+            if (firstInput && typeof firstInput.processingStart === 'number') {
+              const firstInputDelay = firstInput.processingStart - firstInput.startTime;
+              
+              const updatedMetrics = {
+                ...metrics,
+                firstInputDelay
+              };
+              
+              setMetrics(updatedMetrics);
+              
+              if (logToConsole) {
+                console.log('[Performance] FID:', `${firstInputDelay}ms`);
+              }
+              
+              if (onMetricsCollected) {
+                onMetricsCollected(updatedMetrics);
+              }
             }
           });
           
@@ -192,16 +193,15 @@ export function usePerformanceMonitoring({
         }
       }
       
-      // Cumulative Layout Shift
       let clsObserver: any;
       let clsValue = 0;
       if ('PerformanceObserver' in window) {
         try {
           clsObserver = new PerformanceObserver((entryList) => {
-            const entries = entryList.getEntries();
+            const entries = entryList.getEntries() as PerformanceEntryExtended[];
             entries.forEach(entry => {
-              if (!entry.hadRecentInput) {
-                clsValue += (entry as any).value;
+              if (entry && entry.hadRecentInput === false && typeof entry.value === 'number') {
+                clsValue += entry.value;
               }
             });
             
@@ -227,7 +227,6 @@ export function usePerformanceMonitoring({
         }
       }
       
-      // Update First Contentful Paint
       if (fcp) {
         const updatedMetrics = {
           ...metrics,
@@ -245,7 +244,6 @@ export function usePerformanceMonitoring({
         }
       }
       
-      // Return cleanup for observers
       return () => {
         if (lcpObserver) lcpObserver.disconnect();
         if (fidObserver) fidObserver.disconnect();
@@ -253,7 +251,6 @@ export function usePerformanceMonitoring({
       };
     };
 
-    // Wait for window load to collect metrics
     const handleLoad = () => {
       setTimeout(() => {
         collectNavigationTiming();
@@ -268,7 +265,6 @@ export function usePerformanceMonitoring({
     window.addEventListener('load', handleLoad);
     const cleanupVitals = collectWebVitals();
 
-    // Set up periodic memory usage collection
     let memoryInterval: number | null = null;
     if ((performance as any).memory) {
       memoryInterval = window.setInterval(collectMemoryUsage, 10000) as unknown as number;

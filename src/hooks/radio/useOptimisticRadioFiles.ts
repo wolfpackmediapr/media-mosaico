@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 import { toast } from 'sonner';
@@ -41,12 +42,16 @@ export function useOptimisticRadioFiles({ persistKey = "radio-files", storage = 
       }
       
       // Create optimistic updates with previews
-      const uploadedFiles = audioFiles.map(file => ({
-        id: uuidv4(),
-        file,
-        preview: getFilePreview(file),
-        isOptimistic: true // Flag to identify optimistic entries
-      })) as UploadedFile[];
+      const uploadedFiles = audioFiles.map(file => {
+        // Create a new object that satisfies UploadedFile interface requirements
+        const uploadedFile = Object.assign(file, {
+          preview: getFilePreview(file),
+          id: uuidv4(),
+          isOptimistic: true
+        }) as unknown as UploadedFile;
+        
+        return uploadedFile;
+      });
       
       // Optimistically update UI
       setFiles(prevFiles => [...prevFiles, ...uploadedFiles]);

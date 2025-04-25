@@ -31,7 +31,7 @@ const MediaMonitoring = React.lazy(() => import("./pages/MediaMonitoring"));
 const Admin = React.lazy(() => import("./pages/Admin"));
 
 // Lazy loaded settings pages
-const GeneralSettings = React.lazy(() => import("./pages/configuracion/GeneralSettings"));
+const GeneralSettings = React.lazy(() => import("./pages/configuracion/GeneralSettings").then(m => ({ default: m.GeneralSettings })));
 const NotificationsSettings = React.lazy(() => import("./pages/configuracion/NotificationsSettings"));
 const UsersSettings = React.lazy(() => import("./pages/configuracion/UsersSettings"));
 const ClientsSettings = React.lazy(() => import("./pages/configuracion/ClientsSettings"));
@@ -41,18 +41,18 @@ const PressSettings = React.lazy(() => import("./pages/configuracion/PressSettin
 const MediaSettings = React.lazy(() => import("./pages/configuracion/MediaSettings"));
 const CategoriesSettings = React.lazy(() => import("./pages/configuracion/categories/CategoriesSettings"));
 const TvSettings = React.lazy(() => import("./pages/configuracion/TvSettings"));
-const GenresSettings = React.lazy(() => import("./pages/configuracion/press/GenresSettings"));
-const SourcesSettings = React.lazy(() => import("./pages/configuracion/press/SourcesSettings"));
-const SectionsSettings = React.lazy(() => import("./pages/configuracion/press/SectionsSettings"));
-const RatesSettings = React.lazy(() => import("./pages/configuracion/press/RatesSettings"));
-const TvTarifasSettings = React.lazy(() => import("./pages/configuracion/tv/TvTarifasSettings"));
+const GenresSettings = React.lazy(() => import("./pages/configuracion/press/GenresSettings").then(m => ({ default: m.GenresSettings })));
+const SourcesSettings = React.lazy(() => import("./pages/configuracion/press/SourcesSettings").then(m => ({ default: m.SourcesSettings })));
+const SectionsSettings = React.lazy(() => import("./pages/configuracion/press/SectionsSettings").then(m => ({ default: m.SectionsSettings })));
+const RatesSettings = React.lazy(() => import("./pages/configuracion/press/RatesSettings").then(m => ({ default: m.RatesSettings })));
+const TvTarifasSettings = React.lazy(() => import("./pages/configuracion/tv/TvTarifasSettings").then(m => ({ default: m.TvTarifasSettings })));
 const ParticipantesSettings = React.lazy(() => import("./pages/configuracion/participantes/ParticipantesSettings"));
-const ParticipantesGestionSettings = React.lazy(() => import("./pages/configuracion/participantes/ParticipantesGestionSettings"));
-const ParticipantesCategoriasSettings = React.lazy(() => import("./pages/configuracion/participantes/ParticipantesCategoriasSettings"));
+const ParticipantesGestionSettings = React.lazy(() => import("./pages/configuracion/participantes/ParticipantesGestionSettings").then(m => ({ default: m.ParticipantesGestionSettings })));
+const ParticipantesCategoriasSettings = React.lazy(() => import("./pages/configuracion/participantes/ParticipantesCategoriasSettings").then(m => ({ default: m.ParticipantesCategoriasSettings })));
 const InstitucionesSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesSettings"));
-const InstitucionesGestionSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesGestionSettings"));
-const InstitucionesCategoriasSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesCategoriasSettings"));
-const InstitucionesAgenciasSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesAgenciasSettings"));
+const InstitucionesGestionSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesGestionSettings").then(m => ({ default: m.InstitucionesGestionSettings })));
+const InstitucionesCategoriasSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesCategoriasSettings").then(m => ({ default: m.InstitucionesCategoriasSettings })));
+const InstitucionesAgenciasSettings = React.lazy(() => import("./pages/configuracion/instituciones/InstitucionesAgenciasSettings").then(m => ({ default: m.InstitucionesAgenciasSettings })));
 
 // Lazy loaded publiteca pages
 const PublitecaPrensa = React.lazy(() => import("./pages/publiteca/Prensa"));
