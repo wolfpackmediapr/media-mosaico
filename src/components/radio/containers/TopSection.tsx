@@ -16,13 +16,7 @@ const TopSection = ({
 }: TopSectionProps) => (
   <ErrorBoundary>
     <div className="flex justify-end mb-2">
-      <ClearAllButton
-        onClearAll={handleClearAll}
-        disabled={
-          files.length === 0 &&
-          !transcriptionText
-        }
-      />
+      <ClearAllButton onClearAll={handleClearAll} />
     </div>
   </ErrorBoundary>
 );

@@ -7,10 +7,9 @@ import { toast } from "sonner";
 
 interface ClearAllButtonProps {
   onClearAll: () => void;
-  disabled?: boolean;
 }
 
-const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll, disabled }) => {
+const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll }) => {
   const [open, setOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
 
@@ -35,7 +34,7 @@ const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll, disabled })
           variant="destructive"
           className="flex items-center gap-2"
           size="sm"
-          disabled={disabled || isClearing}
+          disabled={isClearing}
         >
           <Trash className="w-4 h-4" />
           {isClearing ? "Borrando..." : "Borrar todo"}
