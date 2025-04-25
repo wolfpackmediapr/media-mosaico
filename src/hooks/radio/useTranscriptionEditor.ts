@@ -4,8 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { TranscriptionResult, fetchUtterances, UtteranceTimestamp } from "@/services/audio/transcriptionService";
-import { formatSpeakerText, parseSpeakerTextToUtterances } from "@/components/radio/utils/speakerTextUtils";
+import { 
+  TranscriptionResult, 
+  fetchUtterances, 
+  UtteranceTimestamp 
+} from "@/services/audio/transcriptionService";
+import { 
+  formatSpeakerText, 
+  parseSpeakerTextToUtterances,
+  formatPlainTextAsSpeaker 
+} from "@/components/radio/utils/speakerTextUtils";
 
 interface UseTranscriptionEditorProps {
   transcriptionText: string;
@@ -44,80 +52,96 @@ export const useTranscriptionEditor = ({
     { storage: 'sessionStorage' }
   );
 
+  // Process the initial transcription text or result when they change
   useEffect(() => {
-    if (
-      hasSpeakerLabels &&
-      enhancedTranscriptionResult?.utterances &&
-      enhancedTranscriptionResult.utterances.length > 0
-    ) {
-      console.log('[useTranscriptionEditor] Formatting speaker text from utterances:', 
-        enhancedTranscriptionResult.utterances.length);
-      const formatted = formatSpeakerText(enhancedTranscriptionResult.utterances);
-      if (localSpeakerText !== formatted) {
-        console.log('[useTranscriptionEditor] Updating local speaker text');
-        setLocalSpeakerText(formatted);
-      }
-    } else if (transcriptionText && !hasSpeakerLabels) {
-      if (localSpeakerText !== transcriptionText) {
-        console.log('[useTranscriptionEditor] Using plain transcription text (no speaker labels)');
-        setLocalSpeakerText(transcriptionText);
-      }
-    } else if (!transcriptionText && !hasSpeakerLabels) {
-      if (localSpeakerText !== "") setLocalSpeakerText("");
-    }
-  }, [enhancedTranscriptionResult?.utterances, transcriptionText, hasSpeakerLabels, setLocalSpeakerText]);
-
-  useEffect(() => {
+    // When we receive a transcription result with utterances
     if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
       console.log('[useTranscriptionEditor] New transcription result with utterances received');
       setEnhancedTranscriptionResult(transcriptionResult);
-    } else {
-      setEnhancedTranscriptionResult(transcriptionResult);
+      const formattedText = formatSpeakerText(transcriptionResult.utterances);
+      if (formattedText && localSpeakerText !== formattedText) {
+        console.log('[useTranscriptionEditor] Setting formatted speaker text from utterances');
+        setLocalSpeakerText(formattedText);
+        onTranscriptionChange(formattedText);
+      }
+    } 
+    // When we have just plain text but no utterances
+    else if (transcriptionText && (!localSpeakerText || localSpeakerText !== transcriptionText)) {
+      console.log('[useTranscriptionEditor] Processing plain transcription text');
+      // Try to format the text properly if it's plain text
+      const formattedText = formatPlainTextAsSpeaker(transcriptionText);
+      setLocalSpeakerText(formattedText);
+      onTranscriptionChange(formattedText);
+      
+      // Try to parse utterances from the text if possible
+      const parsedUtterances = parseSpeakerTextToUtterances(formattedText);
+      if (parsedUtterances.length > 0) {
+        setEnhancedTranscriptionResult(prev => ({
+          ...(prev || {}),
+          utterances: parsedUtterances,
+          text: formattedText
+        }));
+      }
     }
-  }, [transcriptionResult]);
+  }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText]);
 
+  // Fetch additional data (utterances) when we have a transcript ID but no utterances
   useEffect(() => {
     const fetchSpeakerData = async () => {
       if (
         transcriptionId &&
-        enhancedTranscriptionResult &&
-        (!enhancedTranscriptionResult.utterances || enhancedTranscriptionResult.utterances.length === 0)
+        (!enhancedTranscriptionResult?.utterances || enhancedTranscriptionResult.utterances.length === 0) &&
+        !isLoadingUtterances
       ) {
         try {
           setIsLoadingUtterances(true);
           console.log('[useTranscriptionEditor] Fetching utterances for ID:', transcriptionId);
+          
           const utterances = await fetchUtterances(transcriptionId);
           
           if (utterances && utterances.length > 0) {
             console.log('[useTranscriptionEditor] Received utterances:', utterances.length);
+            
             setEnhancedTranscriptionResult(prev => ({
-              ...(prev || transcriptionResult),
+              ...(prev || {}),
               utterances
             }));
             
             const formattedText = formatSpeakerText(utterances);
-            console.log('[useTranscriptionEditor] Setting formatted speaker text');
+            console.log('[useTranscriptionEditor] Setting formatted speaker text from fetched utterances');
             setLocalSpeakerText(formattedText);
-            
             onTranscriptionChange(formattedText);
           } else {
             console.log('[useTranscriptionEditor] No utterances returned from fetch');
+            // If no utterances were found but we have text, format it properly
+            if (transcriptionText) {
+              const formattedText = formatPlainTextAsSpeaker(transcriptionText);
+              setLocalSpeakerText(formattedText);
+              onTranscriptionChange(formattedText);
+            }
           }
         } catch (error) {
           console.error('[useTranscriptionEditor] Error fetching utterances:', error);
-          setSaveError("No se pudieron cargar los datos de hablantes");
           toast({
             title: "No se pudieron cargar los datos de hablantes",
-            description: "Intente nuevamente más tarde.",
-            variant: "destructive",
+            description: "Usando formato de texto simple. Intente nuevamente más tarde.",
+            variant: "default",
           });
+          
+          // Fallback to simple text formatting
+          if (transcriptionText) {
+            const formattedText = formatPlainTextAsSpeaker(transcriptionText);
+            setLocalSpeakerText(formattedText);
+            onTranscriptionChange(formattedText);
+          }
         } finally {
           setIsLoadingUtterances(false);
         }
       }
     };
+    
     fetchSpeakerData();
-  }, [transcriptionId, enhancedTranscriptionResult, onTranscriptionChange, setLocalSpeakerText, toast]);
+  }, [transcriptionId, setLocalSpeakerText, onTranscriptionChange, toast, transcriptionText, enhancedTranscriptionResult?.utterances, isLoadingUtterances]);
 
   const { isSaving, saveSuccess } = useAutosave({
     data: { text: localSpeakerText, id: transcriptionId },
@@ -152,7 +176,7 @@ export const useTranscriptionEditor = ({
       }
     },
     debounce: 2000,
-    enabled: !!transcriptionId,
+    enabled: !!transcriptionId && !!localSpeakerText,
   });
 
   useEffect(() => {
@@ -166,19 +190,21 @@ export const useTranscriptionEditor = ({
   }, [saveSuccess, toast]);
 
   const handleTextChange = (newText: string) => {
-    if (hasSpeakerLabels) {
-      const newUtterances: UtteranceTimestamp[] = parseSpeakerTextToUtterances(newText);
+    if (!newText) return;
+    
+    setLocalSpeakerText(newText);
+    onTranscriptionChange(newText);
+    
+    // Try to parse the new text to update utterances
+    const newUtterances = parseSpeakerTextToUtterances(newText);
+    if (newUtterances.length > 0) {
       setEnhancedTranscriptionResult(prev =>
         prev
           ? { ...prev, utterances: newUtterances }
           : { utterances: newUtterances, text: newText }
       );
-      setLocalSpeakerText(newText);
-      onTranscriptionChange(newText);
-    } else {
-      setLocalSpeakerText(newText);
-      onTranscriptionChange(newText);
     }
+    
     if (!isEditing) setIsEditing(true);
   };
 
@@ -203,6 +229,7 @@ export const useTranscriptionEditor = ({
     handleTextChange,
     toggleEditMode,
     hasSpeakerLabels,
-    resetLocalSpeakerText
+    resetLocalSpeakerText,
+    enhancedTranscriptionResult
   };
 };

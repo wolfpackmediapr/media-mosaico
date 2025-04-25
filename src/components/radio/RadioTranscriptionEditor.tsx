@@ -34,7 +34,8 @@ const RadioTranscriptionEditor = ({
     hasSpeakerLabels,
     resetLocalSpeakerText,
     saveError,
-    saveSuccess
+    saveSuccess,
+    enhancedTranscriptionResult
   } = useTranscriptionEditor({
     transcriptionText,
     transcriptionId,
@@ -49,16 +50,16 @@ const RadioTranscriptionEditor = ({
     }
   }, [registerReset, resetLocalSpeakerText]);
 
-  // Create a wrapper function that adapts between the expected types
+  // Handle changes from the editor component
   const handleTranscriptionChange = (text: string) => {
     handleTextChange(text);
   };
 
   return (
     <TranscriptionEditorWrapper
-      transcriptionResult={transcriptionResult}
-      transcriptionText={localText}
-      isProcessing={isProcessing}
+      transcriptionResult={enhancedTranscriptionResult || transcriptionResult}
+      transcriptionText={localText || transcriptionText}
+      isProcessing={isProcessing || isLoadingUtterances}
       onTranscriptionChange={handleTranscriptionChange}
       onTimestampClick={onTimestampClick}
       currentTime={currentTime}
@@ -66,6 +67,7 @@ const RadioTranscriptionEditor = ({
       hasSpeakerLabels={hasSpeakerLabels}
       saveError={saveError}
       saveSuccess={saveSuccess}
+      isEditing={isEditing}
     />
   );
 };

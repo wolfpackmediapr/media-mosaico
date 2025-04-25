@@ -2,7 +2,6 @@
 // deno-lint-ignore-file no-explicit-any
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { corsHeaders } from "../_shared/cors.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
@@ -166,7 +165,8 @@ serve(async (req) => {
           analysis_result: {
             entities: transcript.entities,
             content_safety: transcript.content_safety_labels,
-            topics: transcript.iab_categories_result
+            topics: transcript.iab_categories_result,
+            utterances: transcript.utterances
           }
         })
         .select('id')
@@ -181,12 +181,22 @@ serve(async (req) => {
         throw new Error('No data returned from database insertion');
       }
 
+      // Format utterances for the response
+      const formattedUtterances = transcript.utterances ? transcript.utterances.map((u: any) => ({
+        text: u.text,
+        speaker: u.speaker,
+        start: u.start,
+        end: u.end,
+        confidence: u.confidence
+      })) : [];
+
       return new Response(
         JSON.stringify({
           success: true,
           text: transcript.text,
           transcript_id: transcriptId,
           transcription_id: transcriptionData.id,
+          utterances: formattedUtterances,
           metadata: {
             audio_duration: transcript.audio_duration,
             confidence: transcript.confidence
