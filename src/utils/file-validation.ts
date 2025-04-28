@@ -1,6 +1,21 @@
 
 import { toast } from "sonner";
 
+// Enhanced list of audio MIME types to support broader format compatibility
+const AUDIO_MIME_TYPES = [
+  'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a',
+  'audio/aac', 'audio/flac', 'audio/x-m4a', 'audio/x-wav', 'audio/webm',
+  'audio/wave', 'audio/x-pn-wav', 'audio/x-ms-wma', 'audio/mp4',
+  'audio/x-aiff', 'audio/x-mpegurl', 'audio/x-matroska', 'audio/basic',
+  'audio/vnd.wav', 'audio/opus'
+];
+
+// Enhanced list of valid file extensions
+const AUDIO_EXTENSIONS = [
+  '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.wma',
+  '.webm', '.aiff', '.aif', '.aifc', '.m3u', '.pls', '.mka', '.opus'
+];
+
 export const validateAudioFile = (file: File): boolean => {
   // Check if file exists and has content
   if (!file || file.size === 0) {
@@ -14,23 +29,9 @@ export const validateAudioFile = (file: File): boolean => {
     toast.error("El archivo excede el límite de 25MB");
     return false;
   }
-
-  // Enhanced list of audio MIME types
-  const validTypes = [
-    'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a',
-    'audio/aac', 'audio/flac', 'audio/x-m4a', 'audio/x-wav', 'audio/webm',
-    'audio/wave', 'audio/x-pn-wav', 'audio/x-ms-wma', 'audio/mp4',
-    'audio/x-aiff', 'audio/x-mpegurl', 'audio/x-matroska', 'audio/basic'
-  ];
   
-  // Enhanced list of valid file extensions
-  const validExtensions = [
-    '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.wma',
-    '.webm', '.aiff', '.aif', '.aifc', '.m3u', '.pls', '.mka'
-  ];
-  
-  const hasValidMimeType = validTypes.includes(file.type);
-  const hasValidExtension = validExtensions.some(ext => 
+  const hasValidMimeType = AUDIO_MIME_TYPES.includes(file.type);
+  const hasValidExtension = AUDIO_EXTENSIONS.some(ext => 
     file.name.toLowerCase().endsWith(ext)
   );
   

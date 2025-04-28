@@ -12,6 +12,9 @@ interface AudioPlayerOptions {
   resumeOnFocus?: boolean;
 }
 
+// Enhanced audio formats supported by Howler
+const SUPPORTED_FORMATS = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'webm'];
+
 export const useHowlerPlayer = ({ 
   file, 
   onEnded, 
@@ -26,12 +29,31 @@ export const useHowlerPlayer = ({
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   const howlRef = useRef<Howl | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval>>();
   const wasPlayingBeforeBlur = useRef<boolean>(false);
   const errorShownRef = useRef<boolean>(false);
+  const seekTarget = useRef<number | null>(null);
+  const seekRetryCount = useRef<number>(0);
+
+  // Detect file format from name or MIME type
+  const detectFormat = (file?: File): string[] | null => {
+    if (!file) return null;
+    
+    // Get format from file extension
+    const fileNameFormat = file.name.split('.').pop()?.toLowerCase();
+    const formats = SUPPORTED_FORMATS.filter(format => 
+      file.type.includes(format) || 
+      (fileNameFormat && format === fileNameFormat)
+    );
+    
+    // If we can't detect format from MIME or filename, use a default set
+    return formats.length > 0 ? formats : ['mp3', 'wav', 'ogg'];
+  };
 
   // Cleanup all resources and timers
   const cleanupAudio = () => {
@@ -49,10 +71,14 @@ export const useHowlerPlayer = ({
       try {
         URL.revokeObjectURL(audioUrlRef.current);
       } catch (e) {
-        console.warn('Error revoking URL:', e);
+        console.warn('[HowlerPlayer] Error revoking URL:', e);
       }
       audioUrlRef.current = null;
     }
+    
+    setIsReady(false);
+    seekTarget.current = null;
+    seekRetryCount.current = 0;
   };
 
   // Initialize Howler instance when file changes
@@ -60,6 +86,8 @@ export const useHowlerPlayer = ({
     // Reset error state when file changes
     setAudioError(null);
     errorShownRef.current = false;
+    setIsReady(false);
+    setIsLoading(false);
     
     if (!file) {
       cleanupAudio();
@@ -74,6 +102,7 @@ export const useHowlerPlayer = ({
 
     try {
       console.log(`[HowlerPlayer] Initializing audio with file: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
+      setIsLoading(true);
       
       // Clean up previous audio resources
       cleanupAudio();
@@ -82,15 +111,22 @@ export const useHowlerPlayer = ({
       const fileUrl = URL.createObjectURL(file);
       audioUrlRef.current = fileUrl;
       
-      // Create new Howl instance
+      // Detect format from file
+      const formats = detectFormat(file);
+      console.log(`[HowlerPlayer] Detected formats: ${formats?.join(', ')}`);
+      
+      // Create new Howl instance with enhanced configuration
       const sound = new Howl({
         src: [fileUrl],
         html5: true, // Force HTML5 Audio to handle large files better
         preload: true,
-        format: ['mp3', 'wav', 'ogg', 'aac', 'm4a'],
+        format: formats || undefined,
+        autoplay: false,
         onload: () => {
           console.log(`[HowlerPlayer] Audio loaded successfully: ${file.name}`);
           setDuration(sound.duration());
+          setIsLoading(false);
+          setIsReady(true);
           
           // Restore saved position if available
           const storedPosition = sessionStorage.getItem('audio-position');
@@ -99,24 +135,36 @@ export const useHowlerPlayer = ({
             if (!isNaN(position) && position > 0) {
               sound.seek(position);
               setCurrentTime(position);
+              
+              // If there was a pending seek target, try to apply it now
+              if (seekTarget.current !== null) {
+                handleSeekInternal(seekTarget.current);
+                seekTarget.current = null;
+              }
             }
           }
         },
         onplay: () => {
           setIsPlaying(true);
           updateProgress();
+          
+          // Announce playback started for screen readers
+          const playbackRateText = playbackRate !== 1 ? ` at ${playbackRate}x speed` : '';
+          console.log(`[HowlerPlayer] Playback started${playbackRateText}`);
         },
         onpause: () => {
           setIsPlaying(false);
           if (progressInterval.current) {
             clearInterval(progressInterval.current);
           }
+          console.log('[HowlerPlayer] Playback paused');
         },
         onstop: () => {
           setIsPlaying(false);
           if (progressInterval.current) {
             clearInterval(progressInterval.current);
           }
+          console.log('[HowlerPlayer] Playback stopped');
         },
         onend: () => {
           console.log('[HowlerPlayer] Audio playback ended');
@@ -129,6 +177,7 @@ export const useHowlerPlayer = ({
         onloaderror: (id, err) => {
           const errorMessage = `Failed to load audio: ${err || 'Unknown error'}`;
           console.error(`[HowlerPlayer] ${errorMessage}`);
+          setIsLoading(false);
           
           if (!errorShownRef.current) {
             errorShownRef.current = true;
@@ -143,6 +192,7 @@ export const useHowlerPlayer = ({
         onplayerror: (id, err) => {
           const errorMessage = `Error playing audio: ${err || 'Unknown error'}`;
           console.error(`[HowlerPlayer] ${errorMessage}`);
+          setIsPlaying(false);
           
           if (!errorShownRef.current) {
             errorShownRef.current = true;
@@ -152,6 +202,37 @@ export const useHowlerPlayer = ({
               duration: 5000,
             });
             if (onError) onError(errorMessage);
+          }
+        },
+        onseek: () => {
+          // When a seek operation completes, update the current time
+          if (howlRef.current) {
+            const time = howlRef.current.seek() as number;
+            setCurrentTime(time || 0);
+            
+            // If we had a specific seek target, check if we hit it accurately
+            if (seekTarget.current !== null) {
+              const actualPos = howlRef.current.seek() as number;
+              const targetPos = seekTarget.current;
+              
+              // If we're not close enough to the target and haven't retried too many times, try again
+              if (Math.abs(actualPos - targetPos) > 0.5 && seekRetryCount.current < 3) {
+                console.log(`[HowlerPlayer] Seek retry ${seekRetryCount.current+1}/3: Target=${targetPos.toFixed(2)}s, Actual=${actualPos.toFixed(2)}s`);
+                seekRetryCount.current++;
+                setTimeout(() => {
+                  if (howlRef.current) {
+                    howlRef.current.seek(targetPos);
+                  }
+                }, 50);
+              } else {
+                // Clear seek target after successful seek or max retries
+                seekTarget.current = null;
+                seekRetryCount.current = 0;
+                
+                // Log seek completion
+                console.log(`[HowlerPlayer] Seek completed to ${time.toFixed(2)}s`);
+              }
+            }
           }
         }
       });
@@ -169,6 +250,7 @@ export const useHowlerPlayer = ({
       };
     } catch (error) {
       console.error('[HowlerPlayer] Error initializing audio player:', error);
+      setIsLoading(false);
       
       if (!errorShownRef.current) {
         errorShownRef.current = true;
@@ -220,7 +302,7 @@ export const useHowlerPlayer = ({
           sessionStorage.setItem('audio-position', String(time));
         }
       }
-    }, 1000);
+    }, 200); // More frequent updates for smoother UI
   };
 
   // Handle visibility changes for tab switching
@@ -290,17 +372,46 @@ export const useHowlerPlayer = ({
     }
   };
 
-  // Seek to a specific position
-  const handleSeek = (time: number) => {
-    if (!howlRef.current) return;
+  // Internal seek implementation with advanced error handling
+  const handleSeekInternal = (time: number) => {
+    if (!howlRef.current) {
+      // Store seek target for when audio is loaded
+      seekTarget.current = time;
+      console.log(`[HowlerPlayer] Audio not ready, storing seek target: ${time}s`);
+      return false;
+    }
     
     try {
+      // Store target for verification in onseek callback
+      seekTarget.current = time;
+      seekRetryCount.current = 0;
+      
+      // Apply the seek
       howlRef.current.seek(time);
-      setCurrentTime(time);
-      console.log(`[HowlerPlayer] Seeked to ${time}s`);
+      console.log(`[HowlerPlayer] Seeking to ${time.toFixed(2)}s`);
+      return true;
     } catch (error) {
       console.error('[HowlerPlayer] Error seeking:', error);
-      // Don't show toast for seeking errors - usually boundary issues
+      seekTarget.current = null;
+      return false;
+    }
+  };
+
+  // Seek to a specific position
+  const handleSeek = (time: number) => {
+    // Validate input
+    if (typeof time !== 'number' || isNaN(time)) {
+      console.error(`[HowlerPlayer] Invalid seek time: ${time}`);
+      return;
+    }
+    
+    // Clamp time to valid range
+    const safeTime = Math.max(0, Math.min(time, duration));
+    
+    // Try to seek and update UI
+    const seekSucceeded = handleSeekInternal(safeTime);
+    if (seekSucceeded) {
+      setCurrentTime(safeTime);
     }
   };
 
@@ -388,6 +499,8 @@ export const useHowlerPlayer = ({
     isMuted,
     playbackRate,
     audioError,
+    isLoading,
+    isReady,
     handlePlayPause,
     handleSeek,
     handleSkip,

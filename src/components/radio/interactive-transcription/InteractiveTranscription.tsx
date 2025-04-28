@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { TranscriptionResult, UtteranceTimestamp } from "@/services/audio/transcriptionService";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,29 +27,66 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const activeSegmentRef = useRef<HTMLDivElement>(null);
+  const lastScrollTime = useRef<number>(0);
   const hasUtterances = transcriptionResult?.utterances && transcriptionResult.utterances.length > 0;
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
 
-  // Find the active segment based on current playback time
+  // Find the active segment based on current playback time with debouncing
+  const findActiveSegment = useCallback((time: number) => {
+    if (!hasUtterances || !transcriptionResult?.utterances) return null;
+    
+    return calculateCurrentSegment(transcriptionResult.utterances, time);
+  }, [hasUtterances, transcriptionResult?.utterances]);
+
+  // Update active segment with debouncing
   useEffect(() => {
-    if (!hasUtterances || !transcriptionResult?.utterances) return;
-
-    const active = calculateCurrentSegment(transcriptionResult.utterances, currentTime);
+    if (!hasUtterances) return;
+    
+    const active = findActiveSegment(currentTime);
     if (active) {
       setActiveSegmentId(`segment-${active.start}-${active.end}`);
     } else {
       setActiveSegmentId(null);
     }
-  }, [currentTime, hasUtterances, transcriptionResult?.utterances]);
+  }, [currentTime, findActiveSegment, hasUtterances]);
 
-  // Auto-scroll to active segment
+  // Auto-scroll to active segment with throttling to improve performance
   useEffect(() => {
     if (activeSegmentId && activeSegmentRef.current && scrollAreaRef.current) {
-      activeSegmentRef.current.scrollIntoView({ 
-        behavior: "smooth", 
-        block: "center" 
-      });
+      // Throttle scrolling to improve performance
+      const now = Date.now();
+      if (now - lastScrollTime.current > 500) { // Only scroll every 500ms at most
+        lastScrollTime.current = now;
+        
+        // Use smooth scrolling if not playing or slow scrolling if playing
+        const behavior = isPlaying ? "smooth" : "auto";
+        
+        activeSegmentRef.current.scrollIntoView({
+          behavior,
+          block: "center"
+        });
+        
+        // Update visible range based on active segment
+        if (transcriptionResult?.utterances) {
+          const activeIndex = transcriptionResult.utterances.findIndex(
+            u => `segment-${u.start}-${u.end}` === activeSegmentId
+          );
+          
+          if (activeIndex !== -1) {
+            const start = Math.max(0, activeIndex - 5);
+            const end = Math.min(transcriptionResult.utterances.length, activeIndex + 15);
+            setVisibleRange({ start, end });
+          }
+        }
+      }
     }
-  }, [activeSegmentId]);
+  }, [activeSegmentId, isPlaying, transcriptionResult?.utterances]);
+
+  // Handle clicking on a transcript segment
+  const handleSegmentClick = useCallback((timestamp: number) => {
+    console.log(`[InteractiveTranscription] Segment clicked at ${timestamp}s`);
+    onSeek(timestamp);
+  }, [onSeek]);
 
   if (!hasUtterances || !transcriptionResult?.utterances) {
     return (
@@ -60,6 +97,12 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
       </Card>
     );
   }
+
+  // Optimize rendering by only showing segments in the visible range
+  const visibleUtterances = transcriptionResult.utterances.slice(
+    visibleRange.start,
+    visibleRange.end
+  );
 
   return (
     <Card className="overflow-hidden">
@@ -82,17 +125,38 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
       <ScrollArea 
         className="h-[400px] p-4" 
         ref={scrollAreaRef}
+        onScrollCapture={() => {
+          // Update the last scroll time to prevent auto-scrolling right after manual scroll
+          lastScrollTime.current = Date.now();
+        }}
       >
         <div className="space-y-4">
-          {transcriptionResult.utterances.map((utterance, index) => (
-            <SpeakerSegment
-              key={`${utterance.speaker}-${utterance.start}-${utterance.end}`}
-              utterance={utterance}
-              isActive={activeSegmentId === `segment-${utterance.start}-${utterance.end}`}
-              refProp={activeSegmentId === `segment-${utterance.start}-${utterance.end}` ? activeSegmentRef : undefined}
-              onClick={() => onSeek(utterance.start)}
-            />
-          ))}
+          {visibleRange.start > 0 && (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              • • •
+            </div>
+          )}
+          
+          {visibleUtterances.map((utterance) => {
+            const segmentId = `segment-${utterance.start}-${utterance.end}`;
+            const isActive = activeSegmentId === segmentId;
+            
+            return (
+              <SpeakerSegment
+                key={segmentId}
+                utterance={utterance}
+                isActive={isActive}
+                refProp={isActive ? activeSegmentRef : undefined}
+                onClick={() => handleSegmentClick(utterance.start)}
+              />
+            );
+          })}
+          
+          {visibleRange.end < transcriptionResult.utterances.length && (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              • • •
+            </div>
+          )}
         </div>
       </ScrollArea>
     </Card>

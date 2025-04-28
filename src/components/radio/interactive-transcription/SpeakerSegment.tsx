@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { memo } from "react";
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 import { formatTime } from "@/components/radio/timestamped/timeUtils";
 import { getSpeakerColor } from "./utils";
@@ -11,7 +11,8 @@ interface SpeakerSegmentProps {
   refProp?: React.RefObject<HTMLDivElement>;
 }
 
-const SpeakerSegment: React.FC<SpeakerSegmentProps> = ({
+// Using React.memo to prevent unnecessary re-renders
+const SpeakerSegment = memo<SpeakerSegmentProps>(({
   utterance,
   isActive,
   onClick,
@@ -61,6 +62,8 @@ const SpeakerSegment: React.FC<SpeakerSegmentProps> = ({
       </p>
     </div>
   );
-};
+});
+
+SpeakerSegment.displayName = 'SpeakerSegment';
 
 export default SpeakerSegment;
