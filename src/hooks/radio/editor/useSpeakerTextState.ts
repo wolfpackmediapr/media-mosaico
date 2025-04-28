@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { 
   TranscriptionResult, 
@@ -32,6 +31,8 @@ export const useSpeakerTextState = ({
 
   const [enhancedTranscriptionResult, setEnhancedTranscriptionResult] =
     useState<TranscriptionResult | undefined>(transcriptionResult);
+  
+  const lastTextRef = useRef(transcriptionText);
 
   const hasSpeakerLabels = Boolean(
     enhancedTranscriptionResult?.utterances &&
@@ -44,7 +45,6 @@ export const useSpeakerTextState = ({
     { storage: 'sessionStorage' }
   );
 
-  // Sync transcription data from props to local state
   useEffect(() => {
     if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
       console.log('[useSpeakerTextState] New transcription result with utterances received');
@@ -53,13 +53,17 @@ export const useSpeakerTextState = ({
       if (formattedText && localSpeakerText !== formattedText) {
         console.log('[useSpeakerTextState] Setting formatted speaker text from utterances');
         setLocalSpeakerText(formattedText);
-        onTranscriptionChange(formattedText);
+        if (formattedText !== lastTextRef.current) {
+          lastTextRef.current = formattedText;
+          onTranscriptionChange(formattedText);
+        }
       }
     } 
-    else if (transcriptionText && (!localSpeakerText || localSpeakerText !== transcriptionText)) {
+    else if (transcriptionText && transcriptionText !== lastTextRef.current) {
       console.log('[useSpeakerTextState] Processing plain transcription text');
       const formattedText = formatPlainTextAsSpeaker(transcriptionText);
       setLocalSpeakerText(formattedText);
+      lastTextRef.current = formattedText;
       onTranscriptionChange(formattedText);
       
       const parsedUtterances = parseSpeakerTextToUtterances(formattedText);
@@ -74,20 +78,19 @@ export const useSpeakerTextState = ({
   }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText]);
 
   const handleTextChange = (newText: string) => {
-    if (!newText) return;
+    if (!newText || newText === lastTextRef.current) return;
     
+    lastTextRef.current = newText;
     setLocalSpeakerText(newText);
     onTranscriptionChange(newText);
     
     const newUtterances = parseSpeakerTextToUtterances(newText);
     if (newUtterances.length > 0) {
-      setEnhancedTranscriptionResult(prev => {
-        return {
-          ...(prev || {}),
-          text: newText,
-          utterances: newUtterances
-        } as TranscriptionResult;
-      });
+      setEnhancedTranscriptionResult(prev => ({
+        ...(prev || {}),
+        text: newText,
+        utterances: newUtterances
+      } as TranscriptionResult));
     }
     
     if (!isEditing) setIsEditing(true);

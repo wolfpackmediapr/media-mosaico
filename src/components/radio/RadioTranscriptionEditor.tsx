@@ -1,9 +1,7 @@
-
 import React, { useEffect } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
 import { TranscriptionEditorWrapper } from "./editor/TranscriptionEditorWrapper";
-import { toast } from "sonner";
 
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
@@ -49,23 +47,10 @@ const RadioTranscriptionEditor = ({
     if (registerReset && resetLocalSpeakerText) {
       registerReset(resetLocalSpeakerText);
       return () => {
-        // Cleanup registration on unmount
         registerReset(() => {});
       };
     }
   }, [registerReset, resetLocalSpeakerText]);
-
-  // Show save success toast
-  useEffect(() => {
-    if (saveSuccess && !isSaving) {
-      toast.success("Transcripción guardada correctamente");
-    }
-  }, [saveSuccess, isSaving]);
-
-  // Handle changes from the editor component
-  const handleTranscriptionChange = (text: string) => {
-    handleTextChange(text);
-  };
 
   // Calculate the final processing state with more granular logging
   const finalIsProcessing = isProcessing || isLoadingUtterances;
@@ -88,7 +73,7 @@ const RadioTranscriptionEditor = ({
       transcriptionResult={enhancedTranscriptionResult || transcriptionResult}
       transcriptionText={localText || transcriptionText}
       isProcessing={finalIsProcessing}
-      onTranscriptionChange={handleTranscriptionChange}
+      onTranscriptionChange={handleTextChange}
       onTimestampClick={onTimestampClick}
       currentTime={currentTime}
       isSaving={isSaving}
