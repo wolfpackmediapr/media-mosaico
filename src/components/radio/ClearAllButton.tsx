@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Trash } from "lucide-react";
@@ -10,8 +10,8 @@ interface ClearAllButtonProps {
 }
 
 const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll }) => {
-  const [open, setOpen] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
+  const [open, setOpen] = React.useState(false);
+  const [isClearing, setIsClearing] = React.useState(false);
 
   const handleConfirm = async () => {
     try {
