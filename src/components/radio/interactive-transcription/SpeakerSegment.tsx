@@ -1,5 +1,5 @@
 
-import React, { memo } from "react";
+import React, { memo, useRef } from "react";
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 import { formatTime } from "@/components/radio/timestamped/timeUtils";
 import { getSpeakerColor } from "./utils";
@@ -19,11 +19,34 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
   refProp,
 }) => {
   const speakerColor = getSpeakerColor(utterance.speaker);
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isClickingRef = useRef<boolean>(false);
+  
+  // Handle click with debouncing to prevent duplicate rapid clicks
+  const handleClick = () => {
+    if (isClickingRef.current) {
+      // Prevent duplicate clicks
+      return;
+    }
+    
+    isClickingRef.current = true;
+    
+    // Clear any existing timeout
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
+    
+    // Set a timeout for the click to prevent rapid succession
+    clickTimeoutRef.current = setTimeout(() => {
+      onClick();
+      isClickingRef.current = false;
+    }, 50);
+  };
   
   return (
     <div
       ref={refProp}
-      onClick={onClick}
+      onClick={handleClick}
       className={`
         p-3 rounded-lg transition-all cursor-pointer
         hover:bg-muted/50

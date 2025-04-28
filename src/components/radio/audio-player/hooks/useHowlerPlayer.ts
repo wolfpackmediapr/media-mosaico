@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
 import { validateAudioFile } from '@/utils/file-validation';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface AudioPlayerOptions {
   file?: File;
@@ -14,6 +15,9 @@ interface AudioPlayerOptions {
 
 // Enhanced audio formats supported by Howler
 const SUPPORTED_FORMATS = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'webm'];
+
+// Cooldown period to prevent rapid play/pause actions (milliseconds)
+const PLAY_PAUSE_COOLDOWN = 300;
 
 export const useHowlerPlayer = ({ 
   file, 
@@ -39,6 +43,11 @@ export const useHowlerPlayer = ({
   const errorShownRef = useRef<boolean>(false);
   const seekTarget = useRef<number | null>(null);
   const seekRetryCount = useRef<number>(0);
+  
+  // Operation tracking refs to prevent race conditions
+  const isOperationPending = useRef<boolean>(false);
+  const lastPlayPauseTime = useRef<number>(0);
+  const playPauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Detect file format from name or MIME type
   const detectFormat = (file?: File): string[] | null => {
@@ -62,6 +71,11 @@ export const useHowlerPlayer = ({
       progressInterval.current = undefined;
     }
     
+    if (playPauseTimeoutRef.current) {
+      clearTimeout(playPauseTimeoutRef.current);
+      playPauseTimeoutRef.current = null;
+    }
+    
     if (howlRef.current) {
       howlRef.current.unload();
       howlRef.current = null;
@@ -79,6 +93,7 @@ export const useHowlerPlayer = ({
     setIsReady(false);
     seekTarget.current = null;
     seekRetryCount.current = 0;
+    isOperationPending.current = false;
   };
 
   // Initialize Howler instance when file changes
@@ -147,6 +162,7 @@ export const useHowlerPlayer = ({
         onplay: () => {
           setIsPlaying(true);
           updateProgress();
+          isOperationPending.current = false;
           
           // Announce playback started for screen readers
           const playbackRateText = playbackRate !== 1 ? ` at ${playbackRate}x speed` : '';
@@ -157,6 +173,7 @@ export const useHowlerPlayer = ({
           if (progressInterval.current) {
             clearInterval(progressInterval.current);
           }
+          isOperationPending.current = false;
           console.log('[HowlerPlayer] Playback paused');
         },
         onstop: () => {
@@ -164,6 +181,7 @@ export const useHowlerPlayer = ({
           if (progressInterval.current) {
             clearInterval(progressInterval.current);
           }
+          isOperationPending.current = false;
           console.log('[HowlerPlayer] Playback stopped');
         },
         onend: () => {
@@ -172,12 +190,14 @@ export const useHowlerPlayer = ({
           if (progressInterval.current) {
             clearInterval(progressInterval.current);
           }
+          isOperationPending.current = false;
           if (onEnded) onEnded();
         },
         onloaderror: (id, err) => {
           const errorMessage = `Failed to load audio: ${err || 'Unknown error'}`;
           console.error(`[HowlerPlayer] ${errorMessage}`);
           setIsLoading(false);
+          isOperationPending.current = false;
           
           if (!errorShownRef.current) {
             errorShownRef.current = true;
@@ -190,9 +210,22 @@ export const useHowlerPlayer = ({
           }
         },
         onplayerror: (id, err) => {
+          // Handle AbortError - this is expected when rapid play/pause actions occur
+          const isAbortError = err && 
+            (typeof err === 'string' && err.includes('AbortError') || 
+             typeof err === 'object' && (err as any)?.name === 'AbortError');
+          
+          if (isAbortError) {
+            console.log('[HowlerPlayer] Play interrupted (AbortError) - likely due to rapid play/pause actions');
+            isOperationPending.current = false;
+            return; // Silently handle AbortError
+          }
+          
+          // Handle other errors
           const errorMessage = `Error playing audio: ${err || 'Unknown error'}`;
           console.error(`[HowlerPlayer] ${errorMessage}`);
           setIsPlaying(false);
+          isOperationPending.current = false;
           
           if (!errorShownRef.current) {
             errorShownRef.current = true;
@@ -251,6 +284,7 @@ export const useHowlerPlayer = ({
     } catch (error) {
       console.error('[HowlerPlayer] Error initializing audio player:', error);
       setIsLoading(false);
+      isOperationPending.current = false;
       
       if (!errorShownRef.current) {
         errorShownRef.current = true;
@@ -327,18 +361,20 @@ export const useHowlerPlayer = ({
           console.log('[HowlerPlayer] Tab became visible, attempting to resume playback');
           // Try to resume playback if it was playing before
           if (!isPlaying && !audioError) {
-            // Small delay to ensure audio context is ready
+            // Increased delay to ensure audio context is ready (500ms instead of 100ms)
             setTimeout(() => {
-              if (howlRef.current) {
+              if (howlRef.current && !isOperationPending.current) {
                 try {
+                  isOperationPending.current = true;
                   howlRef.current.play();
                   // Note: onplay callback will handle setting isPlaying state
                 } catch (error) {
+                  isOperationPending.current = false;
                   console.error('[HowlerPlayer] Error resuming audio on tab focus:', error);
                   toast.error('Couldn\'t resume audio automatically');
                 }
               }
-            }, 100);
+            }, 500); // Increased delay for better tab focus recovery
           }
         }
       }
@@ -351,25 +387,60 @@ export const useHowlerPlayer = ({
     };
   }, [file, isPlaying, preservePlaybackOnBlur, resumeOnFocus, audioError]);
 
-  // Play/pause toggle
+  // Play/pause toggle with debouncing to prevent rapid calling
   const handlePlayPause = () => {
     if (!howlRef.current) return;
     
-    if (isPlaying) {
-      console.log('[HowlerPlayer] Pausing audio');
-      howlRef.current.pause();
-      // Note: onpause callback will handle setting isPlaying state
-    } else {
-      console.log('[HowlerPlayer] Playing audio');
-      try {
-        howlRef.current.play();
-        // Note: onplay callback will handle setting isPlaying state
-      } catch (error) {
-        console.error('[HowlerPlayer] Error playing audio:', error);
-        toast.error('Error playing audio file');
-        if (onError && error instanceof Error) onError(error.message);
-      }
+    const now = Date.now();
+    
+    // Prevent rapid play/pause actions by enforcing a cooldown period
+    if (now - lastPlayPauseTime.current < PLAY_PAUSE_COOLDOWN) {
+      console.log('[HowlerPlayer] Ignoring rapid play/pause action');
+      return;
     }
+    
+    // Clear any existing timeout
+    if (playPauseTimeoutRef.current) {
+      clearTimeout(playPauseTimeoutRef.current);
+    }
+
+    // Track operation time and set pending state
+    lastPlayPauseTime.current = now;
+    
+    // Return early if an operation is already pending
+    if (isOperationPending.current) {
+      console.log('[HowlerPlayer] Ignoring play/pause while operation is pending');
+      return;
+    }
+    
+    isOperationPending.current = true;
+    
+    // Use a small timeout to handle the case where multiple UI interactions
+    // might trigger play/pause in rapid succession
+    playPauseTimeoutRef.current = setTimeout(() => {
+      try {
+        if (isPlaying) {
+          console.log('[HowlerPlayer] Pausing audio');
+          howlRef.current?.pause();
+          // Note: onpause callback will handle setting isPlaying state
+        } else {
+          console.log('[HowlerPlayer] Playing audio');
+          howlRef.current?.play();
+          // Note: onplay callback will handle setting isPlaying state
+        }
+      } catch (error) {
+        isOperationPending.current = false;
+        console.error('[HowlerPlayer] Error in play/pause:', error);
+        
+        // Special handling for AbortError - common during rapid play/pause
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('[HowlerPlayer] AbortError detected - ignoring as this is expected with rapid interactions');
+        } else {
+          toast.error('Error playing audio file');
+          if (onError && error instanceof Error) onError(error.message);
+        }
+      }
+    }, 10);
   };
 
   // Internal seek implementation with advanced error handling
@@ -397,7 +468,7 @@ export const useHowlerPlayer = ({
     }
   };
 
-  // Seek to a specific position
+  // Seek to a specific position with bounce protection
   const handleSeek = (time: number) => {
     // Validate input
     if (typeof time !== 'number' || isNaN(time)) {
@@ -480,9 +551,16 @@ export const useHowlerPlayer = ({
   // Force set playing state (for external control)
   const setIsPlayingState = (playing: boolean) => {
     if (howlRef.current) {
-      if (playing && !isPlaying) {
-        howlRef.current.play();
-      } else if (!playing && isPlaying) {
+      if (playing && !isPlaying && !isOperationPending.current) {
+        // Add a small delay to ensure events don't conflict
+        setTimeout(() => {
+          if (howlRef.current) {
+            isOperationPending.current = true;
+            howlRef.current.play();
+          }
+        }, 50);
+      } else if (!playing && isPlaying && !isOperationPending.current) {
+        isOperationPending.current = true;
         howlRef.current.pause();
       }
     } else {

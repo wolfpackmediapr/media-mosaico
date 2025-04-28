@@ -28,6 +28,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const activeSegmentRef = useRef<HTMLDivElement>(null);
   const lastScrollTime = useRef<number>(0);
+  const lastSegmentClickTime = useRef<number>(0);
   const hasUtterances = transcriptionResult?.utterances && transcriptionResult.utterances.length > 0;
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
 
@@ -38,24 +39,32 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     return calculateCurrentSegment(transcriptionResult.utterances, time);
   }, [hasUtterances, transcriptionResult?.utterances]);
 
-  // Update active segment with debouncing
+  // Update active segment with debouncing to reduce state updates
   useEffect(() => {
     if (!hasUtterances) return;
     
-    const active = findActiveSegment(currentTime);
-    if (active) {
-      setActiveSegmentId(`segment-${active.start}-${active.end}`);
-    } else {
-      setActiveSegmentId(null);
-    }
-  }, [currentTime, findActiveSegment, hasUtterances]);
+    // Use a simple debounce by checking every 300ms instead of every frame
+    const updateInterval = setInterval(() => {
+      const active = findActiveSegment(currentTime);
+      if (active) {
+        const newSegmentId = `segment-${active.start}-${active.end}`;
+        if (activeSegmentId !== newSegmentId) {
+          setActiveSegmentId(newSegmentId);
+        }
+      } else if (activeSegmentId !== null) {
+        setActiveSegmentId(null);
+      }
+    }, 300);
+    
+    return () => clearInterval(updateInterval);
+  }, [currentTime, findActiveSegment, hasUtterances, activeSegmentId]);
 
   // Auto-scroll to active segment with throttling to improve performance
   useEffect(() => {
     if (activeSegmentId && activeSegmentRef.current && scrollAreaRef.current) {
       // Throttle scrolling to improve performance
       const now = Date.now();
-      if (now - lastScrollTime.current > 500) { // Only scroll every 500ms at most
+      if (now - lastScrollTime.current > 800) { // Only scroll every 800ms at most (increased from 500ms)
         lastScrollTime.current = now;
         
         // Use smooth scrolling if not playing or slow scrolling if playing
@@ -82,10 +91,21 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     }
   }, [activeSegmentId, isPlaying, transcriptionResult?.utterances]);
 
-  // Handle clicking on a transcript segment
+  // Handle clicking on a transcript segment with debouncing
   const handleSegmentClick = useCallback((timestamp: number) => {
+    const now = Date.now();
+    
+    // Prevent rapid successive clicks (300ms cooldown)
+    if (now - lastSegmentClickTime.current < 300) {
+      console.log(`[InteractiveTranscription] Ignoring rapid segment click`);
+      return;
+    }
+    
+    lastSegmentClickTime.current = now;
     console.log(`[InteractiveTranscription] Segment clicked at ${timestamp}s`);
-    onSeek(timestamp);
+    
+    // Add a small delay before seeking to prevent conflicts with other operations
+    setTimeout(() => onSeek(timestamp), 50);
   }, [onSeek]);
 
   if (!hasUtterances || !transcriptionResult?.utterances) {
@@ -127,7 +147,8 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         ref={scrollAreaRef}
         onScrollCapture={() => {
           // Update the last scroll time to prevent auto-scrolling right after manual scroll
-          lastScrollTime.current = Date.now();
+          // Extend the cooldown period to 2 seconds after manual scroll
+          lastScrollTime.current = Date.now() + 2000;
         }}
       >
         <div className="space-y-4">
