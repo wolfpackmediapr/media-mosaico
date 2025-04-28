@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAudioPlayer } from "../../components/radio/audio-player/hooks/useAudioPlayer";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
+import { toast } from "sonner";
 
 interface AudioProcessingOptions {
   currentFile: File | null;
@@ -17,8 +18,21 @@ export const useAudioProcessing = ({
   onPlayingChange = () => {}
 }: AudioProcessingOptions) => {
   const [prevPlayingState, setPrevPlayingState] = useState(false);
+  const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
   const wasPlayingBeforeTabChange = useRef<boolean>(false);
   const lastSeenTabVisible = useRef<number>(Date.now());
+  const errorShownRef = useRef<boolean>(false);
+
+  const handleAudioError = (error: string) => {
+    console.error('[AudioProcessing] Audio error:', error);
+    setPlaybackErrors(error);
+    
+    // Prevent showing multiple error toasts for the same issue
+    if (!errorShownRef.current) {
+      errorShownRef.current = true;
+      // We don't show a toast here as the useAudioPlayer hook already shows one
+    }
+  };
 
   const {
     isPlaying,
@@ -27,6 +41,7 @@ export const useAudioProcessing = ({
     volume,
     isMuted,
     playbackRate,
+    audioError,
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
@@ -38,8 +53,25 @@ export const useAudioProcessing = ({
     file: currentFile || undefined,
     // Add these options to persist audio across tab changes
     preservePlaybackOnBlur: true,
-    resumeOnFocus: true
+    resumeOnFocus: true,
+    onError: handleAudioError
   });
+
+  // Reset error state when file changes
+  useEffect(() => {
+    if (currentFile) {
+      setPlaybackErrors(null);
+      errorShownRef.current = false;
+      console.log(`[AudioProcessing] New file loaded: ${currentFile.name}`);
+    }
+  }, [currentFile]);
+
+  // Sync with audioError from useAudioPlayer
+  useEffect(() => {
+    if (audioError) {
+      setPlaybackErrors(audioError);
+    }
+  }, [audioError]);
 
   // Handle document visibility changes to persist playback across tab changes
   useEffect(() => {
@@ -64,7 +96,9 @@ export const useAudioProcessing = ({
           console.log("[useAudioProcessing] Resuming playback after tab change");
           // Small delay to ensure audio context is ready
           setTimeout(() => {
-            originalHandlePlayPause();
+            if (!playbackErrors) {
+              originalHandlePlayPause();
+            }
           }, 100);
         }
       }
@@ -75,7 +109,7 @@ export const useAudioProcessing = ({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isPlaying, currentFile, originalHandlePlayPause]);
+  }, [isPlaying, currentFile, originalHandlePlayPause, playbackErrors]);
 
   // Sync our playing state with external state
   useEffect(() => {
@@ -83,7 +117,7 @@ export const useAudioProcessing = ({
     if (isActiveMediaRoute && externalIsPlaying !== isPlaying) {
       if (externalIsPlaying) {
         // If external state says we should be playing but we're not, try to play
-        if (!isPlaying && currentFile) {
+        if (!isPlaying && currentFile && !playbackErrors) {
           originalHandlePlayPause();
         }
       } else {
@@ -105,16 +139,32 @@ export const useAudioProcessing = ({
         navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
       }
     }
-  }, [isActiveMediaRoute, externalIsPlaying, isPlaying, prevPlayingState, currentFile, originalHandlePlayPause, onPlayingChange]);
+  }, [isActiveMediaRoute, externalIsPlaying, isPlaying, prevPlayingState, currentFile, originalHandlePlayPause, onPlayingChange, playbackErrors]);
 
   // Wrapper for play/pause that also updates external state
   const handlePlayPause = () => {
+    if (playbackErrors) {
+      toast.error("Cannot play audio", { 
+        description: "Audio file cannot be played due to errors",
+        duration: 3000
+      });
+      return;
+    }
+    
     originalHandlePlayPause();
     onPlayingChange(!isPlaying);
   };
 
   // Handler to seek to a specific segment
   const handleSeekToSegment = (segment: RadioNewsSegment) => {
+    if (playbackErrors) {
+      toast.error("Cannot seek in audio", { 
+        description: "Audio file cannot be played due to errors",
+        duration: 3000
+      });
+      return;
+    }
+    
     if (segment && segment.startTime !== undefined) {
       seekToTimestamp(segment.startTime);
       onPlayingChange(true);
@@ -128,6 +178,7 @@ export const useAudioProcessing = ({
     volume,
     isMuted,
     playbackRate,
+    playbackErrors,
     handlePlayPause,
     handleSeek,
     handleSkip,

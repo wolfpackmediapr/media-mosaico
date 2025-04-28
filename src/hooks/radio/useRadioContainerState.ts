@@ -28,6 +28,7 @@ export const useRadioContainerState = ({
 }: UseRadioContainerStateProps) => {
   const { isAuthenticated } = useAuthStatus();
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
 
   const {
     files,
@@ -80,6 +81,7 @@ export const useRadioContainerState = ({
     volume,
     isMuted,
     playbackRate,
+    playbackErrors: audioPlaybackErrors,
     handlePlayPause,
     handleSeek,
     handleSkip,
@@ -98,6 +100,13 @@ export const useRadioContainerState = ({
     onTextChange
   });
 
+  // Sync audio errors with component state
+  useEffect(() => {
+    if (audioPlaybackErrors !== playbackErrors) {
+      setPlaybackErrors(audioPlaybackErrors);
+    }
+  }, [audioPlaybackErrors]);
+
   const handleClearAll = () => {
     console.log('[RadioContainer] handleClearAll: Starting clear sequence');
     resetTranscription();
@@ -105,6 +114,7 @@ export const useRadioContainerState = ({
     setFiles([]);
     setCurrentFileIndex(0);
     clearAllState();
+    setPlaybackErrors(null);
     toast.success('Todos los datos han sido borrados');
     setLastAction('clear');
   };
@@ -112,6 +122,7 @@ export const useRadioContainerState = ({
   const handleTrackSelect = (index: number) => {
     if (index !== currentFileIndex) {
       setCurrentFileIndex(index);
+      setPlaybackErrors(null); // Reset errors when changing tracks
       setLastAction('track-select');
     }
   };
@@ -125,6 +136,7 @@ export const useRadioContainerState = ({
     if (newFiles.length > 0) {
       toast.success(`${newFiles.length} archivos añadidos correctamente`);
       setLastAction('files-added');
+      setPlaybackErrors(null); // Reset errors when adding new files
     }
     
     // Return the result of the original function
@@ -154,6 +166,7 @@ export const useRadioContainerState = ({
     volume,
     isMuted,
     playbackRate,
+    playbackErrors,
     // State tracking
     lastAction,
     // Handlers
