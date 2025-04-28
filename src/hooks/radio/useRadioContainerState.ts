@@ -116,14 +116,18 @@ export const useRadioContainerState = ({
     }
   };
 
+  // Fixed function to properly handle the return type
   const enhancedHandleFilesAdded = (newFiles: File[]) => {
+    // Call the original function
     const result = handleFilesAdded(newFiles);
-    if (result && result.added > 0) {
-      toast.success(`${result.added} archivos añadidos correctamente`);
+    
+    // If files were added, show success toast
+    if (newFiles.length > 0) {
+      toast.success(`${newFiles.length} archivos añadidos correctamente`);
       setLastAction('files-added');
-    } else if (result && result.duplicates > 0) {
-      toast.warning(`${result.duplicates} archivos duplicados no fueron añadidos`);
     }
+    
+    // Return the result of the original function
     return result;
   };
 
