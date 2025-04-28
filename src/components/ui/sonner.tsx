@@ -22,7 +22,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
         },
         duration: 4000,
-        position: "top-right",
+        // Remove position from here as it's set at the component level
       }}
       expand={false}
       position="top-right"
