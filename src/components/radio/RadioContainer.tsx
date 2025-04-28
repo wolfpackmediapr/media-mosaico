@@ -1,9 +1,6 @@
 
-import { useAuthStatus } from "@/hooks/use-auth-status";
-import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
-import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
-import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
-import { useRadioPlayer } from "@/hooks/radio/useRadioPlayer";
+import React from "react";
+import { useRadioContainerState } from "@/hooks/radio/useRadioContainerState";
 import RadioLayout from "./RadioLayout";
 import {
   TopSection,
@@ -24,8 +21,8 @@ interface RadioContainerProps {
   setIsMediaPlaying?: (isPlaying: boolean) => void;
 }
 
-const RadioContainer = ({ 
-  persistedText = "", 
+const RadioContainer = ({
+  persistedText = "",
   onTextChange,
   persistKey = "radio-files",
   storage = "sessionStorage",
@@ -33,170 +30,95 @@ const RadioContainer = ({
   isMediaPlaying = false,
   setIsMediaPlaying = () => {}
 }: RadioContainerProps) => {
-  const { isAuthenticated } = useAuthStatus();
-  
-  const {
-    files,
-    setFiles,
-    currentFileIndex,
-    setCurrentFileIndex,
-    currentFile,
-    handleRemoveFile,
-    handleFilesAdded
-  } = useRadioFiles({
+  const state = useRadioContainerState({
+    persistedText,
+    onTextChange,
     persistKey,
-    storage
-  });
-
-  const {
-    isProcessing,
-    setIsProcessing,
-    progress,
-    setProgress,
-    transcriptionText,
-    setTranscriptionText,
-    transcriptionId,
-    setTranscriptionId,
-    transcriptionResult,
-    metadata,
-    newsSegments,
-    setNewsSegments,
-    handleTranscriptionTextChange,
-    handleSegmentsReceived,
-    handleMetadataChange,
-    handleTranscriptionReceived,
-    resetTranscription
-  } = useTranscriptionManagement();
-
-  const { 
-    clearAllState, 
-    handleEditorRegisterReset, 
-    setClearAnalysis 
-  } = useClearRadioState({
-    transcriptionId,
-    persistKey,
-    onTextChange
-  });
-
-  const {
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    isMuted,
-    playbackRate,
-    handlePlayPause,
-    handleSeek,
-    handleSkip,
-    handleToggleMute,
-    handleVolumeChange,
-    handlePlaybackRateChange,
-    handleSeekToSegment
-  } = useRadioPlayer({
-    currentFile,
+    storage,
     isActiveMediaRoute,
     isMediaPlaying,
-    setIsMediaPlaying,
-    persistedText,
-    transcriptionText,
-    setTranscriptionText,
-    onTextChange
+    setIsMediaPlaying
   });
-
-  const handleClearAll = () => {
-    console.log('[RadioContainer] handleClearAll: Starting clear sequence');
-    resetTranscription();
-    setNewsSegments([]);
-    setFiles([]);
-    setCurrentFileIndex(0);
-    clearAllState();
-  };
-
-  const handleTrackSelect = (index: number) => {
-    if (index !== currentFileIndex) {
-      setCurrentFileIndex(index);
-    }
-  };
 
   return (
     <>
       <TopSection
-        handleClearAll={handleClearAll}
-        files={files}
-        transcriptionText={transcriptionText}
+        handleClearAll={state.handleClearAll}
+        files={state.files}
+        transcriptionText={state.transcriptionText}
       />
       <RadioLayout
-        isAuthenticated={isAuthenticated}
+        isAuthenticated={state.isAuthenticated}
         leftSection={
           <LeftSection
-            files={files}
-            setFiles={setFiles}
-            currentFileIndex={currentFileIndex}
-            setCurrentFileIndex={setCurrentFileIndex}
-            isProcessing={isProcessing}
-            setIsProcessing={setIsProcessing}
-            progress={progress}
-            setProgress={setProgress}
-            transcriptionText={transcriptionText}
-            setTranscriptionText={setTranscriptionText}
-            setTranscriptionId={setTranscriptionId}
-            handleTranscriptionReceived={handleTranscriptionReceived}
-            handleFilesAdded={handleFilesAdded}
+            files={state.files}
+            setFiles={state.setFiles}
+            currentFileIndex={state.currentFileIndex}
+            setCurrentFileIndex={state.setCurrentFileIndex}
+            isProcessing={state.isProcessing}
+            setIsProcessing={state.setIsProcessing}
+            progress={state.progress}
+            setProgress={state.setProgress}
+            transcriptionText={state.transcriptionText}
+            setTranscriptionText={state.setTranscriptionText}
+            setTranscriptionId={state.setTranscriptionId}
+            handleTranscriptionReceived={state.handleTranscriptionReceived}
+            handleFilesAdded={state.handleFilesAdded}
           />
         }
         rightSection={
           <RightSection
-            currentFile={currentFile}
-            metadata={metadata}
-            files={files}
-            currentFileIndex={currentFileIndex}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            duration={duration}
-            isMuted={isMuted}
-            volume={volume}
-            playbackRate={playbackRate}
-            onPlayPause={handlePlayPause}
-            onSeek={handleSeek}
-            onSkip={handleSkip}
-            onToggleMute={handleToggleMute}
-            onVolumeChange={handleVolumeChange}
-            onPlaybackRateChange={handlePlaybackRateChange}
-            handleTrackSelect={handleTrackSelect}
+            currentFile={state.currentFile}
+            metadata={state.metadata}
+            files={state.files}
+            currentFileIndex={state.currentFileIndex}
+            isPlaying={state.isPlaying}
+            currentTime={state.currentTime}
+            duration={state.duration}
+            isMuted={state.isMuted}
+            volume={state.volume}
+            playbackRate={state.playbackRate}
+            onPlayPause={state.handlePlayPause}
+            onSeek={state.handleSeek}
+            onSkip={state.handleSkip}
+            onToggleMute={state.handleToggleMute}
+            onVolumeChange={state.handleVolumeChange}
+            onPlaybackRateChange={state.handlePlaybackRateChange}
+            handleTrackSelect={state.handleTrackSelect}
           />
         }
         transcriptionSection={
           <TranscriptionSection
-            isProcessing={isProcessing}
-            transcriptionText={transcriptionText}
-            transcriptionId={transcriptionId}
-            transcriptionResult={transcriptionResult}
-            metadata={metadata}
-            handleTranscriptionTextChange={handleTranscriptionTextChange}
-            handleSegmentsReceived={handleSegmentsReceived}
-            handleMetadataChange={handleMetadataChange}
-            handleSeekToSegment={handleSeekToSegment}
-            registerEditorReset={handleEditorRegisterReset}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            onPlayPause={handlePlayPause}
+            isProcessing={state.isProcessing}
+            transcriptionText={state.transcriptionText}
+            transcriptionId={state.transcriptionId}
+            transcriptionResult={state.transcriptionResult}
+            metadata={state.metadata}
+            handleTranscriptionTextChange={state.handleTranscriptionTextChange}
+            handleSegmentsReceived={state.handleSegmentsReceived}
+            handleMetadataChange={state.handleMetadataChange}
+            handleSeekToSegment={state.handleSeekToSegment}
+            registerEditorReset={state.handleEditorRegisterReset}
+            isPlaying={state.isPlaying}
+            currentTime={state.currentTime}
+            onPlayPause={state.handlePlayPause}
           />
         }
         analysisSection={
           <AnalysisSection
-            transcriptionText={transcriptionText}
-            transcriptionId={transcriptionId}
-            transcriptionResult={transcriptionResult}
-            handleSegmentsReceived={handleSegmentsReceived}
-            onClearAnalysis={setClearAnalysis}
+            transcriptionText={state.transcriptionText}
+            transcriptionId={state.transcriptionId}
+            transcriptionResult={state.transcriptionResult}
+            handleSegmentsReceived={state.handleSegmentsReceived}
+            onClearAnalysis={state.setClearAnalysis}
           />
         }
         newsSegmentsSection={
           <NewsSegmentsSection
-            newsSegments={newsSegments}
-            setNewsSegments={setNewsSegments}
-            handleSeekToSegment={handleSeekToSegment}
-            isProcessing={isProcessing}
+            newsSegments={state.newsSegments}
+            setNewsSegments={state.setNewsSegments}
+            handleSeekToSegment={state.handleSeekToSegment}
+            isProcessing={state.isProcessing}
           />
         }
       />
