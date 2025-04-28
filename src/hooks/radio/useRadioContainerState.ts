@@ -5,6 +5,7 @@ import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
 import { useRadioPlayer } from "@/hooks/radio/useRadioPlayer";
+import { toast } from "sonner";
 
 interface UseRadioContainerStateProps {
   persistedText?: string;
@@ -26,6 +27,7 @@ export const useRadioContainerState = ({
   setIsMediaPlaying = () => {}
 }: UseRadioContainerStateProps) => {
   const { isAuthenticated } = useAuthStatus();
+  const [lastAction, setLastAction] = useState<string | null>(null);
 
   const {
     files,
@@ -57,7 +59,8 @@ export const useRadioContainerState = ({
     handleSegmentsReceived,
     handleMetadataChange,
     handleTranscriptionReceived,
-    resetTranscription
+    resetTranscription,
+    handleTranscriptionProcessingError
   } = useTranscriptionManagement();
 
   const { 
@@ -102,12 +105,26 @@ export const useRadioContainerState = ({
     setFiles([]);
     setCurrentFileIndex(0);
     clearAllState();
+    toast.success('Todos los datos han sido borrados');
+    setLastAction('clear');
   };
 
   const handleTrackSelect = (index: number) => {
     if (index !== currentFileIndex) {
       setCurrentFileIndex(index);
+      setLastAction('track-select');
     }
+  };
+
+  const enhancedHandleFilesAdded = (newFiles: File[]) => {
+    const result = handleFilesAdded(newFiles);
+    if (result && result.added > 0) {
+      toast.success(`${result.added} archivos añadidos correctamente`);
+      setLastAction('files-added');
+    } else if (result && result.duplicates > 0) {
+      toast.warning(`${result.duplicates} archivos duplicados no fueron añadidos`);
+    }
+    return result;
   };
 
   return {
@@ -133,10 +150,12 @@ export const useRadioContainerState = ({
     volume,
     isMuted,
     playbackRate,
+    // State tracking
+    lastAction,
     // Handlers
     handleClearAll,
     handleTrackSelect,
-    handleFilesAdded,
+    handleFilesAdded: enhancedHandleFilesAdded,
     setFiles,
     setCurrentFileIndex,
     setIsProcessing,
@@ -156,6 +175,7 @@ export const useRadioContainerState = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
-    setNewsSegments
+    setNewsSegments,
+    handleTranscriptionProcessingError
   };
 };

@@ -1,8 +1,9 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
 import { TranscriptionEditorWrapper } from "./editor/TranscriptionEditorWrapper";
+import { toast } from "sonner";
 
 interface RadioTranscriptionEditorProps {
   transcriptionText: string;
@@ -44,11 +45,22 @@ const RadioTranscriptionEditor = ({
   });
 
   // Register the reset function if the prop is provided
-  React.useEffect(() => {
+  useEffect(() => {
     if (registerReset && resetLocalSpeakerText) {
       registerReset(resetLocalSpeakerText);
+      return () => {
+        // Cleanup registration on unmount
+        registerReset(() => {});
+      };
     }
   }, [registerReset, resetLocalSpeakerText]);
+
+  // Show save success toast
+  useEffect(() => {
+    if (saveSuccess && !isSaving) {
+      toast.success("Transcripción guardada correctamente");
+    }
+  }, [saveSuccess, isSaving]);
 
   // Handle changes from the editor component
   const handleTranscriptionChange = (text: string) => {
@@ -67,7 +79,7 @@ const RadioTranscriptionEditor = ({
   });
 
   // Log when the processing state changes
-  React.useEffect(() => {
+  useEffect(() => {
     console.log('[RadioTranscriptionEditor] Processing state changed:', finalIsProcessing);
   }, [finalIsProcessing]);
 
