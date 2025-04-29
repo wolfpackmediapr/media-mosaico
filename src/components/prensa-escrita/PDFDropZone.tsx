@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { validatePdfFile } from "@/utils/file-validators";
-import { toast } from "@/services/toastService";
+import { useToast } from "@/hooks/use-toast";
 
 interface PDFDropZoneProps {
   onFileSelect: (file: File) => void;
@@ -12,6 +12,7 @@ interface PDFDropZoneProps {
 }
 
 const PDFDropZone = ({ onFileSelect, maxFileSizeMB, isUploading }: PDFDropZoneProps) => {
+  const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -35,8 +36,9 @@ const PDFDropZone = ({ onFileSelect, maxFileSizeMB, isUploading }: PDFDropZonePr
       return;
     }
     
-    toast.success("Archivo seleccionado", {
-      description: `${droppedFile.name} (${(droppedFile.size / 1024 / 1024).toFixed(2)} MB)`
+    toast({
+      title: "Archivo seleccionado",
+      description: `${droppedFile.name} (${(droppedFile.size / 1024 / 1024).toFixed(2)} MB)`,
     });
     
     onFileSelect(droppedFile);
@@ -50,8 +52,9 @@ const PDFDropZone = ({ onFileSelect, maxFileSizeMB, isUploading }: PDFDropZonePr
         return;
       }
       
-      toast.success("Archivo seleccionado", {
-        description: `${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`
+      toast({
+        title: "Archivo seleccionado",
+        description: `${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`,
       });
       
       onFileSelect(selectedFile);

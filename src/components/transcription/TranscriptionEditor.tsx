@@ -1,7 +1,7 @@
 
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useAutosave } from "@/hooks/use-autosave";
 import { usePersistentState } from "@/hooks/use-persistent-state";
@@ -17,6 +17,8 @@ const TranscriptionEditor = ({
   isProcessing,
   onTranscriptionChange,
 }: TranscriptionEditorProps) => {
+  const { toast } = useToast();
+  
   // Create a more robust key for persistence
   const storageKey = `transcription-draft-${transcriptionText?.substring(0, 20) || 'empty'}-${Date.now().toString().substring(0, 6)}`;
   
@@ -51,8 +53,10 @@ const TranscriptionEditor = ({
         
         return;
       } catch (error) {
-        toast.error("Error al guardar", {
-          description: "No se pudo guardar la transcripción"
+        toast({
+          title: "Error al guardar",
+          description: "No se pudo guardar la transcripción",
+          variant: "destructive",
         });
         throw error;
       }
@@ -63,11 +67,12 @@ const TranscriptionEditor = ({
   // Show toast only when saveSuccess changes to true
   useEffect(() => {
     if (saveSuccess === true) {
-      toast.success("Guardado automático", {
-        description: "La transcripción se ha guardado correctamente"
+      toast({
+        title: "Guardado automático",
+        description: "La transcripción se ha guardado correctamente",
       });
     }
-  }, [saveSuccess]);
+  }, [saveSuccess, toast]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;

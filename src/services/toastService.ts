@@ -1,30 +1,31 @@
 
 import { toast as sonnerToast } from "sonner";
-import { ToastProps } from "@/components/ui/toast";
 
-// Direct Sonner toast export 
 export const toast = sonnerToast;
 
-// Legacy API compatible function - wraps Sonner's API to maintain backward compatibility
-export const legacyToast = (props: {
+export const useToast = () => {
+  return {
+    toast: {
+      error: (message: string, options?: any) => sonnerToast.error(message, options),
+      success: (message: string, options?: any) => sonnerToast.success(message, options),
+      warning: (message: string, options?: any) => sonnerToast.warning(message, options),
+      info: (message: string, options?: any) => sonnerToast.info(message, options),
+    }
+  };
+};
+
+export const legacyToast = (options: {
   title?: string;
   description?: string;
   variant?: "default" | "destructive";
 }) => {
-  if (props.variant === "destructive") {
-    sonnerToast.error(props.title || "", {
-      description: props.description,
+  if (options.variant === "destructive") {
+    sonnerToast.error(options.title || "", {
+      description: options.description,
     });
   } else {
-    sonnerToast.success(props.title || "", {
-      description: props.description,
+    sonnerToast.success(options.title || "", {
+      description: options.description,
     });
   }
-};
-
-// Provide a hook with the same API as the old shadcn/ui toast
-export const useToast = () => {
-  return {
-    toast: legacyToast
-  };
 };

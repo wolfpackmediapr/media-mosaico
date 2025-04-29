@@ -1,30 +1,54 @@
 
 import { toast as sonnerToast } from 'sonner';
-import { ToastProps } from "@/components/ui/toast";
 
-// Direct Sonner toast export for those who prefer to use it directly
-export const toast = sonnerToast;
-
-// Legacy API compatible function - wraps Sonner's API with shadcn/ui's original API
-export const legacyToast = (props: {
-  title?: string;
-  description?: string;
-  variant?: "default" | "destructive";
-}) => {
-  if (props.variant === "destructive") {
-    sonnerToast.error(props.title || "", {
-      description: props.description,
-    });
-  } else {
-    sonnerToast.success(props.title || "", {
-      description: props.description,
-    });
-  }
-};
+// Re-export the Sonner toast for backward compatibility
+export { sonnerToast as toast };
 
 // For components expecting the old toast API structure
 export const useToast = () => {
-  return {
-    toast: legacyToast
+  // Create a callable function that also has methods
+  const toastFunction = (options: any) => {
+    if (!options) return;
+    
+    if (options.variant === 'destructive') {
+      sonnerToast.error(options.title, {
+        description: options.description
+      });
+    } else {
+      sonnerToast.success(options.title, {
+        description: options.description
+      });
+    }
   };
+
+  // Add the callable methods
+  const toast = Object.assign(toastFunction, {
+    call: function(options: any): void {
+      if (!options) return;
+      
+      if (options.variant === 'destructive') {
+        sonnerToast.error(options.title, {
+          description: options.description
+        });
+      } else {
+        sonnerToast.success(options.title, {
+          description: options.description
+        });
+      }
+    },
+    error: function(title: string, description?: string): void {
+      sonnerToast.error(title, { description });
+    },
+    success: function(title: string, description?: string): void {
+      sonnerToast.success(title, { description });
+    },
+    warning: function(title: string, description?: string): void {
+      sonnerToast.warning(title, { description });
+    },
+    info: function(title: string, description?: string): void {
+      sonnerToast.info(title, { description });
+    }
+  });
+
+  return { toast };
 };

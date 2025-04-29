@@ -31,16 +31,16 @@ export const createNotification = async (notificationData: NotificationData) => 
         .maybeSingle();
       
       if (clientCheckError) {
-        console.error("Error al verificar cliente:", clientCheckError);
-        throw new Error(`Validación del cliente fallida: ${clientCheckError.message}`);
+        console.error("Error checking client:", clientCheckError);
+        throw new Error(`Client validation failed: ${clientCheckError.message}`);
       }
       
       // If client doesn't exist, log warning and skip notification creation
       if (!clientExists) {
-        console.warn(`Omitiendo creación de notificación: Cliente con ID ${notificationData.client_id} no encontrado`);
+        console.warn(`Skipping notification creation: Client with ID ${notificationData.client_id} not found`);
         return { 
           success: false, 
-          error: `Cliente con ID ${notificationData.client_id} no encontrado`,
+          error: `Client with ID ${notificationData.client_id} not found`,
           skipped: true 
         };
       }
@@ -74,13 +74,13 @@ export const createNotification = async (notificationData: NotificationData) => 
       .select();
 
     if (error) {
-      console.error("Error al crear notificación:", error);
+      console.error("Error creating notification:", error);
       throw error;
     }
     
     return { success: true, data: data[0] };
   } catch (error) {
-    console.error("Error al crear notificación:", error);
+    console.error("Error creating notification:", error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : String(error)
@@ -92,8 +92,8 @@ export const createNotification = async (notificationData: NotificationData) => 
  * Show a debounced toast notification to prevent flooding the UI
  */
 export const showDebouncedToast = (
-  title: string,
-  description: string,
+  title: string, 
+  description: string, 
   type: "default" | "destructive" = "default",
   toastId?: string
 ) => {
@@ -130,10 +130,7 @@ const calculatePriorityFromImportance = (importance: number): string => {
 
 /**
  * Listen for real-time notification updates
- * NOTE: This function is commented out as real-time listening is now centralized
- * in `useRealTimeSubscriptions` via `RealTimeAlertsProvider`.
  */
-/*
 export const setupNotificationListener = (callback?: (notification: any) => void) => {
   const channel = supabase
     .channel("client-alerts-channel")
@@ -145,22 +142,22 @@ export const setupNotificationListener = (callback?: (notification: any) => void
         table: "client_alerts"
       },
       (payload) => {
-        console.log("New notification received (unifiedNotificationService - listener disabled):", payload);
-
+        console.log("New notification received:", payload);
+        
         const notificationData = payload.new;
         const title = notificationData.title || "Nueva notificación";
         const description = notificationData.description || "";
         const clientName = notificationData.metadata?.clientName || "";
-
+        
         // Show toast with client name if available
         const toastTitle = clientName ? `${title} - ${clientName}` : title;
-
+        
         showDebouncedToast(
           toastTitle,
           description,
           notificationData.importance_level >= 4 ? "destructive" : "default"
         );
-
+        
         // Call optional callback
         if (callback) {
           callback(notificationData);
@@ -174,4 +171,3 @@ export const setupNotificationListener = (callback?: (notification: any) => void
     supabase.removeChannel(channel);
   };
 };
-*/

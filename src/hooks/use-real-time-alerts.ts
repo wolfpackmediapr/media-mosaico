@@ -66,7 +66,7 @@ export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
           table: "client_alerts"
         },
         (payload) => {
-          console.log("Nueva alerta de cliente recibida:", payload);
+          console.log("New client alert received:", payload);
           
           // Play sound
           playNotificationSound();
@@ -108,7 +108,7 @@ export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
           table: "news_segments"
         },
         (payload) => {
-          console.log("Nuevo segmento de noticias procesado:", payload);
+          console.log("New news segment processed:", payload);
           
           // Invalidate the queries
           queryClient.invalidateQueries({ queryKey: ["news-segments"] });
@@ -122,7 +122,7 @@ export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
           table: "press_clippings"
         },
         (payload) => {
-          console.log("Nuevo recorte de prensa procesado:", payload);
+          console.log("New press clipping processed:", payload);
           
           const title = "Nuevo contenido de prensa";
           const description = payload.new.title || "Contenido procesado y listo para consulta";
@@ -148,7 +148,7 @@ export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
           table: "transcriptions"
         },
         (payload) => {
-          console.log("Nueva transcripción procesada:", payload);
+          console.log("New transcription processed:", payload);
           
           const title = "Nueva transcripción completada";
           const description = "El contenido de audio/video ha sido transcrito exitosamente";
@@ -178,7 +178,7 @@ export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
     // You can add methods here if needed for manual alert creation
     createManualAlert: (clientId: string, title: string, description: string) => {
       // Logic for creating a manual alert could be added here
-      console.log("Creación manual de alerta no implementada aún", { clientId, title, description });
+      console.log("Manual alert creation not yet implemented", { clientId, title, description });
     }
   };
 }

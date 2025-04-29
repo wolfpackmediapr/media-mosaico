@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, AlertCircle, Upload, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { toast } from "@/services/toastService";
+import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import PDFDropZone from "./PDFDropZone";
 import PDFPreview from "./PDFPreview";
@@ -24,6 +24,7 @@ const PDFUploadZone = ({
   isUploading,
   uploadProgress
 }: PDFUploadZoneProps) => {
+  const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [publicationName, setPublicationName] = useState("");
   const [error, setError] = useState("");
@@ -51,23 +52,28 @@ const PDFUploadZone = ({
   const handleSubmit = useCallback(async () => {
     if (!file) {
       setError("Por favor, selecciona un archivo PDF");
-      toast.error("Error", {
-        description: "Por favor, selecciona un archivo PDF"
+      toast({
+        title: "Error",
+        description: "Por favor, selecciona un archivo PDF",
+        variant: "destructive"
       });
       return;
     }
     
     if (!publicationName.trim()) {
       setError("Por favor, ingresa el nombre de la publicación");
-      toast.error("Error", {
-        description: "Por favor, ingresa el nombre de la publicación"
+      toast({
+        title: "Error",
+        description: "Por favor, ingresa el nombre de la publicación",
+        variant: "destructive"
       });
       return;
     }
     
     // Good user feedback
-    toast.info("Procesando PDF", {
-      description: "Este proceso puede tomar varios minutos, por favor espera..."
+    toast({
+      title: "Procesando PDF",
+      description: "Este proceso puede tomar varios minutos, por favor espera...",
     });
     
     setError("");
@@ -80,14 +86,16 @@ const PDFUploadZone = ({
     } catch (error) {
       console.error("Error processing file:", error);
       setError(error instanceof Error ? error.message : "Error al procesar el archivo");
-      toast.error("Error", {
-        description: "Error al procesar el archivo. Por favor, intenta nuevamente."
+      toast({
+        title: "Error",
+        description: "Error al procesar el archivo. Por favor, intenta nuevamente.",
+        variant: "destructive"
       });
       setIsSubmitting(false); // Allow retry on error
     }
     // Don't set isSubmitting to false on success - the parent component will handle this
     // based on the status of the overall process
-  }, [file, publicationName, onFileSelect]);
+  }, [file, publicationName, onFileSelect, toast]);
 
   return (
     <Card>

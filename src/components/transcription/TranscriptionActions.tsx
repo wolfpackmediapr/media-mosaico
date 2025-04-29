@@ -1,8 +1,7 @@
-
 import { Button } from "@/components/ui/button";
 import { FileText, FileDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 interface TranscriptionActionsProps {
   transcriptionText: string;
@@ -17,6 +16,8 @@ interface TranscriptionActionsProps {
 }
 
 const TranscriptionActions = ({ transcriptionText, metadata, isProcessing }: TranscriptionActionsProps) => {
+  const { toast } = useToast();
+
   const exportAsTXT = () => {
     const blob = new Blob([transcriptionText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -28,8 +29,9 @@ const TranscriptionActions = ({ transcriptionText, metadata, isProcessing }: Tra
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    toast.success("Exportación exitosa", {
-      description: "El archivo TXT ha sido descargado"
+    toast({
+      title: "Exportación exitosa",
+      description: "El archivo TXT ha sido descargado",
     });
   };
 
@@ -58,12 +60,15 @@ const TranscriptionActions = ({ transcriptionText, metadata, isProcessing }: Tra
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      toast.success("Exportación exitosa", {
-        description: "El archivo PDF ha sido descargado"
+      toast({
+        title: "Exportación exitosa",
+        description: "El archivo PDF ha sido descargado",
       });
     } catch (error) {
-      toast.error("Error en la exportación", {
-        description: "No se pudo generar el archivo PDF"
+      toast({
+        title: "Error en la exportación",
+        description: "No se pudo generar el archivo PDF",
+        variant: "destructive",
       });
     }
   };

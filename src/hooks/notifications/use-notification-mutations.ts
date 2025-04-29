@@ -1,12 +1,13 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * Hook for notification action mutations (mark as read, archived, etc)
  */
 export function useNotificationMutations() {
+  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const markAsRead = async (id: string) => {
@@ -46,8 +47,10 @@ export function useNotificationMutations() {
       queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
     },
     onError: (error) => {
-      toast.error("Error", {
-        description: "No se pudo marcar la notificación como leída"
+      toast({
+        title: "Error",
+        description: "No se pudo marcar la notificación como leída",
+        variant: "destructive",
       });
       console.error(error);
     },
@@ -58,13 +61,16 @@ export function useNotificationMutations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
-      toast.success("Éxito", {
-        description: "Todas las notificaciones han sido marcadas como leídas"
+      toast({
+        title: "Éxito",
+        description: "Todas las notificaciones han sido marcadas como leídas",
       });
     },
     onError: (error) => {
-      toast.error("Error", {
-        description: "No se pudieron marcar todas las notificaciones como leídas"
+      toast({
+        title: "Error",
+        description: "No se pudieron marcar todas las notificaciones como leídas",
+        variant: "destructive",
       });
       console.error(error);
     },
@@ -77,8 +83,10 @@ export function useNotificationMutations() {
       queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
     },
     onError: (error) => {
-      toast.error("Error", {
-        description: "No se pudo archivar la notificación"
+      toast({
+        title: "Error",
+        description: "No se pudo archivar la notificación",
+        variant: "destructive",
       });
       console.error(error);
     },

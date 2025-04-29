@@ -4,7 +4,7 @@
  */
 export const requestNotificationPermission = async (): Promise<boolean> => {
   if (!("Notification" in window)) {
-    console.log("Este navegador no soporta notificaciones de escritorio");
+    console.log("This browser does not support desktop notifications");
     return false;
   }
 
@@ -39,6 +39,6 @@ export const showBrowserNotification = (title: string, body: string): void => {
       });
     }
   } catch (error) {
-    console.error("Error mostrando notificación del navegador:", error);
+    console.error("Error showing browser notification:", error);
   }
 };
