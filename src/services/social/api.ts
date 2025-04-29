@@ -137,14 +137,15 @@ export const fetchSocialPosts = async (
     `, { count: 'exact' })
     .in('feed_source_id', feedSourceIds);
 
-  // Filter by source names if selectedPlatforms is provided
+  // Filter by specific platforms if provided
   if (selectedPlatforms.length > 0) {
     console.log('Filtering by selected platforms:', selectedPlatforms);
     
-    // Get feed sources that match the selected names/platforms
-    const filteredSourceIds = feedSources
-      .filter(fs => selectedPlatforms.includes(fs.name))
-      .map(fs => fs.id);
+    // Get feed sources that match the selected names
+    const filteredSources = feedSources
+      .filter(fs => selectedPlatforms.includes(fs.name));
+      
+    const filteredSourceIds = filteredSources.map(fs => fs.id);
     
     console.log('Filtered source IDs:', filteredSourceIds);
     

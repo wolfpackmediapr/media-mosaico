@@ -1,10 +1,11 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { handleSocialFeedError } from "@/services/social/error-handler";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { transformArticlesToPosts, transformPlatformData, calculatePlatformCounts } from "@/services/social/utils";
+import { fetchSocialPosts, fetchPlatformsData, fetchPlatformCounts } from "@/services/social/api";
 import type { SocialPost, SocialPlatform } from "@/types/social";
+import { ITEMS_PER_PAGE } from "@/services/social/api";
 
 // Add the useSocialFeeds hook for the RedesSociales page
 export function useSocialFeeds() {
@@ -13,80 +14,79 @@ export function useSocialFeeds() {
   const [totalCount, setTotalCount] = useState(0);
   
   // Fetch posts with filtering and pagination
-  const fetchPosts = async (page = 1, searchTerm = "", selectedPlatforms: string[] = []) => {
+  const fetchPosts = useCallback(async (page = 1, searchTerm = "", selectedPlatforms: string[] = []) => {
     console.log('Fetching posts with:', { page, searchTerm, selectedPlatforms });
     
-    let query = supabase
-      .from("news_articles")
-      .select("*, feed_source:feed_source_id(*)", { count: "exact" });
+    try {
+      const { data, count } = await fetchSocialPosts(page, searchTerm, selectedPlatforms);
       
-    // Apply search filter if provided
-    if (searchTerm) {
-      query = query.ilike("content", `%${searchTerm}%`);
-    }
-    
-    // Apply platform filter if provided
-    if (selectedPlatforms.length > 0) {
-      query = query.in("feed_source_id", selectedPlatforms);
-    }
-    
-    const { data, count, error } = await query
-      .order("pub_date", { ascending: false });
+      if (count !== null) {
+        setTotalCount(count);
+      }
       
-    if (error) throw error;
-    
-    if (count !== null) {
-      setTotalCount(count);
+      // Transform the data to match the SocialPost type
+      return transformArticlesToPosts(data || []);
+    } catch (error) {
+      console.error("Error in fetchPosts:", error);
+      handleSocialFeedError(error, "posts");
+      throw error;
     }
-    
-    // Transform the data to match the SocialPost type
-    return transformArticlesToPosts(data || []);
-  };
+  }, []);
   
   // Fetch available platforms
-  const fetchPlatforms = async () => {
-    const { data: feedSources, error } = await supabase
-      .from("feed_sources")
-      .select("*")
-      .order("name", { ascending: true });
+  const fetchPlatforms = useCallback(async () => {
+    try {
+      // Get platform data
+      const feedSources = await fetchPlatformsData();
       
-    if (error) throw error;
-    
-    // Fetch articles to calculate counts per platform
-    const { data: articles } = await supabase
-      .from("news_articles")
-      .select("feed_source_id, feed_source:feed_source_id(name)");
-    
-    // Calculate platform counts from the articles
-    const platformCounts = calculatePlatformCounts(articles || []);
-    
-    // Transform the data to match the SocialPlatform type
-    return transformPlatformData(feedSources || [], platformCounts);
-  };
+      // Fetch articles to calculate counts per platform
+      const articles = await fetchPlatformCounts();
+      
+      // Calculate platform counts from the articles
+      const platformCounts = calculatePlatformCounts(articles || []);
+      
+      // Transform the data to match the SocialPlatform type
+      return transformPlatformData(feedSources || [], platformCounts);
+    } catch (error) {
+      console.error("Error in fetchPlatforms:", error);
+      handleSocialFeedError(error, "platforms");
+      throw error;
+    }
+  }, []);
   
   // Manual refresh function
-  const refreshFeeds = async () => {
+  const refreshFeeds = useCallback(async () => {
     try {
       setIsRefreshing(true);
-      const { error } = await supabase.functions.invoke("refresh-social-feeds");
+      
+      // Call the edge function to refresh feeds
+      const { error } = await supabase.functions.invoke("process-social-feeds", {
+        body: { 
+          timestamp: new Date().toISOString(),
+          forceFetch: true
+        }
+      });
       
       if (error) throw error;
       
       // Update last refresh time
       setLastRefreshTime(new Date());
       
-      // Refetch data
-      await fetchPlatforms();
-      await fetchPosts();
+      // Invalidate and refetch data
+      await Promise.all([
+        fetchPlatforms(),
+        fetchPosts()
+      ]);
       
       return { success: true };
     } catch (error) {
       console.error("Error refreshing feeds:", error);
+      handleSocialFeedError(error, "refresh");
       return { success: false };
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [fetchPlatforms, fetchPosts]);
   
   // Use queries for data fetching
   const { data: platforms = [], isLoading: isPlatformsLoading } = useQuery({
