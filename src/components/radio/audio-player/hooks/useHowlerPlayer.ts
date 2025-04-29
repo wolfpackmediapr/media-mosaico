@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Howl, Howler } from 'howler';
 import { toast } from 'sonner';
@@ -45,10 +44,21 @@ const unlockAudioContext = () => {
   console.log('[HowlerPlayer] Attempting to unlock audio context');
   
   try {
-    // Create and immediately play+stop a silent/short sound
+    // Force resume the Howler context if it exists and is suspended
+    if (Howler.ctx && Howler.ctx.state === 'suspended') {
+      console.log('[HowlerPlayer] Found suspended Howler context, attempting to resume...');
+      Howler.ctx.resume().then(() => {
+        console.log('[HowlerPlayer] Successfully resumed Howler audio context');
+        audioContextUnlocked = true;
+      }).catch(err => {
+        console.error('[HowlerPlayer] Failed to resume audio context:', err);
+      });
+    }
+    
+    // Create and immediately play+stop a silent sound
     const unlockHowl = new Howl({
       src: ['data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAAbAAeHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHiAgICAgICAgICAgICAgICAgICAgICAgICAgICAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwP/7kGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFhpbmcAAAAPAAAAKwAACcoAIiIiIiIiIiIiIjMzMzMzMzMzMzMzVVVVVVVVVVVVVVVmZmZmZmZmZmZmZnd3d3d3d3d3d3d3iIiIiIiIiIiIiIiZmZmZmZmZmZmZmZmqqqqqqqqqqqqqqqqqqru7u7u7u7u7u7u7u7u7zMzMzMzMzMzMzMzMzMzM3d3d3d3d3d3d3d3d3d3d7u7u7u7u7u7u7u7u7u7u//////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAXVQ0YAAAAr/+OAxAAAAZEITlEBMAYWUWkrEBmAF4XhcR8HgeIowoUQnDICiCDTB0GQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBsEQZBkGQfB8HwZB8GQZBsEQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBsEQZBkGQfB8HwZB8GQZBsEQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBv/434cIRQnDICiCDTB0GQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBsEQZBkGQfB8HwZB8GQZBsEQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBsEQZBkGQfB8HwZB8GQZBsEQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBk'],
-      volume: 0,
+      volume: 0.001, // Very low volume, almost inaudible
       format: ['mp3'],
       onplayerror: () => {
         console.warn('[HowlerPlayer] Audio context unlock failed on first attempt');
@@ -123,19 +133,29 @@ export const useHowlerPlayer = ({
     const handleUserInteraction = () => {
       if (!userInteractedRef.current) {
         userInteractedRef.current = true;
+        console.log('[HowlerPlayer] User interaction detected, unlocking audio context');
         unlockAudioContext();
       }
     };
 
-    // Listen for user interactions
-    document.addEventListener('click', handleUserInteraction, { once: true });
-    document.addEventListener('touchstart', handleUserInteraction, { once: true });
-    document.addEventListener('keydown', handleUserInteraction, { once: true });
+    // Listen for user interactions throughout the app - expanded event types
+    document.addEventListener('click', handleUserInteraction, { capture: true });
+    document.addEventListener('touchstart', handleUserInteraction, { capture: true });
+    document.addEventListener('keydown', handleUserInteraction, { capture: true });
+    document.addEventListener('mousedown', handleUserInteraction, { capture: true });
+    
+    // Attempt to unlock audio context immediately if Typeform is present
+    // This helps avoid conflicts with Typeform's audio context handling
+    if (window.tf) {
+      console.log('[HowlerPlayer] Typeform detected, preemptively unlocking audio context');
+      setTimeout(unlockAudioContext, 100);
+    }
 
     return () => {
-      document.removeEventListener('click', handleUserInteraction);
-      document.removeEventListener('touchstart', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('click', handleUserInteraction, { capture: true });
+      document.removeEventListener('touchstart', handleUserInteraction, { capture: true });
+      document.removeEventListener('keydown', handleUserInteraction, { capture: true });
+      document.removeEventListener('mousedown', handleUserInteraction, { capture: true });
     };
   }, []);
 
@@ -306,12 +326,15 @@ export const useHowlerPlayer = ({
       cleanupAudio();
       
       // Create object URL for the file
-      const fileUrl = URL.createObjectURL(file);
+      const fileUrl = URL.createObjectURL(file!);
       audioUrlRef.current = fileUrl;
       
       // Detect format from file
       const formats = detectFormat(file);
       console.log(`[HowlerPlayer] Detected formats: ${formats?.join(', ')}`);
+      
+      // Force unlock audio context - this is critical for playback to work
+      unlockAudioContext();
       
       // Create new Howl instance with enhanced configuration
       const sound = new Howl({
@@ -326,6 +349,14 @@ export const useHowlerPlayer = ({
           setIsLoading(false);
           setIsReady(true);
           loadErrorCount.current = 0; // Reset error count on successful load
+          
+          // Check if audio context is suspended and try to resume it
+          if (Howler.ctx && Howler.ctx.state === 'suspended') {
+            console.log('[HowlerPlayer] Audio context is suspended after load, attempting to resume');
+            Howler.ctx.resume().catch(e => 
+              console.warn('[HowlerPlayer] Could not resume audio context after load:', e)
+            );
+          }
           
           // Restore saved position if available
           const storedPosition = sessionStorage.getItem('audio-position');
@@ -487,8 +518,21 @@ export const useHowlerPlayer = ({
       // Save Howl instance to ref
       howlRef.current = sound;
       
+      // Proactively check for audio context every 2 seconds to keep it active
+      const contextCheckInterval = setInterval(() => {
+        if (Howler.ctx && Howler.ctx.state === 'suspended') {
+          console.log('[HowlerPlayer] Audio context suspended during playback, attempting to resume');
+          Howler.ctx.resume().then(() => {
+            console.log('[HowlerPlayer] Audio context successfully resumed');
+          }).catch(e => {
+            console.warn('[HowlerPlayer] Failed to resume suspended audio context:', e);
+          });
+        }
+      }, 2000);
+      
       // Cleanup function
       return () => {
+        clearInterval(contextCheckInterval);
         console.log('[HowlerPlayer] Cleaning up audio resources');
         cleanupAudio();
       };
@@ -657,6 +701,17 @@ export const useHowlerPlayer = ({
     // might trigger play/pause in rapid succession
     playPauseTimeoutRef.current = setTimeout(async () => {
       try {
+        // Force resume the audio context before playing
+        if (Howler.ctx && Howler.ctx.state === 'suspended') {
+          console.log('[HowlerPlayer] Audio context is suspended, resuming before play/pause');
+          try {
+            await Howler.ctx.resume();
+            console.log('[HowlerPlayer] Successfully resumed audio context');
+          } catch (err) {
+            console.warn('[HowlerPlayer] Failed to resume audio context:', err);
+          }
+        }
+        
         if (isPlaying) {
           console.log('[HowlerPlayer] Pausing audio');
           howlRef.current?.pause();
