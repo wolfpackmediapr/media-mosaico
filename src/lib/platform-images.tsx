@@ -1,4 +1,3 @@
-
 // Default fallback images for social media platforms
 const platformImages: Record<string, string> = {
   // Source specific fallbacks
