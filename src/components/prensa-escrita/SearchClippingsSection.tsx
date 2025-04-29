@@ -4,14 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, AlertCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/services/toastService";
 import PressClippingCard from "@/components/prensa-escrita/PressClippingCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePressSearch } from "@/hooks/use-press-search";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const SearchClippingsSection = () => {
-  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const { 
     searchClippings,
@@ -22,10 +21,8 @@ const SearchClippingsSection = () => {
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      toast({
-        title: "Error",
-        description: "Por favor, ingresa un término de búsqueda",
-        variant: "destructive"
+      toast.error("Error", {
+        description: "Por favor, ingresa un término de búsqueda"
       });
       return;
     }
@@ -33,9 +30,8 @@ const SearchClippingsSection = () => {
     await searchClippings(searchQuery);
 
     if (searchResults.length === 0 && !searchError) {
-      toast({
-        title: "Sin resultados",
-        description: "No se encontraron recortes de prensa que coincidan con tu búsqueda",
+      toast.info("Sin resultados", {
+        description: "No se encontraron recortes de prensa que coincidan con tu búsqueda"
       });
     }
   };

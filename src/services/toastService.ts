@@ -1,19 +1,17 @@
 
 import { toast as sonnerToast } from "sonner";
 
+// Export the direct sonner toast function for convenience
 export const toast = sonnerToast;
 
+// Provide a hook with the same API as the old shadcn/ui toast
 export const useToast = () => {
   return {
-    toast: {
-      error: (message: string, options?: any) => sonnerToast.error(message, options),
-      success: (message: string, options?: any) => sonnerToast.success(message, options),
-      warning: (message: string, options?: any) => sonnerToast.warning(message, options),
-      info: (message: string, options?: any) => sonnerToast.info(message, options),
-    }
+    toast: sonnerToast
   };
 };
 
+// Legacy toast function for backward compatibility
 export const legacyToast = (options: {
   title?: string;
   description?: string;

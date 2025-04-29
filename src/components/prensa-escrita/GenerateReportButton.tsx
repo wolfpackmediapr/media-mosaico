@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/services/toastService";
 import { supabase } from "@/integrations/supabase/client";
 
 interface PressClipping {
@@ -32,15 +32,12 @@ const GenerateReportButton = ({
   clippings,
   publicationName
 }: GenerateReportButtonProps) => {
-  const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generateReport = async () => {
     if (clippings.length === 0) {
-      toast({
-        title: "Sin recortes",
-        description: "No hay recortes para generar un reporte",
-        variant: "destructive"
+      toast.error("Sin recortes", {
+        description: "No hay recortes para generar un reporte"
       });
       return;
     }
@@ -130,16 +127,13 @@ Informe generado: ${new Date().toLocaleString('es-ES')}
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      toast({
-        title: "Reporte generado",
-        description: "El informe ha sido generado exitosamente",
+      toast.success("Reporte generado", {
+        description: "El informe ha sido generado exitosamente"
       });
     } catch (error) {
       console.error("Error generating report:", error);
-      toast({
-        title: "Error al generar el reporte",
-        description: "No se pudo generar el informe",
-        variant: "destructive"
+      toast.error("Error al generar el reporte", {
+        description: "No se pudo generar el informe"
       });
     } finally {
       setIsGenerating(false);

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from "react";
 import { PressTabsContainer } from "@/components/prensa-escrita";
-import { toast } from "sonner";
+import { toast } from "@/services/toastService";
 import { supabase } from "@/integrations/supabase/client";
 import { PressClipping } from "@/hooks/use-pdf-processing";
 
@@ -96,7 +96,7 @@ const PrensaEscrita = () => {
     } catch (error) {
       console.error("Error processing PDF:", error);
       toast.error("Error al procesar el PDF", {
-        description: "Ocurrió un error al procesar el archivo. Por favor, intenta nuevamente.",
+        description: "Ocurrió un error al procesar el archivo. Por favor, intenta nuevamente."
       });
       setIsUploading(false);
     }
@@ -106,7 +106,7 @@ const PrensaEscrita = () => {
     setIsUploading(false);
     setUploadProgress(0);
     toast.info("Procesamiento cancelado", {
-      description: "Se ha cancelado el procesamiento del PDF.",
+      description: "Se ha cancelado el procesamiento del PDF."
     });
   };
 
