@@ -1,5 +1,5 @@
 
-import { toast } from "@/services/toastService";
+import { toast } from "sonner";
 
 export const validatePdfFile = (file: File, maxSizeMB: number): boolean => {
   if (file.type !== 'application/pdf') {
