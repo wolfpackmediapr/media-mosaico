@@ -48,6 +48,10 @@ export const useHowlerPlayer = ({
   const isOperationPending = useRef<boolean>(false);
   const lastPlayPauseTime = useRef<number>(0);
   const playPauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // AudioContext related refs
+  const audioContextResumeAttempted = useRef<boolean>(false);
+  const audioContextResumeCount = useRef<number>(0);
 
   // Detect file format from name or MIME type
   const detectFormat = (file?: File): string[] | null => {
@@ -62,6 +66,35 @@ export const useHowlerPlayer = ({
     
     // If we can't detect format from MIME or filename, use a default set
     return formats.length > 0 ? formats : ['mp3', 'wav', 'ogg'];
+  };
+
+  // Function to attempt resuming AudioContext (to handle autoplay restrictions)
+  const tryResumeAudioContext = () => {
+    if (audioContextResumeAttempted.current || audioContextResumeCount.current > 3) return;
+    
+    try {
+      const audioContext = Howler.ctx;
+      if (audioContext && audioContext.state === 'suspended') {
+        console.log('[HowlerPlayer] Attempting to resume suspended AudioContext...');
+        audioContext.resume().then(() => {
+          console.log(`[HowlerPlayer] AudioContext resumed successfully: ${audioContext.state}`);
+          audioContextResumeAttempted.current = true;
+          
+          // If we had a play attempt while context was suspended, retry playing
+          if (howlRef.current && !isPlaying && !isOperationPending.current) {
+            setTimeout(() => handlePlayPause(), 100);
+          }
+        }).catch(err => {
+          console.warn('[HowlerPlayer] Failed to resume AudioContext:', err);
+          audioContextResumeCount.current++;
+        });
+      } else if (audioContext) {
+        console.log(`[HowlerPlayer] AudioContext is already ${audioContext.state}`);
+        audioContextResumeAttempted.current = true;
+      }
+    } catch (e) {
+      console.warn('[HowlerPlayer] Error accessing AudioContext:', e);
+    }
   };
 
   // Cleanup all resources and timers
@@ -94,6 +127,8 @@ export const useHowlerPlayer = ({
     seekTarget.current = null;
     seekRetryCount.current = 0;
     isOperationPending.current = false;
+    audioContextResumeAttempted.current = false;
+    audioContextResumeCount.current = 0;
   };
 
   // Initialize Howler instance when file changes
@@ -158,6 +193,9 @@ export const useHowlerPlayer = ({
               }
             }
           }
+          
+          // Try to resume AudioContext if it's suspended
+          tryResumeAudioContext();
         },
         onplay: () => {
           setIsPlaying(true);
@@ -218,6 +256,9 @@ export const useHowlerPlayer = ({
           if (isAbortError) {
             console.log('[HowlerPlayer] Play interrupted (AbortError) - likely due to rapid play/pause actions');
             isOperationPending.current = false;
+            
+            // Try to resume AudioContext as this might be the issue
+            tryResumeAudioContext();
             return; // Silently handle AbortError
           }
           
@@ -365,13 +406,16 @@ export const useHowlerPlayer = ({
             setTimeout(() => {
               if (howlRef.current && !isOperationPending.current) {
                 try {
+                  // Try to resume the AudioContext first
+                  tryResumeAudioContext();
+                  
+                  // Then try to play
                   isOperationPending.current = true;
                   howlRef.current.play();
                   // Note: onplay callback will handle setting isPlaying state
                 } catch (error) {
                   isOperationPending.current = false;
                   console.error('[HowlerPlayer] Error resuming audio on tab focus:', error);
-                  toast.error('Couldn\'t resume audio automatically');
                 }
               }
             }, 500); // Increased delay for better tab focus recovery
@@ -386,6 +430,24 @@ export const useHowlerPlayer = ({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [file, isPlaying, preservePlaybackOnBlur, resumeOnFocus, audioError]);
+
+  // Listen for user interactions to attempt resuming AudioContext
+  useEffect(() => {
+    const tryResumeOnInteraction = () => {
+      tryResumeAudioContext();
+    };
+    
+    // Add listeners for common user interactions
+    document.addEventListener('click', tryResumeOnInteraction, { once: true });
+    document.addEventListener('touchend', tryResumeOnInteraction, { once: true });
+    document.addEventListener('keydown', tryResumeOnInteraction, { once: true });
+    
+    return () => {
+      document.removeEventListener('click', tryResumeOnInteraction);
+      document.removeEventListener('touchend', tryResumeOnInteraction);
+      document.removeEventListener('keydown', tryResumeOnInteraction);
+    };
+  }, []);
 
   // Play/pause toggle with debouncing to prevent rapid calling
   const handlePlayPause = () => {
@@ -415,6 +477,9 @@ export const useHowlerPlayer = ({
     
     isOperationPending.current = true;
     
+    // Try to resume the AudioContext first (important for Safari and mobile browsers)
+    tryResumeAudioContext();
+    
     // Use a small timeout to handle the case where multiple UI interactions
     // might trigger play/pause in rapid succession
     playPauseTimeoutRef.current = setTimeout(() => {
@@ -425,8 +490,33 @@ export const useHowlerPlayer = ({
           // Note: onpause callback will handle setting isPlaying state
         } else {
           console.log('[HowlerPlayer] Playing audio');
+          
+          // On first play attempt, we'll do multiple attempts if needed
+          if (!audioContextResumeAttempted.current) {
+            tryResumeAudioContext();
+          }
+          
           howlRef.current?.play();
           // Note: onplay callback will handle setting isPlaying state
+          
+          // If the audio doesn't start playing within a short time, try again with AudioContext resume
+          setTimeout(() => {
+            if (howlRef.current && !isPlaying && !isOperationPending.current) {
+              console.log('[HowlerPlayer] Playback may have failed, trying again with AudioContext resume');
+              tryResumeAudioContext();
+              
+              setTimeout(() => {
+                if (howlRef.current && !isPlaying) {
+                  try {
+                    howlRef.current.play();
+                  } catch (e) {
+                    console.warn('[HowlerPlayer] Second play attempt failed:', e);
+                    isOperationPending.current = false;
+                  }
+                }
+              }, 100);
+            }
+          }, 300);
         }
       } catch (error) {
         isOperationPending.current = false;
@@ -436,8 +526,14 @@ export const useHowlerPlayer = ({
         if (error instanceof Error && error.name === 'AbortError') {
           console.log('[HowlerPlayer] AbortError detected - ignoring as this is expected with rapid interactions');
         } else {
-          toast.error('Error playing audio file');
-          if (onError && error instanceof Error) onError(error.message);
+          // Try to resume AudioContext as that might be the issue
+          tryResumeAudioContext();
+          
+          // Only show toast for non-abort errors
+          if (!(error instanceof Error && error.name === 'AbortError')) {
+            toast.error('Error playing audio file');
+            if (onError && error instanceof Error) onError(error.message);
+          }
         }
       }
     }, 10);
@@ -555,6 +651,9 @@ export const useHowlerPlayer = ({
         // Add a small delay to ensure events don't conflict
         setTimeout(() => {
           if (howlRef.current) {
+            // Try to resume AudioContext first
+            tryResumeAudioContext();
+            
             isOperationPending.current = true;
             howlRef.current.play();
           }

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAudioPlayer } from "../../components/radio/audio-player/hooks/useAudioPlayer";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 import { toast } from "sonner";
-import { getAudioFormatDetails } from "@/utils/audio-format-helper";
+import { getAudioFormatDetails, unmuteAudio } from "@/utils/audio-format-helper";
 
 interface AudioProcessingOptions {
   currentFile: File | null;
@@ -29,6 +29,25 @@ export const useAudioProcessing = ({
   const wasAudioLoadingOnHide = useRef<boolean>(false);
   const playPauseOperationInProgress = useRef<boolean>(false);
   const playPauseOperationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const audioUnlockAttempted = useRef<boolean>(false);
+  
+  // Attempt to unlock audio on first user interaction
+  useEffect(() => {
+    if (!audioUnlockAttempted.current) {
+      const unlockAudio = () => {
+        audioUnlockAttempted.current = true;
+        unmuteAudio();
+      };
+      
+      document.addEventListener('click', unlockAudio, { once: true });
+      document.addEventListener('touchend', unlockAudio, { once: true });
+      
+      return () => {
+        document.removeEventListener('click', unlockAudio);
+        document.removeEventListener('touchend', unlockAudio);
+      };
+    }
+  }, []);
 
   const handleAudioError = (error: string) => {
     const now = Date.now();
@@ -129,6 +148,9 @@ export const useAudioProcessing = ({
         console.log("[useAudioProcessing] Tab visible again, previous state:", wasPlayingBeforeTabChange.current);
         console.log("[useAudioProcessing] Time hidden:", timeHiddenSeconds + "s", "was loading:", wasAudioLoadingOnHide.current);
         
+        // Unlock audio on tab visibility change - helpful for some browsers
+        unmuteAudio();
+        
         // If it was playing before tab change, and we've been away for a short time
         // Note: we only auto-resume if we've been away less than 30 minutes
         const wasAwayLessThan30Min = (now - lastSeenTabVisible.current) < 30 * 60 * 1000;
@@ -184,6 +206,9 @@ export const useAudioProcessing = ({
             // Add a small delay to ensure any previous operations have completed
             playPauseOperationTimeoutRef.current = setTimeout(() => {
               try {
+                // Make sure audio is unlocked
+                unmuteAudio();
+                
                 playPauseOperationInProgress.current = true;
                 originalHandlePlayPause();
                 // Operation completion will be handled by the state change effect
@@ -270,6 +295,9 @@ export const useAudioProcessing = ({
       console.log("[useAudioProcessing] Ignoring play/pause, operation already in progress");
       return;
     }
+    
+    // Try to unlock audio on every play attempt
+    unmuteAudio();
     
     if (playbackErrors) {
       toast.error("No se puede reproducir el audio", { 

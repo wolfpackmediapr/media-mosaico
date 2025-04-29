@@ -1,149 +1,132 @@
 
 /**
- * Utility functions for audio format detection and compatibility
+ * Utility functions for audio format information and handling
  */
 
-// Cache format compatibility results to avoid repeated DOM operations
-const compatibilityCache: Record<string, boolean> = {};
+const AUDIO_MIME_MAP: Record<string, string[]> = {
+  'mp3': ['audio/mpeg', 'audio/mp3'],
+  'wav': ['audio/wav', 'audio/wave', 'audio/x-wav'],
+  'ogg': ['audio/ogg', 'audio/vorbis'],
+  'm4a': ['audio/x-m4a', 'audio/mp4', 'audio/aac'],
+  'aac': ['audio/aac', 'audio/aacp'],
+  'flac': ['audio/flac', 'audio/x-flac'],
+  'webm': ['audio/webm']
+};
 
-// Check if the browser can play a specific audio format with enhanced detection
-export const canPlayType = (type: string): boolean => {
-  // Check cache first
-  const cacheKey = type.toLowerCase();
-  if (compatibilityCache[cacheKey] !== undefined) {
-    return compatibilityCache[cacheKey];
-  }
+/**
+ * Get audio format details for debugging purposes
+ */
+export const getAudioFormatDetails = (file: File): string => {
+  const fileName = file.name;
+  const extension = fileName.split('.').pop()?.toLowerCase() || 'unknown';
+  const mimeType = file.type || 'unknown';
+  const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
   
+  // Try to determine if the browser thinks this is a supported format
+  let supportInfo = 'Unknown support status';
   try {
-    const audio = document.createElement('audio');
+    if (window.AudioContext || (window as any).webkitAudioContext) {
+      // Most browsers should have this
+      supportInfo = 'Audio API available';
+    } else {
+      supportInfo = 'No Audio API detected';
+    }
     
-    // Map common file extensions to MIME types with fallbacks
-    const mimeTypes: Record<string, string[]> = {
-      'mp3': ['audio/mpeg', 'audio/mp3', 'audio/mpeg; codecs="mp3"'],
-      'wav': ['audio/wav', 'audio/wave', 'audio/x-wav', 'audio/vnd.wave', 'audio/wav; codecs="1"'],
-      'ogg': ['audio/ogg', 'video/ogg', 'application/ogg', 'audio/ogg; codecs="vorbis"'],
-      'aac': ['audio/aac', 'audio/x-aac', 'audio/aacp', 'audio/mp4; codecs="aac"'],
-      'm4a': ['audio/mp4', 'audio/x-m4a', 'audio/m4a', 'audio/mp4; codecs="mp4a.40.2"'],
-      'flac': ['audio/flac', 'audio/x-flac', 'audio/ogg; codecs="flac"'],
-      'webm': ['audio/webm', 'video/webm', 'audio/webm; codecs="vorbis"'],
-      'mp4': ['audio/mp4', 'video/mp4', 'audio/mp4; codecs="mp4a.40.2"']
-    };
-    
-    // Get the MIME types for the extension
-    const extension = type.toLowerCase().replace('.', '');
-    const mimesToTry = mimeTypes[extension] || [type];
-    
-    // Try each possible MIME type
-    for (const mimeType of mimesToTry) {
-      const canPlay = audio.canPlayType(mimeType);
-      if (canPlay === 'probably' || canPlay === 'maybe') {
-        // Store in cache and return
-        compatibilityCache[cacheKey] = true;
-        return true;
+    // Check if Howler can play this format
+    if (window.Howler && typeof window.Howler.codecs === 'function') {
+      for (const [format, mimes] of Object.entries(AUDIO_MIME_MAP)) {
+        if (mimes.includes(mimeType) || extension === format) {
+          const isSupported = window.Howler.codecs(format);
+          supportInfo += `, ${format} codec: ${isSupported ? 'supported' : 'not supported'}`;
+          break;
+        }
       }
     }
-    
-    // If we have an extension but no direct match, try it directly with audio/ prefix
-    if (extension && !extension.includes('/') && !mimesToTry.includes(`audio/${extension}`)) {
-      const canPlay = audio.canPlayType(`audio/${extension}`);
-      const result = canPlay === 'probably' || canPlay === 'maybe';
-      compatibilityCache[cacheKey] = result;
-      return result;
-    }
-    
-    // Cache negative result and return
-    compatibilityCache[cacheKey] = false;
-    return false;
   } catch (e) {
-    console.warn(`[canPlayType] Error checking format compatibility: ${e}`);
-    // Fall back to a conservative assumption - assuming MP3 and WAV always work
-    const isMp3OrWav = type.toLowerCase().includes('mp3') || type.toLowerCase().includes('wav');
-    compatibilityCache[cacheKey] = isMp3OrWav;
-    return isMp3OrWav;
+    console.warn('Error checking audio support:', e);
+    supportInfo += ' (error checking support)';
   }
+  
+  return `Format: ${extension}, MIME: ${mimeType}, Size: ${fileSizeMB}MB, Support: ${supportInfo}`;
 };
 
-// Get a list of audio formats supported by the current browser
-export const getSupportedFormats = (): string[] => {
-  const formats = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'webm', 'mp4'];
-  const supported = formats.filter(format => canPlayType(format));
-  // Always include mp3 as supported since almost all browsers support it
-  // even if detection fails for some reason
-  if (supported.length === 0 || !supported.includes('mp3')) {
-    supported.push('mp3');
-  }
-  return supported;
-};
-
-// Enhanced detection for playable files
-export const isLikelyPlayable = (file: File): boolean => {
+/**
+ * Helper to unmute audio context after user interaction
+ * This is needed for some browsers that block audio until user interacts
+ */
+export const unmuteAudio = () => {
   try {
-    // Extract extension from filename
-    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    // Create an empty audio context
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     
-    // Direct check for common formats that should always work
-    if (['mp3', 'wav'].includes(extension)) {
-      console.log(`[isLikelyPlayable] Common format detected (${extension}), assuming playable`);
+    if (AudioContext) {
+      const context = new AudioContext();
+      
+      // Create an empty buffer
+      const buffer = context.createBuffer(1, 1, 22050);
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      
+      // Connect to output
+      source.connect(context.destination);
+      
+      // Play the empty sound (this will enable audio in some browsers)
+      if (source.start) {
+        source.start(0);
+      } else if ((source as any).noteOn) {
+        (source as any).noteOn(0);
+      }
+      
+      // Resume the context if it's suspended
+      if (context.state === 'suspended') {
+        context.resume();
+      }
+      
+      // Disconnect and release
+      setTimeout(() => {
+        source.disconnect();
+        if (context.close) {
+          context.close();
+        }
+      }, 100);
+      
       return true;
     }
+  } catch (e) {
+    console.warn('Error unmuting audio:', e);
+  }
+  
+  return false;
+};
+
+/**
+ * Register global event listeners to enable audio on first user interaction
+ */
+export const setupAudioUnlockListeners = () => {
+  // Only register once
+  if ((window as any).__audioUnlockListenersRegistered) return;
+  (window as any).__audioUnlockListenersRegistered = true;
+  
+  const unlockAudio = () => {
+    unmuteAudio();
     
-    // Get supported formats
-    const supportedFormats = getSupportedFormats();
-    console.log(`[isLikelyPlayable] Browser supports formats: ${supportedFormats.join(', ')}`);
-    
-    // Check extension directly
-    if (extension && supportedFormats.includes(extension)) {
-      return true;
+    // Try to unlock Howler specifically
+    if (window.Howler && typeof window.Howler._autoUnlock === 'function') {
+      try {
+        window.Howler._autoUnlock();
+      } catch (e) {
+        console.warn('Error unlocking Howler:', e);
+      }
     }
-    
-    // Check MIME type patterns more thoroughly
-    const hasSupportedMimeType = supportedFormats.some(format => {
-      // Check for direct matches and variations
-      const mimePatterns = [
-        `audio/${format}`,
-        `audio/x-${format}`,
-        `audio/vnd.${format}`
-      ];
-      return mimePatterns.some(pattern => file.type.includes(pattern));
-    });
-    
-    // Special cases for generic types
-    const isGenericAudio = file.type.startsWith('audio/');
-    const isGenericBinary = file.type === 'application/octet-stream' && 
-                           ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(extension);
-    
-    // Log decision for debugging
-    const decision = hasSupportedMimeType || isGenericAudio || isGenericBinary;
-    console.log(`[isLikelyPlayable] File ${file.name} (${file.type}) is ${decision ? 'playable' : 'not playable'}`);
-    
-    return decision;
-  } catch (e) {
-    console.warn(`[isLikelyPlayable] Error checking playability: ${e}`);
-    // Fall back to extension-only check
-    const extension = file.name.split('.').pop()?.toLowerCase() || '';
-    return ['mp3', 'wav', 'ogg', 'm4a', 'aac'].includes(extension);
-  }
+  };
+  
+  // Common user interaction events
+  const events = ['click', 'touchstart', 'touchend', 'keydown'];
+  
+  events.forEach(event => {
+    document.addEventListener(event, unlockAudio, { once: true });
+  });
 };
 
-// Format duration for display
-export const formatAudioDuration = (durationSecs: number): string => {
-  if (!durationSecs || isNaN(durationSecs)) return '0:00';
-  
-  const minutes = Math.floor(durationSecs / 60);
-  const seconds = Math.floor(durationSecs % 60);
-  
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
-
-// New utility to help debugging playback issues
-export const getAudioFormatDetails = (file: File): string => {
-  try {
-    const extension = file.name.split('.').pop()?.toLowerCase() || 'unknown';
-    const mimeType = file.type || 'unknown';
-    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-    
-    return `Format: ${extension}, MIME: ${mimeType}, Size: ${sizeInMB}MB, Likely playable: ${isLikelyPlayable(file)}`;
-  } catch (e) {
-    return `Error getting format details: ${e}`;
-  }
-};
+// Call this function on module import to set up listeners
+setupAudioUnlockListeners();
