@@ -1,18 +1,19 @@
 
 import { useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { setupNotificationListener } from "@/services/notifications/unifiedNotificationService";
+// Remove the unused import: import { setupNotificationListener } from "@/services/notifications/unifiedNotificationService";
 
 interface NotificationAlertsOptions {
-  enableRealtime?: boolean;
+  enableRealtime?: boolean; // Keep option for potential future use, though listener is global now
 }
 
 /**
- * Hook for handling real-time notification alerts
+ * Hook for handling notification alert side-effects like sound and browser notifications.
+ * Real-time data fetching/invalidation is handled globally by RealTimeAlertsProvider.
  */
 export function useNotificationAlerts(options: NotificationAlertsOptions = {}) {
-  const { enableRealtime = true } = options;
-  const queryClient = useQueryClient();
+  // const { enableRealtime = true } = options; // enableRealtime is no longer used here
+  // const queryClient = useQueryClient(); // queryClient is no longer used here
 
   // Play notification sound
   const playNotificationSound = useCallback(() => {
@@ -32,9 +33,14 @@ export function useNotificationAlerts(options: NotificationAlertsOptions = {}) {
         if (Notification.permission === "granted") {
           new Notification(title, { body });
         } else if (Notification.permission !== "denied") {
+          // Request permission if not denied, but don't wait here.
+          // RealTimeAlertsProvider should handle initial permission request.
           Notification.requestPermission().then((permission) => {
             if (permission === "granted") {
-              new Notification(title, { body });
+              // We might want to store the notification details temporarily
+              // and show it if permission is granted later, but for simplicity,
+              // we'll only show it if permission was already granted.
+              console.log("Browser notification permission granted after request.");
             }
           });
         }
@@ -44,38 +50,19 @@ export function useNotificationAlerts(options: NotificationAlertsOptions = {}) {
     }
   }, []);
 
-  // Setup real-time subscription
+  // Request browser notification permission on mount if default
   useEffect(() => {
-    if (!enableRealtime) return;
-
-    // Request browser notification permission
     if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+        Notification.requestPermission();
     }
+  }, []);
 
-    // Setup unified notification listener
-    const unsubscribe = setupNotificationListener((notification) => {
-      // Play sound
-      playNotificationSound();
-      
-      // Show browser notification
-      showBrowserNotification(
-        notification.title,
-        notification.description || "Nueva notificación recibida"
-      );
-      
-      // Refresh notifications data
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [enableRealtime, queryClient, playNotificationSound, showBrowserNotification]);
+  // Removed the useEffect block that called setupNotificationListener
+  // as real-time listening is handled globally by RealTimeAlertsProvider / useRealTimeSubscriptions
 
   return {
     playNotificationSound,
     showBrowserNotification
   };
 }
+
