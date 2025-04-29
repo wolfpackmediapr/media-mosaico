@@ -1,6 +1,5 @@
-
 import { useState, useEffect, useRef } from 'react';
-import { Howl } from 'howler';
+import { Howl, Howler } from 'howler';
 import { toast } from 'sonner';
 import { validateAudioFile } from '@/utils/file-validation';
 import { useDebounce } from '@/hooks/useDebounce';

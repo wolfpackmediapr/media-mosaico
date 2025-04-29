@@ -3,6 +3,9 @@
  * Utility functions for audio format information and handling
  */
 
+// Import Howler directly
+import { Howl, Howler } from 'howler';
+
 const AUDIO_MIME_MAP: Record<string, string[]> = {
   'mp3': ['audio/mpeg', 'audio/mp3'],
   'wav': ['audio/wav', 'audio/wave', 'audio/x-wav'],
@@ -33,10 +36,10 @@ export const getAudioFormatDetails = (file: File): string => {
     }
     
     // Check if Howler can play this format
-    if (window.Howler && typeof window.Howler.codecs === 'function') {
+    if (typeof Howler.codecs === 'function') {
       for (const [format, mimes] of Object.entries(AUDIO_MIME_MAP)) {
         if (mimes.includes(mimeType) || extension === format) {
-          const isSupported = window.Howler.codecs(format);
+          const isSupported = Howler.codecs(format);
           supportInfo += `, ${format} codec: ${isSupported ? 'supported' : 'not supported'}`;
           break;
         }
@@ -111,9 +114,9 @@ export const setupAudioUnlockListeners = () => {
     unmuteAudio();
     
     // Try to unlock Howler specifically
-    if (window.Howler && typeof window.Howler._autoUnlock === 'function') {
+    if (typeof Howler._autoUnlock === 'function') {
       try {
-        window.Howler._autoUnlock();
+        Howler._autoUnlock();
       } catch (e) {
         console.warn('Error unlocking Howler:', e);
       }
