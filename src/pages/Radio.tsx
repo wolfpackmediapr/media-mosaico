@@ -4,6 +4,7 @@ import { usePersistentAudioState } from "@/hooks/radio/usePersistentAudioState";
 import RadioContainer from "@/components/radio/RadioContainer";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from "react";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const Radio = () => {
   // Use radio tab state for persisting transcription text
@@ -35,17 +36,19 @@ const Radio = () => {
   }, []);
 
   return (
-    <TooltipProvider>
-      <RadioContainer 
-        persistedText={textContent} 
-        onTextChange={setTextContent}
-        persistKey="radio-files"
-        storage="sessionStorage"
-        isActiveMediaRoute={isActiveMediaRoute}
-        isMediaPlaying={isMediaPlaying}
-        setIsMediaPlaying={setIsMediaPlaying}
-      />
-    </TooltipProvider>
+    <ErrorBoundary>
+      <TooltipProvider>
+        <RadioContainer 
+          persistedText={textContent} 
+          onTextChange={setTextContent}
+          persistKey="radio-files"
+          storage="sessionStorage"
+          isActiveMediaRoute={isActiveMediaRoute}
+          isMediaPlaying={isMediaPlaying}
+          setIsMediaPlaying={setIsMediaPlaying}
+        />
+      </TooltipProvider>
+    </ErrorBoundary>
   );
 };
 

@@ -1,5 +1,4 @@
-
-import React from "react";
+import React, { useEffect } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
 import { TranscriptionEditorWrapper } from "./editor/TranscriptionEditorWrapper";
@@ -44,16 +43,14 @@ const RadioTranscriptionEditor = ({
   });
 
   // Register the reset function if the prop is provided
-  React.useEffect(() => {
+  useEffect(() => {
     if (registerReset && resetLocalSpeakerText) {
       registerReset(resetLocalSpeakerText);
+      return () => {
+        registerReset(() => {});
+      };
     }
   }, [registerReset, resetLocalSpeakerText]);
-
-  // Handle changes from the editor component
-  const handleTranscriptionChange = (text: string) => {
-    handleTextChange(text);
-  };
 
   // Calculate the final processing state with more granular logging
   const finalIsProcessing = isProcessing || isLoadingUtterances;
@@ -67,7 +64,7 @@ const RadioTranscriptionEditor = ({
   });
 
   // Log when the processing state changes
-  React.useEffect(() => {
+  useEffect(() => {
     console.log('[RadioTranscriptionEditor] Processing state changed:', finalIsProcessing);
   }, [finalIsProcessing]);
 
@@ -76,7 +73,7 @@ const RadioTranscriptionEditor = ({
       transcriptionResult={enhancedTranscriptionResult || transcriptionResult}
       transcriptionText={localText || transcriptionText}
       isProcessing={finalIsProcessing}
-      onTranscriptionChange={handleTranscriptionChange}
+      onTranscriptionChange={handleTextChange}
       onTimestampClick={onTimestampClick}
       currentTime={currentTime}
       isSaving={isSaving}

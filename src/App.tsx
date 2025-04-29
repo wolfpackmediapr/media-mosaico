@@ -3,11 +3,11 @@ import React from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { router } from './router';
 import { ThemeProvider } from "./components/theme-provider";
-import { Toaster } from "sonner"; // Change to use Sonner
+import { Toaster } from "./components/ui/sonner";  // Use our custom Toaster component
 import { AuthProvider } from "@/context/AuthContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// Create a client
+// Create a client with updated configurations
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -27,24 +27,7 @@ function App() {
           disableTransitionOnChange
         >
           <RouterProvider router={router} />
-          <Toaster 
-            expand={false}
-            richColors
-            closeButton
-            duration={4000}
-            position="top-right"
-            theme="system"
-            visibleToasts={3}
-            className="toaster group"
-            toastOptions={{
-              classNames: {
-                toast: "custom-sonner-toast group toast",
-                description: "text-sm text-muted-foreground",
-                actionButton: "bg-primary text-primary-foreground",
-                cancelButton: "bg-muted text-muted-foreground",
-              },
-            }}
-          />
+          <Toaster /> {/* Use our custom Toaster with defaults */}
         </ThemeProvider>
       </AuthProvider>
     </QueryClientProvider>
