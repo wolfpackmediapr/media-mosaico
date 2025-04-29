@@ -33,12 +33,12 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
     };
   }, []);
   
-  // Enhanced click handling with better debouncing and safety checks
+  // Enhanced click handling with better debouncing, safety checks, and cleanup
   const handleClick = () => {
     const now = Date.now();
     
-    // Increased minimum time between clicks from 300ms to 500ms for better stability
-    if (now - lastClickTimeRef.current < 500) {
+    // Increased minimum time between clicks from 500ms to 800ms for better stability
+    if (now - lastClickTimeRef.current < 800) {
       console.log("[SpeakerSegment] Click ignored, too soon after previous click");
       return;
     }
@@ -52,24 +52,27 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
     
     isClickingRef.current = true;
     
-    // Clear any existing timeout
+    // Clear any existing timeout to prevent potential race conditions
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
     }
     
-    // Increased delay to 200ms for better stability
+    // Increased delay to 300ms for better stability (from 200ms)
     clickTimeoutRef.current = setTimeout(() => {
       try {
         onClick();
       } catch (err) {
         console.error("[SpeakerSegment] Error in click handler:", err);
+      } finally {
+        // Always reset clicking state after a delay, regardless of success/failure
+        // Use a separate timeout to ensure we don't block the UI
+        setTimeout(() => {
+          isClickingRef.current = false;
+          // Clear the timeout reference to prevent memory leaks
+          clickTimeoutRef.current = null;
+        }, 300);
       }
-      
-      // Reset clicking state after a longer delay (200ms)
-      setTimeout(() => {
-        isClickingRef.current = false;
-      }, 200);
-    }, 200);
+    }, 300);
   };
   
   return (

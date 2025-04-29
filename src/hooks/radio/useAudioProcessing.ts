@@ -27,6 +27,8 @@ export const useAudioProcessing = ({
   const resumeAttemptCountRef = useRef<number>(0);
   const isLoadingAudio = useRef<boolean>(false);
   const wasAudioLoadingOnHide = useRef<boolean>(false);
+  const playPauseOperationInProgress = useRef<boolean>(false);
+  const playPauseOperationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleAudioError = (error: string) => {
     const now = Date.now();
@@ -59,6 +61,7 @@ export const useAudioProcessing = ({
     playbackRate,
     audioError,
     isLoading,
+    isReady,
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
@@ -100,6 +103,15 @@ export const useAudioProcessing = ({
     }
   }, [audioError]);
 
+  // Cleanup function to reset all pending operations
+  const cleanupPendingOperations = () => {
+    if (playPauseOperationTimeoutRef.current) {
+      clearTimeout(playPauseOperationTimeoutRef.current);
+      playPauseOperationTimeoutRef.current = null;
+    }
+    playPauseOperationInProgress.current = false;
+  };
+
   // Handle document visibility changes to persist playback across tab changes
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -122,23 +134,28 @@ export const useAudioProcessing = ({
         const wasAwayLessThan30Min = (now - lastSeenTabVisible.current) < 30 * 60 * 1000;
         const shouldTryResume = wasPlayingBeforeTabChange.current && !isPlaying && 
                                currentFile && wasAwayLessThan30Min &&
-                               resumeAttemptCountRef.current < 3; // Limit resume attempts to 3
+                               resumeAttemptCountRef.current < 3 && // Limit resume attempts to 3
+                               isReady; // Only attempt resume if the audio is ready
         
         if (shouldTryResume) {
           console.log("[useAudioProcessing] Attempting to resume playback after tab change");
           // Longer delay to ensure audio context is fully ready
           resumeAttemptCountRef.current += 1;
           
+          // Clear any existing timeout first
+          cleanupPendingOperations();
+          
+          // Use a longer delay for better stability
           setTimeout(() => {
             try {
-              if (!playbackErrors) {
+              if (!playbackErrors && currentFile && isReady) {
                 console.log("[useAudioProcessing] Executing delayed play after tab visibility change");
                 originalHandlePlayPause();
               }
             } catch (e) {
               console.error("[useAudioProcessing] Error resuming playback:", e);
             }
-          }, 500);
+          }, 800);
         } else if (resumeAttemptCountRef.current >= 3) {
           console.log("[useAudioProcessing] Max resume attempts reached, not trying again");
         }
@@ -149,8 +166,9 @@ export const useAudioProcessing = ({
     
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      cleanupPendingOperations();
     };
-  }, [isPlaying, currentFile, originalHandlePlayPause, playbackErrors, isLoading]);
+  }, [isPlaying, currentFile, originalHandlePlayPause, playbackErrors, isLoading, isReady]);
 
   // Sync our playing state with external state
   useEffect(() => {
@@ -158,9 +176,22 @@ export const useAudioProcessing = ({
     if (isActiveMediaRoute && externalIsPlaying !== isPlaying) {
       if (externalIsPlaying) {
         // If external state says we should be playing but we're not, try to play
-        if (!isPlaying && currentFile && !playbackErrors && !isLoadingAudio.current) {
+        if (!isPlaying && currentFile && !playbackErrors && !isLoadingAudio.current && isReady) {
           try {
-            originalHandlePlayPause();
+            // Clear any existing timeout
+            cleanupPendingOperations();
+            
+            // Add a small delay to ensure any previous operations have completed
+            playPauseOperationTimeoutRef.current = setTimeout(() => {
+              try {
+                playPauseOperationInProgress.current = true;
+                originalHandlePlayPause();
+                // Operation completion will be handled by the state change effect
+              } catch (err) {
+                console.error("[useAudioProcessing] Error during delayed external play command:", err);
+                playPauseOperationInProgress.current = false;
+              }
+            }, 100);
           } catch (err) {
             console.error("[useAudioProcessing] Error during external play command:", err);
           }
@@ -169,7 +200,20 @@ export const useAudioProcessing = ({
         // If external state says we should not be playing but we are, pause
         if (isPlaying) {
           try {
-            originalHandlePlayPause();
+            // Clear any existing timeout
+            cleanupPendingOperations();
+            
+            // Add a small delay to ensure any previous operations have completed
+            playPauseOperationTimeoutRef.current = setTimeout(() => {
+              try {
+                playPauseOperationInProgress.current = true;
+                originalHandlePlayPause();
+                // Operation completion will be handled by the state change effect
+              } catch (err) {
+                console.error("[useAudioProcessing] Error during delayed external pause command:", err);
+                playPauseOperationInProgress.current = false;
+              }
+            }, 100);
           } catch (err) {
             console.error("[useAudioProcessing] Error during external pause command:", err);
           }
@@ -180,6 +224,8 @@ export const useAudioProcessing = ({
     // Save previous playing state to detect changes
     if (isPlaying !== prevPlayingState) {
       setPrevPlayingState(isPlaying);
+      // Reset operation in progress flag
+      playPauseOperationInProgress.current = false;
       // Notify parent about playing state changes
       onPlayingChange(isPlaying);
       
@@ -192,7 +238,7 @@ export const useAudioProcessing = ({
         }
       }
     }
-  }, [isActiveMediaRoute, externalIsPlaying, isPlaying, prevPlayingState, currentFile, originalHandlePlayPause, onPlayingChange, playbackErrors]);
+  }, [isActiveMediaRoute, externalIsPlaying, isPlaying, prevPlayingState, currentFile, originalHandlePlayPause, onPlayingChange, playbackErrors, isReady]);
 
   // Enhanced error handling - attempt recovery for certain errors
   useEffect(() => {
@@ -210,8 +256,21 @@ export const useAudioProcessing = ({
     }
   }, [playbackErrors, currentFile]);
 
+  // Cleanup effect on unmount
+  useEffect(() => {
+    return () => {
+      cleanupPendingOperations();
+    };
+  }, []);
+
   // Wrapper for play/pause that also updates external state and handles errors
   const handlePlayPause = () => {
+    // Don't allow new operations if one is already in progress
+    if (playPauseOperationInProgress.current) {
+      console.log("[useAudioProcessing] Ignoring play/pause, operation already in progress");
+      return;
+    }
+    
     if (playbackErrors) {
       toast.error("No se puede reproducir el audio", { 
         description: "El archivo de audio no se puede reproducir debido a errores",
@@ -221,10 +280,30 @@ export const useAudioProcessing = ({
     }
     
     try {
-      originalHandlePlayPause();
-      onPlayingChange(!isPlaying);
+      // Set flag to indicate operation is in progress
+      playPauseOperationInProgress.current = true;
+      
+      // Clear any existing timeout
+      if (playPauseOperationTimeoutRef.current) {
+        clearTimeout(playPauseOperationTimeoutRef.current);
+      }
+      
+      // Use a small delay to prevent rapid state changes
+      playPauseOperationTimeoutRef.current = setTimeout(() => {
+        try {
+          originalHandlePlayPause();
+          onPlayingChange(!isPlaying);
+        } catch (err) {
+          console.error("[useAudioProcessing] Error in delayed handlePlayPause:", err);
+          playPauseOperationInProgress.current = false;
+          toast.error("Error al controlar la reproducción", { 
+            duration: 3000
+          });
+        }
+      }, 50);
     } catch (err) {
       console.error("[useAudioProcessing] Error in handlePlayPause:", err);
+      playPauseOperationInProgress.current = false;
       toast.error("Error al controlar la reproducción", { 
         duration: 3000
       });
@@ -241,23 +320,30 @@ export const useAudioProcessing = ({
       return;
     }
     
-    if (segment && segment.startTime !== undefined) {
-      console.log(`[useAudioProcessing] Seeking to segment at ${segment.startTime}s`);
-      try {
-        // Add a small delay before seeking to avoid potential race conditions
-        setTimeout(() => {
-          try {
-            seekToTimestamp(segment.startTime);
-            
-            // Set playing state after a small delay to ensure seek completes first
-            setTimeout(() => onPlayingChange(true), 100);
-          } catch (innerErr) {
-            console.error("[useAudioProcessing] Error in delayed seek:", innerErr);
-          }
-        }, 50);
-      } catch (err) {
-        console.error("[useAudioProcessing] Error in handleSeekToSegment:", err);
-      }
+    if (!segment || segment.startTime === undefined) {
+      console.error("[useAudioProcessing] Invalid segment or missing startTime:", segment);
+      return;
+    }
+    
+    console.log(`[useAudioProcessing] Seeking to segment at ${segment.startTime}s`);
+    try {
+      // Add a small delay before seeking to avoid potential race conditions
+      setTimeout(() => {
+        try {
+          seekToTimestamp(segment.startTime);
+          
+          // Set playing state after a longer delay to ensure seek completes first
+          setTimeout(() => {
+            if (!isPlaying) {
+              handlePlayPause();
+            }
+          }, 300);
+        } catch (innerErr) {
+          console.error("[useAudioProcessing] Error in delayed seek:", innerErr);
+        }
+      }, 150);
+    } catch (err) {
+      console.error("[useAudioProcessing] Error in handleSeekToSegment:", err);
     }
   };
 
