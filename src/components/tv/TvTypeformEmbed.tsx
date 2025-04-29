@@ -12,7 +12,12 @@ const TvTypeformEmbed = () => {
     script.onload = () => {
       if (window.tf) {
         // Disable microphone access for Typeform
-        window.tf.microphone = { enabled: false };
+        // Use optional chaining to safely access and set the microphone property
+        if (!window.tf.microphone) {
+          window.tf.microphone = { enabled: false };
+        } else {
+          window.tf.microphone.enabled = false;
+        }
         
         // Add attribute to disable microphone
         const typeformElements = document.querySelectorAll('[data-tf-live]');

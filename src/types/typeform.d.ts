@@ -1,6 +1,10 @@
 
 interface TypeformWidget {
-  createWidget: () => void;
+  createWidget: () => any;
+  unmount?: () => void;
+  microphone?: {
+    enabled: boolean;
+  };
 }
 
 declare global {

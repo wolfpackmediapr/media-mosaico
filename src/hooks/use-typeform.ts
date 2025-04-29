@@ -27,9 +27,13 @@ export const useTypeform = (enabled: boolean, disableMicrophone: boolean = true)
               typeformWidgetRef.current = window.tf.createWidget();
               
               // Configure all Typeform embeds to disable microphone if needed
-              if (disableMicrophone && window.tf.microphone) {
-                // This configuration prevents Typeform from requesting microphone access
-                window.tf.microphone = { enabled: false };
+              if (disableMicrophone) {
+                // Safely set microphone configuration
+                if (!window.tf.microphone) {
+                  window.tf.microphone = { enabled: false };
+                } else {
+                  window.tf.microphone.enabled = false;
+                }
               }
               
               // Add microphone disabled attribute to all typeform embeds
