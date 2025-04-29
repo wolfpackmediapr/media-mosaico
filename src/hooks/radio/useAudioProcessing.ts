@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAudioPlayer } from "../../components/radio/audio-player/hooks/useAudioPlayer";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 import { toast } from "sonner";
+import { getAudioFormatDetails } from "@/utils/audio-format-helper";
 
 interface AudioProcessingOptions {
   currentFile: File | null;
@@ -22,15 +23,30 @@ export const useAudioProcessing = ({
   const wasPlayingBeforeTabChange = useRef<boolean>(false);
   const lastSeenTabVisible = useRef<number>(Date.now());
   const errorShownRef = useRef<boolean>(false);
+  const lastErrorTime = useRef<number>(0);
+  const resumeAttemptCountRef = useRef<number>(0);
+  const isLoadingAudio = useRef<boolean>(false);
+  const wasAudioLoadingOnHide = useRef<boolean>(false);
 
   const handleAudioError = (error: string) => {
+    const now = Date.now();
     console.error('[AudioProcessing] Audio error:', error);
+    
+    // Store the error
     setPlaybackErrors(error);
     
-    // Prevent showing multiple error toasts for the same issue
-    if (!errorShownRef.current) {
+    // Don't show too many error toasts for the same issue (throttle to once per 10 seconds)
+    if (!errorShownRef.current || (now - lastErrorTime.current > 10000)) {
       errorShownRef.current = true;
-      // We don't show a toast here as the useAudioPlayer hook already shows one
+      lastErrorTime.current = now;
+      
+      // Only show one toast with more helpful info
+      if (currentFile) {
+        const details = getAudioFormatDetails(currentFile);
+        console.log(`[AudioProcessing] File details: ${details}`);
+      }
+      
+      // We don't show an additional toast here as the useAudioPlayer hook already shows one
     }
   };
 
@@ -42,6 +58,7 @@ export const useAudioProcessing = ({
     isMuted,
     playbackRate,
     audioError,
+    isLoading,
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
@@ -57,12 +74,22 @@ export const useAudioProcessing = ({
     onError: handleAudioError
   });
 
+  // Track audio loading state
+  useEffect(() => {
+    isLoadingAudio.current = isLoading || false;
+  }, [isLoading]);
+
   // Reset error state when file changes
   useEffect(() => {
     if (currentFile) {
       setPlaybackErrors(null);
       errorShownRef.current = false;
-      console.log(`[AudioProcessing] New file loaded: ${currentFile.name}`);
+      resumeAttemptCountRef.current = 0;
+      console.log(`[AudioProcessing] New file loaded: ${currentFile.name} (${currentFile.type})`);
+      
+      // Log format details for debugging
+      const details = getAudioFormatDetails(currentFile);
+      console.log(`[AudioProcessing] File details: ${details}`);
     }
   }, [currentFile]);
 
@@ -81,25 +108,39 @@ export const useAudioProcessing = ({
       if (document.hidden) {
         // Tab is hidden, store current playing state
         wasPlayingBeforeTabChange.current = isPlaying;
+        wasAudioLoadingOnHide.current = isLoadingAudio.current;
         lastSeenTabVisible.current = now;
-        console.log("[useAudioProcessing] Tab hidden, saving playback state:", isPlaying);
+        console.log("[useAudioProcessing] Tab hidden, saving playback state:", isPlaying, "loading:", isLoadingAudio.current);
       } else {
         // Tab is visible again
+        const timeHiddenSeconds = Math.round((now - lastSeenTabVisible.current)/1000);
         console.log("[useAudioProcessing] Tab visible again, previous state:", wasPlayingBeforeTabChange.current);
-        console.log("[useAudioProcessing] Time hidden:", Math.round((now - lastSeenTabVisible.current)/1000) + "s");
+        console.log("[useAudioProcessing] Time hidden:", timeHiddenSeconds + "s", "was loading:", wasAudioLoadingOnHide.current);
         
         // If it was playing before tab change, and we've been away for a short time
         // Note: we only auto-resume if we've been away less than 30 minutes
         const wasAwayLessThan30Min = (now - lastSeenTabVisible.current) < 30 * 60 * 1000;
+        const shouldTryResume = wasPlayingBeforeTabChange.current && !isPlaying && 
+                               currentFile && wasAwayLessThan30Min &&
+                               resumeAttemptCountRef.current < 3; // Limit resume attempts to 3
         
-        if (wasPlayingBeforeTabChange.current && !isPlaying && currentFile && wasAwayLessThan30Min) {
-          console.log("[useAudioProcessing] Resuming playback after tab change");
-          // Small delay to ensure audio context is ready
+        if (shouldTryResume) {
+          console.log("[useAudioProcessing] Attempting to resume playback after tab change");
+          // Longer delay to ensure audio context is fully ready
+          resumeAttemptCountRef.current += 1;
+          
           setTimeout(() => {
-            if (!playbackErrors) {
-              originalHandlePlayPause();
+            try {
+              if (!playbackErrors) {
+                console.log("[useAudioProcessing] Executing delayed play after tab visibility change");
+                originalHandlePlayPause();
+              }
+            } catch (e) {
+              console.error("[useAudioProcessing] Error resuming playback:", e);
             }
-          }, 100);
+          }, 500);
+        } else if (resumeAttemptCountRef.current >= 3) {
+          console.log("[useAudioProcessing] Max resume attempts reached, not trying again");
         }
       }
     };
@@ -109,7 +150,7 @@ export const useAudioProcessing = ({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isPlaying, currentFile, originalHandlePlayPause, playbackErrors]);
+  }, [isPlaying, currentFile, originalHandlePlayPause, playbackErrors, isLoading]);
 
   // Sync our playing state with external state
   useEffect(() => {
@@ -117,13 +158,21 @@ export const useAudioProcessing = ({
     if (isActiveMediaRoute && externalIsPlaying !== isPlaying) {
       if (externalIsPlaying) {
         // If external state says we should be playing but we're not, try to play
-        if (!isPlaying && currentFile && !playbackErrors) {
-          originalHandlePlayPause();
+        if (!isPlaying && currentFile && !playbackErrors && !isLoadingAudio.current) {
+          try {
+            originalHandlePlayPause();
+          } catch (err) {
+            console.error("[useAudioProcessing] Error during external play command:", err);
+          }
         }
       } else {
         // If external state says we should not be playing but we are, pause
         if (isPlaying) {
-          originalHandlePlayPause();
+          try {
+            originalHandlePlayPause();
+          } catch (err) {
+            console.error("[useAudioProcessing] Error during external pause command:", err);
+          }
         }
       }
     }
@@ -136,38 +185,79 @@ export const useAudioProcessing = ({
       
       // Update media session state
       if ('mediaSession' in navigator) {
-        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+        try {
+          navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+        } catch (e) {
+          console.warn("[useAudioProcessing] Error updating media session state:", e);
+        }
       }
     }
   }, [isActiveMediaRoute, externalIsPlaying, isPlaying, prevPlayingState, currentFile, originalHandlePlayPause, onPlayingChange, playbackErrors]);
 
-  // Wrapper for play/pause that also updates external state
+  // Enhanced error handling - attempt recovery for certain errors
+  useEffect(() => {
+    if (playbackErrors && playbackErrors.includes("AbortError") && currentFile) {
+      console.log("[useAudioProcessing] Detected AbortError, attempting recovery");
+      
+      // Clear error after short delay to allow retry
+      const recoveryTimer = setTimeout(() => {
+        setPlaybackErrors(null);
+        errorShownRef.current = false;
+        console.log("[useAudioProcessing] Cleared error state to allow retry");
+      }, 3000);
+      
+      return () => clearTimeout(recoveryTimer);
+    }
+  }, [playbackErrors, currentFile]);
+
+  // Wrapper for play/pause that also updates external state and handles errors
   const handlePlayPause = () => {
     if (playbackErrors) {
-      toast.error("Cannot play audio", { 
-        description: "Audio file cannot be played due to errors",
+      toast.error("No se puede reproducir el audio", { 
+        description: "El archivo de audio no se puede reproducir debido a errores",
         duration: 3000
       });
       return;
     }
     
-    originalHandlePlayPause();
-    onPlayingChange(!isPlaying);
+    try {
+      originalHandlePlayPause();
+      onPlayingChange(!isPlaying);
+    } catch (err) {
+      console.error("[useAudioProcessing] Error in handlePlayPause:", err);
+      toast.error("Error al controlar la reproducción", { 
+        duration: 3000
+      });
+    }
   };
 
-  // Handler to seek to a specific segment
+  // Enhanced handler to seek to a specific segment with better error handling
   const handleSeekToSegment = (segment: RadioNewsSegment) => {
     if (playbackErrors) {
-      toast.error("Cannot seek in audio", { 
-        description: "Audio file cannot be played due to errors",
+      toast.error("No se puede buscar en el audio", { 
+        description: "El archivo de audio no se puede reproducir debido a errores",
         duration: 3000
       });
       return;
     }
     
     if (segment && segment.startTime !== undefined) {
-      seekToTimestamp(segment.startTime);
-      onPlayingChange(true);
+      console.log(`[useAudioProcessing] Seeking to segment at ${segment.startTime}s`);
+      try {
+        // Add a small delay before seeking to avoid potential race conditions
+        setTimeout(() => {
+          try {
+            seekToTimestamp(segment.startTime);
+            
+            // Set playing state after a small delay to ensure seek completes first
+            setTimeout(() => onPlayingChange(true), 100);
+          } catch (innerErr) {
+            console.error("[useAudioProcessing] Error in delayed seek:", innerErr);
+          }
+        }, 50);
+      } catch (err) {
+        console.error("[useAudioProcessing] Error in handleSeekToSegment:", err);
+      }
     }
   };
 

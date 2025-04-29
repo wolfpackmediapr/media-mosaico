@@ -1,5 +1,5 @@
 
-import React, { memo, useRef } from "react";
+import React, { memo, useRef, useEffect } from "react";
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 import { formatTime } from "@/components/radio/timestamped/timeUtils";
 import { getSpeakerColor } from "./utils";
@@ -23,19 +23,30 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
   const isClickingRef = useRef<boolean>(false);
   const lastClickTimeRef = useRef<number>(0);
   
-  // Enhanced click handling with better debouncing
+  // Clear any pending timeouts when unmounting
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+    };
+  }, []);
+  
+  // Enhanced click handling with better debouncing and safety checks
   const handleClick = () => {
     const now = Date.now();
     
-    // Add minimum time between clicks (300ms)
-    if (now - lastClickTimeRef.current < 300) {
+    // Increased minimum time between clicks from 300ms to 500ms for better stability
+    if (now - lastClickTimeRef.current < 500) {
+      console.log("[SpeakerSegment] Click ignored, too soon after previous click");
       return;
     }
     
     lastClickTimeRef.current = now;
     
     if (isClickingRef.current) {
-      // Prevent duplicate clicks
+      console.log("[SpeakerSegment] Click ignored, still processing previous click");
       return;
     }
     
@@ -46,17 +57,19 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
       clearTimeout(clickTimeoutRef.current);
     }
     
-    // Set a timeout for the click to prevent rapid succession
-    // Increased delay to 100ms for better stability
+    // Increased delay to 200ms for better stability
     clickTimeoutRef.current = setTimeout(() => {
-      onClick();
+      try {
+        onClick();
+      } catch (err) {
+        console.error("[SpeakerSegment] Error in click handler:", err);
+      }
       
-      // Reset clicking state after a small additional delay
-      // to ensure we don't trigger multiple rapid clicks
+      // Reset clicking state after a longer delay (200ms)
       setTimeout(() => {
         isClickingRef.current = false;
-      }, 100);
-    }, 100);
+      }, 200);
+    }, 200);
   };
   
   return (
