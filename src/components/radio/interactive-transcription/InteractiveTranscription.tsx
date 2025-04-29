@@ -9,6 +9,9 @@ import { calculateCurrentSegment } from "./utils";
 import { Button } from "@/components/ui/button";
 import { Play, Pause } from "lucide-react";
 
+// Map to track active segment IDs per transcription to prevent unnecessary re-renders
+const activeSegmentCache = new Map<string, string>();
+
 interface InteractiveTranscriptionProps {
   transcriptionResult?: TranscriptionResult;
   currentTime: number; // Current audio playback position in seconds
@@ -38,10 +41,15 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   const lastCurrentTimeRef = useRef<number>(0);
   const activeSegmentIdRef = useRef<string | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef<boolean>(true);
+  const transcriptionIdRef = useRef<string | undefined>(transcriptionResult?.id);
 
-  // Clean up timeouts when component unmounts
+  // Track if component is mounted to prevent state updates after unmount
   useEffect(() => {
+    mountedRef.current = true;
+    
     return () => {
+      mountedRef.current = false;
       if (segmentUpdateTimeoutRef.current) {
         clearTimeout(segmentUpdateTimeoutRef.current);
         segmentUpdateTimeoutRef.current = null;
@@ -57,6 +65,19 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     };
   }, []);
 
+  // Update transcription ID ref when it changes
+  useEffect(() => {
+    const newId = transcriptionResult?.id;
+    if (newId !== transcriptionIdRef.current) {
+      transcriptionIdRef.current = newId;
+      
+      // Clear cached segment when transcription changes
+      if (newId) {
+        activeSegmentCache.delete(newId);
+      }
+    }
+  }, [transcriptionResult?.id]);
+
   // Find the active segment based on current playback time with debouncing
   const findActiveSegment = useCallback((time: number) => {
     if (!hasUtterances || !transcriptionResult?.utterances) return null;
@@ -69,32 +90,48 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     }
   }, [hasUtterances, transcriptionResult?.utterances]);
 
-  // More stable debounced segment updater function
+  // More stable debounced segment updater function with transcription ID caching
   const updateActiveSegment = useCallback(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
     
     debounceTimerRef.current = setTimeout(() => {
-      if (!hasUtterances || audioSeekPending.current) return;
+      if (!mountedRef.current || !hasUtterances || audioSeekPending.current) return;
       
       try {
+        // Get current transcription ID
+        const transcriptionId = transcriptionResult?.id;
+        if (!transcriptionId) return;
+        
         const active = findActiveSegment(currentTime);
         if (active) {
           const newSegmentId = `segment-${active.start}-${active.end}`;
-          if (activeSegmentIdRef.current !== newSegmentId) {
+          
+          // Check cached value first to minimize state updates
+          const cachedSegmentId = activeSegmentCache.get(transcriptionId);
+          
+          if (cachedSegmentId !== newSegmentId) {
             activeSegmentIdRef.current = newSegmentId;
-            setActiveSegmentId(newSegmentId);
+            activeSegmentCache.set(transcriptionId, newSegmentId);
+            
+            if (mountedRef.current) {
+              setActiveSegmentId(newSegmentId);
+            }
           }
         } else if (activeSegmentIdRef.current !== null) {
           activeSegmentIdRef.current = null;
-          setActiveSegmentId(null);
+          activeSegmentCache.delete(transcriptionId);
+          
+          if (mountedRef.current) {
+            setActiveSegmentId(null);
+          }
         }
       } catch (error) {
         console.error("[InteractiveTranscription] Error in debounced update:", error);
       }
     }, 400);
-  }, [currentTime, findActiveSegment, hasUtterances]);
+  }, [currentTime, findActiveSegment, hasUtterances, transcriptionResult?.id]);
 
   // Update active segment with significantly improved change detection
   useEffect(() => {
@@ -127,6 +164,11 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
           
           // Wrap in setTimeout with longer delay to ensure DOM is ready
           setTimeout(() => {
+            if (!mountedRef.current) {
+              scrollOperationOngoing.current = false;
+              return;
+            }
+            
             if (activeSegmentRef.current && !audioSeekPending.current) {
               try {
                 activeSegmentRef.current.scrollIntoView({
@@ -190,6 +232,12 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     
     // Increased delay before seeking to better prevent conflicts
     segmentClickTimeoutRef.current = setTimeout(() => {
+      if (!mountedRef.current) {
+        audioSeekPending.current = false;
+        segmentClickTimeoutRef.current = null;
+        return;
+      }
+      
       try {
         console.log(`[InteractiveTranscription] Executing seek to ${timestamp}s after delay`);
         onSeek(timestamp);
@@ -199,8 +247,10 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
       
       // Reset seek pending flag after a longer delay
       setTimeout(() => {
-        audioSeekPending.current = false;
-        segmentClickTimeoutRef.current = null;
+        if (mountedRef.current) {
+          audioSeekPending.current = false;
+          segmentClickTimeoutRef.current = null;
+        }
       }, 1200); // Increased significantly from 1000ms
     }, 400); // Increased from 300ms
   }, [onSeek]);

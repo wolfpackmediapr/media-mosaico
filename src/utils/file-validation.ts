@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 // Enhanced list of audio MIME types to support broader format compatibility
@@ -18,21 +19,43 @@ const AUDIO_EXTENSIONS = [
   '.mp4', '.3gp', '.amr'
 ];
 
-// Keep track of already shown errors to prevent duplicates
-let lastShownErrorTime = 0;
-const ERROR_THROTTLE_MS = 5000; // Only show error once every 5 seconds
+// Global error cache for throttling across the app
+class ErrorThrottler {
+  private static errorCache = new Map<string, number>();
+  private static ERROR_COOLDOWN = 5000; // 5 seconds minimum between similar errors
+
+  static shouldShowError(errorKey: string): boolean {
+    const now = Date.now();
+    const lastShown = this.errorCache.get(errorKey) || 0;
+
+    if (now - lastShown > this.ERROR_COOLDOWN) {
+      this.errorCache.set(errorKey, now);
+      return true;
+    }
+    return false;
+  }
+
+  static showThrottledError(message: string, errorKey = ''): void {
+    const key = errorKey || message;
+    if (this.shouldShowError(key)) {
+      toast.error(message);
+    } else {
+      console.warn(`[FileValidation] Error message throttled: ${message}`);
+    }
+  }
+}
 
 export const validateAudioFile = (file: File): boolean => {
   // Check if file exists and has content
   if (!file || file.size === 0) {
-    showThrottledError("El archivo está vacío o corrupto");
+    ErrorThrottler.showThrottledError("El archivo está vacío o corrupto", "empty-file");
     return false;
   }
 
   // Check file size (max 25MB)
   const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB in bytes
   if (file.size > MAX_FILE_SIZE) {
-    showThrottledError("El archivo excede el límite de 25MB");
+    ErrorThrottler.showThrottledError("El archivo excede el límite de 25MB", "file-too-large");
     return false;
   }
   
@@ -41,6 +64,14 @@ export const validateAudioFile = (file: File): boolean => {
   
   // Log file details for debugging
   console.log(`[FileValidation] Validating file: ${fileName}, type: ${fileType}, size: ${file.size/1024/1024}MB`);
+  
+  // Check if file is reconstructed (has isReconstructed property)
+  const isReconstructed = (file as any).isReconstructed === true;
+  if (isReconstructed) {
+    console.log(`[FileValidation] File is reconstructed from metadata: ${fileName}`);
+    // Be more lenient with reconstructed files to avoid errors
+    return true;
+  }
   
   // Enhanced MIME type detection with safety
   const hasValidMimeType = AUDIO_MIME_TYPES.some(mime => {
@@ -95,17 +126,9 @@ export const validateAudioFile = (file: File): boolean => {
   
   // If none of the above conditions are met, reject the file
   console.error(`[FileValidation] Invalid file format: ${fileType || 'unknown'}, name: ${fileName}`);
-  showThrottledError("Formato no soportado. Por favor sube un archivo MP3, WAV, OGG, M4A, AAC o FLAC");
+  ErrorThrottler.showThrottledError("Formato no soportado. Por favor sube un archivo MP3, WAV, OGG, M4A, AAC o FLAC", "invalid-format");
   return false;
 };
 
-// Helper function to prevent error toast flooding
-function showThrottledError(message: string) {
-  const now = Date.now();
-  if (now - lastShownErrorTime > ERROR_THROTTLE_MS) {
-    lastShownErrorTime = now;
-    toast.error(message);
-  } else {
-    console.warn(`[FileValidation] Error message throttled: ${message}`);
-  }
-}
+// Export the ErrorThrottler for use in other modules
+export const { showThrottledError } = ErrorThrottler;

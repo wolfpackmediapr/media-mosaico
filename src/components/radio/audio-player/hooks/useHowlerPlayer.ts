@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
 import { validateAudioFile } from '@/utils/file-validation';
-import { useDebounce } from '@/hooks/useDebounce';
 
 interface AudioPlayerOptions {
   file?: File;
@@ -18,6 +17,23 @@ const SUPPORTED_FORMATS = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'webm'];
 
 // Cooldown period to prevent rapid play/pause actions (milliseconds)
 const PLAY_PAUSE_COOLDOWN = 300;
+
+// Create a global error cache for audio errors
+const audioErrorCache = new Map<string, number>();
+const AUDIO_ERROR_COOLDOWN = 10000; // 10 seconds
+
+// Helper function to check if we should show an error
+const shouldShowAudioError = (fileId: string, errorType: string): boolean => {
+  const now = Date.now();
+  const cacheKey = `${fileId}-${errorType}`;
+  const lastShown = audioErrorCache.get(cacheKey) || 0;
+  
+  if (now - lastShown > AUDIO_ERROR_COOLDOWN) {
+    audioErrorCache.set(cacheKey, now);
+    return true;
+  }
+  return false;
+};
 
 export const useHowlerPlayer = ({ 
   file, 
@@ -41,8 +57,10 @@ export const useHowlerPlayer = ({
   const progressInterval = useRef<ReturnType<typeof setInterval>>();
   const wasPlayingBeforeBlur = useRef<boolean>(false);
   const errorShownRef = useRef<boolean>(false);
+  const lastFileRef = useRef<string>('');
   const seekTarget = useRef<number | null>(null);
   const seekRetryCount = useRef<number>(0);
+  const loadErrorCount = useRef<number>(0);
   
   // Operation tracking refs to prevent race conditions
   const isOperationPending = useRef<boolean>(false);
@@ -98,9 +116,17 @@ export const useHowlerPlayer = ({
 
   // Initialize Howler instance when file changes
   useEffect(() => {
-    // Reset error state when file changes
-    setAudioError(null);
-    errorShownRef.current = false;
+    // Reset error state only when file identifier changes
+    const currentFileId = file ? `${file.name}${file.lastModified}${file.size}` : '';
+    
+    // Only reset errors when we get a completely different file
+    if (currentFileId !== lastFileRef.current) {
+      setAudioError(null);
+      errorShownRef.current = false;
+      loadErrorCount.current = 0;
+      lastFileRef.current = currentFileId;
+    }
+    
     setIsReady(false);
     setIsLoading(false);
     
@@ -109,9 +135,26 @@ export const useHowlerPlayer = ({
       return;
     }
 
+    // Extra check for reconstructed files that might cause errors
+    const isReconstructedFile = (file as any).isReconstructed === true;
+    
+    // Special validation for reconstructed files
+    if (isReconstructedFile) {
+      console.log(`[HowlerPlayer] File ${file.name} is reconstructed from metadata, using extra caution`);
+      // If we encounter errors with reconstructed files, we'll handle them silently
+      loadErrorCount.current = isReconstructedFile ? 1 : 0;
+    }
+
     // Validate file before attempting to create audio object
     if (!validateAudioFile(file)) {
-      setAudioError('Invalid audio file format');
+      const errorMsg = 'Invalid audio file format';
+      setAudioError(errorMsg);
+      
+      // Only show error if we should
+      if (shouldShowAudioError(file.name, 'format')) {
+        toast.error('Formato de audio no compatible');
+        if (onError) onError(errorMsg);
+      }
       return;
     }
 
@@ -142,6 +185,7 @@ export const useHowlerPlayer = ({
           setDuration(sound.duration());
           setIsLoading(false);
           setIsReady(true);
+          loadErrorCount.current = 0; // Reset error count on successful load
           
           // Restore saved position if available
           const storedPosition = sessionStorage.getItem('audio-position');
@@ -194,18 +238,42 @@ export const useHowlerPlayer = ({
           if (onEnded) onEnded();
         },
         onloaderror: (id, err) => {
+          loadErrorCount.current += 1;
+          
+          // Special handling for reconstructed files - silent failure
+          const isReconstructedFile = (file as any).isReconstructed === true;
           const errorMessage = `Failed to load audio: ${err || 'Unknown error'}`;
+          
+          // Log but don't show UI errors for reconstructed files after first attempt
+          if (isReconstructedFile && loadErrorCount.current > 1) {
+            console.log(`[HowlerPlayer] Silent failure for reconstructed file: ${file.name}`);
+            setIsLoading(false);
+            isOperationPending.current = false;
+            setAudioError(errorMessage);
+            return;
+          }
+          
           console.error(`[HowlerPlayer] ${errorMessage}`);
           setIsLoading(false);
           isOperationPending.current = false;
           
-          if (!errorShownRef.current) {
+          // Only show toast if it's a new error or enough time has passed
+          if (!errorShownRef.current && shouldShowAudioError(file.name, 'load')) {
             errorShownRef.current = true;
             setAudioError(errorMessage);
-            toast.error('Error loading audio file', {
-              description: 'The file may be corrupted or in an unsupported format',
+            
+            // Different messages based on if it's a reconstructed file
+            const toastMessage = isReconstructedFile ? 
+              'Error cargando archivo de sesión anterior' : 
+              'Error cargando archivo de audio';
+            
+            toast.error(toastMessage, {
+              description: isReconstructedFile ? 
+                'Por favor cargue el archivo nuevamente' : 
+                'El archivo puede estar corrupto o en un formato no compatible',
               duration: 5000,
             });
+            
             if (onError) onError(errorMessage);
           }
         },
@@ -227,13 +295,16 @@ export const useHowlerPlayer = ({
           setIsPlaying(false);
           isOperationPending.current = false;
           
-          if (!errorShownRef.current) {
+          // Only show toast if it's a new error or enough time has passed
+          if (!errorShownRef.current && shouldShowAudioError(file.name, 'play')) {
             errorShownRef.current = true;
             setAudioError(errorMessage);
-            toast.error('Error playing audio file', {
-              description: 'There was an issue playing this file',
+            
+            toast.error('Error reproduciendo archivo de audio', {
+              description: 'Hubo un problema al reproducir este archivo',
               duration: 5000,
             });
+            
             if (onError) onError(errorMessage);
           }
         },
@@ -286,10 +357,12 @@ export const useHowlerPlayer = ({
       setIsLoading(false);
       isOperationPending.current = false;
       
-      if (!errorShownRef.current) {
+      // Only show toast if it's a new error or enough time has passed
+      if (!errorShownRef.current && shouldShowAudioError(file.name, 'init')) {
         errorShownRef.current = true;
         setAudioError(error instanceof Error ? error.message : 'Unknown error');
-        toast.error('Error setting up audio player');
+        
+        toast.error('Error al configurar el reproductor de audio');
         if (onError) onError(`Error initializing audio: ${error}`);
       }
     }
@@ -436,7 +509,10 @@ export const useHowlerPlayer = ({
         if (error instanceof Error && error.name === 'AbortError') {
           console.log('[HowlerPlayer] AbortError detected - ignoring as this is expected with rapid interactions');
         } else {
-          toast.error('Error playing audio file');
+          // Only show toast if we should
+          if (file && shouldShowAudioError(file.name, 'playback-action')) {
+            toast.error('Error al reproducir archivo de audio');
+          }
           if (onError && error instanceof Error) onError(error.message);
         }
       }

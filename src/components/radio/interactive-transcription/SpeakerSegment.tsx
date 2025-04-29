@@ -22,10 +22,14 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isClickingRef = useRef<boolean>(false);
   const lastClickTimeRef = useRef<number>(0);
+  const mountedRef = useRef<boolean>(true);
   
-  // Clear any pending timeouts when unmounting
+  // Track mounted state to prevent actions on unmounted component
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      // Clear any pending timeouts when unmounting
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
@@ -37,8 +41,8 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
   const handleClick = () => {
     const now = Date.now();
     
-    // Increased minimum time between clicks from 500ms to 800ms for better stability
-    if (now - lastClickTimeRef.current < 800) {
+    // Increased minimum time between clicks from 800ms to 1000ms for better stability
+    if (now - lastClickTimeRef.current < 1000) {
       console.log("[SpeakerSegment] Click ignored, too soon after previous click");
       return;
     }
@@ -57,22 +61,27 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
       clearTimeout(clickTimeoutRef.current);
     }
     
-    // Increased delay to 300ms for better stability (from 200ms)
+    // Increased delay to 400ms for better stability (from 300ms)
     clickTimeoutRef.current = setTimeout(() => {
       try {
-        onClick();
+        // Check if component is still mounted before proceeding
+        if (mountedRef.current) {
+          onClick();
+        }
       } catch (err) {
         console.error("[SpeakerSegment] Error in click handler:", err);
       } finally {
         // Always reset clicking state after a delay, regardless of success/failure
         // Use a separate timeout to ensure we don't block the UI
         setTimeout(() => {
-          isClickingRef.current = false;
+          if (mountedRef.current) {
+            isClickingRef.current = false;
+          }
           // Clear the timeout reference to prevent memory leaks
           clickTimeoutRef.current = null;
-        }, 300);
+        }, 400);
       }
-    }, 300);
+    }, 400);
   };
   
   return (
