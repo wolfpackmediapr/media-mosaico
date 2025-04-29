@@ -53,11 +53,12 @@ export const useTypeform = (enabled: boolean, disableMicrophone: boolean = true)
                     window.tf.microphone.enabled = false;
                   }
                   
-                  // Disable any audio system completely
+                  // Safely check and disable audio features if they exist
                   if (window.tf.audio) {
                     window.tf.audio.enabled = false;
-                  } else {
-                    window.tf.audio = { enabled: false };
+                  } else if (typeof window.tf === 'object') {
+                    // Add audio property if it doesn't exist
+                    (window.tf as any).audio = { enabled: false };
                   }
                 }
                 

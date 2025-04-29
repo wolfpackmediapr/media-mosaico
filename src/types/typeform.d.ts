@@ -5,6 +5,9 @@ interface TypeformWidget {
   microphone?: {
     enabled: boolean;
   };
+  audio?: {
+    enabled: boolean;
+  };
 }
 
 declare global {
