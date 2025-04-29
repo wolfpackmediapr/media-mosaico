@@ -18,6 +18,7 @@ export const extractImageUrl = (item: any): string | null => {
   
   // Direct image property
   if (item.image) return item.image;
+  if (item.image_url) return item.image_url;
   
   // Media content
   if (item.media_content) return item.media_content;

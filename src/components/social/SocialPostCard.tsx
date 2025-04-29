@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { sanitizeSocialContent } from "@/services/social/content-sanitizer";
 import { Twitter, Facebook, Instagram, Youtube, Linkedin } from "lucide-react";
+import { getFallbackImage } from "@/lib/platform-images";
 import type { SocialPost } from "@/types/social";
 
 interface SocialPostCardProps {
@@ -33,6 +34,8 @@ const getPlatformIcon = (platform: string) => {
 
 const SocialPostCard = ({ post }: SocialPostCardProps) => {
   const [expanded, setExpanded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [profileImageError, setProfileImageError] = useState(false);
   
   // Format the publication date
   const pubDate = post.pub_date ? new Date(post.pub_date) : null;
@@ -47,17 +50,21 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   // Get platform display name
   const platformDisplay = post.platform_display_name || post.platform;
   
+  // Get fallback image based on source and platform
+  const fallbackImage = getFallbackImage(post.source, post.platform);
+  
   return (
     <Card className="h-full flex flex-col overflow-hidden transition-all hover:shadow-md">
       <CardContent className="p-0 flex-1 flex flex-col">
         {/* Post header with platform and date */}
         <div className="p-4 border-b flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            {post.feed_source?.profile_image_url ? (
+            {post.feed_source?.profile_image_url && !profileImageError ? (
               <img
                 src={post.feed_source.profile_image_url}
                 alt={post.source}
-                className="h-6 w-6 rounded-full"
+                className="h-6 w-6 rounded-full object-cover"
+                onError={() => setProfileImageError(true)}
               />
             ) : (
               <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
@@ -75,16 +82,22 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
         </div>
         
         {/* Post image if available */}
-        {post.image_url && (
+        {post.image_url && !imageError ? (
           <div className="relative aspect-video">
             <img
               src={post.image_url}
               alt={post.title || "Social media post"}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                // Handle image load error
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
+              onError={() => setImageError(true)}
+            />
+          </div>
+        ) : (
+          // If the post image is missing or fails to load, use a fallback image
+          <div className="relative aspect-video">
+            <img
+              src={fallbackImage}
+              alt={post.title || "Social media post"}
+              className="w-full h-full object-cover bg-gray-100"
             />
           </div>
         )}
