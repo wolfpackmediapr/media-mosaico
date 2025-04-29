@@ -29,8 +29,10 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   const activeSegmentRef = useRef<HTMLDivElement>(null);
   const lastScrollTime = useRef<number>(0);
   const lastSegmentClickTime = useRef<number>(0);
+  const scrollOperationOngoing = useRef<boolean>(false);
   const hasUtterances = transcriptionResult?.utterances && transcriptionResult.utterances.length > 0;
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
+  const segmentUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Find the active segment based on current playback time with debouncing
   const findActiveSegment = useCallback((time: number) => {
@@ -39,12 +41,17 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     return calculateCurrentSegment(transcriptionResult.utterances, time);
   }, [hasUtterances, transcriptionResult?.utterances]);
 
-  // Update active segment with debouncing to reduce state updates
+  // Update active segment with improved debouncing to reduce state updates
   useEffect(() => {
     if (!hasUtterances) return;
     
-    // Use a simple debounce by checking every 300ms instead of every frame
-    const updateInterval = setInterval(() => {
+    // Clear any existing timeout to prevent rapid updates
+    if (segmentUpdateTimeoutRef.current) {
+      clearTimeout(segmentUpdateTimeoutRef.current);
+    }
+    
+    // Use a debouncing mechanism with a longer interval (500ms instead of 300ms)
+    segmentUpdateTimeoutRef.current = setTimeout(() => {
       const active = findActiveSegment(currentTime);
       if (active) {
         const newSegmentId = `segment-${active.start}-${active.end}`;
@@ -54,58 +61,81 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
       } else if (activeSegmentId !== null) {
         setActiveSegmentId(null);
       }
-    }, 300);
+      
+      segmentUpdateTimeoutRef.current = null;
+    }, 500);
     
-    return () => clearInterval(updateInterval);
+    return () => {
+      if (segmentUpdateTimeoutRef.current) {
+        clearTimeout(segmentUpdateTimeoutRef.current);
+      }
+    };
   }, [currentTime, findActiveSegment, hasUtterances, activeSegmentId]);
 
-  // Auto-scroll to active segment with throttling to improve performance
+  // Auto-scroll to active segment with improved throttling
   useEffect(() => {
-    if (activeSegmentId && activeSegmentRef.current && scrollAreaRef.current) {
-      // Throttle scrolling to improve performance
+    if (activeSegmentId && activeSegmentRef.current && scrollAreaRef.current && !scrollOperationOngoing.current) {
+      // Throttle scrolling more aggressively to improve performance
       const now = Date.now();
-      if (now - lastScrollTime.current > 800) { // Only scroll every 800ms at most (increased from 500ms)
+      if (now - lastScrollTime.current > 1200) { // Increased from 800ms to 1200ms
         lastScrollTime.current = now;
+        scrollOperationOngoing.current = true;
         
-        // Use smooth scrolling if not playing or slow scrolling if playing
-        const behavior = isPlaying ? "smooth" : "auto";
-        
-        activeSegmentRef.current.scrollIntoView({
-          behavior,
-          block: "center"
-        });
-        
-        // Update visible range based on active segment
-        if (transcriptionResult?.utterances) {
-          const activeIndex = transcriptionResult.utterances.findIndex(
-            u => `segment-${u.start}-${u.end}` === activeSegmentId
-          );
+        try {
+          // Use smooth scrolling if not playing or slow scrolling if playing
+          const behavior = isPlaying ? "smooth" : "auto";
           
-          if (activeIndex !== -1) {
-            const start = Math.max(0, activeIndex - 5);
-            const end = Math.min(transcriptionResult.utterances.length, activeIndex + 15);
-            setVisibleRange({ start, end });
-          }
+          // Wrap in setTimeout to ensure DOM is ready
+          setTimeout(() => {
+            if (activeSegmentRef.current) {
+              activeSegmentRef.current.scrollIntoView({
+                behavior,
+                block: "center"
+              });
+              
+              // Update visible range based on active segment
+              if (transcriptionResult?.utterances) {
+                const activeIndex = transcriptionResult.utterances.findIndex(
+                  u => `segment-${u.start}-${u.end}` === activeSegmentId
+                );
+                
+                if (activeIndex !== -1) {
+                  const start = Math.max(0, activeIndex - 5);
+                  const end = Math.min(transcriptionResult.utterances.length, activeIndex + 15);
+                  setVisibleRange({ start, end });
+                }
+              }
+              
+              // Reset scroll operation flag after a delay
+              setTimeout(() => {
+                scrollOperationOngoing.current = false;
+              }, 200);
+            }
+          }, 50);
+        } catch (error) {
+          // Reset flag if scrolling fails
+          console.error("[InteractiveTranscription] Error scrolling:", error);
+          scrollOperationOngoing.current = false;
         }
       }
     }
   }, [activeSegmentId, isPlaying, transcriptionResult?.utterances]);
 
-  // Handle clicking on a transcript segment with debouncing
+  // Handle clicking on a transcript segment with improved debouncing
   const handleSegmentClick = useCallback((timestamp: number) => {
     const now = Date.now();
     
-    // Prevent rapid successive clicks (300ms cooldown)
-    if (now - lastSegmentClickTime.current < 300) {
-      console.log(`[InteractiveTranscription] Ignoring rapid segment click`);
+    // Increased cooldown period to 500ms
+    if (now - lastSegmentClickTime.current < 500) {
+      console.log(`[InteractiveTranscription] Ignoring rapid segment click within 500ms cooldown`);
       return;
     }
     
     lastSegmentClickTime.current = now;
     console.log(`[InteractiveTranscription] Segment clicked at ${timestamp}s`);
     
-    // Add a small delay before seeking to prevent conflicts with other operations
-    setTimeout(() => onSeek(timestamp), 50);
+    // Increased delay before seeking to better prevent conflicts
+    setTimeout(() => onSeek(timestamp), 100);
   }, [onSeek]);
 
   if (!hasUtterances || !transcriptionResult?.utterances) {
@@ -147,8 +177,8 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         ref={scrollAreaRef}
         onScrollCapture={() => {
           // Update the last scroll time to prevent auto-scrolling right after manual scroll
-          // Extend the cooldown period to 2 seconds after manual scroll
-          lastScrollTime.current = Date.now() + 2000;
+          // Extend the cooldown period to 3 seconds after manual scroll (from 2 seconds)
+          lastScrollTime.current = Date.now() + 3000;
         }}
       >
         <div className="space-y-4">

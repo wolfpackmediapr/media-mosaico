@@ -21,9 +21,19 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
   const speakerColor = getSpeakerColor(utterance.speaker);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isClickingRef = useRef<boolean>(false);
+  const lastClickTimeRef = useRef<number>(0);
   
-  // Handle click with debouncing to prevent duplicate rapid clicks
+  // Enhanced click handling with better debouncing
   const handleClick = () => {
+    const now = Date.now();
+    
+    // Add minimum time between clicks (300ms)
+    if (now - lastClickTimeRef.current < 300) {
+      return;
+    }
+    
+    lastClickTimeRef.current = now;
+    
     if (isClickingRef.current) {
       // Prevent duplicate clicks
       return;
@@ -37,10 +47,16 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
     }
     
     // Set a timeout for the click to prevent rapid succession
+    // Increased delay to 100ms for better stability
     clickTimeoutRef.current = setTimeout(() => {
       onClick();
-      isClickingRef.current = false;
-    }, 50);
+      
+      // Reset clicking state after a small additional delay
+      // to ensure we don't trigger multiple rapid clicks
+      setTimeout(() => {
+        isClickingRef.current = false;
+      }, 100);
+    }, 100);
   };
   
   return (

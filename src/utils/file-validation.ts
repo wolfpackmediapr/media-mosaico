@@ -7,13 +7,14 @@ const AUDIO_MIME_TYPES = [
   'audio/aac', 'audio/flac', 'audio/x-m4a', 'audio/x-wav', 'audio/webm',
   'audio/wave', 'audio/x-pn-wav', 'audio/x-ms-wma', 'audio/mp4',
   'audio/x-aiff', 'audio/x-mpegurl', 'audio/x-matroska', 'audio/basic',
-  'audio/vnd.wav', 'audio/opus'
+  'audio/vnd.wav', 'audio/opus', 'audio/', 'audio/x-', 'audio/vnd.'
 ];
 
-// Enhanced list of valid file extensions
+// Enhanced list of valid file extensions with broader support
 const AUDIO_EXTENSIONS = [
   '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.wma',
-  '.webm', '.aiff', '.aif', '.aifc', '.m3u', '.pls', '.mka', '.opus'
+  '.webm', '.aiff', '.aif', '.aifc', '.m3u', '.pls', '.mka', '.opus',
+  '.mp4', '.3gp', '.amr'
 ];
 
 export const validateAudioFile = (file: File): boolean => {
@@ -30,25 +31,49 @@ export const validateAudioFile = (file: File): boolean => {
     return false;
   }
   
-  const hasValidMimeType = AUDIO_MIME_TYPES.includes(file.type);
-  const hasValidExtension = AUDIO_EXTENSIONS.some(ext => 
-    file.name.toLowerCase().endsWith(ext)
+  const fileType = file.type.toLowerCase();
+  const fileName = file.name.toLowerCase();
+  
+  // Enhanced MIME type detection
+  const hasValidMimeType = AUDIO_MIME_TYPES.some(mime => 
+    fileType.includes(mime) || 
+    // Handle partial MIME types
+    (fileType.startsWith('audio/') && !fileType.endsWith('/'))
   );
   
-  // First case: If file has no MIME type but has valid extension, consider it valid
-  // This helps with browsers that don't set proper MIME types
-  if (!file.type && hasValidExtension) {
-    console.log(`[FileValidation] File has no MIME type but has valid extension: ${file.name}`);
+  const hasValidExtension = AUDIO_EXTENSIONS.some(ext => fileName.endsWith(ext));
+  
+  // Expanded validation logic
+  
+  // Case 1: Files with no MIME type but valid extension are considered valid
+  // Common with files downloaded from certain sources
+  if (!fileType && hasValidExtension) {
+    console.log(`[FileValidation] File has no MIME type but has valid extension: ${fileName}`);
     return true;
   }
   
-  // Second case: If file has neither valid MIME nor extension, reject it
-  if (!hasValidMimeType && !hasValidExtension) {
-    console.error(`[FileValidation] Invalid file format: ${file.type || 'unknown'}, name: ${file.name}`);
-    toast.error("Formato no soportado. Por favor sube un archivo MP3, WAV, OGG, M4A, AAC o FLAC");
-    return false;
+  // Case 2: Files with generic "application/octet-stream" but valid extension
+  // Browsers sometimes use this generic MIME type
+  if (fileType === 'application/octet-stream' && hasValidExtension) {
+    console.log(`[FileValidation] File has generic MIME type but valid extension: ${fileName}`);
+    return true;
   }
-
-  console.log(`[FileValidation] Valid audio file: ${file.name}, type: ${file.type || 'none'}`);
-  return true;
+  
+  // Case 3: Files with valid MIME type are obviously valid
+  if (hasValidMimeType) {
+    console.log(`[FileValidation] Valid audio file with MIME type: ${fileType}, name: ${fileName}`);
+    return true;
+  }
+  
+  // Case 4: Files with valid extension but unrecognized MIME
+  // Some browsers/systems assign unusual MIME types
+  if (hasValidExtension) {
+    console.log(`[FileValidation] File has valid extension but unusual MIME type: ${fileType}, accepting: ${fileName}`);
+    return true;
+  }
+  
+  // If none of the above conditions are met, reject the file
+  console.error(`[FileValidation] Invalid file format: ${fileType || 'unknown'}, name: ${fileName}`);
+  toast.error("Formato no soportado. Por favor sube un archivo MP3, WAV, OGG, M4A, AAC o FLAC");
+  return false;
 };
