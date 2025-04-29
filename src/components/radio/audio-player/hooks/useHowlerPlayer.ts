@@ -73,7 +73,7 @@ export const useHowlerPlayer = ({
     if (audioContextResumeAttempted.current || audioContextResumeCount.current > 3) return;
     
     try {
-      const audioContext = Howler.ctx;
+      const audioContext = (Howler as any).ctx;
       if (audioContext && audioContext.state === 'suspended') {
         console.log('[HowlerPlayer] Attempting to resume suspended AudioContext...');
         audioContext.resume().then(() => {
@@ -84,7 +84,7 @@ export const useHowlerPlayer = ({
           if (howlRef.current && !isPlaying && !isOperationPending.current) {
             setTimeout(() => handlePlayPause(), 100);
           }
-        }).catch(err => {
+        }).catch((err: any) => {
           console.warn('[HowlerPlayer] Failed to resume AudioContext:', err);
           audioContextResumeCount.current++;
         });
@@ -168,7 +168,7 @@ export const useHowlerPlayer = ({
       // Create new Howl instance with enhanced configuration
       const sound = new Howl({
         src: [fileUrl],
-        html5: true, // Force HTML5 Audio to handle large files better
+        // Removed html5: true to use Web Audio API instead of HTML5 Audio
         preload: true,
         format: formats || undefined,
         autoplay: false,

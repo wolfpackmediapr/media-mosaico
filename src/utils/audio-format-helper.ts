@@ -36,10 +36,10 @@ export const getAudioFormatDetails = (file: File): string => {
     }
     
     // Check if Howler can play this format
-    if (typeof Howler.codecs === 'function') {
+    if (typeof (Howler as any).codecs === 'function') {
       for (const [format, mimes] of Object.entries(AUDIO_MIME_MAP)) {
         if (mimes.includes(mimeType) || extension === format) {
-          const isSupported = Howler.codecs(format);
+          const isSupported = (Howler as any).codecs(format);
           supportInfo += `, ${format} codec: ${isSupported ? 'supported' : 'not supported'}`;
           break;
         }
@@ -114,9 +114,9 @@ export const setupAudioUnlockListeners = () => {
     unmuteAudio();
     
     // Try to unlock Howler specifically
-    if (typeof Howler._autoUnlock === 'function') {
+    if (typeof (Howler as any)._autoUnlock === 'function') {
       try {
-        Howler._autoUnlock();
+        (Howler as any)._autoUnlock();
       } catch (e) {
         console.warn('Error unlocking Howler:', e);
       }
