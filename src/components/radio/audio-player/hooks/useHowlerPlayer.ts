@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { Howl } from 'howler';
+import { Howl, Howler } from 'howler';
 import { toast } from 'sonner';
 import { validateAudioFile } from '@/utils/file-validation';
 
@@ -22,6 +22,9 @@ const PLAY_PAUSE_COOLDOWN = 300;
 const audioErrorCache = new Map<string, number>();
 const AUDIO_ERROR_COOLDOWN = 10000; // 10 seconds
 
+// Global flag to track if we've unlocked audio context
+let audioContextUnlocked = false;
+
 // Helper function to check if we should show an error
 const shouldShowAudioError = (fileId: string, errorType: string): boolean => {
   const now = Date.now();
@@ -33,6 +36,53 @@ const shouldShowAudioError = (fileId: string, errorType: string): boolean => {
     return true;
   }
   return false;
+};
+
+// Function to unlock audio context - needs to be called on a user interaction
+const unlockAudioContext = () => {
+  if (audioContextUnlocked) return;
+  
+  console.log('[HowlerPlayer] Attempting to unlock audio context');
+  
+  try {
+    // Create and immediately play+stop a silent/short sound
+    const unlockHowl = new Howl({
+      src: ['data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAAbAAeHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHiAgICAgICAgICAgICAgICAgICAgICAgICAgICAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwP/7kGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFhpbmcAAAAPAAAAKwAACcoAIiIiIiIiIiIiIjMzMzMzMzMzMzMzVVVVVVVVVVVVVVVmZmZmZmZmZmZmZnd3d3d3d3d3d3d3iIiIiIiIiIiIiIiZmZmZmZmZmZmZmZmqqqqqqqqqqqqqqqqqqru7u7u7u7u7u7u7u7u7zMzMzMzMzMzMzMzMzMzM3d3d3d3d3d3d3d3d3d3d7u7u7u7u7u7u7u7u7u7u//////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAXVQ0YAAAAr/+OAxAAAAZEITlEBMAYWUWkrEBmAF4XhcR8HgeIowoUQnDICiCDTB0GQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBsEQZBkGQfB8HwZB8GQZBsEQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBsEQZBkGQfB8HwZB8GQZBsEQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBv/434cIRQnDICiCDTB0GQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBsEQZBkGQfB8HwZB8GQZBsEQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBkGQZB8HwZB8GQZBsEQZBkGQfB8HwZB8GQZBsEQZBE3hIMgwdB8HwZB8HwZBkEQZBkHwZB8GQZBgHwZBk'],
+      volume: 0,
+      format: ['mp3'],
+      onplayerror: () => {
+        console.warn('[HowlerPlayer] Audio context unlock failed on first attempt');
+        // Try an alternative method on iOS
+        const context = Howler.ctx;
+        if (context && context.state === 'suspended') {
+          context.resume().then(() => {
+            console.log('[HowlerPlayer] Audio context resumed successfully via explicit call');
+            audioContextUnlocked = true;
+          }).catch(err => {
+            console.error('[HowlerPlayer] Failed to resume audio context:', err);
+          });
+        }
+      },
+      onplay: () => {
+        console.log('[HowlerPlayer] Audio context unlocked via dummy sound');
+        audioContextUnlocked = true;
+        // Stop the sound immediately
+        setTimeout(() => unlockHowl.stop(), 10);
+      }
+    });
+    
+    // Play and then immediately stop
+    unlockHowl.play();
+  } catch (e) {
+    console.error('[HowlerPlayer] Error unlocking audio context:', e);
+  }
+};
+
+// Try to detect mobile or Safari browser
+const isMobileSafari = () => {
+  const ua = navigator.userAgent;
+  return /iPhone|iPad|iPod/.test(ua) || 
+         (/Safari/.test(ua) && !/Chrome/.test(ua));
 };
 
 export const useHowlerPlayer = ({ 
@@ -61,25 +111,54 @@ export const useHowlerPlayer = ({
   const seekTarget = useRef<number | null>(null);
   const seekRetryCount = useRef<number>(0);
   const loadErrorCount = useRef<number>(0);
+  const userInteractedRef = useRef<boolean>(false);
   
   // Operation tracking refs to prevent race conditions
   const isOperationPending = useRef<boolean>(false);
   const lastPlayPauseTime = useRef<number>(0);
   const playPauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Detect file format from name or MIME type
+  // Track user interaction to unlock audio
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      if (!userInteractedRef.current) {
+        userInteractedRef.current = true;
+        unlockAudioContext();
+      }
+    };
+
+    // Listen for user interactions
+    document.addEventListener('click', handleUserInteraction, { once: true });
+    document.addEventListener('touchstart', handleUserInteraction, { once: true });
+    document.addEventListener('keydown', handleUserInteraction, { once: true });
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+    };
+  }, []);
+
+  // Detect file format from name or MIME type with enhanced detection
   const detectFormat = (file?: File): string[] | null => {
     if (!file) return null;
     
-    // Get format from file extension
+    // Extract format from file extension
     const fileNameFormat = file.name.split('.').pop()?.toLowerCase();
+    
+    // Check MIME type first, then filename extension
     const formats = SUPPORTED_FORMATS.filter(format => 
       file.type.includes(format) || 
       (fileNameFormat && format === fileNameFormat)
     );
     
-    // If we can't detect format from MIME or filename, use a default set
-    return formats.length > 0 ? formats : ['mp3', 'wav', 'ogg'];
+    // If we couldn't detect format from MIME or filename, use a default set
+    if (formats.length === 0) {
+      // For files without clear format info, include the most common formats
+      return ['mp3', 'wav', 'ogg'];
+    }
+    
+    return formats;
   };
 
   // Cleanup all resources and timers
@@ -95,7 +174,11 @@ export const useHowlerPlayer = ({
     }
     
     if (howlRef.current) {
-      howlRef.current.unload();
+      try {
+        howlRef.current.unload();
+      } catch (e) {
+        console.warn('[HowlerPlayer] Error unloading howl instance:', e);
+      }
       howlRef.current = null;
     }
     
@@ -112,6 +195,63 @@ export const useHowlerPlayer = ({
     seekTarget.current = null;
     seekRetryCount.current = 0;
     isOperationPending.current = false;
+  };
+
+  // Enhanced play function that handles audio context and autoplay restrictions
+  const forceSafePlay = async (howl: Howl): Promise<boolean> => {
+    if (!howl) return false;
+    
+    try {
+      // Check if audio context is in suspended state
+      const context = Howler.ctx;
+      if (context && context.state === 'suspended') {
+        console.log('[HowlerPlayer] Audio context is suspended, attempting to resume');
+        try {
+          await context.resume();
+          console.log('[HowlerPlayer] Audio context resumed successfully');
+        } catch (err) {
+          console.warn('[HowlerPlayer] Failed to resume audio context:', err);
+          // Continue anyway, the play() might still work or trigger the user permission dialog
+        }
+      }
+      
+      // Special handling for Safari browsers which are stricter with autoplay
+      if (isMobileSafari() && !userInteractedRef.current) {
+        console.log('[HowlerPlayer] Mobile Safari detected without user interaction, play may fail');
+      }
+      
+      // Attempt to play with timeout to prevent hanging
+      const playPromise = new Promise<boolean>((resolve, reject) => {
+        // Set timeout to prevent hanging if play() never resolves/rejects
+        const timeout = setTimeout(() => {
+          console.warn('[HowlerPlayer] Play timeout occurred');
+          reject(new Error('Play timeout'));
+        }, 2000);
+        
+        try {
+          howl.once('play', () => {
+            clearTimeout(timeout);
+            resolve(true);
+          });
+          
+          howl.once('playerror', (id, error) => {
+            clearTimeout(timeout);
+            reject(error || new Error('Playback error'));
+          });
+          
+          // Actually trigger play
+          howl.play();
+        } catch (e) {
+          clearTimeout(timeout);
+          reject(e);
+        }
+      });
+      
+      return await playPromise;
+    } catch (error) {
+      console.error('[HowlerPlayer] Enhanced play failed:', error);
+      return false;
+    }
   };
 
   // Initialize Howler instance when file changes
@@ -366,7 +506,7 @@ export const useHowlerPlayer = ({
         if (onError) onError(`Error initializing audio: ${error}`);
       }
     }
-  }, [file, onEnded, onError]);
+  }, [file, onEnded, onError, playbackRate]);
 
   // Update volume when it changes
   useEffect(() => {
@@ -435,11 +575,11 @@ export const useHowlerPlayer = ({
           // Try to resume playback if it was playing before
           if (!isPlaying && !audioError) {
             // Increased delay to ensure audio context is ready (500ms instead of 100ms)
-            setTimeout(() => {
+            setTimeout(async () => {
               if (howlRef.current && !isOperationPending.current) {
                 try {
                   isOperationPending.current = true;
-                  howlRef.current.play();
+                  await forceSafePlay(howlRef.current);
                   // Note: onplay callback will handle setting isPlaying state
                 } catch (error) {
                   isOperationPending.current = false;
@@ -460,8 +600,33 @@ export const useHowlerPlayer = ({
     };
   }, [file, isPlaying, preservePlaybackOnBlur, resumeOnFocus, audioError]);
 
-  // Play/pause toggle with debouncing to prevent rapid calling
-  const handlePlayPause = () => {
+  // Internal seek implementation with advanced error handling
+  const handleSeekInternal = (time: number) => {
+    if (!howlRef.current) {
+      // Store seek target for when audio is loaded
+      seekTarget.current = time;
+      console.log(`[HowlerPlayer] Audio not ready, storing seek target: ${time}s`);
+      return false;
+    }
+    
+    try {
+      // Store target for verification in onseek callback
+      seekTarget.current = time;
+      seekRetryCount.current = 0;
+      
+      // Apply the seek
+      howlRef.current.seek(time);
+      console.log(`[HowlerPlayer] Seeking to ${time.toFixed(2)}s`);
+      return true;
+    } catch (error) {
+      console.error('[HowlerPlayer] Error seeking:', error);
+      seekTarget.current = null;
+      return false;
+    }
+  };
+
+  // Play/pause toggle with enhanced audio context handling
+  const handlePlayPause = async () => {
     if (!howlRef.current) return;
     
     const now = Date.now();
@@ -490,7 +655,7 @@ export const useHowlerPlayer = ({
     
     // Use a small timeout to handle the case where multiple UI interactions
     // might trigger play/pause in rapid succession
-    playPauseTimeoutRef.current = setTimeout(() => {
+    playPauseTimeoutRef.current = setTimeout(async () => {
       try {
         if (isPlaying) {
           console.log('[HowlerPlayer] Pausing audio');
@@ -498,7 +663,15 @@ export const useHowlerPlayer = ({
           // Note: onpause callback will handle setting isPlaying state
         } else {
           console.log('[HowlerPlayer] Playing audio');
-          howlRef.current?.play();
+          userInteractedRef.current = true; // Mark that user has interacted
+          
+          // Use our enhanced play method
+          const playSuccess = await forceSafePlay(howlRef.current!);
+          
+          if (!playSuccess) {
+            console.warn('[HowlerPlayer] Enhanced play failed, falling back to regular play');
+            howlRef.current?.play();
+          }
           // Note: onplay callback will handle setting isPlaying state
         }
       } catch (error) {
@@ -519,33 +692,11 @@ export const useHowlerPlayer = ({
     }, 10);
   };
 
-  // Internal seek implementation with advanced error handling
-  const handleSeekInternal = (time: number) => {
-    if (!howlRef.current) {
-      // Store seek target for when audio is loaded
-      seekTarget.current = time;
-      console.log(`[HowlerPlayer] Audio not ready, storing seek target: ${time}s`);
-      return false;
-    }
-    
-    try {
-      // Store target for verification in onseek callback
-      seekTarget.current = time;
-      seekRetryCount.current = 0;
-      
-      // Apply the seek
-      howlRef.current.seek(time);
-      console.log(`[HowlerPlayer] Seeking to ${time.toFixed(2)}s`);
-      return true;
-    } catch (error) {
-      console.error('[HowlerPlayer] Error seeking:', error);
-      seekTarget.current = null;
-      return false;
-    }
-  };
-
   // Seek to a specific position with bounce protection
   const handleSeek = (time: number) => {
+    // Mark that user has interacted
+    userInteractedRef.current = true;
+    
     // Validate input
     if (typeof time !== 'number' || isNaN(time)) {
       console.error(`[HowlerPlayer] Invalid seek time: ${time}`);
@@ -566,6 +717,9 @@ export const useHowlerPlayer = ({
   const handleSkip = (direction: 'forward' | 'backward', amount: number = 10) => {
     if (!howlRef.current) return;
     
+    // Mark that user has interacted
+    userInteractedRef.current = true;
+    
     const currentPos = howlRef.current.seek() as number;
     const newTime = direction === 'forward'
       ? Math.min(currentPos + amount, duration)
@@ -577,6 +731,9 @@ export const useHowlerPlayer = ({
   // Volume control
   const handleVolumeChange = (value: number[]) => {
     if (!howlRef.current) return;
+    
+    // Mark that user has interacted
+    userInteractedRef.current = true;
     
     setVolume(value);
     howlRef.current.volume(value[0] / 100);
@@ -592,11 +749,17 @@ export const useHowlerPlayer = ({
 
   // Utility functions to adjust volume
   const handleVolumeUp = () => {
+    // Mark that user has interacted
+    userInteractedRef.current = true;
+    
     const newVolume = Math.min(100, volume[0] + 5);
     handleVolumeChange([newVolume]);
   };
 
   const handleVolumeDown = () => {
+    // Mark that user has interacted
+    userInteractedRef.current = true;
+    
     const newVolume = Math.max(0, volume[0] - 5);
     handleVolumeChange([newVolume]);
   };
@@ -604,6 +767,9 @@ export const useHowlerPlayer = ({
   // Toggle mute
   const handleToggleMute = () => {
     if (!howlRef.current) return;
+    
+    // Mark that user has interacted
+    userInteractedRef.current = true;
     
     const newMutedState = !isMuted;
     setIsMuted(newMutedState);
@@ -613,6 +779,9 @@ export const useHowlerPlayer = ({
   // Change playback rate
   const handlePlaybackRateChange = () => {
     if (!howlRef.current) return;
+    
+    // Mark that user has interacted
+    userInteractedRef.current = true;
     
     const rates = [0.5, 1.0, 1.5, 2.0];
     const currentIndex = rates.indexOf(playbackRate);
@@ -625,14 +794,15 @@ export const useHowlerPlayer = ({
   };
 
   // Force set playing state (for external control)
-  const setIsPlayingState = (playing: boolean) => {
+  const setIsPlayingState = async (playing: boolean) => {
     if (howlRef.current) {
       if (playing && !isPlaying && !isOperationPending.current) {
         // Add a small delay to ensure events don't conflict
-        setTimeout(() => {
+        setTimeout(async () => {
           if (howlRef.current) {
             isOperationPending.current = true;
-            howlRef.current.play();
+            userInteractedRef.current = true; // Consider this a user interaction
+            await forceSafePlay(howlRef.current);
           }
         }, 50);
       } else if (!playing && isPlaying && !isOperationPending.current) {
