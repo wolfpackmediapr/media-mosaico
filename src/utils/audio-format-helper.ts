@@ -54,6 +54,41 @@ export const getAudioFormatDetails = (file: File): string => {
 };
 
 /**
+ * Helper function to create an Audio element to test if a format is playable
+ */
+export const isAudioFormatSupported = (format: string): boolean => {
+  try {
+    // Try using Howler's codec detection first
+    if (typeof (Howler as any).codecs === 'function') {
+      return (Howler as any).codecs(format);
+    }
+    
+    // Fallback to standard Audio element capability detection
+    const audio = document.createElement('audio');
+    
+    // Map format extension to mime type for testing
+    const mimeTypes: Record<string, string> = {
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+      'ogg': 'audio/ogg',
+      'm4a': 'audio/mp4',
+      'aac': 'audio/aac',
+      'flac': 'audio/flac',
+      'webm': 'audio/webm'
+    };
+    
+    if (mimeTypes[format]) {
+      return audio.canPlayType(mimeTypes[format]) !== '';
+    }
+    
+    return false;
+  } catch (e) {
+    console.warn('Error checking format support:', e);
+    return false;
+  }
+};
+
+/**
  * Helper to unmute audio context after user interaction
  * This is needed for some browsers that block audio until user interacts
  */
@@ -83,6 +118,13 @@ export const unmuteAudio = () => {
       // Resume the context if it's suspended
       if (context.state === 'suspended') {
         context.resume();
+      }
+      
+      // Also try to unlock Howler's audio context
+      if (typeof (Howler as any).ctx !== 'undefined') {
+        if ((Howler as any).ctx.state === 'suspended') {
+          (Howler as any).ctx.resume();
+        }
       }
       
       // Disconnect and release

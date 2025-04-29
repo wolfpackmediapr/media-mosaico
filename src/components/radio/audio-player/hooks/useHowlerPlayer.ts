@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Howl, Howler } from 'howler';
 import { toast } from 'sonner';
@@ -168,15 +167,20 @@ export const useHowlerPlayer = ({
       // Create new Howl instance with enhanced configuration
       const sound = new Howl({
         src: [fileUrl],
-        // Removed html5: true to use Web Audio API instead of HTML5 Audio
+        // Important: Explicitly set html5 to false to force Web Audio API usage
+        html5: false,
         preload: true,
         format: formats || undefined,
         autoplay: false,
+        pool: 1, // Reduce pool size to save memory
         onload: () => {
           console.log(`[HowlerPlayer] Audio loaded successfully: ${file.name}`);
           setDuration(sound.duration());
           setIsLoading(false);
           setIsReady(true);
+          
+          // Attempt to unlock audio context
+          tryResumeAudioContext();
           
           // Restore saved position if available
           const storedPosition = sessionStorage.getItem('audio-position');
@@ -193,9 +197,58 @@ export const useHowlerPlayer = ({
               }
             }
           }
+        },
+        onloaderror: (id, err) => {
+          // Improved error handling for loader errors
+          const errorMessage = `Failed to load audio: ${err || 'Unknown error'}`;
+          console.error(`[HowlerPlayer] ${errorMessage}`);
+          setIsLoading(false);
+          isOperationPending.current = false;
           
-          // Try to resume AudioContext if it's suspended
-          tryResumeAudioContext();
+          // Attempt to fall back to HTML5 audio if Web Audio API fails
+          if (!errorShownRef.current) {
+            console.log("[HowlerPlayer] Attempting HTML5 audio fallback...");
+            
+            // Create a fallback Howl with HTML5 mode
+            try {
+              const fallbackSound = new Howl({
+                src: [fileUrl],
+                html5: true, // Try with HTML5 Audio as fallback
+                preload: true,
+                format: formats || undefined,
+                autoplay: false,
+                onload: () => {
+                  console.log(`[HowlerPlayer] HTML5 fallback loaded successfully: ${file.name}`);
+                  howlRef.current = fallbackSound;
+                  setDuration(fallbackSound.duration());
+                  setIsLoading(false);
+                  setIsReady(true);
+                },
+                onloaderror: () => {
+                  errorShownRef.current = true;
+                  setAudioError(errorMessage);
+                  setIsLoading(false);
+                  
+                  toast.error('Error loading audio file', {
+                    description: 'The file format may not be supported by your browser',
+                    duration: 5000,
+                  });
+                  
+                  if (onError) onError(errorMessage);
+                }
+              });
+            } catch (fallbackErr) {
+              errorShownRef.current = true;
+              setAudioError(errorMessage);
+              
+              toast.error('Error loading audio file', {
+                description: 'The file may be corrupted or in an unsupported format',
+                duration: 5000,
+              });
+              
+              if (onError) onError(errorMessage);
+            }
+          }
         },
         onplay: () => {
           setIsPlaying(true);
@@ -230,22 +283,6 @@ export const useHowlerPlayer = ({
           }
           isOperationPending.current = false;
           if (onEnded) onEnded();
-        },
-        onloaderror: (id, err) => {
-          const errorMessage = `Failed to load audio: ${err || 'Unknown error'}`;
-          console.error(`[HowlerPlayer] ${errorMessage}`);
-          setIsLoading(false);
-          isOperationPending.current = false;
-          
-          if (!errorShownRef.current) {
-            errorShownRef.current = true;
-            setAudioError(errorMessage);
-            toast.error('Error loading audio file', {
-              description: 'The file may be corrupted or in an unsupported format',
-              duration: 5000,
-            });
-            if (onError) onError(errorMessage);
-          }
         },
         onplayerror: (id, err) => {
           // Handle AbortError - this is expected when rapid play/pause actions occur
