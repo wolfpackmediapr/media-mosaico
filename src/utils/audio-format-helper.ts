@@ -26,13 +26,13 @@ export const getAudioFormatDetails = (file: File): string => {
   const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
   
   // Try to determine if the browser thinks this is a supported format
-  let supportInfo = 'Unknown support status';
+  let supportInfo = 'Estado de soporte desconocido';
   try {
     if (window.AudioContext || (window as any).webkitAudioContext) {
       // Most browsers should have this
-      supportInfo = 'Audio API available';
+      supportInfo = 'API de Audio disponible';
     } else {
-      supportInfo = 'No Audio API detected';
+      supportInfo = 'No se detectó API de Audio';
     }
     
     // Check if Howler can play this format
@@ -40,17 +40,17 @@ export const getAudioFormatDetails = (file: File): string => {
       for (const [format, mimes] of Object.entries(AUDIO_MIME_MAP)) {
         if (mimes.includes(mimeType) || extension === format) {
           const isSupported = (Howler as any).codecs(format);
-          supportInfo += `, ${format} codec: ${isSupported ? 'supported' : 'not supported'}`;
+          supportInfo += `, códec ${format}: ${isSupported ? 'soportado' : 'no soportado'}`;
           break;
         }
       }
     }
   } catch (e) {
-    console.warn('Error checking audio support:', e);
-    supportInfo += ' (error checking support)';
+    console.warn('Error al verificar soporte de audio:', e);
+    supportInfo += ' (error al verificar soporte)';
   }
   
-  return `Format: ${extension}, MIME: ${mimeType}, Size: ${fileSizeMB}MB, Support: ${supportInfo}`;
+  return `Formato: ${extension}, MIME: ${mimeType}, Tamaño: ${fileSizeMB}MB, Soporte: ${supportInfo}`;
 };
 
 /**
@@ -83,7 +83,7 @@ export const isAudioFormatSupported = (format: string): boolean => {
     
     return false;
   } catch (e) {
-    console.warn('Error checking format support:', e);
+    console.warn('Error al verificar soporte de formato:', e);
     return false;
   }
 };
@@ -138,7 +138,7 @@ export const unmuteAudio = () => {
       return true;
     }
   } catch (e) {
-    console.warn('Error unmuting audio:', e);
+    console.warn('Error al activar el audio:', e);
   }
   
   return false;
@@ -160,7 +160,7 @@ export const setupAudioUnlockListeners = () => {
       try {
         (Howler as any)._autoUnlock();
       } catch (e) {
-        console.warn('Error unlocking Howler:', e);
+        console.warn('Error al desbloquear Howler:', e);
       }
     }
   };

@@ -1,7 +1,7 @@
 
 import { useCallback, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-// Remove the unused import: import { setupNotificationListener } from "@/services/notifications/unifiedNotificationService";
+// Remove the unused import: import { useQueryClient } from "@tanstack/react-query";
+// import { setupNotificationListener } from "@/services/notifications/unifiedNotificationService"; - Removed this import
 
 interface NotificationAlertsOptions {
   enableRealtime?: boolean; // Keep option for potential future use, though listener is global now
@@ -20,9 +20,9 @@ export function useNotificationAlerts(options: NotificationAlertsOptions = {}) {
     try {
       const audio = new Audio("/notification-sound.mp3");
       audio.volume = 0.5; // Lower volume to be less intrusive
-      audio.play().catch((e) => console.log("Could not play notification sound", e));
+      audio.play().catch((e) => console.log("No se pudo reproducir el sonido de notificación", e));
     } catch (error) {
-      console.error("Error playing notification sound:", error);
+      console.error("Error reproduciendo sonido de notificación:", error);
     }
   }, []);
 
@@ -40,13 +40,13 @@ export function useNotificationAlerts(options: NotificationAlertsOptions = {}) {
               // We might want to store the notification details temporarily
               // and show it if permission is granted later, but for simplicity,
               // we'll only show it if permission was already granted.
-              console.log("Browser notification permission granted after request.");
+              console.log("Permiso de notificación de navegador concedido después de solicitarlo.");
             }
           });
         }
       }
     } catch (error) {
-      console.error("Error showing browser notification:", error);
+      console.error("Error mostrando notificación del navegador:", error);
     }
   }, []);
 
@@ -65,4 +65,3 @@ export function useNotificationAlerts(options: NotificationAlertsOptions = {}) {
     showBrowserNotification
   };
 }
-

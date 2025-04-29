@@ -31,16 +31,16 @@ export const createNotification = async (notificationData: NotificationData) => 
         .maybeSingle();
       
       if (clientCheckError) {
-        console.error("Error checking client:", clientCheckError);
-        throw new Error(`Client validation failed: ${clientCheckError.message}`);
+        console.error("Error al verificar cliente:", clientCheckError);
+        throw new Error(`Validación del cliente fallida: ${clientCheckError.message}`);
       }
       
       // If client doesn't exist, log warning and skip notification creation
       if (!clientExists) {
-        console.warn(`Skipping notification creation: Client with ID ${notificationData.client_id} not found`);
+        console.warn(`Omitiendo creación de notificación: Cliente con ID ${notificationData.client_id} no encontrado`);
         return { 
           success: false, 
-          error: `Client with ID ${notificationData.client_id} not found`,
+          error: `Cliente con ID ${notificationData.client_id} no encontrado`,
           skipped: true 
         };
       }
@@ -74,13 +74,13 @@ export const createNotification = async (notificationData: NotificationData) => 
       .select();
 
     if (error) {
-      console.error("Error creating notification:", error);
+      console.error("Error al crear notificación:", error);
       throw error;
     }
     
     return { success: true, data: data[0] };
   } catch (error) {
-    console.error("Error creating notification:", error);
+    console.error("Error al crear notificación:", error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : String(error)
@@ -175,4 +175,3 @@ export const setupNotificationListener = (callback?: (notification: any) => void
   };
 };
 */
-
