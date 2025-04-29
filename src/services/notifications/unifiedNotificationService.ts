@@ -92,8 +92,8 @@ export const createNotification = async (notificationData: NotificationData) => 
  * Show a debounced toast notification to prevent flooding the UI
  */
 export const showDebouncedToast = (
-  title: string, 
-  description: string, 
+  title: string,
+  description: string,
   type: "default" | "destructive" = "default",
   toastId?: string
 ) => {
@@ -130,7 +130,10 @@ const calculatePriorityFromImportance = (importance: number): string => {
 
 /**
  * Listen for real-time notification updates
+ * NOTE: This function is commented out as real-time listening is now centralized
+ * in `useRealTimeSubscriptions` via `RealTimeAlertsProvider`.
  */
+/*
 export const setupNotificationListener = (callback?: (notification: any) => void) => {
   const channel = supabase
     .channel("client-alerts-channel")
@@ -142,22 +145,22 @@ export const setupNotificationListener = (callback?: (notification: any) => void
         table: "client_alerts"
       },
       (payload) => {
-        console.log("New notification received:", payload);
-        
+        console.log("New notification received (unifiedNotificationService - listener disabled):", payload);
+
         const notificationData = payload.new;
         const title = notificationData.title || "Nueva notificación";
         const description = notificationData.description || "";
         const clientName = notificationData.metadata?.clientName || "";
-        
+
         // Show toast with client name if available
         const toastTitle = clientName ? `${title} - ${clientName}` : title;
-        
+
         showDebouncedToast(
           toastTitle,
           description,
           notificationData.importance_level >= 4 ? "destructive" : "default"
         );
-        
+
         // Call optional callback
         if (callback) {
           callback(notificationData);
@@ -171,3 +174,5 @@ export const setupNotificationListener = (callback?: (notification: any) => void
     supabase.removeChannel(channel);
   };
 };
+*/
+
