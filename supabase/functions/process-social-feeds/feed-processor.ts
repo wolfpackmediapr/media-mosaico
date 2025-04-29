@@ -1,5 +1,5 @@
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { cleanHtmlContent, extractImageUrl } from "./content-utils.ts";
 import { POSTS_PER_FEED } from "./constants.ts";
 
