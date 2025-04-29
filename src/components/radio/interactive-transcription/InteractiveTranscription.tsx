@@ -42,7 +42,9 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   const activeSegmentIdRef = useRef<string | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef<boolean>(true);
-  const transcriptionIdRef = useRef<string | undefined>(transcriptionResult?.id);
+  const transcriptionIdRef = useRef<string | undefined>(
+    transcriptionResult?.id || transcriptionResult?.transcript_id
+  );
 
   // Track if component is mounted to prevent state updates after unmount
   useEffect(() => {
@@ -67,7 +69,8 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
 
   // Update transcription ID ref when it changes
   useEffect(() => {
-    const newId = transcriptionResult?.id;
+    // Use either id or transcript_id, whichever is available
+    const newId = transcriptionResult?.id || transcriptionResult?.transcript_id;
     if (newId !== transcriptionIdRef.current) {
       transcriptionIdRef.current = newId;
       
@@ -76,7 +79,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         activeSegmentCache.delete(newId);
       }
     }
-  }, [transcriptionResult?.id]);
+  }, [transcriptionResult?.id, transcriptionResult?.transcript_id]);
 
   // Find the active segment based on current playback time with debouncing
   const findActiveSegment = useCallback((time: number) => {
@@ -100,8 +103,8 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
       if (!mountedRef.current || !hasUtterances || audioSeekPending.current) return;
       
       try {
-        // Get current transcription ID
-        const transcriptionId = transcriptionResult?.id;
+        // Get current transcription ID, fallback to transcript_id if id is not available
+        const transcriptionId = transcriptionResult?.id || transcriptionResult?.transcript_id;
         if (!transcriptionId) return;
         
         const active = findActiveSegment(currentTime);
@@ -121,7 +124,9 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
           }
         } else if (activeSegmentIdRef.current !== null) {
           activeSegmentIdRef.current = null;
-          activeSegmentCache.delete(transcriptionId);
+          if (transcriptionId) {
+            activeSegmentCache.delete(transcriptionId);
+          }
           
           if (mountedRef.current) {
             setActiveSegmentId(null);
@@ -131,7 +136,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         console.error("[InteractiveTranscription] Error in debounced update:", error);
       }
     }, 400);
-  }, [currentTime, findActiveSegment, hasUtterances, transcriptionResult?.id]);
+  }, [currentTime, findActiveSegment, hasUtterances, transcriptionResult?.id, transcriptionResult?.transcript_id]);
 
   // Update active segment with significantly improved change detection
   useEffect(() => {
