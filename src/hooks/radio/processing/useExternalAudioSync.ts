@@ -137,4 +137,3 @@ export const useExternalAudioSync = ({
   // Return the operation status if needed
   return { operationInProgress };
 };
-

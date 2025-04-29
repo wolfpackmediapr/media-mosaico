@@ -39,4 +39,3 @@ export const useAudioUnlock = () => {
   // Return the unlock function in case it's needed manually (optional)
   return { attemptAudioUnlock: unmuteAudio };
 };
-
