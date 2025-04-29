@@ -15,6 +15,7 @@ const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
       <div 
         data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG" 
         data-tf-disable-microphone="true"
+        data-tf-disable-audio="true"
         className="h-[500px] md:h-[600px]"
       ></div>
     </div>

@@ -13,7 +13,7 @@ export const useTypeform = (enabled: boolean, disableMicrophone: boolean = true)
     let scriptElement: HTMLScriptElement | null = null;
     
     // Delay Typeform initialization to give audio context priority
-    const initializationDelay = 1000;
+    const initializationDelay = 1500;  // Increased delay
 
     // Function to create and load the Typeform script
     const loadTypeformScript = () => {
@@ -44,25 +44,29 @@ export const useTypeform = (enabled: boolean, disableMicrophone: boolean = true)
                 // Store reference to the widget for cleanup
                 typeformWidgetRef.current = window.tf.createWidget();
                 
-                // Configure all Typeform embeds to disable microphone if needed
-                if (disableMicrophone) {
-                  // Safely set microphone configuration
+                // Forcefully disable ALL audio-related features in Typeform
+                if (window.tf) {
+                  // Completely disable microphone
                   if (!window.tf.microphone) {
                     window.tf.microphone = { enabled: false };
                   } else {
                     window.tf.microphone.enabled = false;
                   }
+                  
+                  // Disable any audio system completely
+                  if (window.tf.audio) {
+                    window.tf.audio.enabled = false;
+                  } else {
+                    window.tf.audio = { enabled: false };
+                  }
                 }
                 
-                // Add microphone disabled attribute to all typeform embeds
-                if (disableMicrophone) {
-                  const typeformElements = document.querySelectorAll('[data-tf-live]');
-                  typeformElements.forEach(element => {
-                    element.setAttribute('data-tf-disable-microphone', 'true');
-                    // Also add attribute to completely disable audio features
-                    element.setAttribute('data-tf-disable-audio', 'true');
-                  });
-                }
+                // Add attributes to ALL typeform embeds to disable audio
+                const typeformElements = document.querySelectorAll('[data-tf-live]');
+                typeformElements.forEach(element => {
+                  element.setAttribute('data-tf-disable-microphone', 'true');
+                  element.setAttribute('data-tf-disable-audio', 'true');
+                });
               }
             }, 500);
           }
