@@ -6,18 +6,12 @@ interface TypeformAlertProps {
 }
 
 const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
-  // Pass true as second parameter to disable microphone access
-  useTypeform(isAuthenticated === true, true);
+  useTypeform(isAuthenticated === true);
   
   return (
     <div className="mt-8 p-6 bg-muted rounded-lg w-full">
       <h2 className="text-2xl font-bold mb-4">Alerta Radio</h2>
-      <div 
-        data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG" 
-        data-tf-disable-microphone="true"
-        data-tf-disable-audio="true"
-        className="h-[500px] md:h-[600px]"
-      ></div>
+      <div data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG" className="h-[500px] md:h-[600px]"></div>
     </div>
   );
 };

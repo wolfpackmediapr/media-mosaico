@@ -26,7 +26,6 @@ export const EnhancedTranscriptionEditor = ({
   onTimestampClick,
   currentTime = 0
 }: EnhancedTranscriptionEditorProps) => {
-  // Initialize all state hooks at the top level, never conditionally
   const [utterances, setUtterances] = useState<UtteranceTimestamp[]>([]);
   const [activeSegmentIndex, setActiveSegmentIndex] = useState<number>(-1);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -110,7 +109,6 @@ export const EnhancedTranscriptionEditor = ({
     }
   };
 
-  // Note: Always render something, don't have conditional returns that might skip hooks
   return (
     <Card className="w-full">
       <FormattingToolbar

@@ -1,113 +1,40 @@
 
 import { useEffect, useRef } from "react";
 
-export const useTypeform = (enabled: boolean, disableMicrophone: boolean = true) => {
+export const useTypeform = (enabled: boolean) => {
   const typeformScriptRef = useRef<HTMLScriptElement | null>(null);
-  const typeformWidgetRef = useRef<any>(null);
-  // Track if the Typeform script has been loaded to prevent duplicate loading
-  const hasLoadedRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (!enabled) return;
     
-    let scriptElement: HTMLScriptElement | null = null;
-    
-    // Delay Typeform initialization to give audio context priority
-    const initializationDelay = 1500;  // Increased delay
-
-    // Function to create and load the Typeform script
-    const loadTypeformScript = () => {
-      // If already loaded, don't load again
-      if (hasLoadedRef.current || typeformScriptRef.current) {
-        console.log("Typeform script already loaded, not loading again");
-        return null;
-      }
-
-      console.log("Initializing Typeform with delay:", initializationDelay);
+    if (!typeformScriptRef.current) {
+      const script = document.createElement('script');
+      script.src = "//embed.typeform.com/next/embed.js";
+      script.async = true;
+      document.body.appendChild(script);
+      typeformScriptRef.current = script;
       
-      // Set a timeout to delay Typeform initialization
-      setTimeout(() => {
-        const script = document.createElement('script');
-        script.src = "//embed.typeform.com/next/embed.js";
-        script.async = true;
-        
-        // Set attributes to prevent audio interference
-        script.setAttribute('data-no-audio', 'true');
-        
-        script.onload = () => {
-          console.log("Typeform script loaded successfully");
-          hasLoadedRef.current = true;
-          
-          if (window.tf && typeof window.tf.createWidget === 'function') {
-            setTimeout(() => {
-              if (window.tf && window.tf.createWidget) {
-                // Store reference to the widget for cleanup
-                typeformWidgetRef.current = window.tf.createWidget();
-                
-                // Forcefully disable ALL audio-related features in Typeform
-                if (window.tf) {
-                  // Completely disable microphone
-                  if (!window.tf.microphone) {
-                    window.tf.microphone = { enabled: false };
-                  } else {
-                    window.tf.microphone.enabled = false;
-                  }
-                  
-                  // Safely check and disable audio features if they exist
-                  if (window.tf.audio) {
-                    window.tf.audio.enabled = false;
-                  } else if (typeof window.tf === 'object') {
-                    // Add audio property if it doesn't exist
-                    (window.tf as any).audio = { enabled: false };
-                  }
-                }
-                
-                // Add attributes to ALL typeform embeds to disable audio
-                const typeformElements = document.querySelectorAll('[data-tf-live]');
-                typeformElements.forEach(element => {
-                  element.setAttribute('data-tf-disable-microphone', 'true');
-                  element.setAttribute('data-tf-disable-audio', 'true');
-                });
-              }
-            }, 500);
-          }
-        };
-        
-        script.onerror = () => {
-          console.error("Failed to load Typeform script");
-        };
-
-        document.body.appendChild(script);
-        typeformScriptRef.current = script;
-        return script;
-      }, initializationDelay);
+      script.onload = () => {
+        console.log("Typeform script loaded successfully");
+        if (window.tf && typeof window.tf.createWidget === 'function') {
+          setTimeout(() => {
+            if (window.tf && window.tf.createWidget) {
+              window.tf.createWidget();
+            }
+          }, 500);
+        }
+      };
       
-      return null;
-    };
-
-    // Only create the script if it doesn't exist yet
-    if (!typeformScriptRef.current && !hasLoadedRef.current) {
-      scriptElement = loadTypeformScript();
+      script.onerror = () => {
+        console.error("Failed to load Typeform script");
+      };
     }
 
     return () => {
-      // Cleanup function - proper resource management
-      if (typeformWidgetRef.current) {
-        // Attempt to properly remove the widget if possible
-        try {
-          if (typeof typeformWidgetRef.current.unmount === 'function') {
-            typeformWidgetRef.current.unmount();
-          }
-          typeformWidgetRef.current = null;
-        } catch (err) {
-          console.error("Error cleaning up Typeform widget:", err);
-        }
-      }
-      
-      // We don't want to remove the script during normal component lifecycle
-      // as it could be reused by other components, but we'll set up for potential cleanup
+      // Cleanup function
+      // We don't remove the script here to avoid reloading it if component remounts
     };
-  }, [enabled, disableMicrophone]);
+  }, [enabled]);
 
   return {};
 };

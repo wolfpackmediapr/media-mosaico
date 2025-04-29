@@ -1,6 +1,7 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { NotificationPreference } from "@/components/settings/notifications/NotificationPreferenceTable";
 import { NotificationPreferenceFormValues } from "@/components/settings/notifications/NotificationPreferenceForm";
 
@@ -60,13 +61,16 @@ export function useNotificationPreferences() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notification-preferences"] });
-      toast.success("Preferencia creada", {
-        description: "La preferencia de notificación ha sido creada exitosamente."
+      toast({
+        title: "Preferencia creada",
+        description: "La preferencia de notificación ha sido creada exitosamente.",
       });
     },
     onError: (error) => {
-      toast.error("Error", {
-        description: "No se pudo crear la preferencia de notificación."
+      toast({
+        title: "Error",
+        description: "No se pudo crear la preferencia de notificación.",
+        variant: "destructive",
       });
       console.error(error);
     },
@@ -88,8 +92,10 @@ export function useNotificationPreferences() {
       queryClient.invalidateQueries({ queryKey: ["notification-preferences"] });
     },
     onError: (error) => {
-      toast.error("Error", {
-        description: "No se pudo actualizar la preferencia de notificación."
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la preferencia de notificación.",
+        variant: "destructive",
       });
       console.error(error);
     },
@@ -108,13 +114,16 @@ export function useNotificationPreferences() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notification-preferences"] });
-      toast.success("Preferencia eliminada", {
-        description: "La preferencia de notificación ha sido eliminada exitosamente."
+      toast({
+        title: "Preferencia eliminada",
+        description: "La preferencia de notificación ha sido eliminada exitosamente.",
       });
     },
     onError: (error) => {
-      toast.error("Error", {
-        description: "No se pudo eliminar la preferencia de notificación."
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la preferencia de notificación.",
+        variant: "destructive",
       });
       console.error(error);
     },

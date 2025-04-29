@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -12,7 +13,6 @@ export interface TranscriptionResult {
   audio_duration?: number;
   transcript_id?: string;
   segments?: any[];
-  id?: string; // Added id property as optional
 }
 
 export interface WordTimestamp {

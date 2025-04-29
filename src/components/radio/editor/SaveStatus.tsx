@@ -1,6 +1,4 @@
 
-import { useEffect, useState } from "react";
-
 interface SaveStatusProps {
   isSaving: boolean;
   saveError?: string | null;
@@ -8,28 +6,7 @@ interface SaveStatusProps {
 }
 
 export const SaveStatus = ({ isSaving, saveError, saveSuccess }: SaveStatusProps) => {
-  const [showSuccess, setShowSuccess] = useState(false);
-  
-  useEffect(() => {
-    if (saveSuccess) {
-      setShowSuccess(true);
-      const timer = setTimeout(() => {
-        setShowSuccess(false);
-      }, 2000); // Hide success message after 2 seconds
-      
-      return () => clearTimeout(timer);
-    }
-  }, [saveSuccess]);
-  
-  useEffect(() => {
-    // Reset success state if an error occurs
-    if (saveError) {
-      setShowSuccess(false);
-    }
-  }, [saveError]);
-
-  // Don't render anything if there's nothing to show
-  if (!isSaving && !saveError && !showSuccess) return null;
+  if (!isSaving && !saveError && !saveSuccess) return null;
 
   return (
     <div className="absolute top-2 right-2">
@@ -45,7 +22,7 @@ export const SaveStatus = ({ isSaving, saveError, saveSuccess }: SaveStatusProps
         </span>
       )}
       
-      {showSuccess && !isSaving && (
+      {saveSuccess && !isSaving && (
         <span className="text-sm text-success">
           Guardado exitoso
         </span>

@@ -3,7 +3,6 @@ import { useRadioTranscription } from './useRadioTranscription';
 import { RadioNewsSegment } from '@/components/radio/RadioNewsSegmentsContainer';
 import { TranscriptionResult } from '@/services/audio/transcriptionService';
 import { useEffect, useRef, useCallback } from 'react';
-import { toast } from 'sonner';
 
 export const useTranscriptionManagement = () => {
   const isMountedRef = useRef(true);
@@ -56,15 +55,6 @@ export const useTranscriptionManagement = () => {
     }
   }, [handleTranscriptionChange]);
 
-  // Enhanced error handling for transcription processing
-  const handleTranscriptionProcessingError = useCallback((error: Error) => {
-    if (isMountedRef.current) {
-      setIsProcessing(false);
-      console.error('Transcription processing error:', error);
-      toast.error('Error al procesar la transcripción');
-    }
-  }, [setIsProcessing]);
-
   return {
     isProcessing,
     setIsProcessing,
@@ -83,7 +73,6 @@ export const useTranscriptionManagement = () => {
     handleMetadataChange,
     handleTranscriptionReceived,
     resetTranscription,
-    registerCleanup,
-    handleTranscriptionProcessingError
+    registerCleanup
   };
 };

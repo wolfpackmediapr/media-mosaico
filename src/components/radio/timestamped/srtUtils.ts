@@ -1,6 +1,6 @@
 
 import { formatSrtTime } from "./timeUtils";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 interface TimestampedItem {
   text: string;
@@ -26,6 +26,8 @@ export const generateSrtContent = (timestampedItems: TimestampedItem[]): string 
 };
 
 export const downloadSrtFile = (timestampedItems: TimestampedItem[]) => {
+  const { toast } = useToast();
+  
   if (timestampedItems.length === 0) {
     toast.error("Error al descargar", {
       description: "No hay datos de timestamping disponibles"

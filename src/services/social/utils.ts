@@ -1,3 +1,4 @@
+
 import type { SocialPost, SocialPlatform } from "@/types/social";
 import { extractImageFromHtml } from "./content-sanitizer";
 import { SOCIAL_PLATFORMS } from "./api";
@@ -31,24 +32,26 @@ const extractImageUrl = (article: any): string | null => {
 // Transform database articles to SocialPost format
 export const transformArticlesToPosts = (articlesData: any[]): SocialPost[] => {
   return articlesData
+    .filter(article => {
+      // Filter to only include articles from social platforms
+      return article.feed_source && SOCIAL_PLATFORMS.includes(article.feed_source.platform);
+    })
     .map(article => {
       // Handle image extraction from various sources
       const image = article.image_url || extractImageUrl(article);
       
-      // Make sure we have all the required properties for the SocialPost type
       return {
         id: article.id,
-        title: article.title || '',
+        title: article.title,
         description: article.description || '',
-        link: article.link || '',
+        link: article.link,
         pub_date: article.pub_date,
-        source: article.feed_source?.name || article.source || '',
+        source: article.feed_source?.name || article.source,
         image_url: image,
         platform: article.feed_source?.platform || 'social_media',
         platform_display_name: article.feed_source?.name || article.feed_source?.platform_display_name || article.feed_source?.platform || 'Social Media',
         platform_icon: article.feed_source?.platform_icon,
         feed_source: article.feed_source ? {
-          profile_image_url: null,
           name: article.feed_source.name,
           platform: article.feed_source.platform
         } : undefined

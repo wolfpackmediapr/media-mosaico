@@ -1,5 +1,4 @@
 
-import { useEffect } from "react";
 import { useAudioProcessing } from "./useAudioProcessing";
 import { useAudioStateSync } from "./useAudioStateSync";
 import { UploadedFile } from "@/components/radio/types";
@@ -41,7 +40,6 @@ export const useRadioPlayer = ({
     volume,
     isMuted,
     playbackRate,
-    playbackErrors,
     handlePlayPause,
     handleSeek,
     handleSkip,
@@ -56,13 +54,6 @@ export const useRadioPlayer = ({
     onPlayingChange: setIsMediaPlaying
   });
 
-  // Log any playback errors
-  useEffect(() => {
-    if (playbackErrors) {
-      console.error("[useRadioPlayer] Audio playback error:", playbackErrors);
-    }
-  }, [playbackErrors]);
-
   return {
     isPlaying,
     currentTime,
@@ -70,7 +61,6 @@ export const useRadioPlayer = ({
     volume,
     isMuted,
     playbackRate,
-    playbackErrors,
     handlePlayPause,
     handleSeek,
     handleSkip,

@@ -1,43 +1,26 @@
 
-// File validation utilities
+import { toast } from "sonner";
 
-/**
- * Check if a file is a valid audio file
- */
 export const validateAudioFile = (file: File): boolean => {
-  if (!file) {
+  // Check if file exists and has content
+  if (!file || file.size === 0) {
+    toast.error("El archivo está vacío o corrupto");
     return false;
   }
 
-  // Common audio MIME types
-  const validAudioMimeTypes = [
-    'audio/',          // Any audio type
-    'video/mp4',       // Sometimes .m4a files are misclassified as video/mp4
-    'application/octet-stream' // Generic binary type, might be audio
-  ];
-  
-  // Valid audio extensions
-  const validExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'webm', 'mp4'];
-  
-  // Check MIME type
-  const hasValidMimeType = validAudioMimeTypes.some(mimeType => 
-    file.type.includes(mimeType)
-  );
-  
-  // Check file extension
-  const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-  const hasValidExtension = validExtensions.includes(fileExtension);
-  
-  // Accept if either MIME type or extension is valid
-  return hasValidMimeType || hasValidExtension;
-};
+  // Check file size (max 25MB)
+  const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB in bytes
+  if (file.size > MAX_FILE_SIZE) {
+    toast.error("El archivo excede el límite de 25MB");
+    return false;
+  }
 
-/**
- * Extract audio format details for better diagnostics
- */
-export const getAudioFormatDetails = (file: File): string => {
-  if (!file) return 'No file provided';
-  
-  const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'unknown';
-  return `Name: ${file.name}, Type: ${file.type}, Size: ${(file.size / 1024).toFixed(1)}KB, Extension: ${fileExtension}`;
+  // Check file type
+  const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a'];
+  if (!validTypes.includes(file.type)) {
+    toast.error("Formato no soportado. Por favor sube un archivo MP3, WAV, OGG o M4A");
+    return false;
+  }
+
+  return true;
 };

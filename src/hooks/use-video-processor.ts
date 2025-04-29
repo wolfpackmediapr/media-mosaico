@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/services/toastService";
+import { toast } from "@/hooks/use-toast";
 
 interface TranscriptionMetadata {
   channel?: string;
@@ -102,8 +102,9 @@ export const useVideoProcessor = () => {
           
           setProgress(100);
           
-          toast.success("Transcripción completada", {
-            description: `Se han identificado ${transcriptionResult.segments?.length || 0} segmentos de noticias.`
+          toast({
+            title: "Transcripción completada",
+            description: `Se han identificado ${transcriptionResult.segments?.length || 0} segmentos de noticias.`,
           });
         }
       } else {
@@ -131,15 +132,18 @@ export const useVideoProcessor = () => {
           
           setProgress(100);
           
-          toast.success("Transcripción completada", {
-            description: `Se han identificado ${transcriptionResult.segments?.length || 0} segmentos de noticias.`
+          toast({
+            title: "Transcripción completada",
+            description: `Se han identificado ${transcriptionResult.segments?.length || 0} segmentos de noticias.`,
           });
         }
       }
     } catch (error: any) {
       console.error('Error processing file:', error);
-      toast.error("Error al procesar", {
-        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente."
+      toast({
+        title: "Error al procesar",
+        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+        variant: "destructive",
       });
     } finally {
       setIsProcessing(false);

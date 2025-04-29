@@ -3,8 +3,6 @@ import React, { useEffect, useRef } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
 
 interface RightSectionProps {
   currentFile: File | null;
@@ -24,7 +22,6 @@ interface RightSectionProps {
   isMuted: boolean;
   volume: number[];
   playbackRate: number;
-  playbackErrors?: string | null;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (direction: 'forward' | 'backward') => void;
@@ -45,7 +42,6 @@ const RightSection = ({
   isMuted,
   volume,
   playbackRate,
-  playbackErrors,
   onPlayPause,
   onSeek,
   onSkip,
@@ -119,16 +115,6 @@ const RightSection = ({
 
   return (
     <div className="space-y-4">
-      {playbackErrors && currentFile && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error reproduciendo audio</AlertTitle>
-          <AlertDescription className="text-xs">
-            No se puede reproducir el archivo. Intenta con otro archivo o formato.
-          </AlertDescription>
-        </Alert>
-      )}
-      
       {currentFile && (
         <MediaControls
           currentFile={currentFile}

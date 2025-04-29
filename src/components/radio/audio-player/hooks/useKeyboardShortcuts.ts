@@ -25,12 +25,11 @@ export const useKeyboardShortcuts = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only activate if no input, textarea or other editable element is focused
-      const activeElement = document.activeElement;
-      const isEditable = activeElement instanceof HTMLInputElement ||
-                         activeElement instanceof HTMLTextAreaElement ||
-                         activeElement?.getAttribute('contentEditable') === 'true';
-      
-      if (isEditable) {
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement ||
+        document.activeElement?.getAttribute('contentEditable') === 'true'
+      ) {
         return;
       }
 
@@ -81,9 +80,8 @@ export const useKeyboardShortcuts = ({
 
     window.addEventListener('keydown', handleKeyDown);
 
-    // Cleanup function: Correctly remove the event listener using the same function reference.
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.addEventListener('keydown', handleKeyDown);
     };
   }, [
     onPlayPause,
@@ -93,6 +91,5 @@ export const useKeyboardShortcuts = ({
     onVolumeDown,
     onToggleMute,
     disabled
-  ]); // Ensure all dependencies are listed
+  ]);
 };
-

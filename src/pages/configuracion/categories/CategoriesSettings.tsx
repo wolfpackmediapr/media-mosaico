@@ -4,7 +4,7 @@ import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlusCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast"; // Updated import path
+import { useToast } from "@/components/ui/use-toast";
 import { Category } from "./types";
 import { fetchCategories, addCategory, updateCategory, deleteCategory } from "./categoriesService";
 import { CategoriesTable } from "./CategoriesTable";

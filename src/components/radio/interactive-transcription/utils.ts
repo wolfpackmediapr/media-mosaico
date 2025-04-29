@@ -1,81 +1,54 @@
 
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 
-// Optimized function to calculate the current segment with improved accuracy
+// Define a set of colors for speakers
+const SPEAKER_COLORS = [
+  "#9b87f5", // Primary Purple
+  "#7E69AB", // Secondary Purple
+  "#F97316", // Bright Orange
+  "#0EA5E9", // Ocean Blue
+  "#D946EF", // Magenta Pink
+  "#ea384c", // Red
+  "#33C3F0", // Sky Blue
+  "#1EAEDB", // Bright Blue
+];
+
+/**
+ * Get a consistent color for a speaker
+ */
+export const getSpeakerColor = (speakerId: string | number): string => {
+  // Extract numeric part if speaker comes as "speaker_1" format
+  const normalizedId = typeof speakerId === 'string' && speakerId.includes('_') 
+    ? parseInt(speakerId.split('_')[1]) 
+    : typeof speakerId === 'number' 
+      ? speakerId 
+      : parseInt(speakerId);
+  
+  // Use modulo to cycle through available colors
+  const colorIndex = (normalizedId - 1) % SPEAKER_COLORS.length;
+  return SPEAKER_COLORS[colorIndex];
+};
+
+/**
+ * Calculate which segment is currently playing based on current time
+ */
 export const calculateCurrentSegment = (
   utterances: UtteranceTimestamp[],
   currentTime: number
 ): UtteranceTimestamp | null => {
-  // Edge case: no utterances
-  if (!utterances || utterances.length === 0) return null;
+  // Check if currentTime is in milliseconds and convert to seconds if needed
+  const currentTimeInSeconds = currentTime > 1000 ? currentTime / 1000 : currentTime;
   
-  // Edge case: before first segment
-  if (currentTime < utterances[0].start) return null;
-  
-  // Edge case: after last segment
-  const lastUtterance = utterances[utterances.length - 1];
-  if (currentTime > lastUtterance.end + 1) return null;
-  
-  // Binary search for more efficient segment finding
-  // Much faster than linear search for large transcriptions
-  let low = 0;
-  let high = utterances.length - 1;
-  
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const segment = utterances[mid];
-    
-    // Check if currentTime is within this segment's range (with small buffer)
-    // Allow small 0.2s buffer at the end to avoid gaps between segments
-    if (currentTime >= segment.start && currentTime <= segment.end + 0.2) {
-      return segment;
+  // Find the segment that contains the current time
+  const currentSegment = utterances.find(
+    (utterance) => {
+      // Convert utterance timestamps to seconds if needed (AssemblyAI uses milliseconds)
+      const start = utterance.start > 1000 ? utterance.start / 1000 : utterance.start;
+      const end = utterance.end > 1000 ? utterance.end / 1000 : utterance.end;
+      
+      return currentTimeInSeconds >= start && currentTimeInSeconds <= end;
     }
-    
-    // If currentTime is before this segment
-    if (currentTime < segment.start) {
-      high = mid - 1;
-    } else {
-      // If currentTime is after this segment
-      low = mid + 1;
-    }
-  }
-  
-  // If we didn't find an exact match, return the last segment
-  // that starts before currentTime
-  for (let i = utterances.length - 1; i >= 0; i--) {
-    if (utterances[i].start <= currentTime) {
-      return utterances[i];
-    }
-  }
-  
-  return null;
-};
+  );
 
-// Color palette for speakers
-const SPEAKER_COLORS = [
-  "#4E79A7", "#F28E2B", "#E15759", "#76B7B2", 
-  "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7",
-  "#9C755F", "#BAB0AC", "#2E8A99", "#7A6F9B"
-];
-
-// Get consistent color for a speaker
-export const getSpeakerColor = (speakerId: string | number): string => {
-  let id = "";
-  
-  if (typeof speakerId === 'string') {
-    // Extract numeric portion if format is "speaker_X"
-    const match = speakerId.match(/(\d+)$/);
-    id = match ? match[1] : speakerId;
-  } else {
-    id = String(speakerId);
-  }
-  
-  // Convert the id to a number for color selection
-  let numericId = 0;
-  for (let i = 0; i < id.length; i++) {
-    numericId += id.charCodeAt(i);
-  }
-  
-  // Use modulo to get a consistent color from the palette
-  return SPEAKER_COLORS[numericId % SPEAKER_COLORS.length];
+  return currentSegment || null;
 };

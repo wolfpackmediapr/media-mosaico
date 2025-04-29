@@ -1,42 +1,16 @@
 
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 interface UploadedFile extends File {
   preview?: string;
-  isReconstructed?: boolean; // Flag to track reconstructed files
 }
 
 interface UseRadioFilesOptions {
   persistKey?: string;
   storage?: 'localStorage' | 'sessionStorage';
 }
-
-// Create an error tracking object to prevent duplicate errors
-const errorTracker = {
-  lastShownError: '',
-  lastErrorTime: 0,
-  ERROR_COOLDOWN: 10000, // 10 seconds between similar errors
-  
-  canShowError(errorKey: string): boolean {
-    const now = Date.now();
-    // Always show if it's a different error
-    if (errorKey !== this.lastShownError) {
-      this.lastShownError = errorKey;
-      this.lastErrorTime = now;
-      return true;
-    }
-    
-    // Only show the same error after cooldown
-    if (now - this.lastErrorTime > this.ERROR_COOLDOWN) {
-      this.lastErrorTime = now;
-      return true;
-    }
-    
-    return false;
-  }
-};
 
 export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   const {
@@ -57,7 +31,6 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   );
   
   const [files, setFiles] = useState<UploadedFile[]>([]);
-  const filesReconstructed = useRef<boolean>(false);
   
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
     `${persistKey}-current-index`,
@@ -65,41 +38,24 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     { storage }
   );
 
-  // Enhanced file reconstruction on mount/tab changes with improved validation
+  // Enhanced file reconstruction on mount/tab changes
   useEffect(() => {
-    if (fileMetadata.length === 0 || files.length > 0 || filesReconstructed.current) return;
+    if (fileMetadata.length === 0 || files.length > 0) return;
     
     try {
       console.log('[useRadioFiles] Attempting to reconstruct files from metadata:', fileMetadata.length);
-      
-      // Set flag to prevent multiple reconstruction attempts
-      filesReconstructed.current = true;
-      
-      // Filter out invalid metadata entries
-      const validMetadata = fileMetadata.filter(meta => 
-        meta && meta.name && meta.type && meta.size > 0
-      );
-      
-      if (validMetadata.length === 0) {
-        console.log('[useRadioFiles] No valid metadata to reconstruct files from');
-        return;
-      }
-      
-      const reconstructedFiles = validMetadata.map(meta => {
+      const reconstructedFiles = fileMetadata.map(meta => {
         // Create an empty file with the same metadata
         const file = new File([""], meta.name, { 
           type: meta.type,
           lastModified: meta.lastModified
-        }) as UploadedFile;
+        });
         
         // Set size property
         Object.defineProperty(file, 'size', {
           value: meta.size,
           writable: false
         });
-        
-        // Mark as reconstructed for special handling
-        file.isReconstructed = true;
         
         // Add preview URL if available
         if (meta.preview) {
@@ -109,22 +65,15 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
           });
         }
         
-        return file;
+        return file as UploadedFile;
       });
       
       console.log('[useRadioFiles] Successfully reconstructed files:', reconstructedFiles.map(f => f.name));
       setFiles(reconstructedFiles);
     } catch (error) {
       console.error("[useRadioFiles] Error reconstructing files from metadata:", error);
-      
-      // Only show error if we haven't recently shown one
-      if (errorTracker.canShowError('file-reconstruction')) {
-        toast.error("Error al cargar archivos guardados");
-      }
-      
-      // Clear metadata to prevent repeated errors
+      toast.error("Error al cargar archivos guardados");
       setFileMetadata([]);
-      filesReconstructed.current = false;
     }
   }, [fileMetadata, setFileMetadata]);
 
@@ -183,7 +132,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
       const uploadedFile = new File([file], file.name, { 
         type: file.type,
         lastModified: file.lastModified
-      }) as UploadedFile;
+      });
       
       // Set correct size
       if (uploadedFile.size !== file.size) {
@@ -200,10 +149,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         writable: true
       });
       
-      // Real files are not reconstructed
-      uploadedFile.isReconstructed = false;
-      
-      return uploadedFile;
+      return uploadedFile as UploadedFile;
     });
     
     setFiles(prevFiles => {

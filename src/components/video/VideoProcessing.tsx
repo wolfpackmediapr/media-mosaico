@@ -1,5 +1,6 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { createNotification } from "@/services/notifications/notificationService";
 
 interface UploadedFile extends File {
@@ -13,8 +14,10 @@ export const processVideoFile = async (
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast.error("Error", {
-        description: "Debes iniciar sesión para procesar transcripciones"
+      toast({
+        title: "Error",
+        description: "Debes iniciar sesión para procesar transcripciones",
+        variant: "destructive",
       });
       return;
     }
@@ -44,8 +47,9 @@ export const processVideoFile = async (
     if (file.type === 'video/quicktime' || filePath.toLowerCase().endsWith('.mov')) {
       console.log("Detected .mov file, converting to audio first");
       
-      toast.info("Procesando video MOV", {
-        description: "Convirtiendo el archivo MOV a un formato compatible..."
+      toast({
+        title: "Procesando video MOV",
+        description: "Convirtiendo el archivo MOV a un formato compatible...",
       });
       
       try {
@@ -62,8 +66,9 @@ export const processVideoFile = async (
         }
 
         if (data?.audioPath) {
-          toast.success("Conversión completada", {
-            description: "Iniciando transcripción del audio..."
+          toast({
+            title: "Conversión completada",
+            description: "Iniciando transcripción del audio...",
           });
 
           try {
@@ -79,8 +84,9 @@ export const processVideoFile = async (
 
             if (transcriptionData?.text) {
               onTranscriptionComplete?.(transcriptionData.text);
-              toast.success("Transcripción completada", {
-                description: "El archivo ha sido procesado exitosamente"
+              toast({
+                title: "Transcripción completada",
+                description: "El archivo ha sido procesado exitosamente",
               });
               
               // Create notification for the transcription completion
@@ -116,8 +122,9 @@ export const processVideoFile = async (
               
               if (analyzeData?.text) {
                 onTranscriptionComplete?.(analyzeData.text);
-                toast.success("Transcripción completada (método alternativo)", {
-                  description: "El archivo ha sido procesado con un método alternativo"
+                toast({
+                  title: "Transcripción completada (método alternativo)",
+                  description: "El archivo ha sido procesado con un método alternativo",
                 });
                 return;
               }
@@ -138,8 +145,9 @@ export const processVideoFile = async (
     else if (file.size > 20 * 1024 * 1024) {
       console.log("File is larger than 20MB, converting to audio first");
       
-      toast.info("Procesando video", {
-        description: "El archivo es grande, se está convirtiendo a audio primero..."
+      toast({
+        title: "Procesando video",
+        description: "El archivo es grande, se está convirtiendo a audio primero...",
       });
       
       try {
@@ -156,8 +164,9 @@ export const processVideoFile = async (
         }
 
         if (data?.audioPath) {
-          toast.success("Conversión completada", {
-            description: "Iniciando transcripción del audio..."
+          toast({
+            title: "Conversión completada",
+            description: "Iniciando transcripción del audio...",
           });
 
           try {
@@ -172,8 +181,9 @@ export const processVideoFile = async (
 
             if (transcriptionData?.text) {
               onTranscriptionComplete?.(transcriptionData.text);
-              toast.success("Transcripción completada", {
-                description: "El archivo ha sido procesado exitosamente"
+              toast({
+                title: "Transcripción completada",
+                description: "El archivo ha sido procesado exitosamente",
               });
               
               // Create notification for the transcription completion
@@ -217,8 +227,9 @@ export const processVideoFile = async (
 
         if (data?.text) {
           onTranscriptionComplete?.(data.text);
-          toast.success("Transcripción completada", {
-            description: "El archivo ha sido procesado exitosamente"
+          toast({
+            title: "Transcripción completada",
+            description: "El archivo ha sido procesado exitosamente",
           });
           
           // Create notification for the transcription completion
@@ -258,8 +269,9 @@ export const processVideoFile = async (
           
           if (fallbackData?.text) {
             onTranscriptionComplete?.(fallbackData.text);
-            toast.success("Transcripción completada (método alternativo)", {
-              description: "El archivo ha sido procesado con un método alternativo"
+            toast({
+              title: "Transcripción completada (método alternativo)",
+              description: "El archivo ha sido procesado con un método alternativo",
             });
             return;
           }
@@ -273,8 +285,10 @@ export const processVideoFile = async (
     }
   } catch (error: any) {
     console.error('Error processing file:', error);
-    toast.error("Error", {
-      description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente."
+    toast({
+      title: "Error",
+      description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente.",
+      variant: "destructive",
     });
     throw error;
   }
