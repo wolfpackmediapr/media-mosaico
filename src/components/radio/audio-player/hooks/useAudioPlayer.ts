@@ -44,6 +44,35 @@ export const useAudioPlayer = ({
     }
   }, [onError]);
 
+  // New method to unload audio
+  const unloadAudio = useCallback(() => {
+    if (howlRef.current) {
+      console.log("[useAudioPlayer] Unloading audio");
+      // Stop playback
+      howlRef.current.stop();
+      // Unload the sound to free memory
+      howlRef.current.unload();
+      howlRef.current = null;
+    }
+    
+    // Clear any intervals or timeouts
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    if (seekTimeoutRef.current) {
+      clearTimeout(seekTimeoutRef.current);
+      seekTimeoutRef.current = null;
+    }
+
+    // Reset state
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setAudioError(null);
+  }, []);
+
   useEffect(() => {
     // Cleanup function
     const cleanup = () => {
@@ -338,6 +367,7 @@ export const useAudioPlayer = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp
+    seekToTimestamp,
+    unloadAudio // Export the new unloadAudio method
   };
 };

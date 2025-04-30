@@ -56,6 +56,7 @@ export const useAudioProcessing = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     seekToTimestamp,
+    unloadAudio, // Get the unloadAudio method from useAudioPlayer
   } = useAudioPlayer({ 
     file: currentFile || undefined,
     // Add these options to persist audio across tab changes
@@ -193,5 +194,6 @@ export const useAudioProcessing = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
+    unloadAudio, // Export unloadAudio to be used in useRadioPlayer
   };
 };

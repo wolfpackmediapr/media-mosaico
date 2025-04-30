@@ -92,7 +92,8 @@ export const useRadioContainerState = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    handleSeekToSegment
+    handleSeekToSegment,
+    unloadAudio, // Get the unloadAudio method from useRadioPlayer
   } = useRadioPlayer({
     currentFile,
     isActiveMediaRoute,
@@ -113,6 +114,14 @@ export const useRadioContainerState = ({
 
   const handleClearAll = () => {
     console.log('[RadioContainer] handleClearAll: Starting clear sequence');
+
+    // First unload any active audio to stop playback and clean up resources
+    if (unloadAudio) {
+      console.log('[RadioContainer] handleClearAll: Unloading active audio');
+      unloadAudio();
+    }
+    
+    // Then continue with the standard clearing process
     resetTranscription();
     setNewsSegments([]);
     setFiles([]);
