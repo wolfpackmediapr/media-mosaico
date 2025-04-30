@@ -62,7 +62,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
     setShowPlayer(prev => !prev);
   };
 
-  // Audio source - use remote URL if available, otherwise use local preview
+  // Always use the most reliable audio source available
   const audioSrc = file.remoteUrl || file.preview;
 
   return (
@@ -80,6 +80,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
             controls
             src={audioSrc}
             className="w-full"
+            key={audioSrc} // Force audio element to re-render when source changes
           />
         </div>
       )}

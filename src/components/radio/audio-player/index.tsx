@@ -39,8 +39,8 @@ export const AudioPlayer = ({ file, onEnded, onError }: EnhancedAudioPlayerProps
     handleSeek(percentage * duration);
   };
 
-   // Display error message if present
-   if (audioError) {
+  // Display error message if present
+  if (audioError) {
     return (
       <Card className="w-full border-destructive">
         <CardContent className="p-4 text-center text-destructive">
@@ -51,9 +51,11 @@ export const AudioPlayer = ({ file, onEnded, onError }: EnhancedAudioPlayerProps
     );
   }
 
+  // Use a unique key to force re-render of the player when the file changes
+  const audioKey = file.remoteUrl || file.preview || file.name;
 
   return (
-    <Card className="w-full">
+    <Card className="w-full" key={audioKey}>
       <CardContent className="p-4">
         <AudioPlayerHeader fileName={file.name || "Audio File"} /> {/* Added fallback for name */}
 

@@ -10,6 +10,7 @@ const ERROR_MESSAGES = {
   feed: "No se pudo cargar el feed",
   timeout: "La operación tomó demasiado tiempo",
   network: "Error de conexión de red",
+  audio: "Error al reproducir el audio",
   default: "Ha ocurrido un error inesperado"
 };
 
@@ -40,12 +41,24 @@ export const handleSocialFeedError = (
       error.message.includes('Network request failed')
     ));
   
+  // Determine if it's an audio error
+  const isAudioError =
+    (hasName(error) && (error.name === 'NotAllowedError' || error.name === 'NotSupportedError')) ||
+    (hasMessage(error) && (
+      error.message.includes('audio') ||
+      error.message.includes('playback') ||
+      error.message.includes('howler') ||
+      error.message.includes('play()')
+    ));
+  
   // Choose the appropriate error message
   let errorMessage;
   if (isTimeout) {
     errorMessage = ERROR_MESSAGES.timeout;
   } else if (isNetworkError) {
     errorMessage = ERROR_MESSAGES.network;
+  } else if (isAudioError) {
+    errorMessage = ERROR_MESSAGES.audio;
   } else if (error instanceof Error) {
     errorMessage = error.message;
   } else {
