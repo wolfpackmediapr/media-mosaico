@@ -67,7 +67,7 @@ export const usePersistentAudioFiles = ({
       
       try {
         // Use the audio_files table and proper typing
-        const { data, error } = await supabaseTyped.from('audio_files').select('*');
+        const { data, error } = await getUserAudioFiles();
         
         if (error) {
           console.error("Error fetching remote audio files:", error);
