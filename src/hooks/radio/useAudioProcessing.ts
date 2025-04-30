@@ -55,15 +55,12 @@ export const useAudioProcessing = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp,
-    unloadAudio, // Get the unloadAudio method from useAudioPlayer
+    seekToTimestamp, // Now defined in useAudioPlayer
+    unloadAudio, // Now defined in useAudioPlayer
   } = useAudioPlayer({ 
-    file: currentFile || undefined,
-    // Add these options to persist audio across tab changes
-    preservePlaybackOnBlur: true,
-    resumeOnFocus: true,
+    file: currentFile || new File([], "empty"), // Provide a fallback empty File to prevent null errors
     onError: handleAudioError
-  });
+  }); // Remove invalid options that don't match AudioPlayerOptions
 
   // Reset error state when file changes
   useEffect(() => {

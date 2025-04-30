@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
@@ -6,7 +7,7 @@ import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { usePlaybackControls } from './usePlaybackControls';
 import { useVolumeControls } from './useVolumeControls';
 import { useAudioProgress } from './useAudioProgress';
-import { formatTime } from './utils/timeFormatter';
+import { formatTime } from '../utils/timeFormatter';  // Fixed import path
 
 interface AudioPlayerOptions {
   file: File;
@@ -125,6 +126,22 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     }
   });
 
+  // Add missing methods and fix volume type
+  const handleToggleMute = toggleMute;  // Fix missing handleToggleMute
+  
+  // Add seekToTimestamp and unloadAudio methods that will be needed
+  const seekToTimestamp = (time: number) => {
+    if (howler.current) {
+      handleSeek(time);
+    }
+  };
+  
+  const unloadAudio = () => {
+    if (howler.current) {
+      howler.current.unload();
+    }
+  };
+
   return {
     isPlaying,
     currentTime: howler.current ? howler.current.seek() as number : 0,
@@ -136,8 +153,10 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     handlePlayPause,
     handleSeek,
     handleSkip,
-    handleToggleMute,
+    handleToggleMute, // Use the assigned value
     handleVolumeChange,
-    handlePlaybackRateChange: changePlaybackRate
+    handlePlaybackRateChange: changePlaybackRate,
+    seekToTimestamp, // Add the new method
+    unloadAudio // Add the new method
   };
 };

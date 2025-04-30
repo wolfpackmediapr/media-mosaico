@@ -20,7 +20,7 @@ export const AudioPlayer = ({ file, onEnded, onError }: EnhancedAudioPlayerProps
     currentTime,
     duration,
     isMuted,
-    volume, // is a number
+    volume, // This can be number[] from useAudioPlayer
     playbackRate,
     audioError, // Get error state
     handlePlayPause,
@@ -75,7 +75,7 @@ export const AudioPlayer = ({ file, onEnded, onError }: EnhancedAudioPlayerProps
           }}
           volumeControls={{
             isMuted,
-            volume, // Pass volume as number
+            volume, // Pass volume as is (can be number[] from useVolumeControls)
             handleVolumeChange,
             toggleMute: handleToggleMute
           }}

@@ -4,9 +4,9 @@ import { UploadedFile } from "@/components/radio/types"; // Assuming UploadedFil
 export interface UseAudioPlayerOptions {
   file?: UploadedFile; // Changed from File to UploadedFile
   onEnded?: () => void;
-  preservePlaybackOnBlur?: boolean;
-  resumeOnFocus?: boolean;
   onError?: (message: string) => void;
+  preservePlaybackOnBlur?: boolean; // Added this option
+  resumeOnFocus?: boolean; // Added this option
 }
 
 export interface AudioPlayerProps {
@@ -23,7 +23,7 @@ export interface PlaybackControls {
 
 export interface VolumeControls {
   isMuted: boolean;
-  volume: number; // Changed from number[] to number
+  volume: number | number[]; // Accept both number and number[]
   handleVolumeChange: (value: number | number[]) => void; // Keep accepting array for slider compatibility
   toggleMute: () => void;
 }
@@ -34,4 +34,3 @@ export interface PlaybackState {
   duration: number;
   isMuted: boolean;
 }
-

@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useRadioContainerState } from "@/hooks/radio/useRadioContainerState";
 import RadioLayout from "./RadioLayout";
@@ -76,7 +77,7 @@ const RadioContainer = ({
             currentTime={state.currentTime}
             duration={state.duration}
             isMuted={state.isMuted}
-            volume={state.volume} // Pass volume as number
+            volume={state.volume as (number | number[])} // Accept volume as number or number[]
             playbackRate={state.playbackRate}
             playbackErrors={state.playbackErrors}
             onPlayPause={state.handlePlayPause}

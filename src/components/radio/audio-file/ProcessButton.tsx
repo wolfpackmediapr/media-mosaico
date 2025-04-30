@@ -24,7 +24,7 @@ const ProcessButton: React.FC<ProcessButtonProps> = ({
   // Button is disabled only if processing or already completed
   const isDisabled = isProcessing || processingComplete;
   
-  // Button text based on state - keeping "Procesar" as the default text
+  // Button text based on state - always keeping "Procesar" as the default text
   let buttonText = "Procesar";
   
   if (isUploading) {
@@ -34,6 +34,7 @@ const ProcessButton: React.FC<ProcessButtonProps> = ({
   } else if (processingComplete) {
     buttonText = "Completado";
   }
+  // We keep "Procesar" even when isUploaded is true but not processing or complete
   
   return (
     <Button
