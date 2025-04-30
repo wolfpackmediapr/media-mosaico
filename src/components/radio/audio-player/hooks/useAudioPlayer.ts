@@ -1,334 +1,355 @@
 
-import { useState, useEffect, useRef } from "react";
-import { Howl, Howler } from "howler";
-import { toast } from "sonner";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Howl, Howler } from 'howler';
+import { AudioPlayerProps, UseAudioPlayerOptions } from '../types';
+import { useMediaPersistence } from "@/context/MediaPersistenceContext"; // Added for persistent volume
+import { usePersistentState } from '@/hooks/use-persistent-state'; // To persist volume setting
+import { toast } from "sonner"; // For showing errors
 
-interface AudioFile extends File {
-  preview?: string;
-  remoteUrl?: string;
-}
-
-interface AudioPlayerOptions {
-  file?: AudioFile;
-  onEnded?: () => void;
-  onError?: (error: string) => void;
-  preservePlaybackOnBlur?: boolean;
-  resumeOnFocus?: boolean;
-}
+const VOLUME_PERSIST_KEY = 'audio-player-volume';
+const MUTE_PERSIST_KEY = 'audio-player-mute';
 
 export const useAudioPlayer = ({
   file,
   onEnded,
-  onError,
-  preservePlaybackOnBlur = false,
-  resumeOnFocus = false
-}: AudioPlayerOptions = {}) => {
+  preservePlaybackOnBlur = false, // Default to false unless explicitly set
+  resumeOnFocus = false, // Default to false
+  onError // Callback for reporting errors
+}: UseAudioPlayerOptions = {}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState<number[]>([50]);
-  const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [audioError, setAudioError] = useState<string | null>(null);
-  
-  const howler = useRef<Howl | null>(null);
-  const progressInterval = useRef<number | null>(null);
-  const wasPlayingBeforeBlur = useRef<boolean>(false);
-  
-  const getAudioSrc = (file?: AudioFile): string | undefined => {
-    if (!file) return undefined;
-    
-    // Prefer remote URL if available
-    if (file.remoteUrl) {
-      console.log("[AudioPlayer] Using remote URL:", file.remoteUrl);
-      return file.remoteUrl;
+
+  // Use persistent state for volume and mute status
+  const [volume, setVolume] = usePersistentState<number>(VOLUME_PERSIST_KEY, 50, { storage: 'localStorage' });
+  const [isMuted, setIsMuted] = usePersistentState<boolean>(MUTE_PERSIST_KEY, false, { storage: 'localStorage' });
+
+  const howlRef = useRef<Howl | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wasPlayingBeforeBlur = useRef(false);
+
+  // Function to handle errors consistently
+  const handleError = useCallback((message: string, error?: any) => {
+    console.error(`[useAudioPlayer] Error: ${message}`, error || '');
+    setAudioError(message);
+    setIsPlaying(false); // Stop playback on error
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+    // Use the onError callback if provided
+    if (onError) {
+      onError(message);
+    } else {
+      // Fallback toast if no callback is provided
+      toast.error("Audio Playback Error", { description: message });
     }
-    
-    // Fall back to local preview
-    if (file.preview) {
-      console.log("[AudioPlayer] Using local preview URL:", file.preview);
-      return file.preview;
-    }
-    
-    // Return undefined if no source is available
-    console.warn("[AudioPlayer] No audio source available for file:", file.name);
-    return undefined;
-  };
-  
-  // Clean up any running intervals
-  const cleanupIntervals = () => {
-    if (progressInterval.current) {
-      console.info("[AudioPlayer] Clearing progress interval");
-      clearInterval(progressInterval.current);
-      progressInterval.current = null;
-    }
-  };
-  
-  // Initialize or update the Howl instance when file changes
+  }, [onError]);
+
+
   useEffect(() => {
-    try {
-      // Clean up previous Howl instance and intervals
-      if (howler.current) {
-        console.info("[AudioPlayer] Unloading previous audio file");
-        howler.current.unload();
+    // Cleanup function
+    const cleanup = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+      if (howlRef.current) {
+        howlRef.current.unload(); // Unload previous sound
+        howlRef.current = null;
       }
-      
-      cleanupIntervals();
-      
-      // Reset state
+      // Reset state for new file
+      setIsPlaying(false);
       setCurrentTime(0);
       setDuration(0);
-      setIsPlaying(false);
-      setAudioError(null);
-      
-      // If no file, nothing to do
-      if (!file) {
-        console.info("[AudioPlayer] No file provided");
+      setAudioError(null); // Reset error state
+    };
+
+    cleanup(); // Clean up before setting new file
+
+    if (file) {
+      const src = file.remoteUrl || file.preview;
+      if (!src) {
+        handleError("No valid source URL found for the audio file", file.name);
         return;
       }
-      
-      // Get audio source
-      const audioSrc = getAudioSrc(file);
-      if (!audioSrc) {
-        console.error("[AudioPlayer] No audio source available");
-        setAudioError("No audio source available");
-        if (onError) onError("No audio source available");
-        return;
+
+      // Determine format based on file type or name if using blob URL
+      let formats: string[] | undefined = undefined;
+      if (src.startsWith('blob:')) {
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        if (extension) {
+          formats = [extension]; // e.g., ['mp3']
+        } else if (file.type === 'audio/mpeg') {
+          formats = ['mp3'];
+        } else if (file.type === 'audio/wav' || file.type === 'audio/wave') {
+          formats = ['wav'];
+        } else if (file.type === 'audio/ogg') {
+           formats = ['ogg'];
+        } else if (file.type === 'audio/mp4' || file.type === 'audio/x-m4a') { // Common types for m4a
+           formats = ['m4a'];
+        } else {
+           // If type is unknown or missing, try common formats
+           console.warn("[useAudioPlayer] Could not determine format from blob URL type/name. Falling back to common formats.");
+           formats = ['mp3', 'wav', 'ogg', 'm4a'];
+        }
+        console.log(`[useAudioPlayer] Using format(s) for blob URL: ${formats.join(', ')}`);
       }
-      
-      // Create new Howl instance
-      const sound = new Howl({
-        src: [audioSrc],
-        html5: true, // Enable streaming for large files
-        preload: true,
-        volume: volume[0] / 100,
+
+      const newHowl = new Howl({
+        src: [src],
+        format: formats, // Pass determined format(s)
+        html5: true, // Use HTML5 Audio to potentially improve blob/seeking support
+        volume: isMuted ? 0 : volume / 100, // Apply initial volume/mute state
         rate: playbackRate,
+        // Removed mute: isMuted here as volume is set directly
         onload: () => {
-          console.info("[AudioPlayer] Audio loaded successfully");
-          setDuration(sound.duration());
-        },
-        onloaderror: (soundId, error) => {
-          console.error("[AudioPlayer] Error loading audio:", error);
-          setAudioError(`Error loading audio: ${error}`);
-          if (onError) onError(`Error loading audio: ${error}`);
-          toast.error("Error cargando audio", {
-            description: "No se pudo cargar el archivo de audio"
-          });
-        },
-        onplayerror: (soundId, error) => {
-          console.error("[AudioPlayer] Error playing audio:", error);
-          setAudioError(`Error playing audio: ${error}`);
-          if (onError) onError(`Error playing audio: ${error}`);
-          setIsPlaying(false);
-          toast.error("Error reproduciendo audio", {
-            description: "No se pudo reproducir el archivo de audio"
-          });
-        },
-        onplay: () => {
-          console.info("[AudioPlayer] Event: playing");
-          setIsPlaying(true);
-          
-          // Start progress interval
-          if (!progressInterval.current) {
-            console.info("[AudioPlayer] Starting progress interval");
-            progressInterval.current = window.setInterval(() => {
-              if (sound && sound.playing()) {
-                setCurrentTime(sound.seek());
-              }
-            }, 100) as unknown as number;
+          if (newHowl) {
+            setDuration(newHowl.duration());
+            setAudioError(null); // Clear error on successful load
           }
         },
-        onpause: () => {
-          console.info("[AudioPlayer] Event: paused");
-          setIsPlaying(false);
-          cleanupIntervals();
+        onplay: () => {
+          setIsPlaying(true);
+          setAudioError(null); // Clear error on successful play
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          intervalRef.current = setInterval(() => {
+            if (howlRef.current) {
+              const current = howlRef.current.seek();
+              // Ensure 'current' is a number before setting state
+              if (typeof current === 'number') {
+                 setCurrentTime(current);
+              }
+            }
+          }, 100);
         },
-        onstop: () => {
-          console.info("[AudioPlayer] Event: stopped");
+        onpause: () => {
           setIsPlaying(false);
-          cleanupIntervals();
+          if (intervalRef.current) clearInterval(intervalRef.current);
         },
         onend: () => {
-          console.info("[AudioPlayer] Event: ended");
           setIsPlaying(false);
-          cleanupIntervals();
+          setCurrentTime(0); // Reset time on end
+          if (intervalRef.current) clearInterval(intervalRef.current);
           if (onEnded) onEnded();
         },
         onseek: () => {
-          console.info("[AudioPlayer] Event: seeked to", sound.seek());
-          setCurrentTime(sound.seek());
+          // Update current time immediately on seek
+           if (howlRef.current) {
+             const current = howlRef.current.seek();
+             if (typeof current === 'number') {
+               // Debounce state update slightly to avoid rapid updates during drag
+               if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+               seekTimeoutRef.current = setTimeout(() => setCurrentTime(current), 50);
+             }
+           }
         },
-        oncanplay: () => {
-          console.info(`[AudioPlayer] Event: canplay. ReadyState: ${sound.state()}`);
-          // Try to restore last position for streaming audio
-          if (currentTime > 0) {
-            console.info(`[AudioPlayer] Restoring position on canplay: ${currentTime}s`);
-            sound.seek(currentTime);
-          }
-        }
+        onloaderror: (id, err) => {
+          // More specific error for load issues
+          handleError(`Failed to load audio: ${err}`, `Howler ID: ${id}`);
+        },
+        onplayerror: (id, err) => {
+          // More specific error for playback issues
+          handleError(`Playback failed: ${err}`, `Howler ID: ${id}`);
+        },
       });
-      
-      howler.current = sound;
-      
-      return () => {
-        cleanupIntervals();
-        sound.unload();
-      };
-    } catch (error) {
-      console.error("[AudioPlayer] Error initializing audio player:", error);
-      setAudioError(`Error initializing audio: ${error}`);
-      if (onError) onError(`Error initializing audio: ${error}`);
+
+      howlRef.current = newHowl;
     }
-  }, [file, volume, playbackRate, onEnded, onError]);
-  
-  // Update volume when changed
-  useEffect(() => {
-    if (howler.current) {
-      howler.current.volume(volume[0] / 100);
-    }
-  }, [volume]);
-  
-  // Update mute state
-  useEffect(() => {
-    if (howler.current) {
-      howler.current.mute(isMuted);
-    }
-  }, [isMuted]);
-  
-  // Update playback rate when changed
-  useEffect(() => {
-    if (howler.current) {
-      howler.current.rate(playbackRate);
-    }
-  }, [playbackRate]);
-  
-  // Handle document visibility changes for auto-pause/resume
+
+    // Return cleanup function
+    return cleanup;
+  }, [file, onEnded, handleError]); // Added handleError to dependency array
+
+  // Handle browser tab visibility changes for pause/resume
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!howler.current) return;
-      
+      if (!howlRef.current) return;
+
       if (document.hidden) {
-        // Tab is hidden
-        wasPlayingBeforeBlur.current = isPlaying;
-        
-        // Auto-pause when tab is hidden if preserve option is not enabled
-        if (isPlaying && !preservePlaybackOnBlur) {
-          console.info("[AudioPlayer] Auto-pausing due to tab being hidden");
-          howler.current.pause();
+        if (isPlaying) {
+          wasPlayingBeforeBlur.current = true;
+          if (!preservePlaybackOnBlur) {
+            console.log("[useAudioPlayer] Tab hidden, pausing playback.");
+            howlRef.current.pause();
+          } else {
+            console.log("[useAudioPlayer] Tab hidden, preserving playback.");
+          }
+        } else {
+          wasPlayingBeforeBlur.current = false;
         }
       } else {
-        // Tab is visible again
-        // Auto-resume if it was playing before and resume option is enabled
+        // Tab became visible
         if (wasPlayingBeforeBlur.current && resumeOnFocus) {
-          console.info("[AudioPlayer] Auto-resuming playback after tab is visible");
-          if (howler.current.state() === 'loaded') {
-            howler.current.play();
+          console.log("[useAudioPlayer] Tab visible, resuming playback.");
+          // Check if audio is ready and not already playing due to preservePlaybackOnBlur
+          if (howlRef.current.state() === 'loaded' && !isPlaying) {
+             // Small delay might help ensure context is ready
+             setTimeout(() => {
+               if (howlRef.current && !audioError) { // Check for errors before resuming
+                 howlRef.current.play();
+               }
+             }, 100);
           }
         }
+        wasPlayingBeforeBlur.current = false; // Reset flag
       }
     };
-    
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isPlaying, preservePlaybackOnBlur, resumeOnFocus]);
-  
-  // Handle page unload
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Clean up to prevent memory leaks
-      cleanupIntervals();
-      if (howler.current) {
-        howler.current.unload();
-      }
-    };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      handleBeforeUnload();
-    };
-  }, []);
-  
-  // Play/pause toggle
-  const handlePlayPause = () => {
-    if (!howler.current) return;
-    
+  }, [isPlaying, preservePlaybackOnBlur, resumeOnFocus, audioError]); // Added audioError dependency
+
+
+  const handlePlayPause = useCallback(() => {
+    if (!howlRef.current) {
+      handleError("Audio not loaded yet.");
+      return;
+    }
+    if (audioError) {
+       handleError("Cannot play due to previous error. Please try reloading or using a different file.");
+       return; // Don't attempt to play if there's an error
+    }
+
     if (isPlaying) {
-      howler.current.pause();
+      howlRef.current.pause();
     } else {
-      howler.current.play();
+       // Check if ready before playing
+       if (howlRef.current.state() === 'loaded') {
+         howlRef.current.play();
+       } else {
+         handleError("Audio is still loading or failed to load.");
+         // Optionally try loading again?
+         // howlRef.current.load();
+       }
     }
-  };
-  
-  // Seek to specific time
-  const handleSeek = (time: number) => {
-    if (!howler.current) return;
-    
-    howler.current.seek(time);
-    setCurrentTime(time);
-  };
-  
-  // Skip forward or backward
-  const handleSkip = (direction: 'forward' | 'backward', amount: number = 10) => {
-    if (!howler.current) return;
-    
-    const currentPos = howler.current.seek() as number;
-    const newTime = direction === 'forward' 
-      ? Math.min(currentPos + amount, duration)
-      : Math.max(0, currentPos - amount);
-    
-    howler.current.seek(newTime);
-    setCurrentTime(newTime);
-  };
-  
-  // Toggle mute
-  const handleToggleMute = () => {
-    setIsMuted(!isMuted);
-  };
-  
-  // Change volume
-  const handleVolumeChange = (newVolume: number[]) => {
-    setVolume(newVolume);
-  };
-  
-  // Change playback rate
-  const handlePlaybackRateChange = () => {
-    // Cycle through common playback rates
-    const rates = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-    const currentIndex = rates.indexOf(playbackRate);
-    const nextIndex = (currentIndex + 1) % rates.length;
-    setPlaybackRate(rates[nextIndex]);
-  };
-  
-  // Seek to specific timestamp (ms to seconds)
-  const seekToTimestamp = (timeMs: number) => {
-    const timeInSeconds = timeMs / 1000;
-    handleSeek(timeInSeconds);
-    
-    // Auto-play after seeking to a timestamp
-    if (!isPlaying && howler.current) {
-      howler.current.play();
+  }, [isPlaying, audioError, handleError]);
+
+
+  const handleSeek = useCallback((time: number) => {
+    if (howlRef.current && duration > 0) {
+      const seekTime = Math.max(0, Math.min(time, duration));
+      howlRef.current.seek(seekTime);
+      // setCurrentTime(seekTime); // Update time immediately for responsiveness
     }
-  };
+  }, [duration]);
+
+  const handleSkip = useCallback((direction: 'forward' | 'backward', amount: number = 10) => {
+    if (howlRef.current) {
+      const current = typeof howlRef.current.seek() === 'number' ? howlRef.current.seek() as number : currentTime;
+      let newTime;
+      if (direction === 'forward') {
+        newTime = Math.min(duration, current + amount);
+      } else {
+        newTime = Math.max(0, current - amount);
+      }
+      handleSeek(newTime);
+    }
+  }, [currentTime, duration, handleSeek]);
+
+  const handleToggleMute = useCallback(() => {
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState); // Update persistent state
+    Howler.mute(newMutedState); // Use global mute as well for consistency
+    // Also adjust instance volume if needed, though Howler.mute usually suffices
+    // if (howlRef.current) {
+    //   howlRef.current.mute(newMutedState);
+    // }
+  }, [isMuted, setIsMuted]);
+
+  const handleVolumeChange = useCallback((value: number) => {
+    const newVolume = Math.max(0, Math.min(value, 100));
+    setVolume(newVolume); // Update persistent state
+    Howler.volume(newVolume / 100); // Set global volume
+    // Also update instance volume if managing individually
+    // if (howlRef.current) {
+    //   howlRef.current.volume(newVolume / 100);
+    // }
+    // If volume is > 0, ensure not muted
+    if (newVolume > 0 && isMuted) {
+      setIsMuted(false);
+      Howler.mute(false);
+      // if (howlRef.current) howlRef.current.mute(false);
+    } else if (newVolume === 0 && !isMuted) {
+      // If volume is set to 0, also set mute state
+      setIsMuted(true);
+      Howler.mute(true);
+      // if (howlRef.current) howlRef.current.mute(true);
+    }
+  }, [isMuted, setVolume, setIsMuted]);
+
+  const handlePlaybackRateChange = useCallback(() => {
+    if (howlRef.current) {
+      const rates = [1, 1.25, 1.5, 2, 0.75];
+      const currentIndex = rates.indexOf(playbackRate);
+      const nextIndex = (currentIndex + 1) % rates.length;
+      const newRate = rates[nextIndex];
+      setPlaybackRate(newRate);
+      howlRef.current.rate(newRate);
+    }
+  }, [playbackRate]);
+
+  // Function to seek to a specific timestamp (useful for segments)
+  const seekToTimestamp = useCallback((timeInSeconds: number) => {
+    if (howlRef.current && howlRef.current.state() === 'loaded') {
+      handleSeek(timeInSeconds);
+      // Optionally start playing if not already
+      if (!isPlaying) {
+        // Small delay before playing after seek
+        setTimeout(() => {
+           if (howlRef.current && !audioError) howlRef.current.play();
+        }, 50);
+      }
+    } else if (!howlRef.current || howlRef.current.state() !== 'loaded') {
+      handleError("Cannot seek: audio not loaded yet.");
+    }
+  }, [handleSeek, isPlaying, audioError, handleError]);
+
+
+  // Ensure volume and mute status from storage are applied on initial load
+  useEffect(() => {
+     Howler.volume(volume / 100);
+     Howler.mute(isMuted);
+  }, []); // Run only once on mount
+
+  // Sync Howler's state if global volume/mute changes elsewhere
+   useEffect(() => {
+     const currentGlobalVolume = Howler.volume();
+     const currentGlobalMute = Howler.mute();
+
+     if (currentGlobalVolume !== volume / 100) {
+       setVolume(currentGlobalVolume * 100);
+     }
+     if (currentGlobalMute !== isMuted) {
+       setIsMuted(currentGlobalMute);
+     }
+
+     // Listener for external changes (less direct way, might not be needed if using global)
+     // const volumeListener = () => setVolume(Howler.volume() * 100);
+     // Howler.on('volume', volumeListener);
+     // return () => Howler.off('volume', volumeListener);
+
+   }, [volume, isMuted, setVolume, setIsMuted]);
+
 
   return {
     isPlaying,
     currentTime,
     duration,
-    volume,
-    isMuted,
+    volume: volume, // Return the state value
+    isMuted: isMuted, // Return the state value
     playbackRate,
-    audioError,
+    audioError, // Expose error state
     handlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange,
+    handleVolumeChange: (newVolume: number | number[]) => { // Adapt to slider returning array or number
+       handleVolumeChange(Array.isArray(newVolume) ? newVolume[0] : newVolume);
+    },
     handlePlaybackRateChange,
-    seekToTimestamp
+    seekToTimestamp // Expose seek function
   };
 };
+
