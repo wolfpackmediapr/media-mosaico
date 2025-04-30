@@ -65,8 +65,8 @@ export const usePersistentAudioFiles = ({
       if (!isAuthenticated) return;
       
       try {
-        // Using the get_user_audio_files RPC function we created
-        const { data, error } = await supabase.rpc('get_user_audio_files');
+        // Using raw SQL query for now to avoid TypeScript issues
+        const { data, error } = await supabase.from('audio_files').select('*');
         
         if (error) {
           console.error("Error fetching remote audio files:", error);
