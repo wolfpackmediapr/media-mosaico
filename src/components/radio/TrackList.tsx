@@ -3,10 +3,7 @@ import { MoreHorizontal, PlayCircle, Volume2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-interface UploadedFile extends File {
-  preview?: string;
-}
+import { UploadedFile } from "./types"; // Import the UploadedFile type
 
 interface TrackListProps {
   files: UploadedFile[];

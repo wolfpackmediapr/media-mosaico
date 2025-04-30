@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
@@ -5,6 +6,7 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { uploadFileToStorage, saveAudioFileMetadata, deleteFileFromStorage, getUserAudioFiles } from "@/services/supabase/fileStorage";
 import { supabase } from "@/integrations/supabase/client";
+import { UploadedFile } from "@/components/radio/types";
 
 export interface AudioFile extends File {
   id?: string;

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { usePersistentAudioFiles } from "@/hooks/radio/usePersistentAudioFiles";
@@ -39,7 +40,7 @@ export const useRadioContainerState = ({
     isUploading,
     handleFilesAdded: handleFileAdded,
     handleRemoveFile,
-    addUploadedFile
+    uploadFile
   } = usePersistentAudioFiles({
     persistKey,
     storage,
@@ -133,12 +134,7 @@ export const useRadioContainerState = ({
   // Fixed function to properly handle the return type
   const handleFilesAdded = (newFiles: File[]) => {
     // Call the original handler from usePersistentAudioFiles
-    handleFileAdded(newFiles, (uploadedFileMeta) => {
-        // Optional: Callback after a file is successfully uploaded and metadata is available
-        console.log('File uploaded and metadata added:', uploadedFileMeta);
-        // You might need to add the file to the local state here if usePersistentAudioFiles doesn't automatically
-        // addUploadedFile(uploadedFileMeta); // Example if addUploadedFile is available
-    });
+    handleFileAdded(newFiles);
 
     // If files were added, show success toast
     if (newFiles.length > 0) {

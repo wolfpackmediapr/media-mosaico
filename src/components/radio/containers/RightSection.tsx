@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
@@ -152,8 +153,9 @@ const RightSection = ({
           files={files}
           currentFileIndex={currentFileIndex}
           onSelectTrack={handleTrackSelect}
-          isPlaying={isPlaying} // Pass isPlaying
-          // Assuming TrackList doesn't need currentTime/duration directly
+          isPlaying={isPlaying}
+          currentTime={currentTime} // Pass the missing prop
+          duration={duration}      // Pass the missing prop
         />
       )}
     </div>
