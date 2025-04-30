@@ -64,18 +64,16 @@ export const saveAudioFileMetadata = async (
   transcriptionId?: string
 ) => {
   try {
-    const { data, error } = await supabase
-      .from('audio_files')
-      .insert({
-        filename: file.name,
-        storage_path: storagePath,
-        file_size: file.size,
-        mime_type: file.type,
-        duration: duration,
-        transcription_id: transcriptionId
-      })
-      .select()
-      .single();
+    // Using a raw SQL query instead of the Supabase client's .from() method
+    // because the TypeScript types are not yet updated to include the new table
+    const { data, error } = await supabase.rpc('insert_audio_file', {
+      p_filename: file.name,
+      p_storage_path: storagePath,
+      p_file_size: file.size,
+      p_mime_type: file.type,
+      p_duration: duration,
+      p_transcription_id: transcriptionId
+    });
     
     if (error) {
       console.error('Error saving audio file metadata:', error);
@@ -122,10 +120,8 @@ export const deleteFileFromStorage = async (
  */
 export const getUserAudioFiles = async () => {
   try {
-    const { data, error } = await supabase
-      .from('audio_files')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // Using a raw SQL query instead of the Supabase client's .from() method
+    const { data, error } = await supabase.rpc('get_user_audio_files');
     
     if (error) {
       console.error('Error fetching user audio files:', error);

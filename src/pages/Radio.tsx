@@ -3,7 +3,7 @@ import { useRadioTabState } from "@/hooks/radio/useRadioTabState";
 import { usePersistentAudioState } from "@/hooks/radio/usePersistentAudioState";
 import RadioContainer from "@/components/radio/RadioContainer";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,7 +13,8 @@ import { useNavigate } from "react-router-dom";
 
 const Radio = () => {
   // Check authentication status
-  const { isAuthenticated, isLoading } = useAuthStatus();
+  const { isAuthenticated } = useAuthStatus();
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   
   // Use radio tab state for persisting transcription text
@@ -38,6 +39,7 @@ const Radio = () => {
     };
     
     window.addEventListener('beforeunload', handleBeforeUnload);
+    setIsLoading(false);
     
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);

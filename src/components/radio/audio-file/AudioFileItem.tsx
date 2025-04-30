@@ -21,6 +21,8 @@ export interface AudioFileItemProps {
   progress?: number;
   setIsProcessing?: React.Dispatch<React.SetStateAction<boolean>>;
   setProgress?: React.Dispatch<React.SetStateAction<number>>;
+  isUploading?: boolean;
+  uploadProgress?: number;
 }
 
 const AudioFileItem: React.FC<AudioFileItemProps> = ({
@@ -32,7 +34,9 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
   isProcessing = false,
   progress = 0,
   setIsProcessing,
-  setProgress
+  setProgress,
+  isUploading = false,
+  uploadProgress = 0
 }) => {
   const [processingComplete, setProcessingComplete] = React.useState(false);
   const [showPlayer, setShowPlayer] = React.useState(false);
@@ -81,7 +85,12 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
       )}
       
       <div className="space-y-2">
-        <ProgressIndicator isProcessing={isProcessing} progress={progress} />
+        <ProgressIndicator 
+          isProcessing={isProcessing} 
+          progress={progress}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
+        />
         
         <ProcessButton
           isProcessing={isProcessing}
@@ -89,6 +98,8 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
           progress={progress}
           onProcess={handleProcess}
           isUploaded={!!file.isUploaded}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
         />
       </div>
     </div>

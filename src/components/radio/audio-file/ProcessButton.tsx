@@ -9,6 +9,8 @@ export interface ProcessButtonProps {
   progress: number;
   onProcess: () => void;
   isUploaded?: boolean;
+  isUploading?: boolean;
+  uploadProgress?: number;
 }
 
 const ProcessButton: React.FC<ProcessButtonProps> = ({
@@ -16,15 +18,19 @@ const ProcessButton: React.FC<ProcessButtonProps> = ({
   processingComplete,
   progress,
   onProcess,
-  isUploaded
+  isUploaded = false,
+  isUploading = false,
+  uploadProgress = 0
 }) => {
-  // Button is disabled if processing or already completed
-  const isDisabled = isProcessing || processingComplete || isUploaded;
+  // Button is disabled if processing, already completed, or uploading
+  const isDisabled = isProcessing || processingComplete || (isUploaded && !isUploading);
   
   // Button text based on state
   let buttonText = "Procesar";
   
-  if (isUploaded && !processingComplete) {
+  if (isUploading) {
+    buttonText = `Subiendo ${Math.round(uploadProgress)}%`;
+  } else if (isUploaded && !processingComplete) {
     buttonText = "Archivo Subido";
   } else if (isProcessing) {
     buttonText = `Procesando ${Math.round(progress)}%`;
@@ -39,7 +45,7 @@ const ProcessButton: React.FC<ProcessButtonProps> = ({
       className="w-full"
       variant={processingComplete || isUploaded ? "outline" : "default"}
     >
-      {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {(isProcessing || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
       {buttonText}
     </Button>
   );

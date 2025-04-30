@@ -4,10 +4,23 @@ import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useAuthStatus } from "@/hooks/use-auth-status";
-import { uploadFileToStorage, saveAudioFileMetadata, getUserAudioFiles, deleteFileFromStorage } from "@/services/supabase/fileStorage";
+import { uploadFileToStorage, saveAudioFileMetadata, deleteFileFromStorage } from "@/services/supabase/fileStorage";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface AudioFile extends File {
   id?: string;
+  preview?: string;
+  remoteUrl?: string;
+  storagePath?: string;
+  isUploaded?: boolean;
+}
+
+interface AudioFileMetadata {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  lastModified: number;
   preview?: string;
   remoteUrl?: string;
   storagePath?: string;
@@ -30,17 +43,7 @@ export const usePersistentAudioFiles = ({
   const { isAuthenticated } = useAuthStatus();
 
   // Store file metadata in persistent storage
-  const [fileMetadata, setFileMetadata] = usePersistentState<Array<{
-    id: string;
-    name: string;
-    type: string;
-    size: number;
-    lastModified: number;
-    preview?: string;
-    remoteUrl?: string;
-    storagePath?: string;
-    isUploaded?: boolean;
-  }>>(
+  const [fileMetadata, setFileMetadata] = usePersistentState<AudioFileMetadata[]>(
     `${persistKey}-metadata`,
     [],
     { storage }
@@ -61,45 +64,51 @@ export const usePersistentAudioFiles = ({
     const fetchRemoteFiles = async () => {
       if (!isAuthenticated) return;
       
-      const { data, error } = await getUserAudioFiles();
-      if (error) {
-        console.error("Error fetching remote audio files:", error);
-        return;
-      }
+      try {
+        // Using the get_user_audio_files RPC function we created
+        const { data, error } = await supabase.rpc('get_user_audio_files');
+        
+        if (error) {
+          console.error("Error fetching remote audio files:", error);
+          return;
+        }
 
-      if (data && data.length > 0) {
-        console.log(`[usePersistentAudioFiles] Found ${data.length} remote files`);
-        
-        // Create file metadata from remote files
-        const remoteFileMetadata = data.map(file => ({
-          id: file.id,
-          name: file.filename,
-          type: file.mime_type || 'audio/mpeg',
-          size: file.file_size || 0,
-          lastModified: new Date(file.created_at).getTime(),
-          remoteUrl: supabase.storage.from('audio').getPublicUrl(file.storage_path).data.publicUrl,
-          storagePath: file.storage_path,
-          isUploaded: true
-        }));
-        
-        // Merge with existing metadata, preferring remote files
-        const mergedMetadata = [...remoteFileMetadata];
-        
-        // Only add local files that aren't in the remote list
-        fileMetadata.forEach(localFile => {
-          if (!remoteFileMetadata.some(remoteFile => 
-            remoteFile.name === localFile.name && 
-            remoteFile.size === localFile.size)) {
-            mergedMetadata.push(localFile);
-          }
-        });
-        
-        setFileMetadata(mergedMetadata);
+        if (data && data.length > 0) {
+          console.log(`[usePersistentAudioFiles] Found ${data.length} remote files`);
+          
+          // Create file metadata from remote files
+          const remoteFileMetadata = data.map((file: any) => ({
+            id: file.id,
+            name: file.filename,
+            type: file.mime_type || 'audio/mpeg',
+            size: file.file_size || 0,
+            lastModified: new Date(file.created_at).getTime(),
+            remoteUrl: supabase.storage.from('audio').getPublicUrl(file.storage_path).data.publicUrl,
+            storagePath: file.storage_path,
+            isUploaded: true
+          }));
+          
+          // Merge with existing metadata, preferring remote files
+          const mergedMetadata = [...remoteFileMetadata];
+          
+          // Only add local files that aren't in the remote list
+          fileMetadata.forEach(localFile => {
+            if (!remoteFileMetadata.some(remoteFile => 
+              remoteFile.name === localFile.name && 
+              remoteFile.size === localFile.size)) {
+              mergedMetadata.push(localFile);
+            }
+          });
+          
+          setFileMetadata(mergedMetadata);
+        }
+      } catch (err) {
+        console.error("Error in fetchRemoteFiles:", err);
       }
     };
     
     fetchRemoteFiles();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fileMetadata, setFileMetadata]);
 
   // Reconstruct files from metadata on mount
   useEffect(() => {
@@ -164,7 +173,7 @@ export const usePersistentAudioFiles = ({
   // Sync file metadata when files change
   useEffect(() => {
     if (files.length > 0) {
-      const metadata = files.map(file => ({
+      const metadata: AudioFileMetadata[] = files.map(file => ({
         id: file.id || uuidv4(),
         name: file.name,
         type: file.type,
