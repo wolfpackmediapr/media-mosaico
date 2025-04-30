@@ -5,8 +5,17 @@ import AudioFileList from "./AudioFileList";
 import { useAudioTranscription } from "@/hooks/useAudioTranscription";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useFileUploadHandlers } from "./useFileUploadHandlers";
-import { UploadedFile } from "./types";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthStatus } from "@/hooks/use-auth-status";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Upload, Info } from "lucide-react"; 
+
+interface UploadedFile extends File {
+  preview?: string;
+  remoteUrl?: string;
+  storagePath?: string;
+  isUploaded?: boolean;
+}
 
 interface FileUploadSectionProps {
   files: UploadedFile[];
@@ -41,6 +50,7 @@ const FileUploadSection = ({
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
   const { toast } = useToast();
+  const { isAuthenticated } = useAuthStatus();
 
   const { handleFilesAdded, handleRemoveFile } = useFileUploadHandlers({
     files,
@@ -97,6 +107,15 @@ const FileUploadSection = ({
 
   return (
     <>
+      {!isAuthenticated && (
+        <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">
+          <Info className="h-4 w-4 text-blue-500" />
+          <AlertDescription className="text-sm text-blue-700">
+            Los archivos solo se guardan temporalmente. Inicia sesión para guardarlos permanentemente.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <FileUploadZone
         isDragging={false}
         onDragOver={(e) => { e.preventDefault(); }}
@@ -105,6 +124,7 @@ const FileUploadSection = ({
         onFileInput={handleFileInput}
         accept="audio/*"
         message="Arrastra y suelta archivos de audio o haz clic para seleccionarlos"
+        icon={<Upload className="h-8 w-8 mb-2 text-muted-foreground" />}
       />
       {files.length > 0 && (
         <AudioFileList

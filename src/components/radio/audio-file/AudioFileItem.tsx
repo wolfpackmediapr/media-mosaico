@@ -1,10 +1,15 @@
 
 import React from 'react';
-import { UploadedFile } from '@/components/radio/types';
 import AudioFileHeader from './AudioFileHeader';
 import ProcessButton from './ProcessButton';
 import ProgressIndicator from './ProgressIndicator';
-import { TranscriptionResult } from '@/services/audio/transcriptionService';
+
+interface UploadedFile extends File {
+  preview?: string;
+  remoteUrl?: string;
+  storagePath?: string;
+  isUploaded?: boolean;
+}
 
 export interface AudioFileItemProps {
   file: UploadedFile;
@@ -53,6 +58,9 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
     setShowPlayer(prev => !prev);
   };
 
+  // Audio source - use remote URL if available, otherwise use local preview
+  const audioSrc = file.remoteUrl || file.preview;
+
   return (
     <div className="p-4 bg-muted rounded-lg space-y-4">
       <AudioFileHeader
@@ -62,11 +70,11 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
         onTogglePlayer={handleTogglePlayer}
       />
       
-      {showPlayer && file.preview && (
+      {showPlayer && audioSrc && (
         <div className="mt-3">
           <audio
             controls
-            src={file.preview}
+            src={audioSrc}
             className="w-full"
           />
         </div>
@@ -80,6 +88,7 @@ const AudioFileItem: React.FC<AudioFileItemProps> = ({
           processingComplete={processingComplete}
           progress={progress}
           onProcess={handleProcess}
+          isUploaded={!!file.isUploaded}
         />
       </div>
     </div>

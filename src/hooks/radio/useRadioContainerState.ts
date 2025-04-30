@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthStatus } from "@/hooks/use-auth-status";
-import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
+import { usePersistentAudioFiles } from "@/hooks/radio/usePersistentAudioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
 import { useRadioPlayer } from "@/hooks/radio/useRadioPlayer";
@@ -36,11 +36,13 @@ export const useRadioContainerState = ({
     currentFileIndex,
     setCurrentFileIndex,
     currentFile,
-    handleRemoveFile,
-    handleFilesAdded
-  } = useRadioFiles({
+    isUploading,
+    handleFilesAdded: handleFileAdded,
+    handleRemoveFile
+  } = usePersistentAudioFiles({
     persistKey,
-    storage
+    storage,
+    autoUpload: true
   });
 
   const {
@@ -128,9 +130,9 @@ export const useRadioContainerState = ({
   };
 
   // Fixed function to properly handle the return type
-  const enhancedHandleFilesAdded = (newFiles: File[]) => {
+  const handleFilesAdded = (newFiles: File[]) => {
     // Call the original function
-    const result = handleFilesAdded(newFiles);
+    const result = handleFileAdded(newFiles);
     
     // If files were added, show success toast
     if (newFiles.length > 0) {
@@ -153,6 +155,7 @@ export const useRadioContainerState = ({
     // Processing
     isProcessing,
     progress,
+    isUploading,
     // Transcription
     transcriptionText,
     transcriptionId,
@@ -172,7 +175,7 @@ export const useRadioContainerState = ({
     // Handlers
     handleClearAll,
     handleTrackSelect,
-    handleFilesAdded: enhancedHandleFilesAdded,
+    handleFilesAdded,
     setFiles,
     setCurrentFileIndex,
     setIsProcessing,

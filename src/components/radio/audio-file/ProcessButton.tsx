@@ -1,28 +1,46 @@
 
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { ProcessButtonProps } from './types';
+import { Loader2 } from "lucide-react";
 
-export const ProcessButton: React.FC<ProcessButtonProps> = ({
+export interface ProcessButtonProps {
+  isProcessing: boolean;
+  processingComplete: boolean;
+  progress: number;
+  onProcess: () => void;
+  isUploaded?: boolean;
+}
+
+const ProcessButton: React.FC<ProcessButtonProps> = ({
   isProcessing,
   processingComplete,
   progress,
-  onProcess
+  onProcess,
+  isUploaded
 }) => {
-  const getButtonText = () => {
-    if (!isProcessing && !processingComplete) return "Procesar Transcripción";
-    if (processingComplete) return "Procesamiento completado";
-    return `Procesando: ${progress}%`;
-  };
-
+  // Button is disabled if processing or already completed
+  const isDisabled = isProcessing || processingComplete || isUploaded;
+  
+  // Button text based on state
+  let buttonText = "Procesar";
+  
+  if (isUploaded && !processingComplete) {
+    buttonText = "Archivo Subido";
+  } else if (isProcessing) {
+    buttonText = `Procesando ${Math.round(progress)}%`;
+  } else if (processingComplete) {
+    buttonText = "Completado";
+  }
+  
   return (
     <Button
-      className="w-full relative"
+      disabled={isDisabled}
       onClick={onProcess}
-      disabled={isProcessing || processingComplete}
-      variant={processingComplete ? "secondary" : "default"}
+      className="w-full"
+      variant={processingComplete || isUploaded ? "outline" : "default"}
     >
-      {getButtonText()}
+      {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {buttonText}
     </Button>
   );
 };

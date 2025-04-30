@@ -4,8 +4,15 @@ import { useAudioPlayer } from "../../components/radio/audio-player/hooks/useAud
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 import { toast } from "sonner";
 
+interface AudioFile extends File {
+  preview?: string;
+  remoteUrl?: string;
+  storagePath?: string;
+  isUploaded?: boolean;
+}
+
 interface AudioProcessingOptions {
-  currentFile: File | null;
+  currentFile: AudioFile | null;
   isActiveMediaRoute?: boolean;
   externalIsPlaying?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
