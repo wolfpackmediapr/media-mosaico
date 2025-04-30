@@ -73,7 +73,6 @@ export function useSocialFeeds() {
             timestamp: new Date().toISOString(),
             forceFetch: true
           }
-          // Remove the signal property as it's not supported in the type
         });
         
         clearTimeout(timeoutId);

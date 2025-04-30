@@ -234,7 +234,6 @@ export const refreshSocialFeeds = async () => {
           timestamp: new Date().toISOString(),
           forceFetch: true // Force fetching regardless of last fetch time
         }
-        // Remove the signal property as it's not supported in the type
       });
 
       clearTimeout(timeoutId);

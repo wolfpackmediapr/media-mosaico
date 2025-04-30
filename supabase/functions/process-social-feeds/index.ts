@@ -26,13 +26,12 @@ async function processFeedWithTimeout(
   try {
     console.log(`Checking feed source: ${feed.name} (${feed.platform})`);
     
-    // Check if this feed source already exists
-    const { data: existingSource, error: sourceError } = await supabase
+    // Check if this feed source already exists - use exact match on name and platform
+    const { data: existingSources, error: sourceError } = await supabase
       .from('feed_sources')
       .select('id, name, platform, url, last_successful_fetch')
       .eq('name', feed.name)
-      .eq('platform', feed.platform)
-      .maybeSingle();
+      .eq('platform', feed.platform);
 
     if (sourceError) {
       throw new Error(`Error checking feed source: ${sourceError.message}`);
@@ -40,7 +39,14 @@ async function processFeedWithTimeout(
 
     let sourceId;
     
-    if (existingSource) {
+    // Handle potential duplicate sources
+    if (existingSources && existingSources.length > 0) {
+      // Use the first one and log if there are duplicates
+      if (existingSources.length > 1) {
+        console.log(`Found ${existingSources.length} duplicate sources for ${feed.name}. Using the first one.`);
+      }
+      
+      const existingSource = existingSources[0];
       sourceId = existingSource.id;
       console.log(`Found existing source: ${existingSource.name} (ID: ${sourceId})`);
       

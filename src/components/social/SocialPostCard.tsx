@@ -9,6 +9,7 @@ import { es } from "date-fns/locale";
 import { sanitizeSocialContent } from "@/services/social/content-sanitizer";
 import { Twitter, Facebook, Instagram, Youtube, Linkedin } from "lucide-react";
 import { getFallbackImage } from "@/lib/platform-images";
+import { platformIcons } from "@/lib/platform-icons";
 import type { SocialPost } from "@/types/social";
 
 interface SocialPostCardProps {
@@ -16,20 +17,8 @@ interface SocialPostCardProps {
 }
 
 const getPlatformIcon = (platform: string) => {
-  switch (platform?.toLowerCase()) {
-    case 'twitter':
-      return <Twitter className="h-4 w-4" />;
-    case 'facebook':
-      return <Facebook className="h-4 w-4" />;
-    case 'instagram':
-      return <Instagram className="h-4 w-4" />;
-    case 'youtube':
-      return <Youtube className="h-4 w-4" />;
-    case 'linkedin':
-      return <Linkedin className="h-4 w-4" />;
-    default:
-      return <Twitter className="h-4 w-4" />; // Default to Twitter
-  }
+  const PlatformIcon = platformIcons[platform?.toLowerCase()] || Twitter;
+  return <PlatformIcon className="h-4 w-4" />;
 };
 
 const SocialPostCard = ({ post }: SocialPostCardProps) => {
