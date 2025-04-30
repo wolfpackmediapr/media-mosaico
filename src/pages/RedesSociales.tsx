@@ -1,6 +1,4 @@
-
 import { useEffect, useState } from "react";
-import { ErrorBoundary } from "react-error-boundary";
 import SocialHeader from "@/components/social/SocialHeader";
 import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";

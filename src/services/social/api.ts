@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { SocialPost, SocialPlatform } from "@/types/social";
 import { toast } from "sonner";
@@ -225,33 +224,37 @@ export const refreshSocialFeeds = async () => {
 
     console.log('Invoking process-social-feeds function');
     
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    // Create abort controller for timeout but don't pass to Supabase
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 30000); // 30 second timeout
     
-    const { data, error } = await supabase.functions.invoke('process-social-feeds', {
-      body: { 
-        timestamp: new Date().toISOString(),
-        forceFetch: true // Force fetching regardless of last fetch time
-      },
-      signal: controller.signal
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke('process-social-feeds', {
+        body: { 
+          timestamp: new Date().toISOString(),
+          forceFetch: true // Force fetching regardless of last fetch time
+        }
+        // Remove the signal property as it's not supported in the type
+      });
 
-    clearTimeout(timeout);
+      clearTimeout(timeoutId);
 
-    if (error) {
-      console.error('Error refreshing social feeds:', error);
+      if (error) {
+        console.error('Error refreshing social feeds:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (error) {
+      if (abortController.signal.aborted) {
+        toast.error("La operación tomó demasiado tiempo. Se abortó la actualización.");
+        console.error('Refresh operation timed out after 30 seconds');
+        throw new Error('Operation timed out');
+      }
       throw error;
     }
-    
-    return data;
   } catch (error) {
-    // Handle timeout specifically
-    if (error.name === 'AbortError') {
-      toast.error("La operación tomó demasiado tiempo. Se abortó la actualización.");
-      console.error('Refresh operation timed out after 30 seconds');
-    } else {
-      console.error("Error in refreshSocialFeeds:", error);
-    }
+    console.error("Error in refreshSocialFeeds:", error);
     throw error;
   }
 };

@@ -62,27 +62,28 @@ export function useSocialFeeds() {
     try {
       setIsRefreshing(true);
       
-      // Call the edge function to refresh feeds with timeout handling
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      // Define an abort controller for timeout handling
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 30000); // 30 second timeout
       
       try {
+        // Call the edge function without passing the signal directly
         const { error } = await supabase.functions.invoke("process-social-feeds", {
           body: { 
             timestamp: new Date().toISOString(),
             forceFetch: true
-          },
-          signal: controller.signal
+          }
+          // Remove the signal property as it's not supported in the type
         });
         
-        clearTimeout(timeout);
+        clearTimeout(timeoutId);
         
         if (error) throw error;
-      } catch (invocationError) {
+      } catch (invocationError: any) {
         console.error("Edge function invocation error:", invocationError);
         
         // If it's an abort error, show timeout message
-        if (invocationError.name === 'AbortError') {
+        if (invocationError.name === 'AbortError' || abortController.signal.aborted) {
           toast.error("La actualización de feeds tomó demasiado tiempo. Por favor, inténtalo de nuevo más tarde.");
         } else {
           toast.error("Error al actualizar feeds de redes sociales");
