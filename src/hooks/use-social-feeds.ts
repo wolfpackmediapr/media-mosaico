@@ -6,6 +6,7 @@ import { transformArticlesToPosts, transformPlatformData, calculatePlatformCount
 import { fetchSocialPosts, fetchPlatformsData, fetchPlatformCounts } from "@/services/social/api";
 import type { SocialPost, SocialPlatform } from "@/types/social";
 import { ITEMS_PER_PAGE } from "@/services/social/api";
+import { toast } from "sonner";
 
 // Add the useSocialFeeds hook for the RedesSociales page
 export function useSocialFeeds() {
@@ -29,7 +30,8 @@ export function useSocialFeeds() {
     } catch (error) {
       console.error("Error in fetchPosts:", error);
       handleSocialFeedError(error, "posts");
-      throw error;
+      // Return empty array instead of throwing to prevent component crashes
+      return [];
     }
   }, []);
   
@@ -50,24 +52,44 @@ export function useSocialFeeds() {
     } catch (error) {
       console.error("Error in fetchPlatforms:", error);
       handleSocialFeedError(error, "platforms");
-      throw error;
+      // Return empty array instead of throwing to prevent component crashes
+      return [];
     }
   }, []);
   
-  // Manual refresh function
+  // Manual refresh function with better error handling
   const refreshFeeds = useCallback(async () => {
     try {
       setIsRefreshing(true);
       
-      // Call the edge function to refresh feeds
-      const { error } = await supabase.functions.invoke("process-social-feeds", {
-        body: { 
-          timestamp: new Date().toISOString(),
-          forceFetch: true
-        }
-      });
+      // Call the edge function to refresh feeds with timeout handling
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
-      if (error) throw error;
+      try {
+        const { error } = await supabase.functions.invoke("process-social-feeds", {
+          body: { 
+            timestamp: new Date().toISOString(),
+            forceFetch: true
+          },
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeout);
+        
+        if (error) throw error;
+      } catch (invocationError) {
+        console.error("Edge function invocation error:", invocationError);
+        
+        // If it's an abort error, show timeout message
+        if (invocationError.name === 'AbortError') {
+          toast.error("La actualización de feeds tomó demasiado tiempo. Por favor, inténtalo de nuevo más tarde.");
+        } else {
+          toast.error("Error al actualizar feeds de redes sociales");
+        }
+        
+        throw invocationError;
+      }
       
       // Update last refresh time
       setLastRefreshTime(new Date());
@@ -88,16 +110,46 @@ export function useSocialFeeds() {
     }
   }, [fetchPlatforms, fetchPosts]);
   
-  // Use queries for data fetching
-  const { data: platforms = [], isLoading: isPlatformsLoading } = useQuery({
+  // Use queries for data fetching with proper error handling
+  const { 
+    data: platforms = [], 
+    isLoading: isPlatformsLoading,
+    error: platformsError 
+  } = useQuery({
     queryKey: ["social-platforms"],
-    queryFn: fetchPlatforms
+    queryFn: fetchPlatforms,
+    retry: 2,
+    refetchOnWindowFocus: false,
+    // Handle internal TanStack Query errors
+    meta: {
+      onError: (error) => {
+        console.error("Query error loading platforms:", error);
+        toast.error("Error al cargar plataformas");
+      }
+    }
   });
   
-  const { data: posts = [], isLoading: isPostsLoading } = useQuery({
+  const { 
+    data: posts = [], 
+    isLoading: isPostsLoading,
+    error: postsError 
+  } = useQuery({
     queryKey: ["social-posts"],
-    queryFn: () => fetchPosts()
+    queryFn: () => fetchPosts(),
+    retry: 2,
+    refetchOnWindowFocus: false,
+    // Handle internal TanStack Query errors
+    meta: {
+      onError: (error) => {
+        console.error("Query error loading posts:", error);
+        toast.error("Error al cargar publicaciones");
+      }
+    }
   });
+  
+  // Log errors if they occur
+  if (platformsError) console.error("Platform query error:", platformsError);
+  if (postsError) console.error("Posts query error:", postsError);
   
   return {
     posts,

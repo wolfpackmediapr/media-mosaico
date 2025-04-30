@@ -1,10 +1,12 @@
 
 import { useEffect, useState } from "react";
+import { ErrorBoundary } from "react-error-boundary";
 import SocialHeader from "@/components/social/SocialHeader";
 import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";
 import { useSocialFeeds } from "@/hooks/use-social-feeds";
 import { ITEMS_PER_PAGE } from "@/services/social/api";
+import EnhancedErrorBoundary from "@/components/common/EnhancedErrorBoundary";
 
 const RedesSociales = () => {
   const {
@@ -35,8 +37,12 @@ const RedesSociales = () => {
       } catch (error) {
         console.error('Error during initial refresh:', error);
         // If refresh fails, fall back to regular fetching
-        fetchPlatforms();
-        fetchPosts(1);
+        try {
+          fetchPlatforms();
+          fetchPosts(1);
+        } catch (fallbackError) {
+          console.error('Fallback fetching also failed:', fallbackError);
+        }
       }
     };
     
@@ -47,16 +53,24 @@ const RedesSociales = () => {
   useEffect(() => {
     console.log('Search term or platforms changed:', searchTerm, selectedPlatforms);
     setCurrentPage(1);
-    fetchPosts(1, searchTerm, selectedPlatforms);
-  }, [searchTerm, selectedPlatforms, fetchPosts]);
+    try {
+      fetchPosts(1, searchTerm, selectedPlatforms);
+    } catch (error) {
+      console.error('Error fetching posts with filters:', error);
+    }
+  }, [searchTerm, selectedPlatforms]);
 
   // When only page changes, fetch the new page
   useEffect(() => {
     if (currentPage > 1) { // Skip first page as it's handled by the above effect
       console.log('Page changed to:', currentPage);
-      fetchPosts(currentPage, searchTerm, selectedPlatforms);
+      try {
+        fetchPosts(currentPage, searchTerm, selectedPlatforms);
+      } catch (error) {
+        console.error('Error fetching page:', currentPage, error);
+      }
     }
-  }, [currentPage, fetchPosts, searchTerm, selectedPlatforms]);
+  }, [currentPage]);
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
@@ -78,11 +92,15 @@ const RedesSociales = () => {
 
   const handleRefresh = async () => {
     console.log('Manually refreshing feeds');
-    await refreshFeeds();
-    // After refresh, reset filters and fetch all posts
-    setSearchTerm("");
-    setSelectedPlatforms([]);
-    setCurrentPage(1);
+    try {
+      await refreshFeeds();
+      // After refresh, reset filters and fetch all posts
+      setSearchTerm("");
+      setSelectedPlatforms([]);
+      setCurrentPage(1);
+    } catch (error) {
+      console.error('Error refreshing feeds:', error);
+    }
   };
 
   return (
@@ -99,26 +117,30 @@ const RedesSociales = () => {
       
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">
-          <PlatformFilters 
-            platforms={platforms}
-            selectedPlatforms={selectedPlatforms}
-            onPlatformChange={handlePlatformChange}
-          />
+          <EnhancedErrorBoundary componentName="PlatformFilters">
+            <PlatformFilters 
+              platforms={platforms}
+              selectedPlatforms={selectedPlatforms}
+              onPlatformChange={handlePlatformChange}
+            />
+          </EnhancedErrorBoundary>
         </div>
         <div className="lg:col-span-3">
-          <SocialFeedList
-            posts={posts}
-            isLoading={isLoading}
-            searchTerm={searchTerm}
-            onSearchChange={handleSearchChange}
-            currentPage={currentPage}
-            totalCount={totalCount}
-            onPageChange={handlePageChange}
-            onClearSearch={() => {
-              setSearchTerm("");
-              setSelectedPlatforms([]);
-            }}
-          />
+          <EnhancedErrorBoundary componentName="SocialFeedList">
+            <SocialFeedList
+              posts={posts}
+              isLoading={isLoading}
+              searchTerm={searchTerm}
+              onSearchChange={handleSearchChange}
+              currentPage={currentPage}
+              totalCount={totalCount}
+              onPageChange={handlePageChange}
+              onClearSearch={() => {
+                setSearchTerm("");
+                setSelectedPlatforms([]);
+              }}
+            />
+          </EnhancedErrorBoundary>
         </div>
       </div>
     </div>
