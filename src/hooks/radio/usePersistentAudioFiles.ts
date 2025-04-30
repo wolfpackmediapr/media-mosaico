@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
@@ -114,11 +113,6 @@ export const usePersistentAudioFiles = ({
           mergedMetadata.sort((a, b) => b.lastModified - a.lastModified);
 
           setFileMetadata(mergedMetadata);
-        } else if (data?.length === 0) {
-           // If no remote files, ensure local files are kept
-           // This branch might need refinement based on desired logic when remote is empty
-           console.log("[usePersistentAudioFiles] No remote files found. Keeping local metadata.");
-           // setFileMetadata(fileMetadata); // This line might be redundant depending on desired merge logic
         }
       } catch (err) {
         console.error("Error in fetchRemoteFiles:", err);
@@ -129,7 +123,7 @@ export const usePersistentAudioFiles = ({
     // Debounce or ensure this runs only once appropriately if fileMetadata dependency causes loops
     fetchRemoteFiles(); 
     // Consider refining dependencies if fetchRemoteFiles modifies fileMetadata causing loops
-  }, [isAuthenticated, /* fileMetadata - potentially remove if causing loops */ setFileMetadata]); // Adjusted dependencies
+  }, [isAuthenticated, setFileMetadata]); // Adjusted dependencies
 
   // Reconstruct files from metadata on mount
   useEffect(() => {

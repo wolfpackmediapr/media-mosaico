@@ -30,6 +30,42 @@ export type Database = {
         }
         Relationships: []
       }
+      audio_files: {
+        Row: {
+          created_at: string
+          duration: number | null
+          file_size: number | null
+          filename: string
+          id: string
+          mime_type: string | null
+          storage_path: string
+          transcription_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration?: number | null
+          file_size?: number | null
+          filename: string
+          id?: string
+          mime_type?: string | null
+          storage_path: string
+          transcription_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration?: number | null
+          file_size?: number | null
+          filename?: string
+          id?: string
+          mime_type?: string | null
+          storage_path?: string
+          transcription_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       client_alerts: {
         Row: {
           client_id: string | null
@@ -1555,6 +1591,20 @@ export type Database = {
           count: number
         }[]
       }
+      get_user_audio_files: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          created_at: string
+          duration: number | null
+          file_size: number | null
+          filename: string
+          id: string
+          mime_type: string | null
+          storage_path: string
+          transcription_id: string | null
+          user_id: string
+        }[]
+      }
       get_user_role: {
         Args: { user_id: string }
         Returns: string
@@ -1565,6 +1615,17 @@ export type Database = {
           id: string
           email: string
         }[]
+      }
+      insert_audio_file: {
+        Args: {
+          p_filename: string
+          p_storage_path: string
+          p_file_size: number
+          p_mime_type: string
+          p_duration?: number
+          p_transcription_id?: string
+        }
+        Returns: Json
       }
       insert_tv_rate: {
         Args: {

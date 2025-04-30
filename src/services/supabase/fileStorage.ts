@@ -1,166 +1,128 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseTyped } from "@/integrations/supabase/enhanced-client";
+import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
+import { UploadedFile } from "@/components/radio/types";
 
 /**
- * Upload a file to Supabase Storage
- * @param file - The file to upload
- * @param bucket - The storage bucket name
- * @param folder - Optional folder path within the bucket
- * @returns Object containing path and url of the uploaded file
+ * Uploads a file to Supabase storage in the audio bucket
+ * @param file File to upload
+ * @returns Object containing the path and public URL of the uploaded file
  */
-export const uploadFileToStorage = async (
-  file: File,
-  bucket: string = 'audio',
-  folder: string = ''
-): Promise<{
-  path: string;
-  url: string;
-  error?: string;
-}> => {
+export const uploadFileToStorage = async (file: File) => {
   try {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${uuidv4()}.${fileExt}`;
-    const filePath = folder ? `${folder}/${fileName}` : fileName;
-    
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) {
+      throw new Error("User not authenticated");
+    }
+
+    const fileExtension = file.name.split('.').pop();
+    const fileName = `${uuidv4()}.${fileExtension}`;
+    const filePath = `${userId}/${fileName}`;
+
     const { data, error } = await supabase.storage
-      .from(bucket)
+      .from('audio')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
       });
-    
+
     if (error) {
-      console.error('Error uploading file:', error);
-      return { path: '', url: '', error: error.message };
+      throw error;
     }
-    
-    // Generate a public URL for the file
+
+    // Get public URL for the file
     const { data: { publicUrl } } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(data?.path || filePath);
-    
+      .from('audio')
+      .getPublicUrl(filePath);
+
     return {
-      path: data?.path || filePath,
-      url: publicUrl
+      path: filePath,
+      url: publicUrl,
+      error: null
     };
-  } catch (err) {
-    console.error('Unexpected error during file upload:', err);
-    return { 
-      path: '', 
-      url: '', 
-      error: err instanceof Error ? err.message : 'Unknown error during upload' 
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    return {
+      path: null,
+      url: null,
+      error
     };
   }
 };
 
 /**
- * Store audio file metadata in the database
+ * Saves metadata for an uploaded audio file to the database
+ * @param file The file that was uploaded
+ * @param storagePath The path where the file is stored in Supabase storage
+ * @returns The saved file metadata
  */
-export const saveAudioFileMetadata = async (
-  file: File,
-  storagePath: string,
-  duration?: number,
-  transcriptionId?: string
-) => {
+export const saveAudioFileMetadata = async (file: File, storagePath: string) => {
   try {
-    // Use our typed client for proper typing
-    const { data, error } = await supabaseTyped.rpc('insert_audio_file', {
+    const { data, error } = await supabase.rpc('insert_audio_file', {
       p_filename: file.name,
       p_storage_path: storagePath,
       p_file_size: file.size,
-      p_mime_type: file.type,
-      p_duration: duration,
-      p_transcription_id: transcriptionId
+      p_mime_type: file.type
     });
-    
+
     if (error) {
-      console.error('Error saving audio file metadata:', error);
-      return { error };
+      throw error;
     }
-    
-    return { data };
-  } catch (err) {
-    console.error('Unexpected error storing audio file metadata:', err);
-    return { 
-      error: err instanceof Error ? err.message : 'Unknown error storing metadata'
-    };
+
+    return data;
+  } catch (error) {
+    console.error("Error saving audio file metadata:", error);
+    toast.error("Error saving file information");
+    return null;
   }
 };
 
 /**
- * Delete a file from Supabase Storage
+ * Deletes a file from Supabase storage
+ * @param storagePath The path of the file in storage
+ * @returns Success or error status
  */
-export const deleteFileFromStorage = async (
-  path: string,
-  bucket: string = 'audio'
-) => {
+export const deleteFileFromStorage = async (storagePath: string) => {
   try {
     const { error } = await supabase.storage
-      .from(bucket)
-      .remove([path]);
-    
+      .from('audio')
+      .remove([storagePath]);
+
     if (error) {
-      console.error('Error deleting file:', error);
-      return { error };
+      throw error;
     }
-    
-    return { success: true };
-  } catch (err) {
-    console.error('Unexpected error during file deletion:', err);
-    return { 
-      error: err instanceof Error ? err.message : 'Unknown error during deletion' 
-    };
+
+    // Also delete the metadata from the database
+    await supabase
+      .from('audio_files')
+      .delete()
+      .eq('storage_path', storagePath);
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error deleting file:", error);
+    return { success: false, error };
   }
 };
 
 /**
- * Get a list of audio files for the current user
+ * Fetches all audio files for the current user
+ * @returns Array of audio file metadata
  */
 export const getUserAudioFiles = async () => {
   try {
-    // Use our typed client for proper typing
-    const { data, error } = await supabaseTyped.rpc('get_user_audio_files');
-    
-    if (error) {
-      console.error('Error fetching user audio files:', error);
-      return { error };
-    }
-    
-    return { data };
-  } catch (err) {
-    console.error('Unexpected error fetching audio files:', err);
-    return { 
-      error: err instanceof Error ? err.message : 'Unknown error fetching files'
-    };
-  }
-};
+    // Use the RPC function we created
+    const { data, error } = await supabase.rpc('get_user_audio_files');
 
-/**
- * Get a signed URL for a file in storage
- * This is useful for files that aren't publicly accessible
- */
-export const getSignedUrl = async (
-  path: string,
-  bucket: string = 'audio',
-  expiresIn: number = 3600
-) => {
-  try {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .createSignedUrl(path, expiresIn);
-    
     if (error) {
-      console.error('Error creating signed URL:', error);
-      return { error };
+      console.error("Error fetching user audio files:", error);
+      throw error;
     }
-    
-    return { url: data.signedUrl };
-  } catch (err) {
-    console.error('Unexpected error creating signed URL:', err);
-    return { 
-      error: err instanceof Error ? err.message : 'Unknown error creating URL'
-    };
+
+    return { data, error: null };
+  } catch (error) {
+    console.error("Error in getUserAudioFiles:", error);
+    return { data: null, error };
   }
 };
