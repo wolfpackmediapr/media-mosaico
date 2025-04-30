@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
@@ -23,7 +22,7 @@ interface RightSectionProps {
   currentTime: number;
   duration: number;
   isMuted: boolean;
-  volume: number; // Changed from number[] to number
+  volume: number | number[]; // Accept both number and number[]
   playbackRate: number;
   playbackErrors?: string | null;
   onPlayPause: () => void;
@@ -44,7 +43,7 @@ const RightSection = ({
   currentTime,
   duration,
   isMuted,
-  volume, // is number
+  volume, // Can be number or number[]
   playbackRate,
   playbackErrors,
   onPlayPause,
@@ -138,7 +137,7 @@ const RightSection = ({
           currentTime={currentTime}
           duration={duration}
           isMuted={isMuted}
-          volume={volume} // Pass volume as number
+          volume={typeof volume === 'number' ? volume : Array.isArray(volume) && volume.length > 0 ? volume[0] : 50} // Convert to number if it's an array
           playbackRate={playbackRate}
           onPlayPause={onPlayPause}
           onSeek={onSeek}

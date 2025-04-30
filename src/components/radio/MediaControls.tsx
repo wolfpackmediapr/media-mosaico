@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AudioPlayerHeader } from './audio-player/AudioPlayerHeader';
@@ -15,7 +14,7 @@ interface MediaControlsProps {
   currentTime: number;
   duration: number;
   isMuted: boolean;
-  volume: number; // Changed to number
+  volume: number; // Expected as number here
   playbackRate: number;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
@@ -41,7 +40,6 @@ const MediaControls: React.FC<MediaControlsProps> = ({
   onVolumeChange,
   onPlaybackRateChange,
 }) => {
-
   const handleSeekWithClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
     const rect = container.getBoundingClientRect();
