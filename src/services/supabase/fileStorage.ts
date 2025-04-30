@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
@@ -129,5 +128,59 @@ export const getUserAudioFiles = async () => {
   } catch (error) {
     console.error("Error in getUserAudioFiles:", error);
     return { data: null, error };
+  }
+};
+
+/**
+ * Deletes all audio files for the current user from storage and database
+ * @returns Success or error status
+ */
+export const deleteAllUserAudioFiles = async () => {
+  try {
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) {
+      return { success: false, error: "User not authenticated" };
+    }
+    
+    // First get all user audio files
+    const { data: files, error: fetchError } = await getUserAudioFiles();
+    
+    if (fetchError || !files) {
+      console.error("Error fetching user audio files:", fetchError);
+      return { success: false, error: fetchError };
+    }
+
+    // If there are no files, return success early
+    if (files.length === 0) {
+      return { success: true, error: null };
+    }
+
+    console.log(`[deleteAllUserAudioFiles] Deleting ${files.length} files for user`);
+    
+    // Delete all files from storage
+    for (const file of files) {
+      if (file.storage_path) {
+        // Delete the file from storage
+        await supabase.storage
+          .from('audio')
+          .remove([file.storage_path]);
+      }
+    }
+
+    // Delete all file records from the database in one operation
+    const { error: deleteError } = await supabase
+      .from('audio_files')
+      .delete()
+      .eq('user_id', userId);
+
+    if (deleteError) {
+      console.error("Error deleting audio file records:", deleteError);
+      return { success: false, error: deleteError };
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error in deleteAllUserAudioFiles:", error);
+    return { success: false, error };
   }
 };
