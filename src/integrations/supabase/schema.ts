@@ -1,4 +1,3 @@
-
 import { Database as OriginalDatabase } from './types';
 
 // Extend the original Database type with our custom tables
@@ -299,9 +298,86 @@ export interface CustomDatabase extends OriginalDatabase {
           }
         ];
       };
+      audio_files: {
+        Row: {
+          id: string;
+          user_id: string;
+          filename: string;
+          storage_path: string;
+          file_size: number;
+          mime_type: string;
+          duration?: number;
+          transcription_id?: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          filename: string;
+          storage_path: string;
+          file_size?: number;
+          mime_type?: string;
+          duration?: number;
+          transcription_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          filename?: string;
+          storage_path?: string;
+          file_size?: number;
+          mime_type?: string;
+          duration?: number;
+          transcription_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "audio_files_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: OriginalDatabase['public']['Views'];
-    Functions: OriginalDatabase['public']['Functions'];
+    Functions: OriginalDatabase['public']['Functions'] & {
+      get_user_audio_files: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          user_id: string;
+          filename: string;
+          storage_path: string;
+          file_size: number;
+          mime_type: string;
+          duration?: number;
+          transcription_id?: string;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+      insert_audio_file: {
+        Args: {
+          p_filename: string;
+          p_storage_path: string;
+          p_file_size: number;
+          p_mime_type: string;
+          p_duration?: number;
+          p_transcription_id?: string;
+        };
+        Returns: {
+          id: string;
+          filename: string;
+          storage_path: string;
+        };
+      };
+    };
     Enums: OriginalDatabase['public']['Enums'];
     CompositeTypes: OriginalDatabase['public']['CompositeTypes'];
   };

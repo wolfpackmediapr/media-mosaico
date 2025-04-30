@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseTyped } from "@/integrations/supabase/enhanced-client";
 import { v4 as uuidv4 } from "uuid";
 
 /**
@@ -64,9 +65,8 @@ export const saveAudioFileMetadata = async (
   transcriptionId?: string
 ) => {
   try {
-    // Using a raw SQL query instead of the Supabase client's .from() method
-    // because the TypeScript types are not yet updated to include the new table
-    const { data, error } = await supabase.rpc('insert_audio_file', {
+    // Use our typed client for proper typing
+    const { data, error } = await supabaseTyped.rpc('insert_audio_file', {
       p_filename: file.name,
       p_storage_path: storagePath,
       p_file_size: file.size,
@@ -120,8 +120,8 @@ export const deleteFileFromStorage = async (
  */
 export const getUserAudioFiles = async () => {
   try {
-    // Using a raw SQL query instead of the Supabase client's .from() method
-    const { data, error } = await supabase.rpc('get_user_audio_files');
+    // Use our typed client for proper typing
+    const { data, error } = await supabaseTyped.rpc('get_user_audio_files');
     
     if (error) {
       console.error('Error fetching user audio files:', error);

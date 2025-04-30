@@ -4,8 +4,9 @@ import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useAuthStatus } from "@/hooks/use-auth-status";
-import { uploadFileToStorage, saveAudioFileMetadata, deleteFileFromStorage } from "@/services/supabase/fileStorage";
+import { uploadFileToStorage, saveAudioFileMetadata, deleteFileFromStorage, getUserAudioFiles } from "@/services/supabase/fileStorage";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseTyped } from "@/integrations/supabase/enhanced-client";
 
 export interface AudioFile extends File {
   id?: string;
@@ -65,8 +66,8 @@ export const usePersistentAudioFiles = ({
       if (!isAuthenticated) return;
       
       try {
-        // Using raw SQL query for now to avoid TypeScript issues
-        const { data, error } = await supabase.from('audio_files').select('*');
+        // Use the audio_files table and proper typing
+        const { data, error } = await supabaseTyped.from('audio_files').select('*');
         
         if (error) {
           console.error("Error fetching remote audio files:", error);
@@ -77,7 +78,7 @@ export const usePersistentAudioFiles = ({
           console.log(`[usePersistentAudioFiles] Found ${data.length} remote files`);
           
           // Create file metadata from remote files
-          const remoteFileMetadata = data.map((file: any) => ({
+          const remoteFileMetadata = data.map((file) => ({
             id: file.id,
             name: file.filename,
             type: file.mime_type || 'audio/mpeg',
