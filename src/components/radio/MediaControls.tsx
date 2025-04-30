@@ -6,6 +6,7 @@ import { ProgressBar } from './audio-player/ProgressBar';
 import { AudioPlayerControls } from './audio-player/AudioPlayerControls';
 import { formatTime } from './audio-player/utils/timeFormatter';
 import { UploadedFile } from './types';
+import { MusicCard } from '@/components/ui/music-card'; // Import MusicCard component
 
 interface MediaControlsProps {
   currentFile: UploadedFile;
@@ -62,37 +63,39 @@ const MediaControls: React.FC<MediaControlsProps> = ({
     }
   }, [currentFile]);
 
+  // Format the title and artist for MusicCard from metadata
+  const title = currentFile?.name || "Audio File";
+  const artist = metadata?.emisora || metadata?.programa || "Radio Transcription";
+  
+  // Publimedia brand green color
+  const brandGreen = "#66cc00";
+
   return (
-    <Card className="w-full">
-       {/* Use AudioPlayerHeader or create a specific header */}
-      <AudioPlayerHeader fileName={currentFile.name || "Audio File"} />
-      <CardContent className="p-4">
-
-        <ProgressBar
-          progress={currentTime}
-          duration={duration}
-          onSeek={handleSeekWithClick}
-          formatTime={formatTime}
-        />
-
-        <AudioPlayerControls
-          isPlaying={isPlaying}
-          playbackControls={{
-            handlePlayPause: onPlayPause,
-            handleSeek: onSeek, // Or remove if progress bar handles it
-            handleSkip: onSkip
-          }}
-          volumeControls={{
-            isMuted,
-            volume, // Pass number volume
-            handleVolumeChange: onVolumeChange,
-            toggleMute: onToggleMute
-          }}
-          playbackRate={playbackRate}
-          onChangePlaybackRate={onPlaybackRateChange}
-        />
-      </CardContent>
-    </Card>
+    <MusicCard
+      title={title}
+      artist={artist}
+      mainColor={brandGreen}
+      customControls={true}
+      isPlaying={isPlaying}
+      currentTime={currentTime}
+      duration={duration}
+      isMuted={isMuted}
+      volume={[volume]} // Convert number to array for MusicCard
+      playbackRate={playbackRate}
+      onPlayPause={onPlayPause}
+      onSeek={onSeek}
+      onSkip={onSkip}
+      onToggleMute={onToggleMute}
+      onVolumeChange={(val) => {
+        // Handle array conversion - MusicCard passes array but our handlers expect number or array
+        if (Array.isArray(val) && val.length > 0) {
+          onVolumeChange(val[0]);
+        } else {
+          onVolumeChange(val);
+        }
+      }}
+      onPlaybackRateChange={onPlaybackRateChange}
+    />
   );
 };
 
