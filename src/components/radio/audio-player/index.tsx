@@ -7,22 +7,29 @@ import { formatTime } from './utils/timeFormatter';
 import { Card, CardContent } from "@/components/ui/card";
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { AudioPlayerProps } from './types';
+import { UploadedFile } from "@/components/radio/types"; // Import UploadedFile
 
-export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
+// Extend AudioPlayerProps to use UploadedFile
+interface EnhancedAudioPlayerProps extends Omit<AudioPlayerProps, 'file'> {
+  file: UploadedFile;
+}
+
+export const AudioPlayer = ({ file, onEnded, onError }: EnhancedAudioPlayerProps) => {
   const {
     isPlaying,
     currentTime,
     duration,
     isMuted,
-    volume,
+    volume, // is a number
     playbackRate,
+    audioError, // Get error state
     handlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange
-  } = useAudioPlayer({ file, onEnded });
+  } = useAudioPlayer({ file, onEnded, onError }); // Pass onError
 
   const handleSeekWithClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
@@ -32,18 +39,31 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
     handleSeek(percentage * duration);
   };
 
+   // Display error message if present
+   if (audioError) {
+    return (
+      <Card className="w-full border-destructive">
+        <CardContent className="p-4 text-center text-destructive">
+          <p className="font-semibold">Audio Error</p>
+          <p className="text-sm">{audioError}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+
   return (
     <Card className="w-full">
       <CardContent className="p-4">
-        <AudioPlayerHeader fileName={file.name} />
-        
+        <AudioPlayerHeader fileName={file.name || "Audio File"} /> {/* Added fallback for name */}
+
         <ProgressBar
           progress={currentTime}
           duration={duration}
           onSeek={handleSeekWithClick}
           formatTime={formatTime}
         />
-        
+
         <AudioPlayerControls
           isPlaying={isPlaying}
           playbackControls={{
@@ -53,7 +73,7 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
           }}
           volumeControls={{
             isMuted,
-            volume,
+            volume, // Pass volume as number
             handleVolumeChange,
             toggleMute: handleToggleMute
           }}

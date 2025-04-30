@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { usePersistentAudioFiles } from "@/hooks/radio/usePersistentAudioFiles";
@@ -6,6 +5,7 @@ import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
 import { useRadioPlayer } from "@/hooks/radio/useRadioPlayer";
 import { toast } from "sonner";
+import { UploadedFile } from "@/components/radio/types"; // Import UploadedFile
 
 interface UseRadioContainerStateProps {
   persistedText?: string;
@@ -38,7 +38,8 @@ export const useRadioContainerState = ({
     currentFile,
     isUploading,
     handleFilesAdded: handleFileAdded,
-    handleRemoveFile
+    handleRemoveFile,
+    addUploadedFile
   } = usePersistentAudioFiles({
     persistKey,
     storage,
@@ -131,25 +132,27 @@ export const useRadioContainerState = ({
 
   // Fixed function to properly handle the return type
   const handleFilesAdded = (newFiles: File[]) => {
-    // Call the original function
-    const result = handleFileAdded(newFiles);
-    
+    // Call the original handler from usePersistentAudioFiles
+    handleFileAdded(newFiles, (uploadedFileMeta) => {
+        // Optional: Callback after a file is successfully uploaded and metadata is available
+        console.log('File uploaded and metadata added:', uploadedFileMeta);
+        // You might need to add the file to the local state here if usePersistentAudioFiles doesn't automatically
+        // addUploadedFile(uploadedFileMeta); // Example if addUploadedFile is available
+    });
+
     // If files were added, show success toast
     if (newFiles.length > 0) {
       toast.success(`${newFiles.length} archivos añadidos correctamente`);
       setLastAction('files-added');
       setPlaybackErrors(null); // Reset errors when adding new files
     }
-    
-    // Return the result of the original function
-    return result;
   };
 
   return {
     // Auth
     isAuthenticated,
     // Files
-    files,
+    files: files as UploadedFile[], // Cast to UploadedFile[]
     currentFile,
     currentFileIndex,
     // Processing
@@ -166,7 +169,7 @@ export const useRadioContainerState = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume, // Return volume as number
     isMuted,
     playbackRate,
     playbackErrors,

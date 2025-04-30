@@ -38,7 +38,7 @@ export const useRadioPlayer = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume, // This is number from useAudioProcessing
     isMuted,
     playbackRate,
     playbackErrors,
@@ -46,7 +46,7 @@ export const useRadioPlayer = ({
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange,
+    handleVolumeChange, // This handles number | number[]
     handlePlaybackRateChange,
     handleSeekToSegment,
   } = useAudioProcessing({
@@ -67,7 +67,7 @@ export const useRadioPlayer = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume, // Return volume as number
     isMuted,
     playbackRate,
     playbackErrors,

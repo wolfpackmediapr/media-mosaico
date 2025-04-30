@@ -9,6 +9,7 @@ import {
   AnalysisSection,
   NewsSegmentsSection
 } from "./containers";
+import { UploadedFile } from "./types"; // Import UploadedFile
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -50,7 +51,7 @@ const RadioContainer = ({
         isAuthenticated={state.isAuthenticated}
         leftSection={
           <LeftSection
-            files={state.files}
+            files={state.files as UploadedFile[]} // Cast files if necessary, ensure consistency
             setFiles={state.setFiles}
             currentFileIndex={state.currentFileIndex}
             setCurrentFileIndex={state.setCurrentFileIndex}
@@ -69,20 +70,20 @@ const RadioContainer = ({
           <RightSection
             currentFile={state.currentFile}
             metadata={state.metadata}
-            files={state.files}
+            files={state.files as UploadedFile[]} // Cast files if necessary
             currentFileIndex={state.currentFileIndex}
             isPlaying={state.isPlaying}
             currentTime={state.currentTime}
             duration={state.duration}
             isMuted={state.isMuted}
-            volume={state.volume}
+            volume={state.volume} // Pass volume as number
             playbackRate={state.playbackRate}
             playbackErrors={state.playbackErrors}
             onPlayPause={state.handlePlayPause}
             onSeek={state.handleSeek}
             onSkip={state.handleSkip}
             onToggleMute={state.handleToggleMute}
-            onVolumeChange={state.handleVolumeChange}
+            onVolumeChange={state.handleVolumeChange} // Pass the handler
             onPlaybackRateChange={state.handlePlaybackRateChange}
             handleTrackSelect={state.handleTrackSelect}
           />
