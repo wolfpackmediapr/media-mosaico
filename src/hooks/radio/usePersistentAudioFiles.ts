@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
@@ -6,7 +5,6 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { uploadFileToStorage, saveAudioFileMetadata, deleteFileFromStorage, getUserAudioFiles } from "@/services/supabase/fileStorage";
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseTyped } from "@/integrations/supabase/enhanced-client";
 
 export interface AudioFile extends File {
   id?: string;
@@ -66,50 +64,70 @@ export const usePersistentAudioFiles = ({
       if (!isAuthenticated) return;
       
       try {
-        // Use the audio_files table and proper typing
+        // Use the getUserAudioFiles function
         const { data, error } = await getUserAudioFiles();
         
         if (error) {
           console.error("Error fetching remote audio files:", error);
+          toast.error("Error fetching saved files");
           return;
         }
 
         if (data && data.length > 0) {
           console.log(`[usePersistentAudioFiles] Found ${data.length} remote files`);
           
-          // Create file metadata from remote files
-          const remoteFileMetadata = data.map((file) => ({
-            id: file.id,
-            name: file.filename,
-            type: file.mime_type || 'audio/mpeg',
-            size: file.file_size || 0,
-            lastModified: new Date(file.created_at).getTime(),
-            remoteUrl: supabase.storage.from('audio').getPublicUrl(file.storage_path).data.publicUrl,
-            storagePath: file.storage_path,
-            isUploaded: true
-          }));
+          // Create file metadata from remote files, ensuring type compatibility
+          const remoteFileMetadata: AudioFileMetadata[] = data.map((file) => {
+            const publicUrlResult = supabase.storage.from('audio').getPublicUrl(file.storage_path);
+            // Ensure remoteUrl is string | undefined to match AudioFileMetadata
+            const remoteUrl = publicUrlResult.data?.publicUrl || undefined; 
+
+            return {
+              id: file.id,
+              name: file.filename,
+              type: file.mime_type || 'audio/mpeg',
+              size: file.file_size || 0,
+              lastModified: new Date(file.created_at).getTime(),
+              remoteUrl: remoteUrl, // Assign string | undefined
+              storagePath: file.storage_path,
+              isUploaded: true
+            };
+          });
           
-          // Merge with existing metadata, preferring remote files
-          const mergedMetadata = [...remoteFileMetadata];
+          // Explicitly type mergedMetadata as AudioFileMetadata[]
+          const mergedMetadata: AudioFileMetadata[] = [...remoteFileMetadata];
           
-          // Only add local files that aren't in the remote list
+          // Only add local files that aren't already present remotely
           fileMetadata.forEach(localFile => {
+            // Check using a unique identifier if possible (e.g., id if local files have stable ids)
+            // Using name and size as a fallback uniqueness check
             if (!remoteFileMetadata.some(remoteFile => 
               remoteFile.name === localFile.name && 
               remoteFile.size === localFile.size)) {
-              mergedMetadata.push(localFile);
+              mergedMetadata.push(localFile); // Push AudioFileMetadata into AudioFileMetadata[]
             }
           });
           
+          // Sort merged data if needed, e.g., by lastModified date
+          mergedMetadata.sort((a, b) => b.lastModified - a.lastModified);
+
           setFileMetadata(mergedMetadata);
+        } else if (data?.length === 0) {
+           // If no remote files, ensure local files are kept
+           // This branch might need refinement based on desired logic when remote is empty
+           console.log("[usePersistentAudioFiles] No remote files found. Keeping local metadata.");
+           // setFileMetadata(fileMetadata); // This line might be redundant depending on desired merge logic
         }
       } catch (err) {
         console.error("Error in fetchRemoteFiles:", err);
+        toast.error("Error processing saved files");
       }
     };
     
-    fetchRemoteFiles();
-  }, [isAuthenticated, fileMetadata, setFileMetadata]);
+    // Debounce or ensure this runs only once appropriately if fileMetadata dependency causes loops
+    fetchRemoteFiles(); 
+    // Consider refining dependencies if fetchRemoteFiles modifies fileMetadata causing loops
+  }, [isAuthenticated, /* fileMetadata - potentially remove if causing loops */ setFileMetadata]); // Adjusted dependencies
 
   // Reconstruct files from metadata on mount
   useEffect(() => {
