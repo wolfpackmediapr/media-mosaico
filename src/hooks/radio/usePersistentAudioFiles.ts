@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
@@ -120,10 +121,8 @@ export const usePersistentAudioFiles = ({
       }
     };
     
-    // Debounce or ensure this runs only once appropriately if fileMetadata dependency causes loops
     fetchRemoteFiles(); 
-    // Consider refining dependencies if fetchRemoteFiles modifies fileMetadata causing loops
-  }, [isAuthenticated, setFileMetadata]); // Adjusted dependencies
+  }, [isAuthenticated, setFileMetadata, fileMetadata]);
 
   // Reconstruct files from metadata on mount
   useEffect(() => {
@@ -134,12 +133,18 @@ export const usePersistentAudioFiles = ({
       
       // Create file objects from metadata
       const reconstructedFiles = fileMetadata.map(meta => {
-        // For files with remote URLs, create a special File object
+        // For files with remote URLs, create a special File object with proper metadata
         if (meta.remoteUrl) {
-          const file = new File([""], meta.name, { 
+          // We can't restore the actual file content, but we can create a placeholder File
+          // The actual audio data will be loaded directly from the URL when played
+          const fileOptions = { 
             type: meta.type,
             lastModified: meta.lastModified
-          }) as AudioFile;
+          };
+          
+          // Create a placeholder file - it won't have content but will have correct metadata
+          // We'll use the remoteUrl for actual playback
+          const file = new File([""], meta.name, fileOptions) as AudioFile;
           
           // Add remote properties
           file.remoteUrl = meta.remoteUrl;
@@ -152,6 +157,8 @@ export const usePersistentAudioFiles = ({
             value: meta.size,
             writable: false
           });
+          
+          console.log(`[usePersistentAudioFiles] Reconstructed remote file: ${meta.name}, URL: ${meta.remoteUrl}, type: ${meta.type}`);
           
           return file;
         }
@@ -171,6 +178,9 @@ export const usePersistentAudioFiles = ({
         // Add preview URL if available
         if (meta.preview) {
           file.preview = meta.preview;
+          console.log(`[usePersistentAudioFiles] Reconstructed local file with preview: ${meta.name}`);
+        } else {
+          console.log(`[usePersistentAudioFiles] Reconstructed local file without preview: ${meta.name}`);
         }
         
         return file;

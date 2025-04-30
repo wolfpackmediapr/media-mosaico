@@ -36,6 +36,8 @@ export const uploadFileToStorage = async (file: File) => {
       .from('audio')
       .getPublicUrl(filePath);
 
+    console.log(`[fileStorage] File uploaded successfully. Remote URL: ${publicUrl}`);
+
     return {
       path: filePath,
       url: publicUrl,
@@ -120,6 +122,9 @@ export const getUserAudioFiles = async () => {
       throw error;
     }
 
+    // Log the number of files found for debugging
+    console.log(`[getUserAudioFiles] Found ${data?.length || 0} audio files for user`);
+    
     return { data, error: null };
   } catch (error) {
     console.error("Error in getUserAudioFiles:", error);

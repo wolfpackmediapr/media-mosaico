@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AudioPlayerHeader } from './audio-player/AudioPlayerHeader';
 import { ProgressBar } from './audio-player/ProgressBar';
-import { AudioPlayerControls } from './audio-player/AudioPlayerControls'; // Assuming this combines playback and volume
+import { AudioPlayerControls } from './audio-player/AudioPlayerControls';
 import { formatTime } from './audio-player/utils/timeFormatter';
 import { UploadedFile } from './types';
 
@@ -48,6 +48,19 @@ const MediaControls: React.FC<MediaControlsProps> = ({
     const percentage = x / rect.width;
     onSeek(percentage * duration);
   };
+
+  // Debug logging for audio source info
+  React.useEffect(() => {
+    if (currentFile) {
+      console.log(`[MediaControls] Current file info:`, {
+        name: currentFile.name,
+        type: currentFile.type,
+        remoteUrl: currentFile.remoteUrl || 'N/A',
+        preview: currentFile.preview ? 'Has preview URL' : 'No preview URL',
+        size: `${(currentFile.size / (1024 * 1024)).toFixed(2)} MB`
+      });
+    }
+  }, [currentFile]);
 
   return (
     <Card className="w-full">

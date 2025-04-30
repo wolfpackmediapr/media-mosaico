@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Howl, Howler } from 'howler';
 import { UseAudioPlayerOptions } from '../types';
@@ -61,13 +62,21 @@ export const useAudioPlayer = ({
     cleanup(); // Clean up before setting new file
 
     if (file) {
+      // Determine the audio source - use remoteUrl for remote files, preview for local files
       const src = file.remoteUrl || file.preview;
+      
       if (!src) {
-        handleError(`No valid source URL found for the audio file${file.name ? `: ${file.name}` : ''}`, file);
+        handleError(`No valid source URL found for the audio file${file.name ? `: ${file.name}` : ''}`);
+        console.error("[useAudioPlayer] File has no valid source URL:", file);
         return;
       }
 
+      console.log(`[useAudioPlayer] Using source URL: ${src}`);
+      
+      // Determine formats based on file type and source
       let formats: string[] | undefined = undefined;
+      
+      // For blob URLs, we need to determine the format from the file type
       if (src.startsWith('blob:')) {
         const extension = file.name?.split('.').pop()?.toLowerCase();
         if (extension) {
@@ -85,19 +94,35 @@ export const useAudioPlayer = ({
           formats = ['mp3', 'wav', 'ogg', 'm4a'];
         }
         console.log(`[useAudioPlayer] Using format(s) for blob URL: ${formats?.join(', ') ?? 'Auto-detect'}`);
-      } else {
-        console.log(`[useAudioPlayer] Using source URL directly: ${src}`);
+      } else if (src.includes('supabase')) {
+        // For Supabase URLs, let's determine the format from the URL or file extension
+        const extension = src.split('.').pop()?.toLowerCase();
+        if (extension) {
+          formats = [extension];
+          console.log(`[useAudioPlayer] Using format for Supabase URL: ${extension}`);
+        }
       }
 
       const newHowl = new Howl({
         src: [src],
         format: formats,
-        html5: true,
+        html5: true, // Force HTML5 Audio to ensure streaming works correctly (esp for remote files)
         volume: isMuted ? 0 : volume / 100,
         rate: playbackRate,
         onload: () => {
           setDuration(newHowl.duration());
           setAudioError(null);
+          console.log(`[useAudioPlayer] Successfully loaded audio, duration: ${newHowl.duration()} seconds`);
+        },
+        onloaderror: (id, err) => {
+          const errorMsg = `Failed to load audio: ${err}`;
+          console.error(`[useAudioPlayer] Load error for ID ${id}: ${err}`);
+          handleError(errorMsg);
+        },
+        onplayerror: (id, err) => {
+          const errorMsg = `Playback failed: ${err}`;
+          console.error(`[useAudioPlayer] Play error for ID ${id}: ${err}`);
+          handleError(errorMsg);
         },
         onplay: () => {
           setIsPlaying(true);
@@ -130,20 +155,14 @@ export const useAudioPlayer = ({
               seekTimeoutRef.current = setTimeout(() => setCurrentTime(current), 50);
             }
           }
-        },
-        onloaderror: (id, err) => {
-          handleError(`Failed to load audio: ${err}`, `Howler ID: ${id}`);
-        },
-        onplayerror: (id, err) => {
-          handleError(`Playback failed: ${err}`, `Howler ID: ${id}`);
-        },
+        }
       });
 
       howlRef.current = newHowl;
     }
 
     return cleanup;
-  }, [file, onEnded, handleError]);
+  }, [file, onEnded, handleError, isMuted, volume, playbackRate]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -227,13 +246,32 @@ export const useAudioPlayer = ({
     const newMutedState = !isMuted;
     setIsMuted(newMutedState);
     Howler.mute(newMutedState);
-  }, [isMuted, setIsMuted]);
+    
+    // No need to update Howler volume since mute/unmute handles this
+    if (howlRef.current) {
+      if (newMutedState) {
+        howlRef.current.volume(0);
+      } else {
+        howlRef.current.volume(volume / 100);
+      }
+    }
+  }, [isMuted, setIsMuted, volume]);
 
   const handleVolumeChange = useCallback((value: number | number[]) => {
+    // Extract the single number value regardless of input type
     const newVolumeValue = Array.isArray(value) ? value[0] : value;
     const newVolume = Math.max(0, Math.min(newVolumeValue, 100));
+    
+    // Update our stored volume state
     setVolume(newVolume);
+    
+    // Apply volume to current howl instance and global Howler
+    if (howlRef.current) {
+      howlRef.current.volume(newVolume / 100);
+    }
     Howler.volume(newVolume / 100);
+    
+    // Handle mute state
     if (newVolume > 0 && isMuted) {
       setIsMuted(false);
       Howler.mute(false);
@@ -265,13 +303,15 @@ export const useAudioPlayer = ({
     } else if (!howlRef.current || howlRef.current.state() !== 'loaded') {
       handleError("Cannot seek: audio not loaded yet.");
     }
-  }, [handleSeek, isPlaying, audioError]);
+  }, [handleSeek, isPlaying, audioError, handleError]);
 
+  // Ensure global Howler settings match our component state on mount
   useEffect(() => {
     Howler.volume(volume / 100);
     Howler.mute(isMuted);
   }, []);
 
+  // Sync our state with global Howler state when needed
   useEffect(() => {
     const currentGlobalVolume = Howler.volume();
     const currentGlobalMute = Howler.mute();

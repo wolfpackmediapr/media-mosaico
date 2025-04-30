@@ -3,10 +3,16 @@ import React from 'react';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Volume1, Volume2, VolumeX } from 'lucide-react';
-import { VolumeControls } from './types'; // Ensure this path is correct
+
+interface VolumeControls {
+  isMuted: boolean;
+  volume: number; // Changed from number[] to number
+  handleVolumeChange: (value: number | number[]) => void;
+  toggleMute: () => void;
+}
 
 interface VolumeControlProps {
-  volumeControls: VolumeControls; // volume is number here
+  volumeControls: VolumeControls;
 }
 
 export const VolumeControl = ({ volumeControls }: VolumeControlProps) => {
@@ -20,11 +26,11 @@ export const VolumeControl = ({ volumeControls }: VolumeControlProps) => {
         <VolumeIcon className="h-5 w-5" />
       </Button>
       <Slider
-        value={[isMuted ? 0 : volume]} // Pass volume as array [number]
+        value={[isMuted ? 0 : volume]} // Convert numeric volume to array for Slider
         max={100}
         step={1}
         className="flex-grow"
-        onValueChange={(value: number[]) => handleVolumeChange(value)} // handleVolumeChange expects number | number[]
+        onValueChange={handleVolumeChange} // handleVolumeChange accepts number | number[]
         aria-label="Volume"
       />
     </div>
