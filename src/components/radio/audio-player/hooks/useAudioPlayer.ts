@@ -33,6 +33,8 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
     playbackErrors,
     isLoading,
     isReady,
+    isUsingNativeAudio,
+    switchToNativeAudio,
     handlePlayPause,
     handleSeek,
     handleSkip,
@@ -72,7 +74,7 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
   // For compatibility, let's define seekToTimestamp as an alias for handleSeek
   const seekToTimestamp = handleSeek;
 
-  // Return the same API that the previous implementation provided
+  // Return the same API that the previous implementation provided, plus the new properties
   return {
     isPlaying,
     currentTime,
@@ -83,6 +85,8 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
     playbackErrors,
     isLoading,
     isReady,
+    isUsingNativeAudio,
+    switchToNativeAudio,
     handlePlayPause,
     handleSeek,
     handleSkip,

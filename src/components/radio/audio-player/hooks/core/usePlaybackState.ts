@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { Howl } from 'howler';
 
 interface PlaybackStateHookProps {
   howl: Howl | null;

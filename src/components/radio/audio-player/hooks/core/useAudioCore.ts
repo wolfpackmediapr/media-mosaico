@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
@@ -147,7 +146,7 @@ export const useAudioCore = ({
       console.warn(`[AudioCore] Format may not be supported: ${file.name}`);
     }
 
-    // Pre-check using a native HTML5 audio element
+    // Initialize Howl instance
     const initializeHowl = async () => {
       // Ensure we can play this file before initializing Howler
       const canPlayWithNative = await preloadCheck(currentUrl);

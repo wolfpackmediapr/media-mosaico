@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AudioMetadata } from '@/types/audio';
 import { useAudioCore } from './core/useAudioCore';
@@ -37,6 +36,26 @@ export const useHowlerPlayer = ({
   // Initialize metadata state (could be moved to its own hook if it grows)
   const [metadata, setMetadata] = useState<AudioMetadata | null>(null);
 
+  // Create a pre-test function to check file compatibility
+  const preTestAudio = async (file: File) => {
+    // Pre-test the file to check compatibility
+    if (file) {
+      // Create a native audio fallback element
+      if (nativeAudioRef.current) {
+        URL.revokeObjectURL(nativeAudioRef.current.src);
+      }
+      nativeAudioRef.current = createNativeAudioElement(file);
+      
+      // Test playback - this helps identify problem files early
+      const testResult = await testAudioPlayback(file);
+      if (!testResult.canPlay) {
+        console.warn(`[useHowlerPlayer] Audio pre-test failed: ${testResult.error}`);
+        return false;
+      }
+    }
+    return true;
+  };
+
   // Core audio setup - manages Howl instance and file loading
   const [coreState, setHowl, setPlaybackErrors] = useAudioCore({
     file,
@@ -45,30 +64,12 @@ export const useHowlerPlayer = ({
       if (onError) onError(error);
       setPlaybackErrorsState(prev => ({ ...prev, howlerError: error }));
     },
-    forceHTML5: true, // Force HTML5 Audio playback,
-    preTest: async (file) => {
-      // Pre-test the file to check compatibility
-      if (file) {
-        // Create a native audio fallback element
-        if (nativeAudioRef.current) {
-          URL.revokeObjectURL(nativeAudioRef.current.src);
-        }
-        nativeAudioRef.current = createNativeAudioElement(file);
-        
-        // Test playback - this helps identify problem files early
-        const testResult = await testAudioPlayback(file);
-        if (!testResult.canPlay) {
-          console.warn(`[useHowlerPlayer] Audio pre-test failed: ${testResult.error}`);
-          return false;
-        }
-      }
-      return true;
-    }
+    forceHTML5: true // Force HTML5 Audio playback
   });
 
   // Playback state - manages play/pause, time tracking, volume, etc.
   const [
-    { isPlaying, currentTime, playbackRate, volume, isMuted },
+    { isPlaying, currentTime, playbackRate, volume: volumeArray, isMuted },
     { setIsPlaying, setPlaybackRate, setVolume, setIsMuted }
   ] = usePlaybackState({
     howl: !isUsingNativeAudio ? coreState.howl : null
@@ -80,12 +81,12 @@ export const useHowlerPlayer = ({
     isPlaying,
     currentTime,
     duration: coreState.duration,
-    volume,
+    volume: volumeArray[0] / 100, // Convert array to number for controls
     isMuted,
     playbackRate,
     setIsPlaying,
     setIsMuted,
-    setVolume,
+    setVolume: (val: number) => setVolume([val * 100]), // Convert number to array
     setPlaybackRate
   });
 
@@ -146,7 +147,7 @@ export const useHowlerPlayer = ({
       nativeAudioRef.current.playbackRate = playbackRate;
       
       // Set native audio to current volume
-      const volumeValue = Array.isArray(volume) ? volume[0] / 100 : volume / 100;
+      const volumeValue = Array.isArray(volumeArray) ? volumeArray[0] / 100 : volumeArray / 100;
       nativeAudioRef.current.volume = volumeValue;
       
       // Set muted state
@@ -167,7 +168,7 @@ export const useHowlerPlayer = ({
     } catch (error) {
       console.error('[HowlerPlayer] Error switching to native audio:', error);
     }
-  }, [file, isUsingNativeAudio, playbackRate, volume, isMuted, setHowl]);
+  }, [file, isUsingNativeAudio, playbackRate, volumeArray, isMuted, setHowl]);
 
   // Register error handler on howl instance
   useEffect(() => {
@@ -246,13 +247,24 @@ export const useHowlerPlayer = ({
   // Get the active controls based on current mode
   const activeControls = isUsingNativeAudio ? nativeAudioControls() || controls : controls;
 
+  // Handle volume up/down functions (add these for compatibility)
+  const handleVolumeUp = () => {
+    const newVolume = Math.min(100, volumeArray[0] + 5);
+    setVolume([newVolume]);
+  };
+
+  const handleVolumeDown = () => {
+    const newVolume = Math.max(0, volumeArray[0] - 5);
+    setVolume([newVolume]);
+  };
+
   return {
     isPlaying,
     currentTime,
     duration: isUsingNativeAudio && nativeAudioRef.current ? 
               nativeAudioRef.current.duration : 
               coreState.duration,
-    volume,
+    volume: volumeArray,
     isMuted,
     playbackRate,
     playbackErrors,
@@ -262,6 +274,8 @@ export const useHowlerPlayer = ({
     isUsingNativeAudio,
     switchToNativeAudio, // Expose this method so error components can trigger fallback
     ...activeControls, // Spread the appropriate controls based on mode
-    setIsPlaying
+    setIsPlaying,
+    handleVolumeUp,
+    handleVolumeDown
   };
 };

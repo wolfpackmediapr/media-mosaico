@@ -42,12 +42,15 @@ const RadioContainer = ({
     setIsMediaPlaying
   });
 
-  // Convert volume from number to array for MusicCard
-  const volumeArray = state.volume ? [state.volume * 100] : [100];
-
   // Create wrapper functions to handle type mismatches between components
   const handleVolumeChangeWrapper = (value: number[]) => {
-    state.handleVolumeChange(value[0] / 100);
+    // If state.volume is a number, convert the first element of the array to a decimal value
+    if (typeof state.volume === 'number') {
+      state.handleVolumeChange(value[0] / 100);
+    } else {
+      // If state.volume is already an array, just pass the value directly
+      state.handleVolumeChange(value);
+    }
   };
 
   const handlePlaybackRateChangeWrapper = () => {
@@ -57,6 +60,9 @@ const RadioContainer = ({
     const nextIndex = (currentIndex + 1) % rates.length;
     state.handlePlaybackRateChange(rates[nextIndex]);
   };
+
+  // Ensure volume is an array for components that expect it
+  const volumeArray = Array.isArray(state.volume) ? state.volume : [state.volume * 100];
 
   return (
     <>

@@ -38,8 +38,8 @@ export const useAudioProcessing = ({
     playbackErrors,
     isLoading,
     isReady,
-    isUsingNativeAudio, // New property from the enhanced useHowlerPlayer
-    switchToNativeAudio, // New method from the enhanced useHowlerPlayer
+    isUsingNativeAudio, // Now properly passed from useAudioPlayer
+    switchToNativeAudio, // Now properly passed from useAudioPlayer
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
