@@ -65,18 +65,20 @@ export const useHowlerPlayer = ({
     setPlaybackRate
   });
 
+  // Utility function to safely handle errors
+  const safelyHandleError = (error: unknown): { name?: string; message?: string } => {
+    if (error && typeof error === 'object') {
+      return error as { name?: string; message?: string };
+    }
+    return { message: String(error) };
+  };
+
   // Handle play errors with AudioContext resuming
   const handlePlayError = useCallback(async (id: number, error: any): Promise<boolean> => {
     if (!coreState.howl) return false;
     
     try {
-      // Create a utility function to safely handle errors
-      const safelyHandleError = (error: unknown): { name?: string; message?: string } => {
-        if (error && typeof error === 'object') {
-          return error as { name?: string; message?: string };
-        }
-        return { message: String(error) };
-      };
+      const errObj = safelyHandleError(error);
       
       const audioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
       if (audioContext && audioContext.state === 'suspended') {

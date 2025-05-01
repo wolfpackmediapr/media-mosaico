@@ -17,7 +17,7 @@ export const useAudioUnlock = () => {
     
     try {
       // Try to unlock the standard Web Audio API
-      const didUnmute = unmuteAudio();
+      unmuteAudio(); // Not checking return value, as it's void
       
       // Try to unlock Howler's audio context specifically
       try {
@@ -62,13 +62,13 @@ export const useAudioUnlock = () => {
       // Increment attempt counter
       unlockAttempts.current++;
       
-      // Consider successful after didUnmute or multiple attempts
-      if (didUnmute || unlockAttempts.current >= 3) {
+      // Consider successful after multiple attempts
+      if (unlockAttempts.current >= 3) {
         isUnlocked.current = true;
         return true;
       }
       
-      return didUnmute;
+      return false;
     } catch (err) {
       console.error('[useAudioUnlock] Error during audio unlock:', err);
       return false;
