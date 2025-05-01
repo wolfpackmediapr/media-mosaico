@@ -20,7 +20,7 @@ export function AudioErrorDisplay({
   if (!error) return null;
   
   // Determine if this is a codec/format issue
-  const isCodecError = error.includes('codec') || error.includes('format') || error.includes('NotSupported');
+  const isCodecError = error.includes('codec') || error.includes('format') || error.includes('NotSupported') || error.includes('_id');
   
   // Extract useful information from error message
   const formatErrorMessage = (error: string): string => {
@@ -29,7 +29,7 @@ export function AudioErrorDisplay({
       return 'La reproducción fue interrumpida. Intenta de nuevo.';
     }
     
-    if (error.includes('NotSupportedError') || error.includes('format') || error.includes('codec')) {
+    if (error.includes('NotSupportedError') || error.includes('format') || error.includes('codec') || error.includes('_id')) {
       return 'El formato de audio no es compatible con el reproductor avanzado.';
     }
     
@@ -55,7 +55,7 @@ export function AudioErrorDisplay({
             </div>
           )}
           
-          {isCodecError && onTryNativePlayer && (
+          {(isCodecError || error.includes('_id')) && onTryNativePlayer && (
             <div className="mt-2">
               <Button 
                 size="sm" 

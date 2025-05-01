@@ -1,136 +1,132 @@
 
-import { useState, useEffect, useRef } from 'react';
-import { Howl } from 'howler';
+import { useState, useEffect } from 'react';
 
-export interface PlaybackState {
-  isPlaying: boolean;
-  currentTime: number;
-  playbackRate: number;
-  volume: number;
-  isMuted: boolean;
-}
-
-interface UsePlaybackStateOptions {
+interface PlaybackStateHookProps {
   howl: Howl | null;
 }
 
-/**
- * Hook for managing playback state (play/pause, time tracking)
- */
-export const usePlaybackState = ({ howl }: UsePlaybackStateOptions): [
-  PlaybackState,
-  {
-    setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
-    setPlaybackRate: React.Dispatch<React.SetStateAction<number>>;
-    setVolume: React.Dispatch<React.SetStateAction<number>>;
-    setIsMuted: React.Dispatch<React.SetStateAction<boolean>>;
-  }
-] => {
+export const usePlaybackState = ({
+  howl
+}: PlaybackStateHookProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [volume, setVolume] = useState(1);
+  const [volume, setVolume] = useState([50]);
   const [isMuted, setIsMuted] = useState(false);
   
-  const [isSeeking, setIsSeeking] = useState(false);
-  const intervalIdRef = useRef<number | null>(null);
-
-  // Setup howl event handlers when howl changes
+  // Track current state of Howl instance to prevent operations on invalid instance
+  const [isHowlValid, setIsHowlValid] = useState(false);
+  
+  // Validate Howl instance when it changes
   useEffect(() => {
-    if (!howl) return;
+    // Check if howl is properly initialized with _id property (a key internal property of Howl)
+    const isValid = howl && typeof howl === 'object' && howl._src && !howl._destroyed;
+    setIsHowlValid(isValid);
     
-    // Set up event handlers on the howl instance
-    howl.on('play', () => {
-      console.log('[PlaybackState] Audio started playing');
-      setIsPlaying(true);
-      startUpdateInterval();
-    });
-    
-    howl.on('pause', () => {
-      console.log('[PlaybackState] Audio paused');
+    // Reset state if howl is invalid
+    if (!isValid) {
       setIsPlaying(false);
-      stopUpdateInterval();
-    });
-    
-    howl.on('stop', () => {
-      console.log('[PlaybackState] Audio stopped');
-      setIsPlaying(false);
-      stopUpdateInterval();
-      setCurrentTime(0);
-    });
-    
-    howl.on('seek', () => {
-      console.log('[PlaybackState] Audio seeked');
-      setCurrentTime(howl.seek() as number);
-    });
-
-    // Set initial values from howl
-    setVolume(howl.volume());
-    setPlaybackRate(howl.rate());
-    setIsMuted(howl.mute());
-    
-    return () => {
-      // Remove event listeners when howl changes
-      howl.off('play');
-      howl.off('pause');
-      howl.off('stop');
-      howl.off('seek');
-      stopUpdateInterval();
-    };
+    }
   }, [howl]);
   
-  // Apply playback rate changes to howl
+  // Set initial playback rate
   useEffect(() => {
-    if (howl) {
-      howl.rate(playbackRate);
-      console.log(`[PlaybackState] Set playback rate to ${playbackRate}`);
-    }
-  }, [playbackRate, howl]);
-  
-  // Apply volume changes to howl
-  useEffect(() => {
-    if (howl) {
-      howl.volume(volume);
-      console.log(`[PlaybackState] Set volume to ${volume}`);
-    }
-  }, [volume, howl]);
-  
-  // Apply mute changes to howl
-  useEffect(() => {
-    if (howl) {
-      howl.mute(isMuted);
-      console.log(`[PlaybackState] Set mute to ${isMuted}`);
-    }
-  }, [isMuted, howl]);
-
-  const startUpdateInterval = () => {
-    if (intervalIdRef.current) {
-      stopUpdateInterval();
-    }
-
-    intervalIdRef.current = window.setInterval(() => {
-      if (howl && howl.playing() && !isSeeking) {
-        setCurrentTime(howl.seek() as number);
+    if (howl && isHowlValid && playbackRate !== 1) {
+      try {
+        // Only set rate if howl is loaded and valid
+        if (howl.state() === 'loaded') {
+          howl.rate(playbackRate);
+        }
+      } catch (error) {
+        console.warn("[usePlaybackState] Error setting playback rate:", error);
       }
-    }, 250);
-  };
-
-  const stopUpdateInterval = () => {
-    if (intervalIdRef.current) {
-      clearInterval(intervalIdRef.current);
-      intervalIdRef.current = null;
     }
-  };
+  }, [howl, isHowlValid, playbackRate]);
   
-  // Cleanup on unmount
+  // Update playing state when howl changes
   useEffect(() => {
-    return () => {
-      stopUpdateInterval();
+    if (!howl || !isHowlValid) {
+      return;
+    }
+    
+    const updateIsPlaying = () => {
+      try {
+        setIsPlaying(howl.playing());
+      } catch (error) {
+        console.warn("[usePlaybackState] Error checking playing state:", error);
+        setIsPlaying(false);
+      }
     };
-  }, []);
-
+    
+    // Set up event listeners
+    howl.on('play', updateIsPlaying);
+    howl.on('pause', updateIsPlaying);
+    howl.on('stop', () => setIsPlaying(false));
+    howl.on('end', () => setIsPlaying(false));
+    
+    // Check initial state
+    updateIsPlaying();
+    
+    // Cleanup event listeners
+    return () => {
+      try {
+        if (howl && isHowlValid) {
+          howl.off('play');
+          howl.off('pause');
+          howl.off('stop');
+          howl.off('end');
+        }
+      } catch (error) {
+        console.warn("[usePlaybackState] Error cleaning up event listeners:", error);
+      }
+    };
+  }, [howl, isHowlValid]);
+  
+  // Set up seek tracking
+  useEffect(() => {
+    if (!howl || !isHowlValid) {
+      return;
+    }
+    
+    let seekInterval: NodeJS.Timeout | null = null;
+    
+    const startTracking = () => {
+      if (seekInterval) return;
+      
+      seekInterval = setInterval(() => {
+        try {
+          if (howl && isHowlValid) {
+            setCurrentTime(howl.seek() || 0);
+          }
+        } catch (error) {
+          console.warn("[usePlaybackState] Error during seek tracking:", error);
+          stopTracking();
+        }
+      }, 200); // Update 5 times per second
+    };
+    
+    const stopTracking = () => {
+      if (seekInterval) {
+        clearInterval(seekInterval);
+        seekInterval = null;
+      }
+    };
+    
+    // Start tracking when playing
+    if (isPlaying) {
+      startTracking();
+    } else {
+      stopTracking();
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      stopTracking();
+    };
+  }, [howl, isPlaying, isHowlValid]);
+  
   return [
     { isPlaying, currentTime, playbackRate, volume, isMuted },
     { setIsPlaying, setPlaybackRate, setVolume, setIsMuted }
-  ];
+  ] as const;
 };

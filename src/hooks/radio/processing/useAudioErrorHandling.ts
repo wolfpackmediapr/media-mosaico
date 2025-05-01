@@ -7,6 +7,7 @@ interface AudioErrorHandlingOptions {
   currentFile: File | null;
   playerAudioError: string | null; // Error directly from the underlying player
   onClearError?: () => void; // Optional callback when error is cleared
+  onSwitchToNative?: () => void; // Callback to switch to native audio
 }
 
 /**
@@ -15,7 +16,8 @@ interface AudioErrorHandlingOptions {
 export const useAudioErrorHandling = ({
   currentFile,
   playerAudioError,
-  onClearError
+  onClearError,
+  onSwitchToNative
 }: AudioErrorHandlingOptions) => {
   const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
   const errorShownRef = useRef<boolean>(false);
@@ -79,7 +81,16 @@ export const useAudioErrorHandling = ({
         // We can play this file with native audio, suggest using it
         toast.info('Reproducción nativa disponible', {
           description: 'Puede utilizar el reproductor nativo de HTML5 en lugar del reproductor avanzado para este archivo.',
-          duration: 8000
+          duration: 8000,
+          action: {
+            label: 'Usar nativo',
+            onClick: () => {
+              // Trigger switch to native audio if available
+              if (onSwitchToNative) {
+                onSwitchToNative();
+              }
+            }
+          }
         });
         
         // Clean up
@@ -103,7 +114,7 @@ export const useAudioErrorHandling = ({
       console.error('[useAudioErrorHandling] Error setting up fallback audio:', error);
       return false;
     }
-  }, [currentFile]);
+  }, [currentFile, onSwitchToNative]);
 
   // Sync with audioError from the underlying player
   useEffect(() => {
@@ -113,11 +124,18 @@ export const useAudioErrorHandling = ({
       
       // If we get a codec error, try the fallback player
       if (playerAudioError.includes("codec") || 
-          playerAudioError.includes("No codec support")) {
+          playerAudioError.includes("No codec support") ||
+          playerAudioError.includes("_id")) {
         attemptFallbackPlay();
+        
+        // For serious issues, auto-switch to native player if possible
+        if (playerAudioError.includes("_id") && onSwitchToNative) {
+          console.log('[useAudioErrorHandling] Auto-switching to native player due to critical error');
+          onSwitchToNative();
+        }
       }
     }
-  }, [playerAudioError, playbackErrors, attemptFallbackPlay]);
+  }, [playerAudioError, playbackErrors, attemptFallbackPlay, onSwitchToNative]);
 
   // Handle showing error toasts (throttled)
   const handleErrorNotification = useCallback((error: string) => {
@@ -130,7 +148,8 @@ export const useAudioErrorHandling = ({
       lastErrorTime.current = now;
 
       // Check for common error patterns
-      const isFormatError = error.includes('format') || error.includes('NotSupported') || error.includes('codec');
+      const isFormatError = error.includes('format') || error.includes('NotSupported') || 
+                            error.includes('codec') || error.includes('_id');
       const isPermissionError = error.includes('NotAllowed') || error.includes('permission');
       const isNetworkError = error.includes('network') || error.includes('fetch') || error.includes('load');
       
@@ -138,7 +157,11 @@ export const useAudioErrorHandling = ({
         if (isFormatError) {
           toast.error("Formato de audio incompatible", { 
             description: `El navegador no puede reproducir este formato de archivo: ${currentFile.name.split('.').pop()?.toUpperCase()}. Intente utilizar el reproductor nativo en su lugar.`,
-            duration: 5000
+            duration: 5000,
+            action: onSwitchToNative ? {
+              label: 'Usar nativo',
+              onClick: onSwitchToNative
+            } : undefined
           });
           // Try fallback
           attemptFallbackPlay();
@@ -161,7 +184,7 @@ export const useAudioErrorHandling = ({
         }
       }
     }
-  }, [currentFile, attemptFallbackPlay]);
+  }, [currentFile, attemptFallbackPlay, onSwitchToNative]);
 
   // Effect to handle error notification and potential recovery
   useEffect(() => {

@@ -38,6 +38,8 @@ export const useAudioProcessing = ({
     playbackErrors,
     isLoading,
     isReady,
+    isUsingNativeAudio, // New property from the enhanced useHowlerPlayer
+    switchToNativeAudio, // New method from the enhanced useHowlerPlayer
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
@@ -57,7 +59,8 @@ export const useAudioProcessing = ({
   const { playbackErrors: processedPlaybackErrors, setPlaybackErrors } = useAudioErrorHandling({
     currentFile,
     playerAudioError: playbackErrors?.howlerError || null,
-    onClearError: () => console.log("[useAudioProcessing] Error cleared")
+    onClearError: () => console.log("[useAudioProcessing] Error cleared"),
+    onSwitchToNative: switchToNativeAudio // Pass the switch method to error handling
   });
 
   // Track audio loading state
@@ -140,6 +143,8 @@ export const useAudioProcessing = ({
     isMuted,
     playbackRate,
     playbackErrors: processedPlaybackErrors,
+    isUsingNativeAudio,
+    switchToNativeAudio,
     handlePlayPause,
     handleSeek,
     handleSkip,

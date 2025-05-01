@@ -52,7 +52,7 @@ export const getMimeTypeFromFile = (file: File): string | null => {
   return mimeTypes[extension] || null;
 };
 
-// Check if browser can play this audio format
+// Check if browser can play this audio format using native HTML5 Audio
 export const canBrowserPlayFile = (file: File): boolean => {
   const audio = document.createElement('audio');
   const mimeType = getMimeTypeFromFile(file);
@@ -63,6 +63,53 @@ export const canBrowserPlayFile = (file: File): boolean => {
   return !!audio.canPlayType(mimeType).replace(/^no$/, '');
 };
 
+// Try to play a small portion of audio to verify decoder support
+export const testAudioPlayback = async (file: File): Promise<{canPlay: boolean, error?: string}> => {
+  return new Promise((resolve) => {
+    try {
+      const audio = new Audio();
+      const url = URL.createObjectURL(file);
+      
+      const onCanPlay = () => {
+        cleanup();
+        resolve({canPlay: true});
+      };
+      
+      const onError = () => {
+        cleanup();
+        resolve({
+          canPlay: false, 
+          error: `Failed to decode audio file: ${file.name}`
+        });
+      };
+      
+      const cleanup = () => {
+        audio.removeEventListener('canplay', onCanPlay);
+        audio.removeEventListener('error', onError);
+        URL.revokeObjectURL(url);
+      };
+      
+      // Set event handlers
+      audio.addEventListener('canplay', onCanPlay);
+      audio.addEventListener('error', onError);
+      
+      // Attempt to load the file
+      audio.src = url;
+      audio.load();
+      
+      // Set timeout to avoid hanging too long
+      setTimeout(() => {
+        if (audio.readyState < 2) { // HAVE_CURRENT_DATA
+          cleanup();
+          resolve({canPlay: false, error: 'Timeout loading audio file'});
+        }
+      }, 3000);
+    } catch (e) {
+      resolve({canPlay: false, error: String(e)});
+    }
+  });
+};
+
 // Get detailed info about the audio file
 export const getAudioFormatDetails = (file: File): string => {
   const mimeType = getMimeTypeFromFile(file);
@@ -71,4 +118,23 @@ export const getAudioFormatDetails = (file: File): string => {
   const canPlay = canBrowserPlayFile(file);
   
   return `Format: ${extension.toUpperCase()}, Type: ${mimeType || 'unknown'}, Size: ${sizeInMB}MB, Browser Compatible: ${canPlay ? 'Yes' : 'No'}`;
+};
+
+// Create a preloaded HTML5 audio element for a file
+export const createNativeAudioElement = (file: File): HTMLAudioElement => {
+  const audio = new Audio();
+  audio.src = URL.createObjectURL(file);
+  
+  // Cleanup object URL when done
+  audio.addEventListener('canplay', () => {
+    console.log(`[Native Audio] File ${file.name} can be played`);
+  });
+  
+  audio.addEventListener('error', (e) => {
+    console.error(`[Native Audio] Error with file ${file.name}:`, e);
+    // Cleanup
+    URL.revokeObjectURL(audio.src);
+  });
+  
+  return audio;
 };
