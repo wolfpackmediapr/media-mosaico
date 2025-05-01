@@ -70,6 +70,25 @@ export const useAudioPlaybackManager = ({
     }
   }, [handleVolumeChange]);
 
+  // Add volume up/down handlers that correctly handle array types
+  const handleVolumeUp = useCallback(() => {
+    // Ensure we have a proper UI volume array
+    const currentVolume = ensureUiVolumeFormat(volume);
+    // Calculate new volume, ensuring it doesn't exceed 100
+    const newVolume = Math.min(100, currentVolume[0] + 5);
+    // Pass as array to match expected type
+    onVolumeChange([newVolume]);
+  }, [volume, onVolumeChange]);
+
+  const handleVolumeDown = useCallback(() => {
+    // Ensure we have a proper UI volume array
+    const currentVolume = ensureUiVolumeFormat(volume);
+    // Calculate new volume, ensuring it doesn't go below 0
+    const newVolume = Math.max(0, currentVolume[0] - 5);
+    // Pass as array to match expected type
+    onVolumeChange([newVolume]);
+  }, [volume, onVolumeChange]);
+
   return {
     // Player state
     isPlaying,
@@ -86,6 +105,8 @@ export const useAudioPlaybackManager = ({
     handleToggleMute,
     handleVolumeChange: onVolumeChange, // Use the adapter for volume conversion
     handlePlaybackRateChange,
+    handleVolumeUp,
+    handleVolumeDown,
     seekToSegment, // Renamed for clarity
   };
 };
