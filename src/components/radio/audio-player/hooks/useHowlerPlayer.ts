@@ -609,7 +609,9 @@ export const useHowlerPlayer = ({
         
         // Special handling for AbortError - common during rapid play/pause
         const errObj = error as { name?: string; message?: string };
-        if (errObj && errObj.name === 'AbortError') {
+        
+        // Fix: Replace instanceof check with type property check
+        if (errObj && typeof errObj === 'object' && errObj.name === 'AbortError') {
           console.log('[HowlerPlayer] AbortError detected - ignoring as this is expected with rapid interactions');
         } else {
           // Try to resume AudioContext as that might be the issue
