@@ -72,7 +72,7 @@ export const AudioPlayerProvider = ({
     handlePlaybackRateChange,
     seekToTimestamp
   } = useAudioPlayer({
-    file,
+    file: file || new File([], "placeholder"),
     onEnded,
     onError
   });

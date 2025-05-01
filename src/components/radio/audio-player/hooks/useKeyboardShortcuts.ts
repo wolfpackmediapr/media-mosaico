@@ -81,7 +81,7 @@ export const useKeyboardShortcuts = ({
 
     window.addEventListener('keydown', handleKeyDown);
 
-    // Cleanup function: Correctly remove the event listener using the same function reference.
+    // Cleanup function
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
@@ -93,6 +93,5 @@ export const useKeyboardShortcuts = ({
     onVolumeDown,
     onToggleMute,
     disabled
-  ]); // Ensure all dependencies are listed
+  ]);
 };
-

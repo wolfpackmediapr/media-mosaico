@@ -2,12 +2,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
-import { useMediaControls } from './hooks/useMediaControls';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { usePlaybackControls } from './hooks/usePlaybackControls';
-import { useVolumeControls } from './hooks/useVolumeControls';
-import { useAudioProgress } from './hooks/useAudioProgress';
-import { formatTime } from './utils/timeFormatter';
+import { useMediaControls } from '../hooks/useMediaControls';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { usePlaybackControls } from '../hooks/usePlaybackControls';
+import { useVolumeControls } from '../hooks/useVolumeControls';
+import { useAudioProgress } from '../hooks/useAudioProgress';
+import { formatTime } from '../utils/timeFormatter';
 
 interface AudioPlayerOptions {
   file: File;
@@ -18,6 +18,9 @@ interface AudioPlayerOptions {
 export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) => {
   const howler = useRef<Howl | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
+  const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -34,12 +37,18 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
         onloaderror: (id, error) => {
           console.error('Audio loading error:', error);
           toast.error('Error loading audio file');
+          setPlaybackErrors(`Error loading audio: ${error}`);
           if (onError) onError(`Error loading audio: ${error}`);
         },
         onplayerror: (id, error) => {
           console.error('Audio playback error:', error);
           toast.error('Error playing audio file');
+          setPlaybackErrors(`Error playing audio: ${error}`);
           if (onError) onError(`Error playing audio: ${error}`);
+        },
+        onload: () => {
+          setIsLoading(false);
+          setIsReady(true);
         }
       });
 
@@ -52,6 +61,7 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     } catch (error) {
       console.error('Error initializing audio player:', error);
       toast.error('Error setting up audio player');
+      setPlaybackErrors(`Error initializing audio: ${error}`);
       if (onError) onError(`Error initializing audio: ${error}`);
     }
   }, [file, onEnded, onError]);
@@ -64,6 +74,10 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
   const { volume, isMuted, handleVolumeChange, toggleMute } = useVolumeControls();
 
   const { progress } = useAudioProgress({ howler, file, isPlaying });
+  
+  // Calculate current time based on progress
+  const currentTime = progress;
+  const duration = howler.current?.duration() || 0;
 
   useMediaControls({
     onPlay: () => !isPlaying && handlePlayPause(),
@@ -87,25 +101,28 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     }
   });
 
+  const seekToTimestamp = (time: number) => {
+    if (howler.current && isReady) {
+      handleSeek(time);
+    }
+  };
+
   return {
-    playbackState: {
-      isPlaying,
-      progress,
-      duration: howler.current?.duration() || 0,
-      isMuted
-    },
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    isMuted,
     playbackRate,
-    volumeControls: {
-      isMuted,
-      volume,
-      handleVolumeChange,
-      toggleMute
-    },
-    playbackControls: {
-      handlePlayPause,
-      handleSkip,
-      handleSeek
-    },
-    changePlaybackRate
+    playbackErrors,
+    isLoading,
+    isReady,
+    handlePlayPause,
+    handleSeek,
+    handleSkip,
+    handleToggleMute: toggleMute,
+    handleVolumeChange,
+    handlePlaybackRateChange: changePlaybackRate,
+    seekToTimestamp
   };
 };

@@ -1,3 +1,4 @@
 
-export { AudioPlayer } from './index.tsx';
+export { AudioPlayer } from './index';
 export type { AudioPlayerProps } from './types';
+

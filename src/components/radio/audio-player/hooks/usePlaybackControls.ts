@@ -39,12 +39,12 @@ export const usePlaybackControls = ({ howler, duration }: UsePlaybackControlsPro
     howler.current.seek(newTime);
   };
 
-  const changePlaybackRate = () => {
-    const rates = [0.5, 1.0, 1.5, 2.0];
-    const currentIndex = rates.indexOf(playbackRate);
-    const nextIndex = (currentIndex + 1) % rates.length;
-    setPlaybackRate(rates[nextIndex]);
-    toast.info(`Velocidad: ${rates[nextIndex]}x`);
+  const changePlaybackRate = (rate: number) => {
+    if (!howler.current) return;
+    
+    howler.current.rate(rate);
+    setPlaybackRate(rate);
+    toast.info(`Velocidad: ${rate}x`);
   };
 
   return {
