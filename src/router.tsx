@@ -5,7 +5,6 @@ import { lazyRoutes, settingsRoutes, publitecaRoutes, Index } from "./config/rou
 import Layout from "./components/layout/Layout";
 import PageLoader from "./components/common/PageLoader";
 import { MediaPersistenceProvider } from "@/context/MediaPersistenceContext";
-import EnhancedErrorBoundary from "@/components/common/EnhancedErrorBoundary";
 
 // Create a wrapper component that includes MediaPersistenceProvider
 const LayoutWithProviders = () => {
@@ -17,15 +16,6 @@ const LayoutWithProviders = () => {
     </Layout>
   );
 };
-
-// Helper function to create route elements with error handling
-const createRouteElement = (Component, routeName) => (
-  <EnhancedErrorBoundary routeSpecific={true} componentName={routeName}>
-    <Suspense fallback={<PageLoader />}>
-      <Component />
-    </Suspense>
-  </EnhancedErrorBoundary>
-);
 
 // Create routes with layout wrapper and suspense fallback
 export const router = createBrowserRouter([
@@ -39,77 +29,149 @@ export const router = createBrowserRouter([
       },
       {
         path: "radio",
-        element: createRouteElement(lazyRoutes.Radio, "Radio")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.Radio />
+          </Suspense>
+        )
       },
       {
         path: "tv",
-        element: createRouteElement(lazyRoutes.Tv, "Tv")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.Tv />
+          </Suspense>
+        )
       },
       {
         path: "prensa",
-        element: createRouteElement(lazyRoutes.Prensa, "Prensa")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.Prensa />
+          </Suspense>
+        )
       },
       {
         path: "prensa-escrita",
-        element: createRouteElement(lazyRoutes.PrensaEscrita, "PrensaEscrita")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.PrensaEscrita />
+          </Suspense>
+        )
       },
       {
         path: "redes-sociales",
-        element: createRouteElement(lazyRoutes.RedesSociales, "RedesSociales")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.RedesSociales />
+          </Suspense>
+        )
       },
       {
         path: "reportes",
-        element: createRouteElement(lazyRoutes.Reportes, "Reportes")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.Reportes />
+          </Suspense>
+        )
       },
       {
         path: "notificaciones",
-        element: createRouteElement(lazyRoutes.Notificaciones, "Notificaciones")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.Notificaciones />
+          </Suspense>
+        )
       },
       {
         path: "envio-alertas",
-        element: createRouteElement(lazyRoutes.EnvioAlertas, "EnvioAlertas")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.EnvioAlertas />
+          </Suspense>
+        )
       },
       {
         path: "ajustes",
-        element: createRouteElement(lazyRoutes.Ajustes, "Ajustes")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.Ajustes />
+          </Suspense>
+        )
       },
       {
         path: "ayuda",
-        element: createRouteElement(lazyRoutes.Ayuda, "Ayuda")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.Ayuda />
+          </Suspense>
+        )
       },
       {
         path: "media-monitoring",
-        element: createRouteElement(lazyRoutes.MediaMonitoring, "MediaMonitoring")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.MediaMonitoring />
+          </Suspense>
+        )
       },
       {
         path: "admin",
-        element: createRouteElement(lazyRoutes.Admin, "Admin")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <lazyRoutes.Admin />
+          </Suspense>
+        )
       },
       // Settings routes
       {
         path: "configuracion/general",
-        element: createRouteElement(settingsRoutes.GeneralSettings, "GeneralSettings")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <settingsRoutes.GeneralSettings />
+          </Suspense>
+        )
       },
       {
         path: "configuracion/notificaciones",
-        element: createRouteElement(settingsRoutes.NotificationsSettings, "NotificationsSettings")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <settingsRoutes.NotificationsSettings />
+          </Suspense>
+        )
       },
       // Publiteca routes
       {
         path: "publiteca/prensa",
-        element: createRouteElement(publitecaRoutes.PublitecaPrensa, "PublitecaPrensa")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <publitecaRoutes.PublitecaPrensa />
+          </Suspense>
+        )
       },
       {
         path: "publiteca/radio",
-        element: createRouteElement(publitecaRoutes.PublitecaRadio, "PublitecaRadio")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <publitecaRoutes.PublitecaRadio />
+          </Suspense>
+        )
       },
       {
         path: "publiteca/tv",
-        element: createRouteElement(publitecaRoutes.PublitecaTv, "PublitecaTv")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <publitecaRoutes.PublitecaTv />
+          </Suspense>
+        )
       },
       {
         path: "publiteca/redes-sociales",
-        element: createRouteElement(publitecaRoutes.PublitecaRedesSociales, "PublitecaRedesSociales")
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <publitecaRoutes.PublitecaRedesSociales />
+          </Suspense>
+        )
       }
     ]
   }

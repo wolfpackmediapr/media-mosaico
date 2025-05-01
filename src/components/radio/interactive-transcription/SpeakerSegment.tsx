@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { memo, useRef, useEffect } from "react";
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 import { formatTime } from "@/components/radio/timestamped/timeUtils";
 import { getSpeakerColor } from "./utils";
@@ -11,18 +11,74 @@ interface SpeakerSegmentProps {
   refProp?: React.RefObject<HTMLDivElement>;
 }
 
-const SpeakerSegment: React.FC<SpeakerSegmentProps> = ({
+// Using React.memo to prevent unnecessary re-renders
+const SpeakerSegment = memo<SpeakerSegmentProps>(({
   utterance,
   isActive,
   onClick,
   refProp,
 }) => {
   const speakerColor = getSpeakerColor(utterance.speaker);
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isClickingRef = useRef<boolean>(false);
+  const lastClickTimeRef = useRef<number>(0);
+  
+  // Clear any pending timeouts when unmounting
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+    };
+  }, []);
+  
+  // Enhanced click handling with better debouncing, safety checks, and cleanup
+  const handleClick = () => {
+    const now = Date.now();
+    
+    // Increased minimum time between clicks from 500ms to 800ms for better stability
+    if (now - lastClickTimeRef.current < 800) {
+      console.log("[SpeakerSegment] Click ignored, too soon after previous click");
+      return;
+    }
+    
+    lastClickTimeRef.current = now;
+    
+    if (isClickingRef.current) {
+      console.log("[SpeakerSegment] Click ignored, still processing previous click");
+      return;
+    }
+    
+    isClickingRef.current = true;
+    
+    // Clear any existing timeout to prevent potential race conditions
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
+    
+    // Increased delay to 300ms for better stability (from 200ms)
+    clickTimeoutRef.current = setTimeout(() => {
+      try {
+        onClick();
+      } catch (err) {
+        console.error("[SpeakerSegment] Error in click handler:", err);
+      } finally {
+        // Always reset clicking state after a delay, regardless of success/failure
+        // Use a separate timeout to ensure we don't block the UI
+        setTimeout(() => {
+          isClickingRef.current = false;
+          // Clear the timeout reference to prevent memory leaks
+          clickTimeoutRef.current = null;
+        }, 300);
+      }
+    }, 300);
+  };
   
   return (
     <div
       ref={refProp}
-      onClick={onClick}
+      onClick={handleClick}
       className={`
         p-3 rounded-lg transition-all cursor-pointer
         hover:bg-muted/50
@@ -61,6 +117,8 @@ const SpeakerSegment: React.FC<SpeakerSegmentProps> = ({
       </p>
     </div>
   );
-};
+});
+
+SpeakerSegment.displayName = 'SpeakerSegment';
 
 export default SpeakerSegment;

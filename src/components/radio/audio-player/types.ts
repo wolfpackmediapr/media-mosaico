@@ -1,16 +1,6 @@
 
-import { UploadedFile } from "@/components/radio/types"; // Assuming UploadedFile is defined here or imported correctly
-
-export interface UseAudioPlayerOptions {
-  file?: UploadedFile; // Changed from File to UploadedFile
-  onEnded?: () => void;
-  onError?: (message: string) => void;
-  preservePlaybackOnBlur?: boolean; // Added this option
-  resumeOnFocus?: boolean; // Added this option
-}
-
 export interface AudioPlayerProps {
-  file: UploadedFile; // Changed from File to UploadedFile
+  file: File;
   onEnded?: () => void;
   onError?: (error: string) => void;
 }
@@ -23,8 +13,8 @@ export interface PlaybackControls {
 
 export interface VolumeControls {
   isMuted: boolean;
-  volume: number | number[]; // Accept both number and number[]
-  handleVolumeChange: (value: number | number[]) => void; // Keep accepting array for slider compatibility
+  volume: number[];
+  handleVolumeChange: (value: number[]) => void;
   toggleMute: () => void;
 }
 

@@ -1,154 +1,97 @@
 
+import { createClient } from "@supabase/supabase-js";
 import { cleanHtmlContent, extractImageUrl } from "./content-utils.ts";
 import { POSTS_PER_FEED } from "./constants.ts";
 
-// Process RSS/JSON feed with better error handling
 export const processRssJsonFeed = async (supabase: any, feed: any, feedSourceId: string) => {
   console.log(`Fetching JSON feed: ${feed.url}`);
+  const response = await fetch(feed.url);
   
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
-    const response = await fetch(feed.url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Publimedia-FeedProcessor/1.0',
-        'Accept': 'application/json'
-      }
-    });
-    
-    clearTimeout(timeout);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    // Check for response type - must be JSON
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      console.warn(`Expected JSON but got ${contentType} from ${feed.url}`);
-      // Continue anyway as some servers may return wrong content-type
-    }
-    
-    let feedData;
-    try {
-      feedData = await response.json();
-    } catch (jsonError) {
-      throw new Error(`Invalid JSON response: ${jsonError.message}`);
-    }
-    
-    if (!feedData.items || !Array.isArray(feedData.items)) {
-      throw new Error("Invalid feed format: items array not found");
-    }
-    
-    console.log(`Found ${feedData.items.length} items in feed, will process up to ${POSTS_PER_FEED}`);
-    
-    // Process only the latest posts (up to POSTS_PER_FEED)
-    const articlesToInsert = [];
-    const itemsToProcess = feedData.items.slice(0, POSTS_PER_FEED);
-    
-    for (const item of itemsToProcess) {
-      const linkUrl = item.url || item.link;
-      if (!linkUrl) {
-        console.warn(`Skipping item without URL: ${item.title}`);
-        continue;
-      }
-      
-      try {
-        // Check if article already exists by link
-        const { data: existingArticle } = await supabase
-          .from("news_articles")
-          .select("id")
-          .eq("link", linkUrl)
-          .maybeSingle();
-        
-        if (existingArticle) {
-          console.log(`Article already exists: ${item.title}`);
-          continue;
-        }
-        
-        // Parse the publication date
-        let pubDate;
-        try {
-          pubDate = new Date(item.date_published || item.pubDate || item.published).toISOString();
-        } catch (e) {
-          console.error(`Error parsing date for "${item.title}": ${e.message}`);
-          pubDate = new Date().toISOString();
-        }
-        
-        // Get the best description content (prefer content_html over summary over description)
-        const description = cleanHtmlContent(
-          item.content_html || item.content || item.summary || item.description || ""
-        );
-        
-        // Extract image URL from multiple possible sources
-        const imageUrl = extractImageUrl(item);
-        
-        const newArticle = {
-          feed_source_id: feedSourceId,
-          title: item.title || 'Sin título',
-          description: description,
-          link: linkUrl,
-          pub_date: pubDate,
-          source: feed.name,
-          image_url: imageUrl,
-          category: "Social Media",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        articlesToInsert.push(newArticle);
-      } catch (itemError) {
-        // Log error but continue processing other items
-        console.error(`Error processing item "${item.title}": ${itemError.message}`);
-      }
-    }
-    
-    // Insert new articles in batch
-    if (articlesToInsert.length > 0) {
-      try {
-        const { data: insertedArticles, error: insertError } = await supabase
-          .from("news_articles")
-          .insert(articlesToInsert)
-          .select("id");
-        
-        if (insertError) {
-          throw new Error(`Error inserting articles: ${insertError.message}`);
-        }
-        
-        console.log(`Successfully inserted ${insertedArticles.length} articles from ${feed.name}`);
-        return insertedArticles.length;
-      } catch (batchError) {
-        console.error(`Batch insert failed for ${feed.name}: ${batchError.message}`);
-        
-        // Fall back to inserting one by one
-        let insertedCount = 0;
-        for (const article of articlesToInsert) {
-          try {
-            const { error } = await supabase
-              .from("news_articles")
-              .insert([article]);
-              
-            if (!error) {
-              insertedCount++;
-            }
-          } catch (singleInsertError) {
-            console.error(`Single insert failed: ${singleInsertError.message}`);
-          }
-        }
-        
-        console.log(`Fallback insertion completed: ${insertedCount}/${articlesToInsert.length} articles inserted`);
-        return insertedCount;
-      }
-    }
-    
-    console.log(`No new articles to insert for ${feed.name}`);
-    return 0;
-  } catch (error) {
-    console.error(`Failed to process feed ${feed.url}: ${error.message}`);
-    throw error;
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
   }
+  
+  const feedData = await response.json();
+  
+  if (!feedData.items || !Array.isArray(feedData.items)) {
+    throw new Error("Invalid feed format: items array not found");
+  }
+  
+  console.log(`Found ${feedData.items.length} items in feed, will process up to ${POSTS_PER_FEED}`);
+  
+  // Process only the latest posts (up to POSTS_PER_FEED)
+  const articlesToInsert = [];
+  const itemsToProcess = feedData.items.slice(0, POSTS_PER_FEED);
+  
+  for (const item of itemsToProcess) {
+    const linkUrl = item.url || item.link;
+    if (!linkUrl) {
+      console.warn(`Skipping item without URL: ${item.title}`);
+      continue;
+    }
+    
+    // Check if article already exists by link
+    const { data: existingArticle } = await supabase
+      .from("news_articles")
+      .select("id")
+      .eq("link", linkUrl)
+      .maybeSingle();
+    
+    if (existingArticle) {
+      console.log(`Article already exists: ${item.title}`);
+      continue;
+    }
+    
+    // Parse the publication date
+    let pubDate;
+    try {
+      pubDate = new Date(item.date_published || item.pubDate || item.published).toISOString();
+    } catch (e) {
+      console.error(`Error parsing date for "${item.title}": ${e.message}`);
+      pubDate = new Date().toISOString();
+    }
+    
+    // Get the best description content (prefer content_html over summary over description)
+    const description = cleanHtmlContent(
+      item.content_html || item.content || item.summary || item.description || ""
+    );
+    
+    // Extract image URL from multiple possible sources
+    const imageUrl = extractImageUrl(item);
+    
+    const newArticle = {
+      feed_source_id: feedSourceId,
+      title: item.title,
+      description: description,
+      link: linkUrl,
+      pub_date: pubDate,
+      source: feed.name,
+      image_url: imageUrl,
+      category: "Social Media",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    articlesToInsert.push(newArticle);
+  }
+  
+  // Insert new articles in batch
+  if (articlesToInsert.length > 0) {
+    const { data: insertedArticles, error: insertError } = await supabase
+      .from("news_articles")
+      .insert(articlesToInsert)
+      .select("id");
+    
+    if (insertError) {
+      throw new Error(`Error inserting articles: ${insertError.message}`);
+    }
+    
+    console.log(`Successfully inserted ${insertedArticles.length} articles from ${feed.name}`);
+    return insertedArticles.length;
+  }
+  
+  console.log(`No new articles to insert for ${feed.name}`);
+  return 0;
 };
 
 // Update the feed source with success or error information

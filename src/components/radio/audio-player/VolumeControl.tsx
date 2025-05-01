@@ -1,46 +1,46 @@
 
-import React from 'react';
-import { Slider } from '@/components/ui/slider';
-import { Button } from '@/components/ui/button';
-import { Volume1, Volume2, VolumeX } from 'lucide-react';
-
-interface VolumeControls {
-  isMuted: boolean;
-  volume: number | number[]; // Accept both number and number[]
-  handleVolumeChange: (value: number | number[]) => void;
-  toggleMute: () => void;
-}
+import React, { useState } from 'react';
+import { Volume1, Volume2, VolumeX } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { VolumeControls } from './types';
 
 interface VolumeControlProps {
   volumeControls: VolumeControls;
 }
 
-export const VolumeControl = ({ volumeControls }: VolumeControlProps) => {
+export function VolumeControl({ volumeControls }: VolumeControlProps) {
   const { isMuted, volume, handleVolumeChange, toggleMute } = volumeControls;
-
-  // Convert volume to number for comparison
-  const volumeValue = Array.isArray(volume) ? volume[0] : volume;
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   
-  const VolumeIcon = isMuted || volumeValue === 0 ? VolumeX : volumeValue < 50 ? Volume1 : Volume2;
-
-  // Ensure volume is always passed as an array to the Slider component
-  const volumeForSlider = Array.isArray(volume) ? volume : [volumeValue];
-
-  console.log('[VolumeControl] Volume:', volume, 'Type:', typeof volume, 'For slider:', volumeForSlider);
+  const VolumeIcon = isMuted ? VolumeX : volume[0] < 50 ? Volume1 : Volume2;
 
   return (
-    <div className="flex items-center space-x-2 w-32">
-      <Button variant="ghost" size="icon" onClick={toggleMute}>
-        <VolumeIcon className="h-5 w-5" />
-      </Button>
-      <Slider
-        value={volumeForSlider} // Always provide as array
-        max={100}
-        step={1}
-        className="flex-grow"
-        onValueChange={handleVolumeChange} // handleVolumeChange accepts number | number[]
-        aria-label="Volume"
-      />
+    <div className="relative" 
+      onMouseEnter={() => setShowVolumeSlider(true)} 
+      onMouseLeave={() => setShowVolumeSlider(false)}
+    >
+      <button
+        onClick={toggleMute}
+        className="p-2 text-gray-600 dark:text-gray-400 
+          hover:text-primary dark:hover:text-primary 
+          transition-colors"
+      >
+        <VolumeIcon className="w-5 h-5" />
+      </button>
+      
+      {showVolumeSlider && (
+        <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-background border border-border rounded-lg shadow-lg p-3 w-24">
+          <Slider
+            defaultValue={volume}
+            max={100}
+            step={1}
+            value={volume}
+            onValueChange={handleVolumeChange}
+            orientation="vertical"
+            className="h-24"
+          />
+        </div>
+      )}
     </div>
   );
-};
+}

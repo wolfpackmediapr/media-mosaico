@@ -2,13 +2,12 @@
 import React, { useEffect, useRef } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
-// Removed useMediaPersistence import as it's not used directly here anymore
+import { useMediaPersistence } from "@/context/MediaPersistenceContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { UploadedFile } from "../types"; // Import UploadedFile
 
 interface RightSectionProps {
-  currentFile: UploadedFile | null; // Use UploadedFile
+  currentFile: File | null;
   metadata: {
     emisora?: string;
     programa?: string;
@@ -17,20 +16,20 @@ interface RightSectionProps {
     station_id?: string;
     program_id?: string;
   };
-  files: UploadedFile[]; // Use UploadedFile
+  files: File[];
   currentFileIndex: number;
   isPlaying: boolean;
   currentTime: number;
   duration: number;
   isMuted: boolean;
-  volume: number | number[]; // Accept both number and number[]
+  volume: number[];
   playbackRate: number;
   playbackErrors?: string | null;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
-  onSkip: (direction: 'forward' | 'backward', amount?: number) => void; // Added amount parameter
+  onSkip: (direction: 'forward' | 'backward') => void;
   onToggleMute: () => void;
-  onVolumeChange: (value: number | number[]) => void; // Accept number or array
+  onVolumeChange: (value: number[]) => void;
   onPlaybackRateChange: () => void;
   handleTrackSelect: (index: number) => void;
 }
@@ -44,7 +43,7 @@ const RightSection = ({
   currentTime,
   duration,
   isMuted,
-  volume, // Can be number or number[]
+  volume,
   playbackRate,
   playbackErrors,
   onPlayPause,
@@ -55,7 +54,7 @@ const RightSection = ({
   onPlaybackRateChange,
   handleTrackSelect
 }: RightSectionProps) => {
-  // const { lastPlaybackPosition, setLastPlaybackPosition } = useMediaPersistence(); // Removed if not used
+  const { lastPlaybackPosition, setLastPlaybackPosition } = useMediaPersistence();
   const previousTimeRef = useRef<number>(currentTime);
 
   // Handle document visibility changes to maintain audio playback across tabs
@@ -82,13 +81,13 @@ const RightSection = ({
       // Only update if we have a valid position
       if (currentTime > 0) {
         const fileId = currentFile.name + '-' + currentFile.size;
-        // setLastPlaybackPosition({
-        //   ...lastPlaybackPosition,
-        //   [fileId]: currentTime
-        // });
+        setLastPlaybackPosition({
+          ...lastPlaybackPosition,
+          [fileId]: currentTime
+        });
       }
     }
-  }, [currentTime, currentFile/*, lastPlaybackPosition, setLastPlaybackPosition */]);
+  }, [currentTime, currentFile, lastPlaybackPosition, setLastPlaybackPosition]);
 
   // Register for Media Session API when available
   useEffect(() => {
@@ -118,8 +117,6 @@ const RightSection = ({
     }
   }, [currentFile, metadata, isPlaying, onPlayPause, onSkip]);
 
-  console.log('[RightSection] Rendering with volume:', volume, 'Type:', typeof volume, 'Array?', Array.isArray(volume));
-
   return (
     <div className="space-y-4">
       {playbackErrors && currentFile && (
@@ -131,7 +128,7 @@ const RightSection = ({
           </AlertDescription>
         </Alert>
       )}
-
+      
       {currentFile && (
         <MediaControls
           currentFile={currentFile}
@@ -140,13 +137,13 @@ const RightSection = ({
           currentTime={currentTime}
           duration={duration}
           isMuted={isMuted}
-          volume={volume} // Pass volume directly without conversion - MediaControls now handles both types
+          volume={volume}
           playbackRate={playbackRate}
           onPlayPause={onPlayPause}
           onSeek={onSeek}
           onSkip={onSkip}
           onToggleMute={onToggleMute}
-          onVolumeChange={onVolumeChange} // Pass handler directly
+          onVolumeChange={onVolumeChange}
           onPlaybackRateChange={onPlaybackRateChange}
         />
       )}
@@ -156,8 +153,8 @@ const RightSection = ({
           currentFileIndex={currentFileIndex}
           onSelectTrack={handleTrackSelect}
           isPlaying={isPlaying}
-          currentTime={currentTime} // Pass the missing prop
-          duration={duration}      // Pass the missing prop
+          currentTime={currentTime}
+          duration={duration}
         />
       )}
     </div>

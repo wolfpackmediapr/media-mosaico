@@ -3,20 +3,10 @@ import { useRadioTabState } from "@/hooks/radio/useRadioTabState";
 import { usePersistentAudioState } from "@/hooks/radio/usePersistentAudioState";
 import RadioContainer from "@/components/radio/RadioContainer";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useEffect, useState } from "react";
-import EnhancedErrorBoundary from "@/components/common/EnhancedErrorBoundary";
-import { useAuthStatus } from "@/hooks/use-auth-status";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const Radio = () => {
-  // Check authentication status
-  const { isAuthenticated } = useAuthStatus();
-  const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
-  
   // Use radio tab state for persisting transcription text
   const { textContent, setTextContent } = useRadioTabState({
     persistKey: "radio-transcription",
@@ -40,48 +30,14 @@ const Radio = () => {
     
     window.addEventListener('beforeunload', handleBeforeUnload);
     
-    console.log("[Radio] Component mounted");
-    setIsLoading(false);
-    
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-pulse text-center">
-          <p>Cargando...</p>
-        </div>
-      </div>
-    );
-  }
-
-  console.log("[Radio] Rendering Radio component, authenticated:", isAuthenticated);
-
   return (
-    <EnhancedErrorBoundary componentName="Radio Page" routeSpecific={true}>
+    <ErrorBoundary>
       <TooltipProvider>
-        {!isAuthenticated && (
-          <Alert className="mb-4">
-            <Info className="h-4 w-4" />
-            <AlertTitle>Iniciar sesión recomendado</AlertTitle>
-            <AlertDescription>
-              <p className="mb-2">
-                Para guardar tus archivos de audio y transcripciones de manera permanente,
-                inicia sesión en tu cuenta.
-              </p>
-              <Button 
-                onClick={() => navigate('/login')}
-                size="sm"
-                variant="outline"
-              >
-                Iniciar sesión
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
         <RadioContainer 
           persistedText={textContent} 
           onTextChange={setTextContent}
@@ -92,7 +48,7 @@ const Radio = () => {
           setIsMediaPlaying={setIsMediaPlaying}
         />
       </TooltipProvider>
-    </EnhancedErrorBoundary>
+    </ErrorBoundary>
   );
 };
 

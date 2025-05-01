@@ -8,7 +8,7 @@ import { PlaybackControls as PlaybackControlsType, VolumeControls } from './type
 interface AudioPlayerControlsProps {
   isPlaying: boolean;
   playbackControls: PlaybackControlsType;
-  volumeControls: VolumeControls; // Now accepts volume as number | number[]
+  volumeControls: VolumeControls;
   playbackRate: number;
   onChangePlaybackRate: () => void;
 }
@@ -16,22 +16,19 @@ interface AudioPlayerControlsProps {
 export function AudioPlayerControls({
   isPlaying,
   playbackControls,
-  volumeControls, // volumeControls.volume can be number | number[]
+  volumeControls,
   playbackRate,
   onChangePlaybackRate
 }: AudioPlayerControlsProps) {
-  console.log('[AudioPlayerControls] Volume:', volumeControls.volume, 'Type:', typeof volumeControls.volume);
-  
   return (
     <div className="flex items-center justify-between px-2">
       <PlaybackControls isPlaying={isPlaying} controls={playbackControls} />
-
+      
       <div className="flex items-center space-x-2">
         <PlaybackRateButton
           playbackRate={playbackRate}
           onChange={onChangePlaybackRate}
         />
-        {/* Pass volumeControls directly - VolumeControl now handles both types */}
         <VolumeControl volumeControls={volumeControls} />
       </div>
     </div>

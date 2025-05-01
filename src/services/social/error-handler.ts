@@ -7,65 +7,21 @@ const ERROR_MESSAGES = {
   posts: "No se pudieron cargar las publicaciones",
   refresh: "No se pudieron actualizar los feeds",
   auth: "Debe iniciar sesión para actualizar el feed",
-  feed: "No se pudo cargar el feed",
-  timeout: "La operación tomó demasiado tiempo",
-  network: "Error de conexión de red",
-  audio: "Error al reproducir el audio",
+  feed: "No se pudo cargar el feed de Jay Fonseca",
   default: "Ha ocurrido un error inesperado"
 };
 
-// Type predicates for error object
-const hasName = (err: unknown): err is { name: string } => 
-  typeof err === 'object' && err !== null && 'name' in err;
-
-const hasMessage = (err: unknown): err is { message: string } => 
-  typeof err === 'object' && err !== null && 'message' in err;
-
 export const handleSocialFeedError = (
   error: unknown, 
-  errorType: keyof typeof ERROR_MESSAGES | string
+  errorType: keyof typeof ERROR_MESSAGES
 ) => {
   console.error(`Error ${errorType}:`, error);
   
-  // Determine if it's a timeout error
-  const isTimeout = 
-    (hasName(error) && error.name === 'AbortError') || 
-    (hasMessage(error) && error.message.includes('timeout'));
-  
-  // Determine if it's a network error
-  const isNetworkError = 
-    (hasName(error) && error.name === 'NetworkError') ||
-    (hasMessage(error) && (
-      error.message.includes('network') ||
-      error.message.includes('Failed to fetch') ||
-      error.message.includes('Network request failed')
-    ));
-  
-  // Determine if it's an audio error
-  const isAudioError =
-    (hasName(error) && (error.name === 'NotAllowedError' || error.name === 'NotSupportedError')) ||
-    (hasMessage(error) && (
-      error.message.includes('audio') ||
-      error.message.includes('playback') ||
-      error.message.includes('howler') ||
-      error.message.includes('play()')
-    ));
-  
-  // Choose the appropriate error message
-  let errorMessage;
-  if (isTimeout) {
-    errorMessage = ERROR_MESSAGES.timeout;
-  } else if (isNetworkError) {
-    errorMessage = ERROR_MESSAGES.network;
-  } else if (isAudioError) {
-    errorMessage = ERROR_MESSAGES.audio;
-  } else if (error instanceof Error) {
-    errorMessage = error.message;
-  } else {
-    errorMessage = ERROR_MESSAGES[errorType as keyof typeof ERROR_MESSAGES] || ERROR_MESSAGES.default;
-  }
+  const errorMessage = error instanceof Error 
+    ? error.message 
+    : ERROR_MESSAGES[errorType] || ERROR_MESSAGES.default;
 
   toast.error(errorMessage, {
-    description: error instanceof Error ? error.message.substring(0, 100) : undefined,
+    description: error instanceof Error ? error.message : undefined,
   });
 };

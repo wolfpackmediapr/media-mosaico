@@ -1,12 +1,11 @@
+
 import { useState, useEffect } from "react";
 import { useAuthStatus } from "@/hooks/use-auth-status";
-import { usePersistentAudioFiles } from "@/hooks/radio/usePersistentAudioFiles";
+import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
 import { useRadioPlayer } from "@/hooks/radio/useRadioPlayer";
 import { toast } from "sonner";
-import { UploadedFile } from "@/components/radio/types"; // Import UploadedFile
-import { deleteAllUserAudioFiles } from "@/services/supabase/fileStorage"; // Import the new function
 
 interface UseRadioContainerStateProps {
   persistedText?: string;
@@ -37,14 +36,11 @@ export const useRadioContainerState = ({
     currentFileIndex,
     setCurrentFileIndex,
     currentFile,
-    isUploading,
-    handleFilesAdded: handleFileAdded,
     handleRemoveFile,
-    uploadFile
-  } = usePersistentAudioFiles({
+    handleFilesAdded
+  } = useRadioFiles({
     persistKey,
-    storage,
-    autoUpload: true
+    storage
   });
 
   const {
@@ -92,8 +88,7 @@ export const useRadioContainerState = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    handleSeekToSegment,
-    unloadAudio // Get the unloadAudio method from useRadioPlayer
+    handleSeekToSegment
   } = useRadioPlayer({
     currentFile,
     isActiveMediaRoute,
@@ -112,26 +107,8 @@ export const useRadioContainerState = ({
     }
   }, [audioPlaybackErrors]);
 
-  const handleClearAll = async () => {
+  const handleClearAll = () => {
     console.log('[RadioContainer] handleClearAll: Starting clear sequence');
-
-    // First unload any active audio to stop playback and clean up resources
-    if (unloadAudio) {
-      console.log('[RadioContainer] handleClearAll: Unloading active audio');
-      unloadAudio();
-    }
-    
-    // Delete files from Supabase storage and database if user is authenticated
-    if (isAuthenticated) {
-      toast.info('Borrando archivos guardados...');
-      const { success, error } = await deleteAllUserAudioFiles();
-      if (!success) {
-        console.error('[RadioContainer] Error deleting remote files:', error);
-        toast.error('Error al borrar archivos remotos');
-      }
-    }
-    
-    // Then continue with the standard clearing process
     resetTranscription();
     setNewsSegments([]);
     setFiles([]);
@@ -151,29 +128,31 @@ export const useRadioContainerState = ({
   };
 
   // Fixed function to properly handle the return type
-  const handleFilesAdded = (newFiles: File[]) => {
-    // Call the original handler from usePersistentAudioFiles
-    handleFileAdded(newFiles);
-
+  const enhancedHandleFilesAdded = (newFiles: File[]) => {
+    // Call the original function
+    const result = handleFilesAdded(newFiles);
+    
     // If files were added, show success toast
     if (newFiles.length > 0) {
       toast.success(`${newFiles.length} archivos añadidos correctamente`);
       setLastAction('files-added');
       setPlaybackErrors(null); // Reset errors when adding new files
     }
+    
+    // Return the result of the original function
+    return result;
   };
 
   return {
     // Auth
     isAuthenticated,
     // Files
-    files: files as UploadedFile[], // Cast to UploadedFile[]
+    files,
     currentFile,
     currentFileIndex,
     // Processing
     isProcessing,
     progress,
-    isUploading,
     // Transcription
     transcriptionText,
     transcriptionId,
@@ -184,7 +163,7 @@ export const useRadioContainerState = ({
     isPlaying,
     currentTime,
     duration,
-    volume, // Return volume as number
+    volume,
     isMuted,
     playbackRate,
     playbackErrors,
@@ -193,7 +172,7 @@ export const useRadioContainerState = ({
     // Handlers
     handleClearAll,
     handleTrackSelect,
-    handleFilesAdded,
+    handleFilesAdded: enhancedHandleFilesAdded,
     setFiles,
     setCurrentFileIndex,
     setIsProcessing,

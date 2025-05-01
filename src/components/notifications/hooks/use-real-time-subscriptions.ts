@@ -17,7 +17,7 @@ export function useRealTimeSubscriptions() {
   
   // Refresh notifications
   const refreshNotifications = () => {
-    console.log("Refreshing notification queries...");
+    console.log("Actualizando consultas de notificaciones...");
     // Invalidate all notification-related queries
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
     queryClient.invalidateQueries({ queryKey: ["notifications-feed"] });
@@ -25,7 +25,7 @@ export function useRealTimeSubscriptions() {
   };
 
   useEffect(() => {
-    console.log("Setting up real-time notification listeners");
+    console.log("Configurando escuchas de notificaciones en tiempo real");
     
     // Request browser notification permission
     requestNotificationPermission();
@@ -41,7 +41,7 @@ export function useRealTimeSubscriptions() {
           table: "client_alerts"
         },
         (payload) => {
-          console.log("New client alert detected:", payload);
+          console.log("Nueva alerta de cliente detectada:", payload);
           const alert = payload.new;
           const notificationId = `alert-${alert.id}`;
           
@@ -86,7 +86,7 @@ export function useRealTimeSubscriptions() {
           table: "transcriptions"
         },
         (payload) => {
-          console.log("New transcription detected:", payload);
+          console.log("Nueva transcripción detectada:", payload);
           const newItem = payload.new;
           const notificationId = `transcription-${newItem.id}`;
           
@@ -115,7 +115,7 @@ export function useRealTimeSubscriptions() {
           table: "press_clippings"
         },
         (payload) => {
-          console.log("New press clipping detected:", payload);
+          console.log("Nuevo recorte de prensa detectado:", payload);
           const newItem = payload.new;
           const notificationId = `press-${newItem.id}`;
           
@@ -144,7 +144,7 @@ export function useRealTimeSubscriptions() {
           table: "news_articles"
         },
         (payload) => {
-          console.log("New news article detected:", payload);
+          console.log("Nueva noticia detectada:", payload);
           const newItem = payload.new;
           const notificationId = `news-${newItem.id}`;
           
@@ -166,12 +166,12 @@ export function useRealTimeSubscriptions() {
         }
       )
       .subscribe((status) => {
-        console.log("Realtime subscription status:", status);
+        console.log("Estado de suscripción en tiempo real:", status);
       });
     
     // Cleanup subscription when component unmounts
     return () => {
-      console.log("Cleaning up real-time notification listeners");
+      console.log("Limpiando escuchas de notificaciones en tiempo real");
       supabase.removeChannel(channel);
     };
   }, [queryClient, playNotificationSound, shouldShowNotification]);

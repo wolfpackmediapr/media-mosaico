@@ -1,18 +1,15 @@
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAudioPlayer } from "../../components/radio/audio-player/hooks/useAudioPlayer";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
-import { toast } from "sonner";
-
-interface AudioFile extends File {
-  preview?: string;
-  remoteUrl?: string;
-  storagePath?: string;
-  isUploaded?: boolean;
-}
+import { useAudioErrorHandling } from "./processing/useAudioErrorHandling";
+import { useAudioUnlock } from "./processing/useAudioUnlock";
+import { useExternalAudioSync } from "./processing/useExternalAudioSync";
+import { useAudioVisibilitySync } from "./processing/useAudioVisibilitySync";
+import { useAudioPlaybackControl } from "./processing/useAudioPlaybackControl";
 
 interface AudioProcessingOptions {
-  currentFile: AudioFile | null;
+  currentFile: File | null;
   isActiveMediaRoute?: boolean;
   externalIsPlaying?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
@@ -25,22 +22,12 @@ export const useAudioProcessing = ({
   onPlayingChange = () => {}
 }: AudioProcessingOptions) => {
   const [prevPlayingState, setPrevPlayingState] = useState(false);
-  const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
-  const wasPlayingBeforeTabChange = useRef<boolean>(false);
-  const lastSeenTabVisible = useRef<number>(Date.now());
-  const errorShownRef = useRef<boolean>(false);
+  const isLoadingAudio = useRef<boolean>(false);
+  
+  // Use the audio unlock hook
+  const { attemptAudioUnlock } = useAudioUnlock();
 
-  const handleAudioError = (error: string) => {
-    console.error('[AudioProcessing] Audio error:', error);
-    setPlaybackErrors(error);
-    
-    // Prevent showing multiple error toasts for the same issue
-    if (!errorShownRef.current) {
-      errorShownRef.current = true;
-      // We don't show a toast here as the useAudioPlayer hook already shows one
-    }
-  };
-
+  // Core audio player functionality
   const {
     isPlaying,
     currentTime,
@@ -49,132 +36,101 @@ export const useAudioProcessing = ({
     isMuted,
     playbackRate,
     audioError,
+    isLoading,
+    isReady,
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp, // Now defined in useAudioPlayer
-    unloadAudio, // Now defined in useAudioPlayer
+    seekToTimestamp,
   } = useAudioPlayer({ 
-    file: currentFile || new File([], "empty"), // Provide a fallback empty File to prevent null errors
-    onError: handleAudioError
-  }); // Remove invalid options that don't match AudioPlayerOptions
+    file: currentFile || undefined,
+    // Add these options to persist audio across tab changes
+    preservePlaybackOnBlur: true,
+    resumeOnFocus: true,
+    onError: (error) => setPlaybackErrors(error)
+  });
 
-  // Reset error state when file changes
+  // Handle audio errors
+  const { playbackErrors, setPlaybackErrors } = useAudioErrorHandling({
+    currentFile,
+    playerAudioError: audioError,
+    onClearError: () => console.log("[useAudioProcessing] Error cleared")
+  });
+
+  // Track audio loading state
   useEffect(() => {
-    if (currentFile) {
-      setPlaybackErrors(null);
-      errorShownRef.current = false;
-      console.log(`[AudioProcessing] New file loaded: ${currentFile.name}`);
+    isLoadingAudio.current = isLoading || false;
+  }, [isLoading]);
+
+  // Sync with external play/pause commands
+  useExternalAudioSync({
+    isActiveMediaRoute,
+    externalIsPlaying,
+    internalIsPlaying: isPlaying,
+    isLoading,
+    isReady,
+    currentFile,
+    playbackErrors,
+    triggerPlay: originalHandlePlayPause,
+    triggerPause: originalHandlePlayPause,
+    onInternalPlayStateChange: (isPlaying) => {
+      onPlayingChange(isPlaying);
     }
-  }, [currentFile]);
+  });
 
-  // Sync with audioError from useAudioPlayer
-  useEffect(() => {
-    if (audioError) {
-      setPlaybackErrors(audioError);
-    }
-  }, [audioError]);
-
-  // Handle document visibility changes to persist playback across tab changes
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      const now = Date.now();
-      
-      if (document.hidden) {
-        // Tab is hidden, store current playing state
-        wasPlayingBeforeTabChange.current = isPlaying;
-        lastSeenTabVisible.current = now;
-        console.log("[useAudioProcessing] Tab hidden, saving playback state:", isPlaying);
-      } else {
-        // Tab is visible again
-        console.log("[useAudioProcessing] Tab visible again, previous state:", wasPlayingBeforeTabChange.current);
-        console.log("[useAudioProcessing] Time hidden:", Math.round((now - lastSeenTabVisible.current)/1000) + "s");
-        
-        // If it was playing before tab change, and we've been away for a short time
-        // Note: we only auto-resume if we've been away less than 30 minutes
-        const wasAwayLessThan30Min = (now - lastSeenTabVisible.current) < 30 * 60 * 1000;
-        
-        if (wasPlayingBeforeTabChange.current && !isPlaying && currentFile && wasAwayLessThan30Min) {
-          console.log("[useAudioProcessing] Resuming playback after tab change");
-          // Small delay to ensure audio context is ready
-          setTimeout(() => {
-            if (!playbackErrors) {
-              originalHandlePlayPause();
-            }
-          }, 100);
-        }
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [isPlaying, currentFile, originalHandlePlayPause, playbackErrors]);
+  // Handle tab visibility changes
+  useAudioVisibilitySync({
+    isPlaying,
+    isLoading,
+    isReady,
+    currentFile,
+    playbackErrors,
+    triggerPlay: originalHandlePlayPause,
+    triggerPause: originalHandlePlayPause
+  });
+  
+  // Use the new playback control hook
+  const {
+    handlePlayPause,
+    handleSeekToSegment,
+    cleanupPendingOperations
+  } = useAudioPlaybackControl({
+    isPlaying,
+    playbackErrors,
+    originalHandlePlayPause,
+    seekToTimestamp,
+    onPlayingChange
+  });
 
   // Sync our playing state with external state
   useEffect(() => {
-    // Only update if this is the active media route and the external state has changed
-    if (isActiveMediaRoute && externalIsPlaying !== isPlaying) {
-      if (externalIsPlaying) {
-        // If external state says we should be playing but we're not, try to play
-        if (!isPlaying && currentFile && !playbackErrors) {
-          originalHandlePlayPause();
-        }
-      } else {
-        // If external state says we should not be playing but we are, pause
-        if (isPlaying) {
-          originalHandlePlayPause();
-        }
-      }
-    }
-    
     // Save previous playing state to detect changes
     if (isPlaying !== prevPlayingState) {
       setPrevPlayingState(isPlaying);
+      
       // Notify parent about playing state changes
       onPlayingChange(isPlaying);
       
       // Update media session state
       if ('mediaSession' in navigator) {
-        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+        try {
+          navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+        } catch (e) {
+          console.warn("[useAudioProcessing] Error updating media session state:", e);
+        }
       }
     }
-  }, [isActiveMediaRoute, externalIsPlaying, isPlaying, prevPlayingState, currentFile, originalHandlePlayPause, onPlayingChange, playbackErrors]);
+  }, [isPlaying, prevPlayingState, onPlayingChange]);
 
-  // Wrapper for play/pause that also updates external state
-  const handlePlayPause = () => {
-    if (playbackErrors) {
-      toast.error("Cannot play audio", { 
-        description: "Audio file cannot be played due to errors",
-        duration: 3000
-      });
-      return;
-    }
-    
-    originalHandlePlayPause();
-    onPlayingChange(!isPlaying);
-  };
-
-  // Handler to seek to a specific segment
-  const handleSeekToSegment = (segment: RadioNewsSegment) => {
-    if (playbackErrors) {
-      toast.error("Cannot seek in audio", { 
-        description: "Audio file cannot be played due to errors",
-        duration: 3000
-      });
-      return;
-    }
-    
-    if (segment && segment.startTime !== undefined) {
-      seekToTimestamp(segment.startTime);
-      onPlayingChange(true);
-    }
-  };
+  // Cleanup effect on unmount
+  useEffect(() => {
+    return () => {
+      cleanupPendingOperations();
+    };
+  }, []);
 
   return {
     isPlaying,
@@ -191,6 +147,5 @@ export const useAudioProcessing = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
-    unloadAudio, // Export unloadAudio to be used in useRadioPlayer
   };
 };

@@ -1,83 +1,95 @@
 
-import React from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { CheckIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Circle } from "lucide-react";
-import type { SocialPlatform } from "@/types/social";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { platformIcons } from "@/lib/platform-icons";
 
 interface PlatformFiltersProps {
-  platforms: SocialPlatform[];
+  platforms: { id: string; name: string; count: number }[];
   selectedPlatforms: string[];
   onPlatformChange: (platforms: string[]) => void;
 }
 
-const PlatformFilters = ({ 
-  platforms = [], 
-  selectedPlatforms = [], 
-  onPlatformChange 
+const PlatformFilters = ({
+  platforms,
+  selectedPlatforms,
+  onPlatformChange,
 }: PlatformFiltersProps) => {
-  const handleTogglePlatform = (platformName: string) => {
-    const isSelected = selectedPlatforms.includes(platformName);
-    
-    if (isSelected) {
-      onPlatformChange(selectedPlatforms.filter(p => p !== platformName));
+  const togglePlatform = (platformName: string) => {
+    if (selectedPlatforms.includes(platformName)) {
+      onPlatformChange(selectedPlatforms.filter(name => name !== platformName));
     } else {
       onPlatformChange([...selectedPlatforms, platformName]);
     }
   };
 
-  // Handle case when platforms fails to load
-  if (!platforms || platforms.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Fuentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-muted-foreground">
-            No hay fuentes disponibles
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const clearFilters = () => {
+    onPlatformChange([]);
+  };
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Fuentes</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col space-y-2">
-          {platforms.map((platform) => (
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-lg font-medium">Plataformas</CardTitle>
+          {selectedPlatforms.length > 0 && (
             <button
-              key={platform.name}
-              onClick={() => handleTogglePlatform(platform.name)}
-              className="flex items-center justify-between p-2 rounded-md hover:bg-accent text-left"
+              onClick={clearFilters}
+              className="text-xs text-primary hover:underline"
             >
-              <div className="flex items-center space-x-2">
-                {selectedPlatforms.includes(platform.name) ? (
-                  <CheckCircle className="h-4 w-4 text-primary" />
-                ) : (
-                  <Circle className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span className="text-sm">{platform.name}</span>
-              </div>
-              <Badge variant="secondary" className="text-xs">
-                {platform.count}
-              </Badge>
+              Limpiar filtros
             </button>
-          ))}
+          )}
         </div>
-
-        {selectedPlatforms.length > 0 && (
-          <button
-            onClick={() => onPlatformChange([])}
-            className="text-xs text-primary hover:underline mt-3"
-          >
-            Limpiar filtros
-          </button>
-        )}
+      </CardHeader>
+      <Separator />
+      <CardContent className="pt-4">
+        <div className="space-y-4">
+          {platforms.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No hay plataformas disponibles
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {platforms.map((platform) => {
+                const isSelected = selectedPlatforms.includes(platform.name);
+                const PlatformIcon = platformIcons[platform.id] || platformIcons.twitter;
+                
+                return (
+                  <li key={platform.name}>
+                    <button
+                      onClick={() => togglePlatform(platform.name)}
+                      className={cn(
+                        "flex items-center w-full px-3 py-2 text-sm rounded-md transition-colors",
+                        isSelected
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-muted"
+                      )}
+                    >
+                      <div className="flex items-center flex-1">
+                        <div className={cn(
+                          "mr-2 h-4 w-4",
+                          isSelected ? "text-primary" : "text-muted-foreground"
+                        )}>
+                          <PlatformIcon className="h-4 w-4" />
+                        </div>
+                        <span>{platform.name}</span>
+                      </div>
+                      <Badge variant="outline" className="ml-auto">
+                        {platform.count}
+                      </Badge>
+                      {isSelected && (
+                        <CheckIcon className="ml-2 h-4 w-4 text-primary" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

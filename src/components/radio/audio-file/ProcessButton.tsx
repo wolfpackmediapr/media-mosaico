@@ -1,50 +1,28 @@
+
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { ProcessButtonProps } from './types';
 
-export interface ProcessButtonProps {
-  isProcessing: boolean;
-  processingComplete: boolean;
-  progress: number;
-  onProcess: () => void;
-  isUploaded?: boolean;
-  isUploading?: boolean;
-  uploadProgress?: number;
-}
-
-const ProcessButton: React.FC<ProcessButtonProps> = ({
+export const ProcessButton: React.FC<ProcessButtonProps> = ({
   isProcessing,
   processingComplete,
   progress,
-  onProcess,
-  isUploaded = false,
-  isUploading = false,
-  uploadProgress = 0
+  onProcess
 }) => {
-  // Button is disabled only if processing or already completed
-  const isDisabled = isProcessing || processingComplete;
-  
-  // Button text based on state - always keeping "Procesar" as the default text
-  let buttonText = "Procesar";
-  
-  if (isUploading) {
-    buttonText = `Subiendo ${Math.round(uploadProgress)}%`;
-  } else if (isProcessing) {
-    buttonText = `Procesando ${Math.round(progress)}%`;
-  } else if (processingComplete) {
-    buttonText = "Completado";
-  }
-  // We keep "Procesar" even when isUploaded is true but not processing or complete
-  
+  const getButtonText = () => {
+    if (!isProcessing && !processingComplete) return "Procesar Transcripción";
+    if (processingComplete) return "Procesamiento completado";
+    return `Procesando: ${progress}%`;
+  };
+
   return (
     <Button
-      disabled={isDisabled}
+      className="w-full relative"
       onClick={onProcess}
-      className="w-full"
-      variant={processingComplete ? "outline" : "default"}
+      disabled={isProcessing || processingComplete}
+      variant={processingComplete ? "secondary" : "default"}
     >
-      {(isProcessing || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-      {buttonText}
+      {getButtonText()}
     </Button>
   );
 };

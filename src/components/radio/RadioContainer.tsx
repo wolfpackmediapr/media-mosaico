@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useRadioContainerState } from "@/hooks/radio/useRadioContainerState";
 import RadioLayout from "./RadioLayout";
@@ -10,7 +9,6 @@ import {
   AnalysisSection,
   NewsSegmentsSection
 } from "./containers";
-import { UploadedFile } from "./types"; // Import UploadedFile
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -52,7 +50,7 @@ const RadioContainer = ({
         isAuthenticated={state.isAuthenticated}
         leftSection={
           <LeftSection
-            files={state.files as UploadedFile[]} // Cast files if necessary, ensure consistency
+            files={state.files}
             setFiles={state.setFiles}
             currentFileIndex={state.currentFileIndex}
             setCurrentFileIndex={state.setCurrentFileIndex}
@@ -71,20 +69,20 @@ const RadioContainer = ({
           <RightSection
             currentFile={state.currentFile}
             metadata={state.metadata}
-            files={state.files as UploadedFile[]} // Cast files if necessary
+            files={state.files}
             currentFileIndex={state.currentFileIndex}
             isPlaying={state.isPlaying}
             currentTime={state.currentTime}
             duration={state.duration}
             isMuted={state.isMuted}
-            volume={state.volume} // Pass volume directly without casting - RightSection now accepts number | number[]
+            volume={state.volume}
             playbackRate={state.playbackRate}
             playbackErrors={state.playbackErrors}
             onPlayPause={state.handlePlayPause}
             onSeek={state.handleSeek}
             onSkip={state.handleSkip}
             onToggleMute={state.handleToggleMute}
-            onVolumeChange={state.handleVolumeChange} // Pass the handler
+            onVolumeChange={state.handleVolumeChange}
             onPlaybackRateChange={state.handlePlaybackRateChange}
             handleTrackSelect={state.handleTrackSelect}
           />

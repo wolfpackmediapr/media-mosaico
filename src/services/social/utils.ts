@@ -1,7 +1,6 @@
 import type { SocialPost, SocialPlatform } from "@/types/social";
 import { extractImageFromHtml } from "./content-sanitizer";
 import { SOCIAL_PLATFORMS } from "./api";
-import { getFallbackImage } from "@/lib/platform-images";
 
 // Extract image URL from various possible sources in social feed data
 const extractImageUrl = (article: any): string | null => {
@@ -32,16 +31,9 @@ const extractImageUrl = (article: any): string | null => {
 // Transform database articles to SocialPost format
 export const transformArticlesToPosts = (articlesData: any[]): SocialPost[] => {
   return articlesData
-    .filter(article => article.feed_source)  // Skip articles without feed_source
     .map(article => {
       // Handle image extraction from various sources
       const image = article.image_url || extractImageUrl(article);
-      const sourceName = article.feed_source?.name || article.source || '';
-      const platformType = article.feed_source?.platform || 'social_media';
-      
-      // Set fallback profile image for the feed source
-      const profileImageUrl = article.feed_source?.profile_image_url || 
-                              getFallbackImage(sourceName, platformType);
       
       // Make sure we have all the required properties for the SocialPost type
       return {
@@ -50,15 +42,13 @@ export const transformArticlesToPosts = (articlesData: any[]): SocialPost[] => {
         description: article.description || '',
         link: article.link || '',
         pub_date: article.pub_date,
-        source: sourceName,
+        source: article.feed_source?.name || article.source || '',
         image_url: image,
-        platform: platformType,
-        platform_display_name: article.feed_source?.platform_display_name || 
-                              article.feed_source?.name || 
-                              article.source || 'Social Media',
+        platform: article.feed_source?.platform || 'social_media',
+        platform_display_name: article.feed_source?.name || article.feed_source?.platform_display_name || article.feed_source?.platform || 'Social Media',
         platform_icon: article.feed_source?.platform_icon,
         feed_source: article.feed_source ? {
-          profile_image_url: profileImageUrl,
+          profile_image_url: null,
           name: article.feed_source.name,
           platform: article.feed_source.platform
         } : undefined
