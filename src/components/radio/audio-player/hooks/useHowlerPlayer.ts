@@ -71,7 +71,7 @@ export const useHowlerPlayer = ({
     
     try {
       // Create a utility function to safely handle errors
-      const handleErrors = (error: unknown): { name?: string; message?: string } => {
+      const safelyHandleError = (error: unknown): { name?: string; message?: string } => {
         if (error && typeof error === 'object') {
           return error as { name?: string; message?: string };
         }
@@ -88,7 +88,7 @@ export const useHowlerPlayer = ({
         return true;
       }
     } catch (error) {
-      const errObj = handleErrors(error);
+      const errObj = safelyHandleError(error);
       
       // Special handling for AbortError - common during rapid play/pause
       if (errObj && errObj.name === 'AbortError') {

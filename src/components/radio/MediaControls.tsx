@@ -26,7 +26,7 @@ interface MediaControlsProps {
   onSkip: (direction: 'forward' | 'backward', amount?: number) => void;
   onToggleMute: () => void;
   onVolumeChange: (value: number[]) => void;  // Changed from (value: number) => void to (value: number[]) => void
-  onPlaybackRateChange: (newRate: number) => void;
+  onPlaybackRateChange: (newRate: number) => void;  // Changed to explicitly accept a number parameter
 }
 
 const MediaControls = ({
@@ -68,7 +68,7 @@ const MediaControls = ({
       onSkip={onSkip}
       onToggleMute={onToggleMute}
       onVolumeChange={onVolumeChange}
-      onPlaybackRateChange={onPlaybackRateChange}
+      onPlaybackRateChange={() => onPlaybackRateChange(playbackRate === 2 ? 0.5 : playbackRate + 0.5)} // Fixed by adding a wrapper function that passes the next rate
     />
   );
 };
