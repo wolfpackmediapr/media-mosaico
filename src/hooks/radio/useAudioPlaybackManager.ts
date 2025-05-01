@@ -58,9 +58,8 @@ export const useAudioPlaybackManager = ({
   }, [handleSeekToSegment]);
 
   // Volume wrapper to ensure consistent type handling
-  // Fixed to match the expected type signature
   const onVolumeChange = useCallback((value: number[]) => {
-    // We know handleVolumeChange can accept number[], so we're just passing it through
+    // Use the spread operator to ensure type compatibility
     handleVolumeChange(value);
   }, [handleVolumeChange]);
 
