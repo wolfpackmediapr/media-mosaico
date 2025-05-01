@@ -73,18 +73,18 @@ export const useAudioPlaybackManager = ({
   // Add volume up/down handlers that correctly handle array types
   const handleVolumeUp = useCallback(() => {
     // Ensure we have a proper UI volume array
-    const currentVolume = ensureUiVolumeFormat(volume);
+    const currentVolumeArray = ensureUiVolumeFormat(volume);
     // Calculate new volume, ensuring it doesn't exceed 100
-    const newVolume = Math.min(100, currentVolume[0] + 5);
+    const newVolume = Math.min(100, currentVolumeArray[0] + 5);
     // Pass as array to match expected type
     onVolumeChange([newVolume]);
   }, [volume, onVolumeChange]);
 
   const handleVolumeDown = useCallback(() => {
     // Ensure we have a proper UI volume array
-    const currentVolume = ensureUiVolumeFormat(volume);
+    const currentVolumeArray = ensureUiVolumeFormat(volume);
     // Calculate new volume, ensuring it doesn't go below 0
-    const newVolume = Math.max(0, currentVolume[0] - 5);
+    const newVolume = Math.max(0, currentVolumeArray[0] - 5);
     // Pass as array to match expected type
     onVolumeChange([newVolume]);
   }, [volume, onVolumeChange]);
