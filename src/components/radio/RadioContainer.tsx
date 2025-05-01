@@ -44,13 +44,8 @@ const RadioContainer = ({
 
   // Create wrapper functions to handle type mismatches between components
   const handleVolumeChangeWrapper = (value: number[]) => {
-    // If state.volume is a number, convert the first element of the array to a decimal value
-    if (typeof state.volume === 'number') {
-      state.handleVolumeChange(value[0] / 100);
-    } else {
-      // If state.volume is already an array, just pass the value directly
-      state.handleVolumeChange(value);
-    }
+    // Always pass the array directly since our volume handler now accepts arrays
+    state.handleVolumeChange(value);
   };
 
   const handlePlaybackRateChangeWrapper = () => {
@@ -61,7 +56,7 @@ const RadioContainer = ({
     state.handlePlaybackRateChange(rates[nextIndex]);
   };
 
-  // Ensure volume is an array for components that expect it
+  // Ensure volume is always in array format for components that expect it
   const volumeArray = Array.isArray(state.volume) ? state.volume : [state.volume * 100];
 
   return (

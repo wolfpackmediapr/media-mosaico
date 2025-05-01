@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AudioMetadata } from '@/types/audio';
 import { useAudioCore } from './core/useAudioCore';
@@ -69,7 +70,7 @@ export const useHowlerPlayer = ({
 
   // Playback state - manages play/pause, time tracking, volume, etc.
   const [
-    { isPlaying, currentTime, playbackRate, volume: volumeArray, isMuted },
+    { isPlaying, currentTime, playbackRate, volume, isMuted },
     { setIsPlaying, setPlaybackRate, setVolume, setIsMuted }
   ] = usePlaybackState({
     howl: !isUsingNativeAudio ? coreState.howl : null
@@ -81,7 +82,7 @@ export const useHowlerPlayer = ({
     isPlaying,
     currentTime,
     duration: coreState.duration,
-    volume: volumeArray[0] / 100, // Convert array to number for controls
+    volume: volume[0] / 100, // Convert array to number for controls
     isMuted,
     playbackRate,
     setIsPlaying,
@@ -147,8 +148,8 @@ export const useHowlerPlayer = ({
       nativeAudioRef.current.playbackRate = playbackRate;
       
       // Set native audio to current volume
-      const volumeValue = Array.isArray(volumeArray) ? volumeArray[0] / 100 : volumeArray / 100;
-      nativeAudioRef.current.volume = volumeValue;
+      const volumeValue = Array.isArray(volume) ? volume[0] / 100 : volume;
+      nativeAudioRef.current.volume = volumeValue / 100;
       
       // Set muted state
       nativeAudioRef.current.muted = isMuted;
@@ -168,7 +169,7 @@ export const useHowlerPlayer = ({
     } catch (error) {
       console.error('[HowlerPlayer] Error switching to native audio:', error);
     }
-  }, [file, isUsingNativeAudio, playbackRate, volumeArray, isMuted, setHowl]);
+  }, [file, isUsingNativeAudio, playbackRate, volume, isMuted, setHowl]);
 
   // Register error handler on howl instance
   useEffect(() => {
@@ -249,12 +250,12 @@ export const useHowlerPlayer = ({
 
   // Handle volume up/down functions (add these for compatibility)
   const handleVolumeUp = () => {
-    const newVolume = Math.min(100, volumeArray[0] + 5);
+    const newVolume = Math.min(100, volume[0] + 5);
     setVolume([newVolume]);
   };
 
   const handleVolumeDown = () => {
-    const newVolume = Math.max(0, volumeArray[0] - 5);
+    const newVolume = Math.max(0, volume[0] - 5);
     setVolume([newVolume]);
   };
 
@@ -264,7 +265,7 @@ export const useHowlerPlayer = ({
     duration: isUsingNativeAudio && nativeAudioRef.current ? 
               nativeAudioRef.current.duration : 
               coreState.duration,
-    volume: volumeArray,
+    volume,
     isMuted,
     playbackRate,
     playbackErrors,

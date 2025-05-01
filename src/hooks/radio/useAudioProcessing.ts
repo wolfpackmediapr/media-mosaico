@@ -38,8 +38,8 @@ export const useAudioProcessing = ({
     playbackErrors,
     isLoading,
     isReady,
-    isUsingNativeAudio, // Now properly passed from useAudioPlayer
-    switchToNativeAudio, // Now properly passed from useAudioPlayer
+    isUsingNativeAudio = false, // Provide default values if these are optional
+    switchToNativeAudio = () => {}, // Provide default values if these are optional
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
