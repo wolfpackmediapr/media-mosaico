@@ -1,10 +1,10 @@
+
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
-import { useRadioPlayer } from "@/hooks/radio/useRadioPlayer";
-import { useRadioActions } from "@/hooks/radio/useRadioActions"; // Import the new hook
-import { toast } from "sonner";
+import { useRadioActions } from "@/hooks/radio/useRadioActions";
+import { useAudioPlaybackManager } from "@/hooks/radio/useAudioPlaybackManager";
 import { UploadedFile } from "@/components/radio/types";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
@@ -44,10 +44,10 @@ interface RadioContainerState {
   playbackErrors: string | null;
   // State tracking
   lastAction: string | null;
-  // Handlers (Combined from sub-hooks and actions hook)
+  // Handlers
   handleClearAll: () => void;
   handleTrackSelect: (index: number) => void;
-  handleFilesAdded: (newFiles: File[]) => void; // This will be the enhanced one from useRadioActions
+  handleFilesAdded: (newFiles: File[]) => void;
   setFiles: (files: UploadedFile[]) => void;
   setCurrentFileIndex: (index: number) => void;
   setIsProcessing: (isProcessing: boolean) => void;
@@ -71,7 +71,6 @@ interface RadioContainerState {
   handleTranscriptionProcessingError: (error: any) => void;
 }
 
-
 export const useRadioContainerState = ({
   persistedText = "",
   onTextChange,
@@ -81,21 +80,20 @@ export const useRadioContainerState = ({
   isMediaPlaying = false,
   setIsMediaPlaying = () => {}
 }: UseRadioContainerStateProps): RadioContainerState => {
-  // Removed local state for lastAction and playbackErrors
-
+  // Files state management
   const {
     files,
     setFiles,
     currentFileIndex,
     setCurrentFileIndex,
     currentFile,
-    handleRemoveFile, // Keep original remove function if needed elsewhere, or pass to actions hook
-    handleFilesAdded: handleFilesAddedOriginal // Pass original to actions hook
+    handleFilesAdded: handleFilesAddedOriginal
   } = useRadioFiles({
     persistKey,
     storage
   });
 
+  // Transcription state management
   const {
     isProcessing,
     setIsProcessing,
@@ -117,8 +115,9 @@ export const useRadioContainerState = ({
     handleTranscriptionProcessingError
   } = useTranscriptionManagement();
 
+  // State clearing logic
   const {
-    clearAllState: clearAllStorageState, // Rename for clarity when passing to actions hook
+    clearAllState: clearAllStorageState,
     handleEditorRegisterReset,
     setClearAnalysis
   } = useClearRadioState({
@@ -127,6 +126,7 @@ export const useRadioContainerState = ({
     onTextChange
   });
 
+  // Audio playback management
   const {
     isPlaying,
     currentTime,
@@ -134,16 +134,15 @@ export const useRadioContainerState = ({
     volume,
     isMuted,
     playbackRate,
-    playbackErrors, // Get directly from player hook
+    playbackErrors,
     handlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange, // Get correctly typed handler
+    handleVolumeChange,
     handlePlaybackRateChange,
-    handleSeekToSegment
-    // Add resetPlaybackErrors if available and needed by useRadioActions
-  } = useRadioPlayer({
+    seekToSegment: handleSeekToSegment
+  } = useAudioPlaybackManager({
     currentFile,
     isActiveMediaRoute,
     isMediaPlaying,
@@ -154,12 +153,12 @@ export const useRadioContainerState = ({
     onTextChange
   });
 
-  // Use the new actions hook
+  // Radio actions
   const {
     lastAction,
     handleClearAll,
     handleTrackSelect,
-    handleFilesAdded // Get the enhanced version
+    handleFilesAdded
   } = useRadioActions({
     files,
     currentFileIndex,
@@ -169,14 +168,9 @@ export const useRadioContainerState = ({
     resetTranscription,
     setNewsSegments,
     clearAllStorageState
-    // Pass resetPlaybackErrors if implemented and needed
   });
 
-
-  // Removed useEffect for playbackErrors sync
-
-  // Removed definitions for handleClearAll, handleTrackSelect, enhancedHandleFilesAdded
-
+  // Return the complete state and handlers
   return {
     // Files
     files,
@@ -200,32 +194,31 @@ export const useRadioContainerState = ({
     playbackRate,
     playbackErrors,
     // State tracking
-    lastAction, // From useRadioActions
+    lastAction,
     // Handlers
-    handleClearAll, // From useRadioActions
-    handleTrackSelect, // From useRadioActions
-    handleFilesAdded, // From useRadioActions
-    setFiles, // From useRadioFiles
-    setCurrentFileIndex, // From useRadioFiles
-    setIsProcessing, // From useTranscriptionManagement
-    setProgress, // From useTranscriptionManagement
-    setTranscriptionText, // From useTranscriptionManagement
-    setTranscriptionId, // From useTranscriptionManagement
-    handleTranscriptionReceived, // From useTranscriptionManagement
-    handleTranscriptionTextChange, // From useTranscriptionManagement
-    handleSegmentsReceived, // From useTranscriptionManagement
-    handleMetadataChange, // From useTranscriptionManagement
-    handleEditorRegisterReset, // From useClearRadioState
-    setClearAnalysis, // From useClearRadioState
-    handlePlayPause, // From useRadioPlayer
-    handleSeek, // From useRadioPlayer
-    handleSkip, // From useRadioPlayer
-    handleToggleMute, // From useRadioPlayer
-    handleVolumeChange, // From useRadioPlayer
-    handlePlaybackRateChange, // From useRadioPlayer
-    handleSeekToSegment, // From useRadioPlayer
-    setNewsSegments, // From useTranscriptionManagement
-    handleTranscriptionProcessingError // From useTranscriptionManagement
-    // Note: handleRemoveFile from useRadioFiles is not currently exposed by useRadioContainerState
+    handleClearAll,
+    handleTrackSelect,
+    handleFilesAdded,
+    setFiles,
+    setCurrentFileIndex,
+    setIsProcessing,
+    setProgress,
+    setTranscriptionText,
+    setTranscriptionId,
+    handleTranscriptionReceived,
+    handleTranscriptionTextChange,
+    handleSegmentsReceived,
+    handleMetadataChange,
+    handleEditorRegisterReset,
+    setClearAnalysis,
+    handlePlayPause,
+    handleSeek,
+    handleSkip,
+    handleToggleMute,
+    handleVolumeChange,
+    handlePlaybackRateChange,
+    handleSeekToSegment,
+    setNewsSegments,
+    handleTranscriptionProcessingError
   };
 };

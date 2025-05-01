@@ -29,14 +29,14 @@ export const useAudioProcessing = ({
     volume,
     isMuted,
     playbackRate,
-    playbackErrors: rawPlaybackErrors, // Rename to avoid confusion
+    playbackErrors: rawPlaybackErrors,
     isLoading,
     isReady,
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange: originalHandleVolumeChange, // Rename
+    handleVolumeChange,
     handlePlaybackRateChange,
     setIsPlaying,
     seekToTimestamp
@@ -51,26 +51,6 @@ export const useAudioProcessing = ({
       rawPlaybackErrors :
       "Unknown error")
     : null;
-
-  // Wrapper for handleVolumeChange to ensure it matches (value: number[]) => void
-  const handleVolumeChange = (value: number[]) => {
-    // Assuming the original handler from useHowlerPlayer might accept number or number[]
-    // We ensure it receives number[] here. If it expects a single number, we'd need
-    // to adapt, but the error suggests the interface expects number[] downstream.
-    if (typeof originalHandleVolumeChange === 'function') {
-       // Check if the original function expects a number or number[]
-       // This is a basic check; more robust checking might be needed if types are complex
-       try {
-         // Attempt to call with array, assuming downstream expects it
-         (originalHandleVolumeChange as (val: number[]) => void)(value);
-       } catch (e) {
-         // Fallback if array fails, try with single number (first element)
-         console.warn("Volume handler might expect number, adapting.", e);
-         (originalHandleVolumeChange as (val: number) => void)(value[0]);
-       }
-    }
-  };
-
 
   // Handle audio state sync with other tabs
   useAudioVisibilitySync({
@@ -133,7 +113,7 @@ export const useAudioProcessing = ({
     isPlaying,
     currentTime,
     duration,
-    volume, // This should already be number[] from useVolumeControls used by HowlerPlayer
+    volume,
     isMuted,
     playbackRate,
     playbackErrors,
@@ -141,7 +121,7 @@ export const useAudioProcessing = ({
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange, // Pass the correctly typed wrapper
+    handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
   };

@@ -1,77 +1,54 @@
 
 import React from 'react';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface AudioErrorDisplayProps {
-  error: string | null;
-  file?: File | null;
-  className?: string;
-  onTryNativePlayer?: () => void;
+  error: string;
+  file?: File;
 }
 
-export function AudioErrorDisplay({ 
-  error, 
-  file, 
-  className = '',
-  onTryNativePlayer 
-}: AudioErrorDisplayProps) {
-  if (!error) return null;
+/**
+ * Component to display audio playback errors with helpful messages
+ */
+export const AudioErrorDisplay: React.FC<AudioErrorDisplayProps> = ({ error, file }) => {
+  // Get file extension if available
+  const fileExtension = file?.name?.split('.')?.pop()?.toUpperCase() || '';
   
-  // Determine if this is a codec/format issue
-  const isCodecError = error.includes('codec') || error.includes('format') || error.includes('NotSupported') || error.includes('_id');
+  // Determine error category to provide more helpful messages
+  const isFormatError = error.includes('format') || error.includes('codec') || 
+                        error.includes('NotSupported') || error.includes('_id');
+  const isNetworkError = error.includes('network') || error.includes('fetch') || 
+                         error.includes('load');
+  const isPermissionError = error.includes('permission') || error.includes('NotAllowed');
   
-  // Extract useful information from error message
-  const formatErrorMessage = (error: string): string => {
-    // Handle common audio playback errors with user-friendly messages
-    if (error.includes('AbortError')) {
-      return 'La reproducción fue interrumpida. Intenta de nuevo.';
-    }
-    
-    if (error.includes('NotSupportedError') || error.includes('format') || error.includes('codec') || error.includes('_id')) {
-      return 'El formato de audio no es compatible con el reproductor avanzado.';
-    }
-    
-    if (error.includes('NotAllowedError') || error.includes('permission')) {
-      return 'No hay permiso para reproducir audio. Verifica la configuración de tu navegador.';
-    }
-    
-    // Return simplified message for other errors
-    return 'No se puede reproducir el archivo de audio.';
-  };
+  // Determine appropriate error message
+  let errorTitle = 'Error de reproducción';
+  let errorMessage = 'Hubo un problema al reproducir este audio.';
   
+  if (isFormatError) {
+    errorTitle = 'Formato no compatible';
+    errorMessage = `El navegador no puede reproducir este archivo ${fileExtension}. Intente utilizar otro formato como MP3.`;
+  } else if (isNetworkError) {
+    errorTitle = 'Error de carga';
+    errorMessage = 'No se pudo cargar el archivo de audio.';
+  } else if (isPermissionError) {
+    errorTitle = 'Permiso denegado';
+    errorMessage = 'El navegador no permite reproducir audio automáticamente.';
+  }
+
   return (
-    <Alert variant="destructive" className={`mb-4 ${className}`}>
+    <Alert variant="destructive" className="mb-4">
       <AlertCircle className="h-4 w-4" />
-      <AlertTitle>Error reproduciendo audio</AlertTitle>
+      <AlertTitle>{errorTitle}</AlertTitle>
       <AlertDescription>
-        <div className="text-xs space-y-2">
-          <div>{formatErrorMessage(error)}</div>
-          
-          {file && (
-            <div className="mt-1 opacity-75">
-              Archivo: {file.name} ({Math.round(file.size / 1024)} KB)
-            </div>
-          )}
-          
-          {(isCodecError || error.includes('_id')) && onTryNativePlayer && (
-            <div className="mt-2">
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="bg-background hover:bg-background/90"
-                onClick={onTryNativePlayer}
-              >
-                Intentar con reproductor nativo
-              </Button>
-              <p className="text-xs mt-1 opacity-70">
-                El reproductor nativo de HTML5 puede ser compatible con este formato de audio.
-              </p>
-            </div>
-          )}
-        </div>
+        {errorMessage}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="text-xs mt-2 opacity-80 font-mono">
+            Error: {error}
+          </div>
+        )}
       </AlertDescription>
     </Alert>
   );
-}
+};

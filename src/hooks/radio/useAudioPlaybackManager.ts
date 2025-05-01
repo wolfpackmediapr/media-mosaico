@@ -1,10 +1,10 @@
 
-import { useEffect } from "react";
-import { useAudioProcessing } from "./useAudioProcessing";
-import { useAudioStateSync } from "./useAudioStateSync";
+import { useCallback, useState } from "react";
+import { useRadioPlayer } from "./useRadioPlayer";
 import { UploadedFile } from "@/components/radio/types";
+import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 
-interface RadioPlayerOptions {
+interface UseAudioPlaybackManagerProps {
   currentFile: UploadedFile | null;
   isActiveMediaRoute?: boolean;
   isMediaPlaying?: boolean;
@@ -15,7 +15,7 @@ interface RadioPlayerOptions {
   onTextChange?: (text: string) => void;
 }
 
-export const useRadioPlayer = ({
+export const useAudioPlaybackManager = ({
   currentFile,
   isActiveMediaRoute = true,
   isMediaPlaying = false,
@@ -24,16 +24,8 @@ export const useRadioPlayer = ({
   transcriptionText = "",
   setTranscriptionText = () => {},
   onTextChange
-}: RadioPlayerOptions) => {
-  // Handle audio state sync
-  useAudioStateSync({
-    persistedText,
-    transcriptionText,
-    setTranscriptionText,
-    onTextChange
-  });
-
-  // Audio processing with persistence support
+}: UseAudioPlaybackManagerProps) => {
+  // Player state from useRadioPlayer
   const {
     isPlaying,
     currentTime,
@@ -49,21 +41,29 @@ export const useRadioPlayer = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
-  } = useAudioProcessing({
+  } = useRadioPlayer({
     currentFile,
     isActiveMediaRoute,
-    externalIsPlaying: isMediaPlaying,
-    onPlayingChange: setIsMediaPlaying
+    isMediaPlaying,
+    setIsMediaPlaying,
+    persistedText,
+    transcriptionText,
+    setTranscriptionText,
+    onTextChange
   });
 
-  // Log any playback errors
-  useEffect(() => {
-    if (playbackErrors) {
-      console.error("[useRadioPlayer] Audio playback error:", playbackErrors);
-    }
-  }, [playbackErrors]);
+  // Create wrapper functions with consistent types if needed
+  const seekToSegment = useCallback((segmentOrTime: RadioNewsSegment | number) => {
+    handleSeekToSegment(segmentOrTime);
+  }, [handleSeekToSegment]);
+
+  // Volume wrapper to ensure consistent type handling
+  const onVolumeChange = useCallback((value: number[]) => {
+    handleVolumeChange(value);
+  }, [handleVolumeChange]);
 
   return {
+    // Player state
     isPlaying,
     currentTime,
     duration,
@@ -71,12 +71,13 @@ export const useRadioPlayer = ({
     isMuted,
     playbackRate,
     playbackErrors,
+    // Player controls
     handlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange,
+    handleVolumeChange: onVolumeChange, // Use the wrapper for consistent typing
     handlePlaybackRateChange,
-    handleSeekToSegment,
+    seekToSegment, // Renamed for clarity
   };
 };

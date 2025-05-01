@@ -1,3 +1,4 @@
+
 import { useRef } from "react";
 import { unmuteAudio } from "@/utils/audio-format-helper";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
@@ -85,7 +86,7 @@ export const useAudioPlaybackControl = ({
   };
 
   // Enhanced handler to seek to a specific segment with better error handling
-  const handleSeekToSegment = (segment: RadioNewsSegment) => {
+  const handleSeekToSegment = (segment: RadioNewsSegment | number) => {
     if (playbackErrors) {
       toast.error("No se puede buscar en el audio", { 
         description: "El archivo de audio no se puede reproducir debido a errores",
@@ -94,17 +95,25 @@ export const useAudioPlaybackControl = ({
       return;
     }
     
-    if (!segment || segment.startTime === undefined) {
+    // Handle either segment object or direct timestamp number
+    let timestamp: number;
+    
+    if (typeof segment === 'number') {
+      timestamp = segment;
+    } else if (segment && typeof segment === 'object' && segment.startTime !== undefined) {
+      timestamp = segment.startTime;
+    } else {
       console.error("[useAudioPlaybackControl] Invalid segment or missing startTime:", segment);
       return;
     }
     
-    console.log(`[useAudioPlaybackControl] Seeking to segment at ${segment.startTime}s`);
+    console.log(`[useAudioPlaybackControl] Seeking to time ${timestamp}s`);
+    
     try {
       // Add a small delay before seeking to avoid potential race conditions
       setTimeout(() => {
         try {
-          seekToTimestamp(segment.startTime);
+          seekToTimestamp(timestamp);
           
           // Set playing state after a longer delay to ensure seek completes first
           setTimeout(() => {
