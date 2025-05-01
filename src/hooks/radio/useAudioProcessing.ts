@@ -38,15 +38,15 @@ export const useAudioProcessing = ({
     playbackErrors,
     isLoading,
     isReady,
-    isUsingNativeAudio = false, // Provide default values if these are optional
-    switchToNativeAudio = () => {}, // Provide default values if these are optional
+    isUsingNativeAudio = false,
+    switchToNativeAudio = () => {},
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp, // This is just an alias for handleSeek
+    seekToTimestamp,
   } = useAudioPlayer({ 
     file: currentFile || undefined,
     // Add these options to persist audio across tab changes
@@ -60,7 +60,7 @@ export const useAudioProcessing = ({
     currentFile,
     playerAudioError: playbackErrors?.howlerError || null,
     onClearError: () => console.log("[useAudioProcessing] Error cleared"),
-    onSwitchToNative: switchToNativeAudio // Pass the switch method to error handling
+    onSwitchToNative: switchToNativeAudio
   });
 
   // Track audio loading state
@@ -139,7 +139,7 @@ export const useAudioProcessing = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume, // This will be an array from useAudioPlayer
     isMuted,
     playbackRate,
     playbackErrors: processedPlaybackErrors,

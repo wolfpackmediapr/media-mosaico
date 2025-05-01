@@ -12,7 +12,9 @@ export function VolumeControl({ volumeControls }: VolumeControlProps) {
   const { isMuted, volume, handleVolumeChange, toggleMute } = volumeControls;
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   
-  const VolumeIcon = isMuted ? VolumeX : volume[0] < 50 ? Volume1 : Volume2;
+  // Always use the first value for icon determination
+  const volumeValue = Array.isArray(volume) ? volume[0] : volume;
+  const VolumeIcon = isMuted ? VolumeX : volumeValue < 50 ? Volume1 : Volume2;
 
   return (
     <div className="relative" 

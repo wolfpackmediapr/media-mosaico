@@ -74,12 +74,11 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
   // For compatibility, let's define seekToTimestamp as an alias for handleSeek
   const seekToTimestamp = handleSeek;
 
-  // Return the same API that the previous implementation provided, plus the new properties
   return {
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume, // This is already an array from useHowlerPlayer
     isMuted,
     playbackRate,
     playbackErrors,

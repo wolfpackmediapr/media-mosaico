@@ -24,10 +24,10 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
     handlePlaybackRateChange
   } = useAudioPlayer({ file, onEnded });
 
-  // Ensure volume is always in array format for components that expect it
+  // Ensure volume is always in array format
   const volumeArray = Array.isArray(volume) ? volume : [volume * 100];
 
-  // Wrapper for volume change to handle both array and single number formats
+  // Wrapper for volume change that accepts number arrays
   const handleVolumeChangeWrapper = (newVolume: number[]) => {
     handleVolumeChange(newVolume);
   };

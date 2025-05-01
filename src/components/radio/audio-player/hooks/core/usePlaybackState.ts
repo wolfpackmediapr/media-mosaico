@@ -12,7 +12,7 @@ export const usePlaybackState = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [volume, setVolume] = useState([50]);
+  const [volume, setVolume] = useState<number[]>([50]);
   const [isMuted, setIsMuted] = useState(false);
   
   // Track current state of Howl instance to prevent operations on invalid instance
