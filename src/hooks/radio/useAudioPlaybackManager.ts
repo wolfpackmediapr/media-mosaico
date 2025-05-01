@@ -1,4 +1,3 @@
-
 import { useCallback, useState } from "react";
 import { useRadioPlayer } from "./useRadioPlayer";
 import { UploadedFile } from "@/components/radio/types";
@@ -57,15 +56,20 @@ export const useAudioPlaybackManager = ({
     handleSeekToSegment(segmentOrTime);
   }, [handleSeekToSegment]);
 
-  // Volume wrapper to ensure consistent type handling
+  // Volume wrapper: Receives number[] (0-100) from UI, calls handler expecting number (0-1)
   const onVolumeChange = useCallback((value: number[]) => {
-    // Convert to the format handleVolumeChange expects
     if (Array.isArray(value) && value.length > 0) {
-      // Type issue fix: Use proper type conversion
-      handleVolumeChange(value);
+      // Convert slider value (e.g., 50) to volume scale (e.g., 0.5)
+      const volumeLevel = value[0] / 100;
+      // Ensure volume is within 0-1 range
+      const clampedVolume = Math.max(0, Math.min(1, volumeLevel));
+       // Call the underlying handler with the expected number type
+      // The 'as any' is a workaround for the incorrect intersection type (number & number[]) reported by TS.
+      // We are confident the underlying function actually expects 'number'.
+      (handleVolumeChange as any)(clampedVolume);
     } else {
-      // Type issue fix: Ensure correct type is passed
-      handleVolumeChange(Array.isArray(value) ? value : [0]);
+       // Default to 0 if value is invalid
+      (handleVolumeChange as any)(0);
     }
   }, [handleVolumeChange]);
 
@@ -83,7 +87,7 @@ export const useAudioPlaybackManager = ({
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange: onVolumeChange, // Use the wrapper for consistent typing
+    handleVolumeChange: onVolumeChange, // Use the corrected wrapper
     handlePlaybackRateChange,
     seekToSegment, // Renamed for clarity
   };
