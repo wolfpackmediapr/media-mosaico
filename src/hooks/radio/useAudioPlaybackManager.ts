@@ -61,9 +61,11 @@ export const useAudioPlaybackManager = ({
   const onVolumeChange = useCallback((value: number[]) => {
     // Convert to the format handleVolumeChange expects
     if (Array.isArray(value) && value.length > 0) {
-      handleVolumeChange(value[0]);
+      // Create an array with a single number to match the expected type
+      handleVolumeChange([value[0]]);
     } else {
-      handleVolumeChange(Array.isArray(value) ? 0 : value);
+      // Ensure we're always passing an array
+      handleVolumeChange(Array.isArray(value) ? value : [0]);
     }
   }, [handleVolumeChange]);
 
