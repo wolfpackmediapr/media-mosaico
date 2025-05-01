@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Howl, Howler } from 'howler';
 import { toast } from 'sonner';
@@ -608,16 +609,17 @@ export const useHowlerPlayer = ({
         console.error('[HowlerPlayer] Error in play/pause:', error);
         
         // Special handling for AbortError - common during rapid play/pause
-        if (error instanceof Error && error.name === 'AbortError') {
+        const errObj = error as Error;
+        if (errObj && errObj.name === 'AbortError') {
           console.log('[HowlerPlayer] AbortError detected - ignoring as this is expected with rapid interactions');
         } else {
           // Try to resume AudioContext as that might be the issue
           tryResumeAudioContext();
           
           // Only show toast for non-abort errors
-          if (!(error instanceof Error && error.name === 'AbortError')) {
+          if (!(errObj && errObj.name === 'AbortError')) {
             toast.error('Error playing audio file');
-            if (onError && error instanceof Error) onError(error.message);
+            if (onError) onError(errObj ? errObj.message : String(error));
           }
         }
       }
@@ -752,23 +754,20 @@ export const useHowlerPlayer = ({
     }
   };
 
-  try {
-    // ... some code
-  } catch (error) {
-    // Fix the instanceof check by ensuring error is treated as an unknown type first
-    const isErrorInstance = error instanceof Error || 
-                            (typeof error === 'object' && error !== null && 'name' in error && 'message' in error);
-    
-    if (isErrorInstance) {
-      // Handle Error objects
-      console.error('[HowlerPlayer] Error:', error instanceof Error ? error.message : String(error));
+  // This is a try/catch block with correct error handling
+  const handleErrors = (error: unknown) => {
+    // Safe type checking for error objects
+    if (error && typeof error === 'object') {
+      const errorObj = error as { name?: string; message?: string };
+      if ('message' in errorObj) {
+        console.error('[HowlerPlayer] Error:', errorObj.message);
+      } else {
+        console.error('[HowlerPlayer] Unknown error object:', errorObj);
+      }
     } else {
-      // Handle non-Error objects
-      console.error('[HowlerPlayer] Unknown error:', String(error));
+      console.error('[HowlerPlayer] Non-object error:', String(error));
     }
-    
-    // Continue with error handling...
-  }
+  };
 
   return {
     isPlaying,
