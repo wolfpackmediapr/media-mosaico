@@ -19,9 +19,14 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
   const howler = useRef<Howl | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioKey, setAudioKey] = useState<string>(''); // Add a key to force re-render
 
   useEffect(() => {
-    console.log('Setting up audio player for file:', file.name);
+    console.log('[useAudioPlayer] Setting up audio player for file:', file?.name || 'No file');
+    
+    // Generate a unique key for this audio instance
+    setAudioKey(`audio-${Date.now()}-${file?.name || 'nofile'}`);
+    
     try {
       // Determine the best source URL to use
       let fileUrl;
@@ -29,17 +34,17 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
       // If the file has a remoteUrl property (uploaded file), use that
       if ('remoteUrl' in file && file.remoteUrl) {
         fileUrl = file.remoteUrl;
-        console.log('Using remote URL for audio:', fileUrl);
+        console.log('[useAudioPlayer] Using remote URL for audio:', fileUrl);
       } 
       // Otherwise if it has a preview property, use that
       else if ('preview' in file && file.preview) {
         fileUrl = file.preview;
-        console.log('Using preview URL for audio:', fileUrl);
+        console.log('[useAudioPlayer] Using preview URL for audio:', fileUrl);
       }
       // Last resort: create a new object URL
       else {
         fileUrl = URL.createObjectURL(file);
-        console.log('Created new object URL for audio:', fileUrl);
+        console.log('[useAudioPlayer] Created new object URL for audio:', fileUrl);
       }
 
       if (howler.current) {
@@ -49,29 +54,39 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
       const sound = new Howl({
         src: [fileUrl],
         html5: true, // Force HTML5 Audio to handle streaming better
-        onplay: () => setIsPlaying(true),
-        onpause: () => setIsPlaying(false),
+        onplay: () => {
+          console.log('[useAudioPlayer] Audio started playing');
+          setIsPlaying(true);
+        },
+        onpause: () => {
+          console.log('[useAudioPlayer] Audio paused');
+          setIsPlaying(false);
+        },
         onend: () => {
+          console.log('[useAudioPlayer] Audio playback ended');
           setIsPlaying(false);
           if (onEnded) onEnded();
         },
-        onstop: () => setIsPlaying(false),
+        onstop: () => {
+          console.log('[useAudioPlayer] Audio stopped');
+          setIsPlaying(false);
+        },
         onloaderror: (id, error) => {
-          console.error('Audio loading error:', error);
+          console.error('[useAudioPlayer] Audio loading error:', error);
           const errorMessage = `Error loading audio: ${error || 'Unknown error'}`;
           setAudioError(errorMessage);
           toast.error('Error loading audio file');
           if (onError) onError(errorMessage);
         },
         onplayerror: (id, error) => {
-          console.error('Audio playback error:', error);
+          console.error('[useAudioPlayer] Audio playback error:', error);
           const errorMessage = `Error playing audio: ${error || 'Unknown error'}`;
           setAudioError(errorMessage);
           toast.error('Error playing audio file');
           if (onError) onError(errorMessage);
         },
         onload: () => {
-          console.log('Audio loaded successfully');
+          console.log('[useAudioPlayer] Audio loaded successfully');
           setAudioError(null); // Clear any previous errors
         }
       });
@@ -86,7 +101,7 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
         }
       };
     } catch (error) {
-      console.error('Error initializing audio player:', error);
+      console.error('[useAudioPlayer] Error initializing audio player:', error);
       const errorMessage = `Error initializing audio: ${error || 'Unknown error'}`;
       setAudioError(errorMessage);
       toast.error('Error setting up audio player');
@@ -150,6 +165,7 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     isMuted,
     playbackRate,
     audioError,
+    audioKey,
     handlePlayPause,
     handleSeek,
     handleSkip,

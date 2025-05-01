@@ -6,6 +6,7 @@ import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "./components/ui/sonner";  // Use our custom Toaster component
 import { AuthProvider } from "@/context/AuthContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import EnhancedErrorBoundary from './components/common/EnhancedErrorBoundary';
 
 // Create a client with updated configurations
 const queryClient = new QueryClient({
@@ -19,18 +20,20 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          disableTransitionOnChange
-        >
-          <RouterProvider router={router} />
-          <Toaster /> {/* Use our custom Toaster with defaults */}
-        </ThemeProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <EnhancedErrorBoundary componentName="Application Root">
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            disableTransitionOnChange
+          >
+            <RouterProvider router={router} />
+            <Toaster /> {/* Use our custom Toaster with defaults */}
+          </ThemeProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </EnhancedErrorBoundary>
   );
 }
 

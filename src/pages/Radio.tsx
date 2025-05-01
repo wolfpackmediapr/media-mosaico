@@ -4,7 +4,7 @@ import { usePersistentAudioState } from "@/hooks/radio/usePersistentAudioState";
 import RadioContainer from "@/components/radio/RadioContainer";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
-import ErrorBoundary from "@/components/common/ErrorBoundary";
+import EnhancedErrorBoundary from "@/components/common/EnhancedErrorBoundary";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
@@ -39,6 +39,8 @@ const Radio = () => {
     };
     
     window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    console.log("[Radio] Component mounted");
     setIsLoading(false);
     
     return () => {
@@ -56,8 +58,10 @@ const Radio = () => {
     );
   }
 
+  console.log("[Radio] Rendering Radio component, authenticated:", isAuthenticated);
+
   return (
-    <ErrorBoundary>
+    <EnhancedErrorBoundary componentName="Radio Page" routeSpecific={true}>
       <TooltipProvider>
         {!isAuthenticated && (
           <Alert className="mb-4">
@@ -88,7 +92,7 @@ const Radio = () => {
           setIsMediaPlaying={setIsMediaPlaying}
         />
       </TooltipProvider>
-    </ErrorBoundary>
+    </EnhancedErrorBoundary>
   );
 };
 

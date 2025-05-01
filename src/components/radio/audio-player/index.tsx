@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { AudioPlayerProps } from './types';
 import { UploadedFile } from "@/components/radio/types"; // Import UploadedFile
+import EnhancedErrorBoundary from '@/components/common/EnhancedErrorBoundary';
 
 // Extend AudioPlayerProps to use UploadedFile
 interface EnhancedAudioPlayerProps extends Omit<AudioPlayerProps, 'file'> {
@@ -23,6 +24,7 @@ export const AudioPlayer = ({ file, onEnded, onError }: EnhancedAudioPlayerProps
     volume, // This can be number[] from useAudioPlayer
     playbackRate,
     audioError, // Get error state
+    audioKey,
     handlePlayPause,
     handleSeek,
     handleSkip,
@@ -41,6 +43,7 @@ export const AudioPlayer = ({ file, onEnded, onError }: EnhancedAudioPlayerProps
 
   // Display error message if present
   if (audioError) {
+    console.error('[AudioPlayer] Error with audio file:', audioError);
     return (
       <Card className="w-full border-destructive">
         <CardContent className="p-4 text-center text-destructive">
@@ -52,37 +55,39 @@ export const AudioPlayer = ({ file, onEnded, onError }: EnhancedAudioPlayerProps
   }
 
   // Use a unique key to force re-render of the player when the file changes
-  const audioKey = file.remoteUrl || file.preview || file.name;
+  const playerKey = audioKey || `${file.name}-${file.size}`;
 
   return (
-    <Card className="w-full" key={audioKey}>
-      <CardContent className="p-4">
-        <AudioPlayerHeader fileName={file.name || "Audio File"} /> {/* Added fallback for name */}
+    <EnhancedErrorBoundary componentName="AudioPlayer">
+      <Card className="w-full" key={playerKey}>
+        <CardContent className="p-4">
+          <AudioPlayerHeader fileName={file.name || "Audio File"} /> {/* Added fallback for name */}
 
-        <ProgressBar
-          progress={currentTime}
-          duration={duration}
-          onSeek={handleSeekWithClick}
-          formatTime={formatTime}
-        />
+          <ProgressBar
+            progress={currentTime}
+            duration={duration}
+            onSeek={handleSeekWithClick}
+            formatTime={formatTime}
+          />
 
-        <AudioPlayerControls
-          isPlaying={isPlaying}
-          playbackControls={{
-            handlePlayPause,
-            handleSeek,
-            handleSkip
-          }}
-          volumeControls={{
-            isMuted,
-            volume, // Pass volume as is (can be number[] from useVolumeControls)
-            handleVolumeChange,
-            toggleMute: handleToggleMute
-          }}
-          playbackRate={playbackRate}
-          onChangePlaybackRate={handlePlaybackRateChange}
-        />
-      </CardContent>
-    </Card>
+          <AudioPlayerControls
+            isPlaying={isPlaying}
+            playbackControls={{
+              handlePlayPause,
+              handleSeek,
+              handleSkip
+            }}
+            volumeControls={{
+              isMuted,
+              volume, // Pass volume as is (can be number[] from useVolumeControls)
+              handleVolumeChange,
+              toggleMute: handleToggleMute
+            }}
+            playbackRate={playbackRate}
+            onChangePlaybackRate={handlePlaybackRateChange}
+          />
+        </CardContent>
+      </Card>
+    </EnhancedErrorBoundary>
   );
 };
