@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AudioMetadata } from '@/types/audio';
 import { useAudioCore } from './core/useAudioCore';
@@ -23,14 +22,8 @@ export const useHowlerPlayer = ({
   resumeOnFocus = true,
   onPlayingChange
 }: HowlerPlayerHookProps) => {
-  // Errors from playback
-  const [playbackErrors, setPlaybackErrorsState] = useState<{
-    howlerError: string | null;
-    contextError: string | null;
-  }>({
-    howlerError: null,
-    contextError: null
-  });
+  // Change error structure to a simple string for easier handling
+  const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
 
   // Native HTML5 audio fallback element
   const nativeAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -60,12 +53,12 @@ export const useHowlerPlayer = ({
   };
 
   // Core audio setup - manages Howl instance and file loading
-  const [coreState, setHowl, setPlaybackErrors] = useAudioCore({
+  const [coreState, setHowl, coreSetPlaybackErrors] = useAudioCore({
     file,
     onEnded,
     onError: (error) => {
       if (onError) onError(error);
-      setPlaybackErrorsState(prev => ({ ...prev, howlerError: error }));
+      setPlaybackErrors(error);
     },
     forceHTML5: true // Force HTML5 Audio playback
   });
@@ -130,9 +123,10 @@ export const useHowlerPlayer = ({
     }
 
     // If the AudioContext couldn't be resumed, or it wasn't the issue, return false
-    setPlaybackErrors(prev => ({ ...prev, howlerError: `Playback failed: ${error}` }));
+    const errorMessage = typeof error === 'string' ? error : `Playback failed: ${error?.message || error}`;
+    setPlaybackErrors(errorMessage);
     return false;
-  }, [coreState.howl, setPlaybackErrors]);
+  }, [coreState.howl]);
 
   // Native audio fallback logic
   const switchToNativeAudio = useCallback(() => {
@@ -251,6 +245,17 @@ export const useHowlerPlayer = ({
   // Get the active controls based on current mode
   const activeControls = isUsingNativeAudio ? nativeAudioControls() || controls : controls;
 
+  // Define seekToTimestamp function that was referenced in other components
+  const seekToTimestamp = useCallback((time: number) => {
+    if (isUsingNativeAudio && nativeAudioRef.current) {
+      nativeAudioRef.current.currentTime = time;
+    } else if (coreState.howl) {
+      coreState.howl.seek(time);
+    } else {
+      console.warn('[useHowlerPlayer] Cannot seek to timestamp - no audio player available');
+    }
+  }, [isUsingNativeAudio, coreState.howl]);
+
   // Handle volume up/down functions (add these for compatibility)
   const handleVolumeUp = () => {
     const newVolume = Math.min(100, volume[0] + 5);
@@ -279,6 +284,7 @@ export const useHowlerPlayer = ({
     switchToNativeAudio, // Expose this method so error components can trigger fallback
     ...activeControls, // Spread the appropriate controls based on mode
     setIsPlaying,
+    seekToTimestamp, // Add the seekToTimestamp function
     handleVolumeUp,
     handleVolumeDown
   };

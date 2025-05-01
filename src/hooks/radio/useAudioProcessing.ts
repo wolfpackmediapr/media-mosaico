@@ -29,7 +29,7 @@ export const useAudioProcessing = ({
     volume,
     isMuted,
     playbackRate,
-    playbackErrors,
+    playbackErrors: howlerPlaybackErrors,
     isLoading,
     isReady,
     handlePlayPause: originalHandlePlayPause,
@@ -44,6 +44,13 @@ export const useAudioProcessing = ({
     file: currentFile,
     onPlayingChange
   });
+
+  // Convert complex error object to string for simpler handling
+  const playbackErrors = howlerPlaybackErrors ? 
+    (typeof howlerPlaybackErrors === 'string' ? 
+      howlerPlaybackErrors : 
+      howlerPlaybackErrors.howlerError || howlerPlaybackErrors.contextError || "Unknown error") 
+    : null;
 
   // Handle audio state sync with other tabs
   useAudioVisibilitySync({

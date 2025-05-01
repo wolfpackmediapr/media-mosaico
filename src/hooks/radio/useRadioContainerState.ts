@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
@@ -102,9 +101,16 @@ export const useRadioContainerState = ({
   // Sync audio errors with component state
   useEffect(() => {
     if (audioPlaybackErrors !== playbackErrors) {
-      setPlaybackErrors(audioPlaybackErrors);
+      // Handle potential complex error object
+      const errorString = typeof audioPlaybackErrors === 'string' ? 
+        audioPlaybackErrors : 
+        (audioPlaybackErrors && typeof audioPlaybackErrors === 'object') ? 
+          (audioPlaybackErrors.howlerError || audioPlaybackErrors.contextError || JSON.stringify(audioPlaybackErrors)) : 
+          audioPlaybackErrors;
+      
+      setPlaybackErrors(errorString);
     }
-  }, [audioPlaybackErrors]);
+  }, [audioPlaybackErrors, playbackErrors]);
 
   const handleClearAll = () => {
     console.log('[RadioContainer] handleClearAll: Starting clear sequence');
