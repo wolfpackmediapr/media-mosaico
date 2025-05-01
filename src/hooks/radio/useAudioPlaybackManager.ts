@@ -1,4 +1,3 @@
-
 import { useCallback, useState } from "react";
 import { useRadioPlayer } from "./useRadioPlayer";
 import { UploadedFile } from "@/components/radio/types";
@@ -58,15 +57,14 @@ export const useAudioPlaybackManager = ({
     handleSeekToSegment(segmentOrTime);
   }, [handleSeekToSegment]);
 
-  // Volume wrapper: Convert UI volume format (array [0-100]) to audio core format (number 0-1)
+  // Volume wrapper: Keep volume as array type (UI format) throughout
   const onVolumeChange = useCallback((value: number[]) => {
     if (Array.isArray(value) && value.length > 0) {
-      // Convert to audio volume format and pass to the handler
-      const audioVolume = uiVolumeToAudioVolume(value);
-      handleVolumeChange(audioVolume);
+      // Pass the UI volume array directly
+      handleVolumeChange(value);
     } else {
-      // Default to 0 if value is invalid
-      handleVolumeChange(0);
+      // Default to [0] if value is invalid
+      handleVolumeChange([0]);
     }
   }, [handleVolumeChange]);
 
