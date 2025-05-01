@@ -43,8 +43,8 @@ export const useRadioStateManager = ({
 
   const handleTranscriptionReceived = (result: TranscriptionResult) => {
     setTranscriptionResult(result);
-    if (result.transcription) {
-      setTranscriptionText(result.transcription);
+    if (result.text) {
+      setTranscriptionText(result.text);
     }
     setIsProcessing(false);
     setProgress(100);

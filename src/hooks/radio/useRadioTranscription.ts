@@ -50,7 +50,7 @@ export const useRadioTranscription = () => {
     // Set all data in a single update cycle if possible
     setTranscriptionText(result.text || "");
     setTranscriptionResult(result);
-    setTranscriptionId(result.transcript_id);
+    setTranscriptionId(result.id);
     
     // Log that processing state has been cleared
     console.log('[useRadioTranscription] Processing state cleared');
