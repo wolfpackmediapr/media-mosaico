@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useRadioContainerState } from "@/hooks/radio/useRadioContainerState";
 import RadioLayout from "./RadioLayout";
@@ -18,6 +19,7 @@ interface RadioContainerProps {
   isActiveMediaRoute?: boolean;
   isMediaPlaying?: boolean;
   setIsMediaPlaying?: (isPlaying: boolean) => void;
+  isAuthenticated?: boolean | null;
 }
 
 const RadioContainer = ({
@@ -27,7 +29,8 @@ const RadioContainer = ({
   storage = "sessionStorage",
   isActiveMediaRoute = true,
   isMediaPlaying = false,
-  setIsMediaPlaying = () => {}
+  setIsMediaPlaying = () => {},
+  isAuthenticated = null
 }: RadioContainerProps) => {
   const state = useRadioContainerState({
     persistedText,
@@ -47,7 +50,7 @@ const RadioContainer = ({
         transcriptionText={state.transcriptionText}
       />
       <RadioLayout
-        isAuthenticated={state.isAuthenticated}
+        isAuthenticated={isAuthenticated}
         leftSection={
           <LeftSection
             files={state.files}

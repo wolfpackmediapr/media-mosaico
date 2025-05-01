@@ -6,6 +6,7 @@ interface TypeformAlertProps {
 }
 
 const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
+  // Only initialize Typeform when authenticated, but don't perform auth check here
   useTypeform(isAuthenticated === true);
   
   return (

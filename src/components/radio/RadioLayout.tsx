@@ -12,9 +12,6 @@ interface RadioLayoutProps {
   newsSegmentsSection?: ReactNode;
 }
 
-// Publimedia brand color
-const PUBLIMEDIA_GREEN = "#66cc00";
-
 const RadioLayout = ({
   isAuthenticated,
   leftSection,
@@ -23,7 +20,7 @@ const RadioLayout = ({
   analysisSection,
   newsSegmentsSection
 }: RadioLayoutProps) => {
-  // Authentication check
+  // Show auth check screen if not authenticated, but don't perform auth check itself
   if (isAuthenticated === false || isAuthenticated === null) {
     return <AuthCheck isAuthenticated={isAuthenticated} />;
   }

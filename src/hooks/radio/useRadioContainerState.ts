@@ -1,6 +1,5 @@
 
 import { useState, useEffect } from "react";
-import { useAuthStatus } from "@/hooks/use-auth-status";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
@@ -26,7 +25,7 @@ export const useRadioContainerState = ({
   isMediaPlaying = false,
   setIsMediaPlaying = () => {}
 }: UseRadioContainerStateProps) => {
-  const { isAuthenticated } = useAuthStatus();
+  // Removed authentication check from here since it's now handled in the parent component
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
 
@@ -144,8 +143,7 @@ export const useRadioContainerState = ({
   };
 
   return {
-    // Auth
-    isAuthenticated,
+    // Removed isAuthenticated from return value
     // Files
     files,
     currentFile,

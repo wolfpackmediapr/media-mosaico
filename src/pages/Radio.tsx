@@ -5,8 +5,12 @@ import RadioContainer from "@/components/radio/RadioContainer";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from "react";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
+import { useAuthStatus } from "@/hooks/use-auth-status";
 
 const Radio = () => {
+  // Centralize authentication check here
+  const { isAuthenticated } = useAuthStatus();
+  
   // Use radio tab state for persisting transcription text
   const { textContent, setTextContent } = useRadioTabState({
     persistKey: "radio-transcription",
@@ -46,6 +50,7 @@ const Radio = () => {
           isActiveMediaRoute={isActiveMediaRoute}
           isMediaPlaying={isMediaPlaying}
           setIsMediaPlaying={setIsMediaPlaying}
+          isAuthenticated={isAuthenticated}
         />
       </TooltipProvider>
     </ErrorBoundary>
