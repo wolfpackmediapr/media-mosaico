@@ -753,7 +753,7 @@ export const useHowlerPlayer = ({
     }
   };
 
-  // This is a try/catch block with correct error handling
+  // Helper function for properly handling error objects
   const handleErrors = (error: unknown) => {
     // Safe type checking for error objects
     if (error && typeof error === 'object') {
