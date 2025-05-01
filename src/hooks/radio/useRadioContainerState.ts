@@ -52,7 +52,7 @@ interface RadioContainerState {
   handleSegmentsReceived: (segments: RadioNewsSegment[]) => void;
   handleMetadataChange: (metadata: { emisora: string; programa: string; horario: string; categoria: string; station_id: string; program_id: string; }) => void;
   handleEditorRegisterReset: (resetFn: () => void) => void;
-  setClearAnalysis: React.Dispatch<React.SetStateAction<boolean>>;
+  setClearAnalysis: (fn: () => void) => void; // Corrected type: accepts a function
   handlePlayPause: () => void;
   handleSeek: (time: number) => void;
   handleSkip: (direction: 'forward' | 'backward') => void;
