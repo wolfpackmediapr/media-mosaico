@@ -11,7 +11,7 @@ interface UseRadioActionsProps {
   handleFilesAddedOriginal: (newFiles: File[]) => void; // Renamed to avoid conflict
   resetTranscription: () => void;
   setNewsSegments: React.Dispatch<React.SetStateAction<any[]>>; // Use specific type if available
-  clearAllStorageState: () => Promise<boolean>; // Assuming clearAllState returns a promise indicating success
+  clearAllStorageState: () => Promise<void>; // Update return type to Promise<void>
   // Add resetPlaybackErrors if needed from useRadioPlayer
 }
 
@@ -29,19 +29,21 @@ export const useRadioActions = ({
 
   const handleClearAll = useCallback(async () => {
     console.log('[RadioActions] handleClearAll: Starting clear sequence');
-    resetTranscription();
-    setNewsSegments([]);
-    setFiles([]);
-    setCurrentFileIndex(0);
-    // Assuming clearAllStorageState handles storage keys and potentially editor/analysis reset
-    const cleared = await clearAllStorageState();
-    if (cleared) {
-        toast.success('Todos los datos han sido borrados');
-    } else {
-        toast.error('Error al borrar algunos datos almacenados.');
+    try {
+      resetTranscription();
+      setNewsSegments([]);
+      setFiles([]);
+      setCurrentFileIndex(0);
+      // Assuming clearAllStorageState handles storage keys and potentially editor/analysis reset
+      await clearAllStorageState(); // Await the void promise
+      toast.success('Todos los datos han sido borrados'); // Assume success if no error
+    } catch (error) {
+      console.error('[RadioActions] Error during clear all:', error);
+      toast.error('Error al borrar los datos almacenados.'); // Show error toast on failure
+    } finally {
+      // setPlaybackErrors(null); // This needs to be handled via props if needed
+      setLastAction('clear');
     }
-    // setPlaybackErrors(null); // This needs to be handled via props if needed
-    setLastAction('clear');
   }, [resetTranscription, setNewsSegments, setFiles, setCurrentFileIndex, clearAllStorageState]);
 
   const handleTrackSelect = useCallback((index: number) => {
