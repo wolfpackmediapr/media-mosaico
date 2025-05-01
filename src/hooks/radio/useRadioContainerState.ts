@@ -1,10 +1,12 @@
-
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
 import { useRadioPlayer } from "@/hooks/radio/useRadioPlayer";
 import { toast } from "sonner";
+import { UploadedFile } from "@/components/radio/types";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer"; // Use the correct path if different
 
 interface UseRadioContainerStateProps {
   persistedText?: string;
@@ -16,6 +18,53 @@ interface UseRadioContainerStateProps {
   setIsMediaPlaying?: (isPlaying: boolean) => void;
 }
 
+// Define the explicit return type for the hook
+interface RadioContainerState {
+  files: UploadedFile[];
+  currentFile: UploadedFile | null;
+  currentFileIndex: number;
+  isProcessing: boolean;
+  progress: number;
+  transcriptionText: string;
+  transcriptionId?: string;
+  transcriptionResult?: TranscriptionResult;
+  metadata?: { emisora?: string; programa?: string; horario?: string; categoria?: string; station_id?: string; program_id?: string; };
+  newsSegments: RadioNewsSegment[];
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  volume: number[]; // Explicitly number[]
+  isMuted: boolean;
+  playbackRate: number;
+  playbackErrors: string | null;
+  lastAction: string | null;
+  handleClearAll: () => void;
+  handleTrackSelect: (index: number) => void;
+  handleFilesAdded: (newFiles: File[]) => void;
+  setFiles: (files: UploadedFile[]) => void;
+  setCurrentFileIndex: (index: number) => void;
+  setIsProcessing: (isProcessing: boolean) => void;
+  setProgress: React.Dispatch<React.SetStateAction<number>>;
+  setTranscriptionText: (text: string) => void;
+  setTranscriptionId: (id?: string) => void;
+  handleTranscriptionReceived: (result: TranscriptionResult) => void;
+  handleTranscriptionTextChange: (text: string) => void;
+  handleSegmentsReceived: (segments: RadioNewsSegment[]) => void;
+  handleMetadataChange: (metadata: { emisora: string; programa: string; horario: string; categoria: string; station_id: string; program_id: string; }) => void;
+  handleEditorRegisterReset: (resetFn: () => void) => void;
+  setClearAnalysis: React.Dispatch<React.SetStateAction<boolean>>;
+  handlePlayPause: () => void;
+  handleSeek: (time: number) => void;
+  handleSkip: (direction: 'forward' | 'backward') => void;
+  handleToggleMute: () => void;
+  handleVolumeChange: (value: number[]) => void; // Explicitly (value: number[]) => void
+  handlePlaybackRateChange: (rate: number) => void;
+  handleSeekToSegment: (segmentOrTime: RadioNewsSegment | number) => void;
+  setNewsSegments: React.Dispatch<React.SetStateAction<RadioNewsSegment[]>>;
+  handleTranscriptionProcessingError: (error: any) => void;
+}
+
+
 export const useRadioContainerState = ({
   persistedText = "",
   onTextChange,
@@ -24,7 +73,7 @@ export const useRadioContainerState = ({
   isActiveMediaRoute = true,
   isMediaPlaying = false,
   setIsMediaPlaying = () => {}
-}: UseRadioContainerStateProps) => {
+}: UseRadioContainerStateProps): RadioContainerState => {
   // Removed authentication check from here since it's now handled in the parent component
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
@@ -102,12 +151,7 @@ export const useRadioContainerState = ({
   // Sync audio errors with component state
   useEffect(() => {
     if (audioPlaybackErrors !== playbackErrors) {
-      // Convert to a simple string
-      const errorString = typeof audioPlaybackErrors === 'string' ? 
-        audioPlaybackErrors : 
-        audioPlaybackErrors ? String(audioPlaybackErrors) : null;
-      
-      setPlaybackErrors(errorString);
+      setPlaybackErrors(audioPlaybackErrors);
     }
   }, [audioPlaybackErrors, playbackErrors]);
 
