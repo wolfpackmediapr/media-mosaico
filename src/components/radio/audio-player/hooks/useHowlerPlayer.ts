@@ -1,16 +1,14 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Howl } from 'howler';
 import { AudioMetadata } from '@/types/audio';
 
 interface HowlerPlayerHookProps {
-  currentFile: File | null;
-  isActiveMediaRoute: boolean;
-  isMediaPlaying: boolean;
-  setIsMediaPlaying: (isPlaying: boolean) => void;
-  persistedText?: string;
-  transcriptionText?: string;
-  setTranscriptionText?: (text: string) => void;
-  onTextChange?: (text: string) => void;
+  file?: File;
+  onEnded?: () => void;
+  onError?: (error: string) => void;
+  preservePlaybackOnBlur?: boolean;
+  resumeOnFocus?: boolean;
 }
 
 interface PlaybackErrors {
@@ -19,14 +17,11 @@ interface PlaybackErrors {
 }
 
 export const useHowlerPlayer = ({
-  currentFile,
-  isActiveMediaRoute,
-  isMediaPlaying,
-  setIsMediaPlaying,
-  persistedText = "",
-  transcriptionText = "",
-  setTranscriptionText,
-  onTextChange
+  file,
+  onEnded,
+  onError,
+  preservePlaybackOnBlur = true,
+  resumeOnFocus = true
 }: HowlerPlayerHookProps) => {
   const [howl, setHowl] = useState<Howl | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -41,6 +36,8 @@ export const useHowlerPlayer = ({
     contextError: null
   });
   const [isSeeking, setIsSeeking] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const intervalIdRef = useRef<number | null>(null);
   const currentFileUrlRef = useRef<string | null>(null);
@@ -70,7 +67,7 @@ export const useHowlerPlayer = ({
 
   // Load and unload audio file
   useEffect(() => {
-    if (!currentFile) {
+    if (!file) {
       // No file selected, clear audio and reset state
       if (howl) {
         howl.unload();
@@ -81,7 +78,7 @@ export const useHowlerPlayer = ({
     }
 
     // Check if the file has changed
-    const currentUrl = URL.createObjectURL(currentFile);
+    const currentUrl = URL.createObjectURL(file);
     if (currentUrl === currentFileUrlRef.current) {
       console.log('[HowlerPlayer] File is the same, skipping load');
       return;
@@ -105,37 +102,12 @@ export const useHowlerPlayer = ({
       URL.revokeObjectURL(currentUrl);
       currentFileUrlRef.current = null;
     };
-  }, [currentFile]);
-
-  // Playback control from external source (e.g., another route)
-  useEffect(() => {
-    if (howl && isActiveMediaRoute) {
-      if (isMediaPlaying && !isPlaying) {
-        handlePlayPause();
-      } else if (!isMediaPlaying && isPlaying) {
-        handlePlayPause();
-      }
-    }
-  }, [isActiveMediaRoute, isMediaPlaying, howl, isPlaying]);
-
-  // Persist transcription text
-  useEffect(() => {
-    if (persistedText && persistedText !== transcriptionText) {
-      console.log('[HowlerPlayer] Restoring transcription text from session');
-      setTranscriptionText?.(persistedText);
-    }
-  }, [persistedText, transcriptionText, setTranscriptionText]);
-
-  // Update transcription text on changes
-  useEffect(() => {
-    if (onTextChange) {
-      onTextChange(transcriptionText || '');
-    }
-  }, [transcriptionText, onTextChange]);
+  }, [file]);
 
   // Core Functions
   const loadAudio = (url: string) => {
     console.log('[HowlerPlayer] Loading audio:', url);
+    setIsLoading(true);
     
     // Destroy the previous Howl instance if it exists
     if (howl) {
@@ -152,23 +124,22 @@ export const useHowlerPlayer = ({
         setHowl(newHowl);
         setDuration(newHowl.duration());
         setPlaybackErrors({ howlerError: null, contextError: null });
+        setIsLoading(false);
+        setIsReady(true);
       },
       onplay: () => {
         console.log('[HowlerPlayer] Audio started playing');
         setIsPlaying(true);
-        setIsMediaPlaying(true);
         startUpdateInterval();
       },
       onpause: () => {
         console.log('[HowlerPlayer] Audio paused');
         setIsPlaying(false);
-        setIsMediaPlaying(false);
         stopUpdateInterval();
       },
       onstop: () => {
         console.log('[HowlerPlayer] Audio stopped');
         setIsPlaying(false);
-        setIsMediaPlaying(false);
         stopUpdateInterval();
         setCurrentTime(0);
       },
@@ -189,9 +160,9 @@ export const useHowlerPlayer = ({
       onend: () => {
         console.log('[HowlerPlayer] Audio ended');
         setIsPlaying(false);
-        setIsMediaPlaying(false);
         stopUpdateInterval();
         setCurrentTime(0);
+        if (onEnded) onEnded();
       },
       onloaderror: (id, error) => {
         console.error('[HowlerPlayer] Load error:', error);
@@ -224,10 +195,11 @@ export const useHowlerPlayer = ({
     setIsSeeking(false);
   };
 
-  const handleSkip = (seconds: number) => {
+  const handleSkip = (direction: 'forward' | 'backward', amount: number = 10) => {
     if (!howl) return;
 
-    const newTime = Math.max(0, Math.min(currentTime + seconds, duration));
+    const skipAmount = direction === 'forward' ? amount : -amount;
+    const newTime = Math.max(0, Math.min(currentTime + skipAmount, duration));
     handleSeek(newTime);
   };
 
@@ -239,6 +211,16 @@ export const useHowlerPlayer = ({
   const handleVolumeChange = (newVolume: number) => {
     setVolume(newVolume);
     howl?.volume(newVolume);
+  };
+
+  const handleVolumeUp = () => {
+    const newVolume = Math.min(1, volume + 0.1);
+    handleVolumeChange(newVolume);
+  };
+
+  const handleVolumeDown = () => {
+    const newVolume = Math.max(0, volume - 0.1);
+    handleVolumeChange(newVolume);
   };
 
   const handlePlaybackRateChange = (newRate: number) => {
@@ -267,7 +249,6 @@ export const useHowlerPlayer = ({
 
   const resetState = () => {
     setIsPlaying(false);
-    setIsMediaPlaying(false);
     setCurrentTime(0);
     setDuration(0);
     setVolume(1);
@@ -275,6 +256,8 @@ export const useHowlerPlayer = ({
     setPlaybackRate(1);
     setMetadata(null);
     setPlaybackErrors({ howlerError: null, contextError: null });
+    setIsLoading(false);
+    setIsReady(false);
     stopUpdateInterval();
   };
 
@@ -291,7 +274,7 @@ export const useHowlerPlayer = ({
       return { message: String(error) };
     };
 
-    // Replace the problematic instanceof check with our handleErrors function
+    // Use our handleErrors function instead of instanceof check
     try {
       // Try to resume the AudioContext as that might be the issue
       if (audioContext && audioContext.state === 'suspended') {
@@ -331,11 +314,16 @@ export const useHowlerPlayer = ({
     playbackRate,
     playbackErrors,
     metadata,
+    isLoading,
+    isReady,
     handlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
     handleVolumeChange,
-    handlePlaybackRateChange
+    handleVolumeUp,
+    handleVolumeDown,
+    handlePlaybackRateChange,
+    setIsPlaying
   };
 };

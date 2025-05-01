@@ -24,6 +24,19 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
     handlePlaybackRateChange
   } = useAudioPlayer({ file, onEnded });
 
+  // Convert volume number to array format expected by components
+  const volumeArray = Array.isArray(volume) ? volume : [volume * 100];
+
+  // Wrapper for volume change to convert between array and number
+  const handleVolumeChangeWrapper = (newVolume: number[]) => {
+    handleVolumeChange(newVolume[0] / 100);
+  };
+
+  // Wrapper for skip to handle the format discrepancy
+  const handleSkipWrapper = (direction: 'forward' | 'backward', amount?: number) => {
+    handleSkip(direction, amount);
+  };
+
   const handleSeekWithClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
     const rect = container.getBoundingClientRect();
@@ -49,12 +62,12 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
           playbackControls={{
             handlePlayPause,
             handleSeek,
-            handleSkip
+            handleSkip: handleSkipWrapper
           }}
           volumeControls={{
             isMuted,
-            volume,
-            handleVolumeChange,
+            volume: volumeArray,
+            handleVolumeChange: handleVolumeChangeWrapper,
             toggleMute: handleToggleMute
           }}
           playbackRate={playbackRate}

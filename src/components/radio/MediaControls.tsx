@@ -26,7 +26,7 @@ interface MediaControlsProps {
   onSkip: (direction: 'forward' | 'backward', amount?: number) => void;
   onToggleMute: () => void;
   onVolumeChange: (value: number[]) => void;  // Changed from (value: number) => void to (value: number[]) => void
-  onPlaybackRateChange: () => void;
+  onPlaybackRateChange: (newRate: number) => void; // Fix: Add parameter to match expected function signature
 }
 
 const MediaControls = ({

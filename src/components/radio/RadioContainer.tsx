@@ -42,6 +42,22 @@ const RadioContainer = ({
     setIsMediaPlaying
   });
 
+  // Convert volume from number to array for MusicCard
+  const volumeArray = state.volume ? [state.volume * 100] : [100];
+
+  // Create wrapper functions to handle type mismatches between components
+  const handleVolumeChangeWrapper = (value: number[]) => {
+    state.handleVolumeChange(value[0] / 100);
+  };
+
+  const handlePlaybackRateChangeWrapper = () => {
+    // Get next playback rate in the sequence: 0.5 -> 1 -> 1.5 -> 2 -> 0.5
+    const rates = [0.5, 1, 1.5, 2];
+    const currentIndex = rates.indexOf(state.playbackRate);
+    const nextIndex = (currentIndex + 1) % rates.length;
+    state.handlePlaybackRateChange(rates[nextIndex]);
+  };
+
   return (
     <>
       <TopSection
@@ -78,15 +94,15 @@ const RadioContainer = ({
             currentTime={state.currentTime}
             duration={state.duration}
             isMuted={state.isMuted}
-            volume={state.volume}
+            volume={volumeArray}
             playbackRate={state.playbackRate}
             playbackErrors={state.playbackErrors}
             onPlayPause={state.handlePlayPause}
             onSeek={state.handleSeek}
             onSkip={state.handleSkip}
             onToggleMute={state.handleToggleMute}
-            onVolumeChange={state.handleVolumeChange}
-            onPlaybackRateChange={state.handlePlaybackRateChange}
+            onVolumeChange={handleVolumeChangeWrapper}
+            onPlaybackRateChange={handlePlaybackRateChangeWrapper}
             handleTrackSelect={state.handleTrackSelect}
           />
         }

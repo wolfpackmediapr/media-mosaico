@@ -1,4 +1,5 @@
 
+import { useState, useEffect, useRef } from 'react';
 import { useHowlerPlayer } from './useHowlerPlayer';
 import { useMediaControls } from './useMediaControls';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
@@ -24,7 +25,7 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
     preservePlaybackOnBlur = true,
     resumeOnFocus = true
   } = options;
-
+  
   // Validate file before passing to player
   const validateAndProcessFile = async (fileToProcess?: File) => {
     if (!fileToProcess) return fileToProcess;
@@ -73,7 +74,7 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
     volume,
     isMuted,
     playbackRate,
-    audioError,
+    playbackErrors,
     isLoading,
     isReady,
     handlePlayPause,
@@ -86,19 +87,17 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
     handleVolumeDown,
     setIsPlaying
   } = useHowlerPlayer({
-    file: file,
+    file,
     onEnded,
-    onError,
-    preservePlaybackOnBlur,
-    resumeOnFocus
+    onError
   });
   
   // Integrate with Media Session API
   useMediaControls({
     onPlay: () => !isPlaying && handlePlayPause(),
     onPause: () => isPlaying && handlePlayPause(),
-    onSeekBackward: (details) => handleSkip('backward', details.seekOffset),
-    onSeekForward: (details) => handleSkip('forward', details.seekOffset),
+    onSeekBackward: () => handleSkip('backward'),
+    onSeekForward: () => handleSkip('forward'),
     title: file?.name || 'Audio'
   });
 
@@ -120,7 +119,7 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
     volume,
     isMuted,
     playbackRate,
-    audioError,
+    playbackErrors,
     isLoading,
     isReady,
     handlePlayPause,
