@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
@@ -117,6 +118,8 @@ const RightSection = ({
     }
   }, [currentFile, metadata, isPlaying, onPlayPause, onSkip]);
 
+  console.log('[RightSection] Rendering with volume:', volume, 'Type:', typeof volume, 'Array?', Array.isArray(volume));
+
   return (
     <div className="space-y-4">
       {playbackErrors && currentFile && (
@@ -137,13 +140,13 @@ const RightSection = ({
           currentTime={currentTime}
           duration={duration}
           isMuted={isMuted}
-          volume={typeof volume === 'number' ? volume : Array.isArray(volume) && volume.length > 0 ? volume[0] : 50} // Convert to number if it's an array
+          volume={volume} // Pass volume directly without conversion - MediaControls now handles both types
           playbackRate={playbackRate}
           onPlayPause={onPlayPause}
           onSeek={onSeek}
           onSkip={onSkip}
           onToggleMute={onToggleMute}
-          onVolumeChange={onVolumeChange} // Pass handler
+          onVolumeChange={onVolumeChange} // Pass handler directly
           onPlaybackRateChange={onPlaybackRateChange}
         />
       )}

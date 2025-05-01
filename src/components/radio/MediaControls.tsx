@@ -15,13 +15,13 @@ interface MediaControlsProps {
   currentTime: number;
   duration: number;
   isMuted: boolean;
-  volume: number; // Expected as number here
+  volume: number | number[]; // Accept both number and number[] types
   playbackRate: number;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (direction: 'forward' | 'backward', amount?: number) => void;
   onToggleMute: () => void;
-  onVolumeChange: (value: number | number[]) => void; // Keep accepting array for slider
+  onVolumeChange: (value: number | number[]) => void; // Keep accepting both types for slider
   onPlaybackRateChange: () => void;
 }
 
@@ -32,7 +32,7 @@ const MediaControls: React.FC<MediaControlsProps> = ({
   currentTime,
   duration,
   isMuted,
-  volume, // is number
+  volume, // can be number or number[]
   playbackRate,
   onPlayPause,
   onSeek,
@@ -69,6 +69,11 @@ const MediaControls: React.FC<MediaControlsProps> = ({
   // Publimedia brand green color
   const brandGreen = "#66cc00";
 
+  // Convert volume to array if it's a number for consistent handling
+  const volumeArray = Array.isArray(volume) ? volume : [volume];
+  
+  console.log('[MediaControls] Volume type:', typeof volume, 'Value:', volume, 'Array?', Array.isArray(volume));
+
   return (
     <MusicCard
       title={title}
@@ -79,19 +84,15 @@ const MediaControls: React.FC<MediaControlsProps> = ({
       currentTime={currentTime}
       duration={duration}
       isMuted={isMuted}
-      volume={[volume]} // Convert number to array for MusicCard
+      volume={volumeArray} // Always provide array format for MusicCard
       playbackRate={playbackRate}
       onPlayPause={onPlayPause}
       onSeek={onSeek}
       onSkip={onSkip}
       onToggleMute={onToggleMute}
       onVolumeChange={(val) => {
-        // Handle array conversion - MusicCard passes array but our handlers expect number or array
-        if (Array.isArray(val) && val.length > 0) {
-          onVolumeChange(val[0]);
-        } else {
-          onVolumeChange(val);
-        }
+        // Handle array conversion consistently - MusicCard passes array but our handlers can handle either
+        onVolumeChange(val);
       }}
       onPlaybackRateChange={onPlaybackRateChange}
     />

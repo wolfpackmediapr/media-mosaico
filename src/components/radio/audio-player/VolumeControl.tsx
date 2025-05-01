@@ -23,13 +23,18 @@ export const VolumeControl = ({ volumeControls }: VolumeControlProps) => {
   
   const VolumeIcon = isMuted || volumeValue === 0 ? VolumeX : volumeValue < 50 ? Volume1 : Volume2;
 
+  // Ensure volume is always passed as an array to the Slider component
+  const volumeForSlider = Array.isArray(volume) ? volume : [volumeValue];
+
+  console.log('[VolumeControl] Volume:', volume, 'Type:', typeof volume, 'For slider:', volumeForSlider);
+
   return (
     <div className="flex items-center space-x-2 w-32">
       <Button variant="ghost" size="icon" onClick={toggleMute}>
         <VolumeIcon className="h-5 w-5" />
       </Button>
       <Slider
-        value={Array.isArray(volume) ? volume : [volumeValue]} // Ensure it's always an array for Slider
+        value={volumeForSlider} // Always provide as array
         max={100}
         step={1}
         className="flex-grow"
