@@ -34,7 +34,12 @@ const Auth = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      navigate("/");
+      // Check for redirect path stored in session storage
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+      // Remove the stored path to prevent unwanted redirects on future login
+      sessionStorage.removeItem('redirectAfterLogin');
+      // Navigate to the stored path or fallback to home
+      navigate(redirectPath || "/");
     }
   }, [user, navigate]);
 
@@ -82,7 +87,7 @@ const Auth = () => {
         toast.success("Inicio de sesión exitoso", {
           description: "Bienvenido de nuevo",
         });
-        navigate("/");
+        // Navigation will be handled by the useEffect when user state updates
       }
     } finally {
       setLoading(false);

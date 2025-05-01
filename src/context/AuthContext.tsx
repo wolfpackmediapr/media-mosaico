@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User, AuthError } from "@supabase/supabase-js";
@@ -24,6 +25,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Best practice: Set up auth state listener FIRST to avoid missing auth events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
+        console.log('[AuthContext] Auth state change event:', event);
+        
         // Handle auth state changes
         if (event === 'SIGNED_OUT') {
           setSession(null);
@@ -58,7 +61,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .insert({ 
           id: userId, 
           username: metadata?.username || userId, 
-          role: 'administrator' // Now default to administrator role
+          role: 'data_entry' // Using data_entry as the default role for consistency
         });
       
       if (error) {
@@ -71,6 +74,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log('[AuthContext] Signing in user:', email);
+      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -121,7 +126,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             : error.message
         });
       } else if (data && data.user) {
-        // Create a user profile after successful signup with administrator role
+        // Create a user profile after successful signup with data_entry role
         await createUserProfile(data.user.id, metadata);
         
         toast.success("Cuenta creada exitosamente", {

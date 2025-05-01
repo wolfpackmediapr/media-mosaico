@@ -5,6 +5,11 @@ import { lazyRoutes, settingsRoutes, publitecaRoutes, Index } from "./config/rou
 import Layout from "./components/layout/Layout";
 import PageLoader from "./components/common/PageLoader";
 import { MediaPersistenceProvider } from "@/context/MediaPersistenceContext";
+import PublicLayout from "./components/layout/PublicLayout";
+import Auth from "./pages/Auth";
+import RecuperarPassword from "./pages/RecuperarPassword";
+import Registro from "./pages/Registro";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 // Create a wrapper component that includes MediaPersistenceProvider
 const LayoutWithProviders = () => {
@@ -19,6 +24,32 @@ const LayoutWithProviders = () => {
 
 // Create routes with layout wrapper and suspense fallback
 export const router = createBrowserRouter([
+  // Authentication routes - without the main layout
+  {
+    path: "/auth",
+    element: (
+      <PublicLayout>
+        <Auth />
+      </PublicLayout>
+    )
+  },
+  {
+    path: "/registro",
+    element: (
+      <PublicLayout>
+        <Registro />
+      </PublicLayout>
+    )
+  },
+  {
+    path: "/recuperar-password",
+    element: (
+      <PublicLayout>
+        <RecuperarPassword />
+      </PublicLayout>
+    )
+  },
+  // Main application routes with layout
   {
     path: "/",
     element: <LayoutWithProviders />,
@@ -31,7 +62,9 @@ export const router = createBrowserRouter([
         path: "radio",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.Radio />
+            <ProtectedRoute>
+              <lazyRoutes.Radio />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -39,7 +72,9 @@ export const router = createBrowserRouter([
         path: "tv",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.Tv />
+            <ProtectedRoute>
+              <lazyRoutes.Tv />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -47,7 +82,9 @@ export const router = createBrowserRouter([
         path: "prensa",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.Prensa />
+            <ProtectedRoute>
+              <lazyRoutes.Prensa />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -55,7 +92,9 @@ export const router = createBrowserRouter([
         path: "prensa-escrita",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.PrensaEscrita />
+            <ProtectedRoute>
+              <lazyRoutes.PrensaEscrita />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -63,7 +102,9 @@ export const router = createBrowserRouter([
         path: "redes-sociales",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.RedesSociales />
+            <ProtectedRoute>
+              <lazyRoutes.RedesSociales />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -71,7 +112,9 @@ export const router = createBrowserRouter([
         path: "reportes",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.Reportes />
+            <ProtectedRoute>
+              <lazyRoutes.Reportes />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -79,7 +122,9 @@ export const router = createBrowserRouter([
         path: "notificaciones",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.Notificaciones />
+            <ProtectedRoute>
+              <lazyRoutes.Notificaciones />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -87,7 +132,9 @@ export const router = createBrowserRouter([
         path: "envio-alertas",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.EnvioAlertas />
+            <ProtectedRoute>
+              <lazyRoutes.EnvioAlertas />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -95,7 +142,9 @@ export const router = createBrowserRouter([
         path: "ajustes",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.Ajustes />
+            <ProtectedRoute>
+              <lazyRoutes.Ajustes />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -103,7 +152,9 @@ export const router = createBrowserRouter([
         path: "ayuda",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.Ayuda />
+            <ProtectedRoute>
+              <lazyRoutes.Ayuda />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -111,7 +162,9 @@ export const router = createBrowserRouter([
         path: "media-monitoring",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.MediaMonitoring />
+            <ProtectedRoute adminOnly>
+              <lazyRoutes.MediaMonitoring />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -119,16 +172,20 @@ export const router = createBrowserRouter([
         path: "admin",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.Admin />
+            <ProtectedRoute adminOnly>
+              <lazyRoutes.Admin />
+            </ProtectedRoute>
           </Suspense>
         )
       },
-      // Settings routes
+      // Settings routes - adding protection to all settings routes
       {
         path: "configuracion/general",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <settingsRoutes.GeneralSettings />
+            <ProtectedRoute>
+              <settingsRoutes.GeneralSettings />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -136,16 +193,20 @@ export const router = createBrowserRouter([
         path: "configuracion/notificaciones",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <settingsRoutes.NotificationsSettings />
+            <ProtectedRoute>
+              <settingsRoutes.NotificationsSettings />
+            </ProtectedRoute>
           </Suspense>
         )
       },
-      // Publiteca routes
+      // Publiteca routes - adding protection
       {
         path: "publiteca/prensa",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <publitecaRoutes.PublitecaPrensa />
+            <ProtectedRoute>
+              <publitecaRoutes.PublitecaPrensa />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -153,7 +214,9 @@ export const router = createBrowserRouter([
         path: "publiteca/radio",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <publitecaRoutes.PublitecaRadio />
+            <ProtectedRoute>
+              <publitecaRoutes.PublitecaRadio />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -161,7 +224,9 @@ export const router = createBrowserRouter([
         path: "publiteca/tv",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <publitecaRoutes.PublitecaTv />
+            <ProtectedRoute>
+              <publitecaRoutes.PublitecaTv />
+            </ProtectedRoute>
           </Suspense>
         )
       },
@@ -169,7 +234,9 @@ export const router = createBrowserRouter([
         path: "publiteca/redes-sociales",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <publitecaRoutes.PublitecaRedesSociales />
+            <ProtectedRoute>
+              <publitecaRoutes.PublitecaRedesSociales />
+            </ProtectedRoute>
           </Suspense>
         )
       }

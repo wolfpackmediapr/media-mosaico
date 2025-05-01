@@ -11,6 +11,9 @@ const AuthCheck = ({ isAuthenticated }: AuthCheckProps) => {
   const navigate = useNavigate();
 
   if (isAuthenticated === false) {
+    // Store current path for redirect after login
+    sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+    
     return (
       <div className="w-full h-[calc(100vh-200px)] flex flex-col items-center justify-center text-center p-8">
         <h2 className="text-2xl font-bold mb-4">Iniciar sesión requerido</h2>

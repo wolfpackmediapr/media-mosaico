@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
-import { makeUserAdmin } from "@/utils/adminUtils";
+import { useState } from "react";
 
 interface LogoutButtonProps {
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
@@ -19,23 +18,6 @@ const LogoutButton = ({
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  // Make the wolfpackmediapr@gmail.com user an admin
-  useEffect(() => {
-    const ADMIN_EMAIL = "wolfpackmediapr@gmail.com";
-    
-    // Only try to set admin if the current user is the admin user
-    if (user && user.email === ADMIN_EMAIL) {
-      const setAdmin = async () => {
-        // Slight delay to ensure auth state is fully loaded
-        setTimeout(async () => {
-          await makeUserAdmin(ADMIN_EMAIL);
-        }, 1000);
-      };
-      
-      setAdmin();
-    }
-  }, [user]);
 
   const handleLogout = async () => {
     try {
