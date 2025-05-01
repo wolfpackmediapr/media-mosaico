@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AudioMetadata } from '@/types/audio';
 import { useAudioCore } from './core/useAudioCore';
@@ -151,10 +152,7 @@ export const useHowlerPlayer = ({
       nativeAudioRef.current.muted = isMuted;
       
       // Reset error state
-      setPlaybackErrorsState({
-        howlerError: null,
-        contextError: null
-      });
+      setPlaybackErrors(null);
       
       // Flag that we're using native audio
       setIsUsingNativeAudio(true);
@@ -205,10 +203,7 @@ export const useHowlerPlayer = ({
         if (nativeAudioRef.current.paused) {
           nativeAudioRef.current.play().catch(err => {
             console.error('[HowlerPlayer] Native audio play error:', err);
-            setPlaybackErrorsState(prev => ({
-              ...prev,
-              howlerError: `Native audio error: ${err.message || 'Unknown error'}`
-            }));
+            setPlaybackErrors(`Native audio error: ${err.message || 'Unknown error'}`);
           });
           setIsPlaying(true);
         } else {

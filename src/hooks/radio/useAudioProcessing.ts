@@ -29,12 +29,12 @@ export const useAudioProcessing = ({
     volume,
     isMuted,
     playbackRate,
-    playbackErrors: howlerPlaybackErrors,
+    playbackErrors,
     isLoading,
     isReady,
     handlePlayPause: originalHandlePlayPause,
-    handleSeek: originalHandleSeek,
-    handleSkip: originalHandleSkip,
+    handleSeek,
+    handleSkip,
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
@@ -46,10 +46,10 @@ export const useAudioProcessing = ({
   });
 
   // Convert complex error object to string for simpler handling
-  const playbackErrors = howlerPlaybackErrors ? 
-    (typeof howlerPlaybackErrors === 'string' ? 
-      howlerPlaybackErrors : 
-      howlerPlaybackErrors.howlerError || howlerPlaybackErrors.contextError || "Unknown error") 
+  const errorMessage = playbackErrors ? 
+    (typeof playbackErrors === 'string' ? 
+      playbackErrors : 
+      "Unknown error") 
     : null;
 
   // Handle audio state sync with other tabs
@@ -58,7 +58,7 @@ export const useAudioProcessing = ({
     isLoading,
     isReady,
     currentFile,
-    playbackErrors,
+    playbackErrors: errorMessage,
     triggerPlay: () => setIsPlaying(true),
     triggerPause: () => setIsPlaying(false)
   });
@@ -71,7 +71,7 @@ export const useAudioProcessing = ({
     isLoading,
     isReady,
     currentFile,
-    playbackErrors,
+    playbackErrors: errorMessage,
     triggerPlay: () => setIsPlaying(true),
     triggerPause: () => setIsPlaying(false),
     onInternalPlayStateChange: onPlayingChange
@@ -80,7 +80,7 @@ export const useAudioProcessing = ({
   // Error handling
   useAudioErrorHandling({
     currentFile,
-    playerAudioError: playbackErrors
+    playerAudioError: errorMessage
   });
 
   // Audio unlock mechanism for iOS
@@ -92,14 +92,10 @@ export const useAudioProcessing = ({
     handleSeekToSegment
   } = useAudioPlaybackControl({
     isPlaying,
-    playbackErrors,
+    playbackErrors: errorMessage,
     originalHandlePlayPause,
     seekToTimestamp
   });
-
-  // Create wrapper functions to maintain the API
-  const handleSeek = originalHandleSeek;
-  const handleSkip = originalHandleSkip;
 
   // Log player state changes
   useEffect(() => {
@@ -120,7 +116,7 @@ export const useAudioProcessing = ({
     volume,
     isMuted,
     playbackRate,
-    playbackErrors,
+    playbackErrors: errorMessage,
     handlePlayPause,
     handleSeek,
     handleSkip,

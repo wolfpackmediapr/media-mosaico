@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
@@ -101,12 +102,10 @@ export const useRadioContainerState = ({
   // Sync audio errors with component state
   useEffect(() => {
     if (audioPlaybackErrors !== playbackErrors) {
-      // Handle potential complex error object
+      // Convert to a simple string
       const errorString = typeof audioPlaybackErrors === 'string' ? 
         audioPlaybackErrors : 
-        (audioPlaybackErrors && typeof audioPlaybackErrors === 'object') ? 
-          (audioPlaybackErrors.howlerError || audioPlaybackErrors.contextError || JSON.stringify(audioPlaybackErrors)) : 
-          audioPlaybackErrors;
+        audioPlaybackErrors ? String(audioPlaybackErrors) : null;
       
       setPlaybackErrors(errorString);
     }
@@ -149,7 +148,6 @@ export const useRadioContainerState = ({
   };
 
   return {
-    // Removed isAuthenticated from return value
     // Files
     files,
     currentFile,
