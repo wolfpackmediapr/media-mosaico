@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { unmuteAudio } from "@/utils/audio-format-helper";
 
@@ -137,4 +136,3 @@ export const useExternalAudioSync = ({
   // Return the operation status if needed
   return { operationInProgress };
 };
-

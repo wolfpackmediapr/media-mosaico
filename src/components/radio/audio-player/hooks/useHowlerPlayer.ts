@@ -12,6 +12,7 @@ interface HowlerPlayerHookProps {
   onError?: (error: string) => void;
   preservePlaybackOnBlur?: boolean;
   resumeOnFocus?: boolean;
+  onPlayingChange?: (isPlaying: boolean) => void;
 }
 
 export const useHowlerPlayer = ({
@@ -19,7 +20,8 @@ export const useHowlerPlayer = ({
   onEnded,
   onError,
   preservePlaybackOnBlur = true,
-  resumeOnFocus = true
+  resumeOnFocus = true,
+  onPlayingChange
 }: HowlerPlayerHookProps) => {
   // Errors from playback
   const [playbackErrors, setPlaybackErrorsState] = useState<{

@@ -5,9 +5,9 @@ import { toast } from "sonner";
 
 interface AudioErrorHandlingOptions {
   currentFile: File | null;
-  playerAudioError: string | null; // Error directly from the underlying player
-  onClearError?: () => void; // Optional callback when error is cleared
-  onSwitchToNative?: () => void; // Callback to switch to native audio
+  playerAudioError: string | null;
+  onClearError?: () => void;
+  onSwitchToNative?: () => void;
 }
 
 /**

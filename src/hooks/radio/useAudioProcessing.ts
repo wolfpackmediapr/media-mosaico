@@ -23,46 +23,57 @@ export const useAudioProcessing = ({
 }: AudioProcessingOptions) => {
   // Initialize Howler player
   const {
-    audioRef,
     isPlaying,
     currentTime,
     duration,
     volume,
     isMuted,
     playbackRate,
-    errors: playbackErrors,
+    playbackErrors,
+    isLoading,
+    isReady,
+    handlePlayPause: originalHandlePlayPause,
+    handleSeek: originalHandleSeek,
+    handleSkip: originalHandleSkip,
+    handleToggleMute,
+    handleVolumeChange,
+    handlePlaybackRateChange,
     setIsPlaying,
-    play,
-    pause,
-    seek,
-    setVolume,
-    setIsMuted,
-    setPlaybackRate,
-    handleSeekToSegment,
+    seekToTimestamp
   } = useHowlerPlayer({ 
-    audioFile: currentFile,
-    onPlayingStateChange: onPlayingChange
+    file: currentFile,
+    onPlayingChange
   });
 
-  // Handle player state sync with other tabs
+  // Handle audio state sync with other tabs
   useAudioVisibilitySync({
-    audioRef,
     isPlaying,
-    setIsPlaying: play
+    isLoading,
+    isReady,
+    currentFile,
+    playbackErrors,
+    triggerPlay: () => setIsPlaying(true),
+    triggerPause: () => setIsPlaying(false)
   });
 
   // Sync with external playing state (like media session)
   useExternalAudioSync({
+    isActiveMediaRoute,
     externalIsPlaying,
-    currentIsPlaying: isPlaying,
-    onSetPlaying: setIsPlaying,
-    isActive: isActiveMediaRoute
+    internalIsPlaying: isPlaying,
+    isLoading,
+    isReady,
+    currentFile,
+    playbackErrors,
+    triggerPlay: () => setIsPlaying(true),
+    triggerPause: () => setIsPlaying(false),
+    onInternalPlayStateChange: onPlayingChange
   });
 
   // Error handling
   useAudioErrorHandling({
-    playbackErrors,
-    fileName: currentFile?.name
+    currentFile,
+    playerAudioError: playbackErrors
   });
 
   // Audio unlock mechanism for iOS
@@ -71,21 +82,17 @@ export const useAudioProcessing = ({
   // Playback control wrappers
   const {
     handlePlayPause,
-    handleSeek,
-    handleSkip,
-    handleToggleMute,
-    handleVolumeChange,
-    handlePlaybackRateChange,
+    handleSeekToSegment
   } = useAudioPlaybackControl({
     isPlaying,
-    play,
-    pause,
-    seek,
-    duration,
-    setVolume,
-    setIsMuted,
-    setPlaybackRate,
+    playbackErrors,
+    originalHandlePlayPause,
+    seekToTimestamp
   });
+
+  // Create wrapper functions to maintain the API
+  const handleSeek = originalHandleSeek;
+  const handleSkip = originalHandleSkip;
 
   // Log player state changes
   useEffect(() => {

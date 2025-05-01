@@ -6,7 +6,7 @@ import { AudioPlayerControls } from './AudioPlayerControls';
 import { formatTime } from './utils/timeFormatter';
 import { Card, CardContent } from "@/components/ui/card";
 import { useAudioPlayer } from './hooks/useAudioPlayer';
-import { AudioPlayerProps } from './types';
+import type { AudioPlayerProps } from './types';
 
 export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
   const {
@@ -87,3 +87,4 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
     </Card>
   );
 };
+

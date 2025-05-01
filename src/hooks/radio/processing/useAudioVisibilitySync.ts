@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from "react";
 import { unmuteAudio } from "@/utils/audio-format-helper";
 
@@ -8,7 +9,7 @@ interface AudioVisibilitySyncOptions {
   currentFile: File | null;
   playbackErrors: string | null;
   triggerPlay: () => void;
-  triggerPause: () => void; // Added pause trigger
+  triggerPause: () => void;
 }
 
 /**
