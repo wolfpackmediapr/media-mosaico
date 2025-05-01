@@ -1,35 +1,21 @@
 
-import React from 'react';
-import { RouterProvider } from 'react-router-dom';
-import { router } from './router';
-import { ThemeProvider } from "./components/theme-provider";
-import { Toaster } from "./components/ui/sonner";  // Use our custom Toaster component
-import { AuthProvider } from "@/context/AuthContext";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-// Create a client with updated configurations
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-});
+import { QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider } from "react-router-dom";
+import { ThemeProvider } from "@/providers/ThemeProvider";
+import { queryClient } from "./lib/react-query";
+import { router } from "./router";
+import { Toaster } from "./components/ui/sonner";
+import { RealTimeAlertsProvider } from "./providers/RealTimeAlertsProvider";
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          disableTransitionOnChange
-        >
+      <ThemeProvider>
+        <RealTimeAlertsProvider>
           <RouterProvider router={router} />
-          <Toaster /> {/* Use our custom Toaster with defaults */}
-        </ThemeProvider>
-      </AuthProvider>
+          <Toaster position="top-right" richColors closeButton />
+        </RealTimeAlertsProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

@@ -1,36 +1,24 @@
 
-import { useRef, useEffect } from "react";
+import { useCallback } from "react";
 
 /**
- * Hook for notification sound management
+ * Hook for playing notification sounds
  */
 export function useNotificationSound() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Initialize audio element for notification sounds
-  useEffect(() => {
+  // Play notification sound with proper error handling and volume control
+  const playNotificationSound = useCallback(() => {
     try {
-      audioRef.current = new Audio("/notification-sound.mp3");
-      audioRef.current.volume = 0.5;
-      audioRef.current.preload = "auto";
-    } catch (error) {
-      console.error("Error setting up notification sound:", error);
-    }
-  }, []);
-
-  // Play notification sound
-  const playNotificationSound = () => {
-    try {
-      if (audioRef.current) {
-        // Clone and play to allow overlapping sounds
-        const sound = audioRef.current.cloneNode() as HTMLAudioElement;
-        sound.volume = 0.5;
-        sound.play().catch(e => console.log("Could not play notification sound", e));
-      }
+      const audio = new Audio("/notification-sound.mp3");
+      audio.volume = 0.5; // Lower volume to be less intrusive
+      
+      // Use catch to handle autoplay restrictions
+      audio.play().catch((e) => {
+        console.log("Could not play notification sound:", e);
+      });
     } catch (error) {
       console.error("Error playing notification sound:", error);
     }
-  };
+  }, []);
 
   return { playNotificationSound };
 }

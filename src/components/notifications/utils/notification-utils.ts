@@ -1,44 +1,29 @@
 
 /**
- * Request browser notification permission
+ * Request permission for browser notifications
  */
-export const requestNotificationPermission = async (): Promise<boolean> => {
-  if (!("Notification" in window)) {
-    console.log("Este navegador no soporta notificaciones de escritorio");
-    return false;
+export const requestNotificationPermission = () => {
+  if ("Notification" in window && Notification.permission === "default") {
+    return Notification.requestPermission().then(permission => {
+      console.log(`Notification permission status: ${permission}`);
+      return permission === "granted";
+    });
   }
-
-  if (Notification.permission === "granted") {
-    return true;
-  }
-  
-  if (Notification.permission !== "denied") {
-    const permission = await Notification.requestPermission();
-    return permission === "granted";
-  }
-  
-  return false;
+  return Promise.resolve(Notification.permission === "granted");
 };
 
 /**
- * Show a browser notification
+ * Show a browser notification with proper error handling
  */
-export const showBrowserNotification = (title: string, body: string): void => {
+export const showBrowserNotification = (title: string, body: string) => {
   try {
-    if (!("Notification" in window)) {
-      return;
-    }
-
-    if (Notification.permission === "granted") {
+    if ("Notification" in window && Notification.permission === "granted") {
       new Notification(title, { body });
-    } else if (Notification.permission !== "denied") {
-      Notification.requestPermission().then(permission => {
-        if (permission === "granted") {
-          new Notification(title, { body });
-        }
-      });
+      return true;
     }
+    return false;
   } catch (error) {
-    console.error("Error mostrando notificación del navegador:", error);
+    console.error("Error showing browser notification:", error);
+    return false;
   }
 };
