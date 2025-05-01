@@ -59,8 +59,12 @@ export const useAudioPlaybackManager = ({
 
   // Volume wrapper to ensure consistent type handling
   const onVolumeChange = useCallback((value: number[]) => {
-    // Use the spread operator to ensure type compatibility
-    handleVolumeChange(value);
+    // Convert to the format handleVolumeChange expects
+    if (Array.isArray(value) && value.length > 0) {
+      handleVolumeChange(value[0]);
+    } else {
+      handleVolumeChange(Array.isArray(value) ? 0 : value);
+    }
   }, [handleVolumeChange]);
 
   return {
