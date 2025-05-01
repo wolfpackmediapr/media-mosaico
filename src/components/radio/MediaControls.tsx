@@ -1,32 +1,15 @@
 
 import { MusicCard } from "@/components/ui/music-card";
+import { useCallback } from "react";
+import { AudioMetadataDisplay, AudioPlayerState, AudioControls } from "@/types/player";
 
 interface UploadedFile extends File {
   preview?: string;
 }
 
-interface MediaControlsProps {
+interface MediaControlsProps extends AudioPlayerState, AudioControls {
   currentFile?: UploadedFile;
-  metadata?: {
-    emisora?: string;
-    programa?: string;
-    horario?: string;
-    categoria?: string;
-    station_id?: string;
-    program_id?: string;
-  };
-  isPlaying: boolean;
-  currentTime: number;
-  duration: number;
-  isMuted: boolean;
-  volume: number[];  // Changed from number to number[]
-  playbackRate: number;
-  onPlayPause: () => void;
-  onSeek: (seconds: number) => void;
-  onSkip: (direction: 'forward' | 'backward', amount?: number) => void;
-  onToggleMute: () => void;
-  onVolumeChange: (value: number[]) => void;  // Changed from (value: number) => void to (value: number[]) => void
-  onPlaybackRateChange: (newRate: number) => void;  // Changed to explicitly accept a number parameter
+  metadata?: AudioMetadataDisplay;
 }
 
 const MediaControls = ({
@@ -49,6 +32,13 @@ const MediaControls = ({
 
   // Using the Publimedia green color (#66cc00)
   const publimediaGreen = "#66cc00";
+  
+  // Create a memoized wrapper for playback rate change to handle cycling through rates
+  const handlePlaybackRateChange = useCallback(() => {
+    // Calculate next rate (0.5 -> 1.0 -> 1.5 -> 2.0 -> 0.5)
+    const nextRate = playbackRate >= 2 ? 0.5 : playbackRate + 0.5;
+    onPlaybackRateChange(nextRate);
+  }, [playbackRate, onPlaybackRateChange]);
 
   return (
     <MusicCard
@@ -61,14 +51,14 @@ const MediaControls = ({
       currentTime={currentTime}
       duration={duration}
       isMuted={isMuted}
-      volume={volume}
+      volume={Array.isArray(volume) ? volume : [volume * 100]}
       playbackRate={playbackRate}
       onPlayPause={onPlayPause}
       onSeek={onSeek}
       onSkip={onSkip}
       onToggleMute={onToggleMute}
       onVolumeChange={onVolumeChange}
-      onPlaybackRateChange={() => onPlaybackRateChange(playbackRate === 2 ? 0.5 : playbackRate + 0.5)} // Fixed by adding a wrapper function that passes the next rate
+      onPlaybackRateChange={handlePlaybackRateChange}
     />
   );
 };

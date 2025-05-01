@@ -1,10 +1,9 @@
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, memo } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AudioErrorDisplay } from "../audio-player/errors/AudioErrorDisplay";
 
 interface RightSectionProps {
   currentFile: File | null;
@@ -34,7 +33,8 @@ interface RightSectionProps {
   handleTrackSelect: (index: number) => void;
 }
 
-const RightSection = ({
+// Use memo to prevent unnecessary re-renders
+const RightSection = memo(({
   currentFile,
   metadata,
   files,
@@ -119,14 +119,12 @@ const RightSection = ({
 
   return (
     <div className="space-y-4">
+      {/* Use our new error display component */}
       {playbackErrors && currentFile && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error reproduciendo audio</AlertTitle>
-          <AlertDescription className="text-xs">
-            No se puede reproducir el archivo. Intenta con otro archivo o formato.
-          </AlertDescription>
-        </Alert>
+        <AudioErrorDisplay 
+          error={playbackErrors} 
+          file={currentFile}
+        />
       )}
       
       {currentFile && (
@@ -159,6 +157,9 @@ const RightSection = ({
       )}
     </div>
   );
-};
+});
+
+// Add display name for debugging
+RightSection.displayName = "RightSection";
 
 export default RightSection;

@@ -32,12 +32,22 @@ export const useAudioErrorHandling = ({
         recoveryTimerRef.current = null;
       }
       
-      // Log format details when new file is loaded
+      // Check for known format issues early
       const details = getAudioFormatDetails(currentFile);
       const canPlay = canBrowserPlayFile(currentFile);
       console.log(`[useAudioErrorHandling] New file loaded: ${currentFile.name}`);
       console.log(`[useAudioErrorHandling] File details: ${details}`);
-      console.log(`[useAudioErrorHandling] Browser can play: ${canPlay ? 'Yes' : 'No'}`);
+      
+      // Proactive warning for incompatible formats
+      if (!canPlay) {
+        const message = `El formato de audio ${currentFile.name.split('.').pop()?.toUpperCase()} podría no ser compatible con este navegador.`;
+        console.warn(message);
+        // Only show toast for format incompatibility if this is a new file
+        toast.warning("Formato de audio potencialmente incompatible", { 
+          description: message,
+          duration: 5000
+        });
+      }
     }
   }, [currentFile]);
 
@@ -59,13 +69,35 @@ export const useAudioErrorHandling = ({
       errorShownRef.current = true;
       lastErrorTime.current = now;
 
+      // Check for common error patterns
+      const isFormatError = error.includes('format') || error.includes('NotSupported');
+      const isPermissionError = error.includes('NotAllowed') || error.includes('permission');
+      const isNetworkError = error.includes('network') || error.includes('fetch') || error.includes('load');
+      
       if (currentFile) {
-        const details = getAudioFormatDetails(currentFile);
-        console.log(`[useAudioErrorHandling] File details: ${details}`);
+        if (isFormatError) {
+          toast.error("Formato de audio incompatible", { 
+            description: `El navegador no puede reproducir este formato de archivo: ${currentFile.name.split('.').pop()?.toUpperCase()}`,
+            duration: 5000
+          });
+        } else if (isPermissionError) {
+          toast.error("Permiso denegado", { 
+            description: "El navegador no permite reproducir audio automáticamente. Haga clic en el botón de reproducción.",
+            duration: 5000
+          });
+        } else if (isNetworkError) {
+          toast.error("Error de carga", { 
+            description: "No se pudo cargar el archivo de audio.",
+            duration: 5000
+          });
+        } else {
+          // Generic error
+          toast.error("Error de reproducción", { 
+            description: "Ocurrió un problema al reproducir el audio.",
+            duration: 5000
+          });
+        }
       }
-       // The useAudioPlayer hook often shows its own toast, so we might not need one here.
-       // If needed, uncomment the line below:
-       // toast.error("Error de reproducción de audio", { description: error, duration: 5000 });
     }
   }, [currentFile]);
 
