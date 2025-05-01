@@ -1,3 +1,4 @@
+
 /**
  * Audio format detection and validation utilities
  */
@@ -153,5 +154,75 @@ export async function validateAudioURL(url: string): Promise<{valid: boolean, st
       valid: false,
       error: error instanceof Error ? error.message : String(error)
     };
+  }
+}
+
+/**
+ * Attempt to unlock/unmute audio context across browsers
+ * This helps deal with autoplay restrictions in browsers
+ * @returns true if unmute attempt was performed
+ */
+export function unmuteAudio(): boolean {
+  try {
+    // Try to access and resume AudioContext if it exists
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    
+    if (!AudioContextClass) {
+      console.log('[unmuteAudio] AudioContext not available in this browser');
+      return false;
+    }
+
+    // Try to get any existing audio contexts first
+    if ((window as any).audioContexts) {
+      const existingContexts = (window as any).audioContexts;
+      let resumedAny = false;
+      
+      for (let i = 0; i < existingContexts.length; i++) {
+        const ctx = existingContexts[i];
+        if (ctx && ctx.state === 'suspended') {
+          console.log('[unmuteAudio] Resuming existing AudioContext');
+          ctx.resume().catch((e: Error) => console.warn('[unmuteAudio] Error resuming context:', e));
+          resumedAny = true;
+        }
+      }
+      
+      if (resumedAny) return true;
+    }
+
+    // Create a new AudioContext if needed
+    const tempContext = new AudioContextClass();
+    
+    // Store for future use if it doesn't exist yet
+    if (!(window as any).audioContexts) {
+      (window as any).audioContexts = [];
+    }
+    (window as any).audioContexts.push(tempContext);
+    
+    console.log('[unmuteAudio] AudioContext state:', tempContext.state);
+    
+    // If suspended, try to resume it
+    if (tempContext.state === 'suspended') {
+      tempContext.resume().catch((e: Error) => console.warn('[unmuteAudio] Error resuming context:', e));
+    }
+    
+    // Create a silent oscillator to trigger audio unlock
+    const oscillator = tempContext.createOscillator();
+    const gainNode = tempContext.createGain();
+    gainNode.gain.value = 0; // Completely silent
+    oscillator.connect(gainNode);
+    gainNode.connect(tempContext.destination);
+    
+    // Play for a very short time
+    oscillator.start(0);
+    setTimeout(() => {
+      oscillator.stop();
+      // Don't disconnect - it can cause issues in some browsers
+    }, 1);
+    
+    console.log('[unmuteAudio] Attempted to unmute audio');
+    return true;
+  } catch (e) {
+    console.warn('[unmuteAudio] Error during audio unmute attempt:', e);
+    return false;
   }
 }

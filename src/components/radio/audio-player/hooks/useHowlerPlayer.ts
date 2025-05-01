@@ -297,7 +297,7 @@ export const useHowlerPlayer = ({
         // Handle AbortError - this is expected when rapid play/pause actions occur
         const isAbortError = err && 
           (typeof err === 'string' && err.includes('AbortError') || 
-           typeof err === 'object' && (err as any)?.name === 'AbortError');
+           (err && typeof err === 'object' && 'name' in err && (err as any).name === 'AbortError'));
         
         if (isAbortError) {
           console.log('[HowlerPlayer] Play interrupted (AbortError) - likely due to rapid play/pause actions');
