@@ -1,8 +1,9 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Howl, Howler } from 'howler';
 import { toast } from 'sonner';
 import { validateAudioFile } from '@/utils/file-validation';
-import { useDebounce } from '@/hooks/useDebounce';
+import { detectAudioFormat, getMostLikelyMimeType, getAudioFormatDetails, canBrowserPlayFile } from '@/utils/audio-format-helper';
 
 interface AudioPlayerOptions {
   file?: File;
@@ -42,6 +43,7 @@ export const useHowlerPlayer = ({
   const errorShownRef = useRef<boolean>(false);
   const seekTarget = useRef<number | null>(null);
   const seekRetryCount = useRef<number>(0);
+  const isUsingHTML5Fallback = useRef<boolean>(false);
   
   // Operation tracking refs to prevent race conditions
   const isOperationPending = useRef<boolean>(false);
@@ -51,21 +53,6 @@ export const useHowlerPlayer = ({
   // AudioContext related refs
   const audioContextResumeAttempted = useRef<boolean>(false);
   const audioContextResumeCount = useRef<number>(0);
-
-  // Detect file format from name or MIME type
-  const detectFormat = (file?: File): string[] | null => {
-    if (!file) return null;
-    
-    // Get format from file extension
-    const fileNameFormat = file.name.split('.').pop()?.toLowerCase();
-    const formats = SUPPORTED_FORMATS.filter(format => 
-      file.type.includes(format) || 
-      (fileNameFormat && format === fileNameFormat)
-    );
-    
-    // If we can't detect format from MIME or filename, use a default set
-    return formats.length > 0 ? formats : ['mp3', 'wav', 'ogg'];
-  };
 
   // Function to attempt resuming AudioContext (to handle autoplay restrictions)
   const tryResumeAudioContext = () => {
@@ -128,6 +115,223 @@ export const useHowlerPlayer = ({
     isOperationPending.current = false;
     audioContextResumeAttempted.current = false;
     audioContextResumeCount.current = 0;
+    isUsingHTML5Fallback.current = false;
+  };
+
+  // Create a Howl instance with appropriate configuration
+  const createHowl = (
+    fileUrl: string, 
+    useHTML5: boolean = false, 
+    detectedFormat: string | null = null, 
+    isFallback: boolean = false
+  ): Howl => {
+    console.log(`[HowlerPlayer] Creating Howl instance with html5=${useHTML5}, format=${detectedFormat || 'auto'}`);
+    
+    // Set formats array based on detected format or file extension
+    const formats = detectedFormat ? [detectedFormat] : 
+      file ? file.name.split('.').pop()?.toLowerCase() as string : undefined;
+    
+    // Return a configured Howl instance
+    return new Howl({
+      src: [fileUrl],
+      html5: useHTML5, // Use HTML5 Audio instead of Web Audio API when true
+      format: formats ? [formats] : undefined,
+      preload: true,
+      autoplay: false,
+      pool: 1, // Reduce pool size to save memory
+      onload: () => {
+        console.log(`[HowlerPlayer] Audio loaded successfully (html5=${useHTML5}): ${file?.name}`);
+        setDuration(howlRef.current?.duration() || 0);
+        setIsLoading(false);
+        setIsReady(true);
+        isUsingHTML5Fallback.current = useHTML5;
+        
+        // Attempt to unlock audio context
+        tryResumeAudioContext();
+        
+        // Restore saved position if available
+        const storedPosition = sessionStorage.getItem('audio-position');
+        if (storedPosition) {
+          const position = parseFloat(storedPosition);
+          if (!isNaN(position) && position > 0) {
+            howlRef.current?.seek(position);
+            setCurrentTime(position);
+            
+            // If there was a pending seek target, try to apply it now
+            if (seekTarget.current !== null) {
+              handleSeekInternal(seekTarget.current);
+              seekTarget.current = null;
+            }
+          }
+        }
+      },
+      onloaderror: (id, err) => {
+        // Improved error handling for loader errors
+        const errorMessage = `Failed to load audio: ${err || 'Unknown error'}`;
+        console.error(`[HowlerPlayer] ${errorMessage} (html5=${useHTML5})`);
+        
+        if (isFallback) {
+          // If this is already a fallback attempt that failed
+          setIsLoading(false);
+          isOperationPending.current = false;
+          
+          if (!errorShownRef.current) {
+            errorShownRef.current = true;
+            setAudioError(errorMessage);
+            
+            // Log detailed file information for debugging
+            if (file) {
+              const details = getAudioFormatDetails(file);
+              console.log(`[HowlerPlayer] File details: ${details}`);
+            }
+            
+            toast.error('Error loading audio file', {
+              description: 'The file may be corrupted or in an unsupported format',
+              duration: 5000,
+            });
+            
+            if (onError) onError(errorMessage);
+          }
+        } else {
+          // Try HTML5 Audio as fallback if Web Audio API fails
+          console.log("[HowlerPlayer] Web Audio API failed, attempting HTML5 audio fallback...");
+          
+          // Create a fallback Howl with HTML5 mode
+          try {
+            const fallbackSound = createHowl(fileUrl, true, detectedFormat, true);
+            howlRef.current = fallbackSound;
+          } catch (fallbackErr) {
+            // Both attempts failed
+            errorShownRef.current = true;
+            setAudioError(`Failed to initialize audio player: ${fallbackErr}`);
+            setIsLoading(false);
+            
+            toast.error('Error loading audio file', {
+              description: 'The file format may not be supported by your browser',
+              duration: 5000,
+            });
+            
+            if (onError) onError(`Error initializing audio: ${fallbackErr}`);
+          }
+        }
+      },
+      onplay: () => {
+        setIsPlaying(true);
+        updateProgress();
+        isOperationPending.current = false;
+        
+        // Announce playback started for screen readers
+        const playbackRateText = playbackRate !== 1 ? ` at ${playbackRate}x speed` : '';
+        console.log(`[HowlerPlayer] Playback started${playbackRateText}`);
+      },
+      onpause: () => {
+        setIsPlaying(false);
+        if (progressInterval.current) {
+          clearInterval(progressInterval.current);
+        }
+        isOperationPending.current = false;
+        console.log('[HowlerPlayer] Playback paused');
+      },
+      onstop: () => {
+        setIsPlaying(false);
+        if (progressInterval.current) {
+          clearInterval(progressInterval.current);
+        }
+        isOperationPending.current = false;
+        console.log('[HowlerPlayer] Playback stopped');
+      },
+      onend: () => {
+        console.log('[HowlerPlayer] Audio playback ended');
+        setIsPlaying(false);
+        if (progressInterval.current) {
+          clearInterval(progressInterval.current);
+        }
+        isOperationPending.current = false;
+        if (onEnded) onEnded();
+      },
+      onplayerror: (id, err) => {
+        // Handle AbortError - this is expected when rapid play/pause actions occur
+        const isAbortError = err && 
+          (typeof err === 'string' && err.includes('AbortError') || 
+           typeof err === 'object' && (err as any)?.name === 'AbortError');
+        
+        if (isAbortError) {
+          console.log('[HowlerPlayer] Play interrupted (AbortError) - likely due to rapid play/pause actions');
+          isOperationPending.current = false;
+          
+          // Try to resume AudioContext as this might be the issue
+          tryResumeAudioContext();
+          return; // Silently handle AbortError
+        }
+        
+        // Handle other errors
+        const errorMessage = `Error playing audio: ${err || 'Unknown error'}`;
+        console.error(`[HowlerPlayer] ${errorMessage}`);
+        setIsPlaying(false);
+        isOperationPending.current = false;
+        
+        if (!errorShownRef.current) {
+          errorShownRef.current = true;
+          setAudioError(errorMessage);
+          toast.error('Error playing audio file', {
+            description: 'There was an issue playing this file',
+            duration: 5000,
+          });
+          if (onError) onError(errorMessage);
+        }
+      },
+      onseek: () => {
+        // When a seek operation completes, update the current time
+        if (howlRef.current) {
+          const time = howlRef.current.seek() as number;
+          setCurrentTime(time || 0);
+          
+          // If we had a specific seek target, check if we hit it accurately
+          if (seekTarget.current !== null) {
+            const actualPos = howlRef.current.seek() as number;
+            const targetPos = seekTarget.current;
+            
+            // If we're not close enough to the target and haven't retried too many times, try again
+            if (Math.abs(actualPos - targetPos) > 0.5 && seekRetryCount.current < 3) {
+              console.log(`[HowlerPlayer] Seek retry ${seekRetryCount.current+1}/3: Target=${targetPos.toFixed(2)}s, Actual=${actualPos.toFixed(2)}s`);
+              seekRetryCount.current++;
+              setTimeout(() => {
+                if (howlRef.current) {
+                  howlRef.current.seek(targetPos);
+                }
+              }, 50);
+            } else {
+              // Clear seek target after successful seek or max retries
+              seekTarget.current = null;
+              seekRetryCount.current = 0;
+              
+              // Log seek completion
+              console.log(`[HowlerPlayer] Seek completed to ${time.toFixed(2)}s`);
+            }
+          }
+        }
+      }
+    });
+  };
+
+  // Choose the best audio playback strategy based on file format
+  const choosePlaybackStrategy = (file: File): boolean => {
+    const format = detectAudioFormat(file);
+    const details = getAudioFormatDetails(file);
+    console.log(`[HowlerPlayer] File analysis: ${details}`);
+    
+    // Detect if browser can play this file directly
+    const canPlay = canBrowserPlayFile(file);
+    console.log(`[HowlerPlayer] Browser reports it can play this file: ${canPlay}`);
+    
+    // Special handling for MP3 files - prefer HTML5 Audio for better compatibility
+    if (format === 'mp3' || file.name.toLowerCase().endsWith('.mp3')) {
+      console.log('[HowlerPlayer] MP3 format detected - using HTML5 Audio player for better compatibility');
+      return true; // Use HTML5 Audio for MP3s by default
+    }
+    
+    // For other formats, use Web Audio API first with fallback to HTML5
+    return false;
   };
 
   // Initialize Howler instance when file changes
@@ -143,12 +347,6 @@ export const useHowlerPlayer = ({
       return;
     }
 
-    // Validate file before attempting to create audio object
-    if (!validateAudioFile(file)) {
-      setAudioError('Invalid audio file format');
-      return;
-    }
-
     try {
       console.log(`[HowlerPlayer] Initializing audio with file: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
       setIsLoading(true);
@@ -160,193 +358,14 @@ export const useHowlerPlayer = ({
       const fileUrl = URL.createObjectURL(file);
       audioUrlRef.current = fileUrl;
       
-      // Detect format from file
-      const formats = detectFormat(file);
-      console.log(`[HowlerPlayer] Detected formats: ${formats?.join(', ')}`);
+      // Detect format and determine best playback strategy
+      const detectedFormat = detectAudioFormat(file);
+      const useHTML5 = choosePlaybackStrategy(file);
       
-      // Create new Howl instance with enhanced configuration
-      const sound = new Howl({
-        src: [fileUrl],
-        // Important: Explicitly set html5 to false to force Web Audio API usage
-        html5: false,
-        preload: true,
-        format: formats || undefined,
-        autoplay: false,
-        pool: 1, // Reduce pool size to save memory
-        onload: () => {
-          console.log(`[HowlerPlayer] Audio loaded successfully: ${file.name}`);
-          setDuration(sound.duration());
-          setIsLoading(false);
-          setIsReady(true);
-          
-          // Attempt to unlock audio context
-          tryResumeAudioContext();
-          
-          // Restore saved position if available
-          const storedPosition = sessionStorage.getItem('audio-position');
-          if (storedPosition) {
-            const position = parseFloat(storedPosition);
-            if (!isNaN(position) && position > 0) {
-              sound.seek(position);
-              setCurrentTime(position);
-              
-              // If there was a pending seek target, try to apply it now
-              if (seekTarget.current !== null) {
-                handleSeekInternal(seekTarget.current);
-                seekTarget.current = null;
-              }
-            }
-          }
-        },
-        onloaderror: (id, err) => {
-          // Improved error handling for loader errors
-          const errorMessage = `Failed to load audio: ${err || 'Unknown error'}`;
-          console.error(`[HowlerPlayer] ${errorMessage}`);
-          setIsLoading(false);
-          isOperationPending.current = false;
-          
-          // Attempt to fall back to HTML5 audio if Web Audio API fails
-          if (!errorShownRef.current) {
-            console.log("[HowlerPlayer] Attempting HTML5 audio fallback...");
-            
-            // Create a fallback Howl with HTML5 mode
-            try {
-              const fallbackSound = new Howl({
-                src: [fileUrl],
-                html5: true, // Try with HTML5 Audio as fallback
-                preload: true,
-                format: formats || undefined,
-                autoplay: false,
-                onload: () => {
-                  console.log(`[HowlerPlayer] HTML5 fallback loaded successfully: ${file.name}`);
-                  howlRef.current = fallbackSound;
-                  setDuration(fallbackSound.duration());
-                  setIsLoading(false);
-                  setIsReady(true);
-                },
-                onloaderror: () => {
-                  errorShownRef.current = true;
-                  setAudioError(errorMessage);
-                  setIsLoading(false);
-                  
-                  toast.error('Error loading audio file', {
-                    description: 'The file format may not be supported by your browser',
-                    duration: 5000,
-                  });
-                  
-                  if (onError) onError(errorMessage);
-                }
-              });
-            } catch (fallbackErr) {
-              errorShownRef.current = true;
-              setAudioError(errorMessage);
-              
-              toast.error('Error loading audio file', {
-                description: 'The file may be corrupted or in an unsupported format',
-                duration: 5000,
-              });
-              
-              if (onError) onError(errorMessage);
-            }
-          }
-        },
-        onplay: () => {
-          setIsPlaying(true);
-          updateProgress();
-          isOperationPending.current = false;
-          
-          // Announce playback started for screen readers
-          const playbackRateText = playbackRate !== 1 ? ` at ${playbackRate}x speed` : '';
-          console.log(`[HowlerPlayer] Playback started${playbackRateText}`);
-        },
-        onpause: () => {
-          setIsPlaying(false);
-          if (progressInterval.current) {
-            clearInterval(progressInterval.current);
-          }
-          isOperationPending.current = false;
-          console.log('[HowlerPlayer] Playback paused');
-        },
-        onstop: () => {
-          setIsPlaying(false);
-          if (progressInterval.current) {
-            clearInterval(progressInterval.current);
-          }
-          isOperationPending.current = false;
-          console.log('[HowlerPlayer] Playback stopped');
-        },
-        onend: () => {
-          console.log('[HowlerPlayer] Audio playback ended');
-          setIsPlaying(false);
-          if (progressInterval.current) {
-            clearInterval(progressInterval.current);
-          }
-          isOperationPending.current = false;
-          if (onEnded) onEnded();
-        },
-        onplayerror: (id, err) => {
-          // Handle AbortError - this is expected when rapid play/pause actions occur
-          const isAbortError = err && 
-            (typeof err === 'string' && err.includes('AbortError') || 
-             typeof err === 'object' && (err as any)?.name === 'AbortError');
-          
-          if (isAbortError) {
-            console.log('[HowlerPlayer] Play interrupted (AbortError) - likely due to rapid play/pause actions');
-            isOperationPending.current = false;
-            
-            // Try to resume AudioContext as this might be the issue
-            tryResumeAudioContext();
-            return; // Silently handle AbortError
-          }
-          
-          // Handle other errors
-          const errorMessage = `Error playing audio: ${err || 'Unknown error'}`;
-          console.error(`[HowlerPlayer] ${errorMessage}`);
-          setIsPlaying(false);
-          isOperationPending.current = false;
-          
-          if (!errorShownRef.current) {
-            errorShownRef.current = true;
-            setAudioError(errorMessage);
-            toast.error('Error playing audio file', {
-              description: 'There was an issue playing this file',
-              duration: 5000,
-            });
-            if (onError) onError(errorMessage);
-          }
-        },
-        onseek: () => {
-          // When a seek operation completes, update the current time
-          if (howlRef.current) {
-            const time = howlRef.current.seek() as number;
-            setCurrentTime(time || 0);
-            
-            // If we had a specific seek target, check if we hit it accurately
-            if (seekTarget.current !== null) {
-              const actualPos = howlRef.current.seek() as number;
-              const targetPos = seekTarget.current;
-              
-              // If we're not close enough to the target and haven't retried too many times, try again
-              if (Math.abs(actualPos - targetPos) > 0.5 && seekRetryCount.current < 3) {
-                console.log(`[HowlerPlayer] Seek retry ${seekRetryCount.current+1}/3: Target=${targetPos.toFixed(2)}s, Actual=${actualPos.toFixed(2)}s`);
-                seekRetryCount.current++;
-                setTimeout(() => {
-                  if (howlRef.current) {
-                    howlRef.current.seek(targetPos);
-                  }
-                }, 50);
-              } else {
-                // Clear seek target after successful seek or max retries
-                seekTarget.current = null;
-                seekRetryCount.current = 0;
-                
-                // Log seek completion
-                console.log(`[HowlerPlayer] Seek completed to ${time.toFixed(2)}s`);
-              }
-            }
-          }
-        }
-      });
+      console.log(`[HowlerPlayer] Creating audio player with ${useHTML5 ? 'HTML5 Audio' : 'Web Audio API'}, detected format: ${detectedFormat || 'unknown'}`);
+      
+      // Create a new Howl instance with the determined configuration
+      const sound = createHowl(fileUrl, useHTML5, detectedFormat);
       
       // Set initial volume
       sound.volume(volume[0] / 100);

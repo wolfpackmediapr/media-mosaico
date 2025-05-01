@@ -1,42 +1,115 @@
 
-import { useEffect, useRef } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { unmuteAudio } from "@/utils/audio-format-helper";
+import { Howler } from "howler";
 
 /**
- * Hook to handle unlocking the browser's audio context on the first user interaction.
+ * Hook to handle audio unlocking across browsers
+ * This helps with browser autoplay restrictions
  */
 export const useAudioUnlock = () => {
-  const audioUnlockAttempted = useRef<boolean>(false);
-
-  useEffect(() => {
-    if (!audioUnlockAttempted.current) {
-      const unlockAudio = () => {
-        if (!audioUnlockAttempted.current) {
-          console.log("[useAudioUnlock] Attempting to unlock audio context.");
-          audioUnlockAttempted.current = true;
-          unmuteAudio();
-          // Remove listeners once unlocked
-          document.removeEventListener('click', unlockAudio);
-          document.removeEventListener('touchend', unlockAudio);
-          document.removeEventListener('keydown', unlockAudio);
+  const isUnlocked = useRef<boolean>(false);
+  const unlockAttempts = useRef<number>(0);
+  
+  // Comprehensive audio unlock function
+  const attemptAudioUnlock = useCallback(() => {
+    if (isUnlocked.current) return true;
+    
+    try {
+      // Try to unlock the standard Web Audio API
+      const didUnmute = unmuteAudio();
+      
+      // Try to unlock Howler's audio context specifically
+      try {
+        if ((Howler as any).ctx && (Howler as any).ctx.state === 'suspended') {
+          console.log('[useAudioUnlock] Attempting to resume Howler AudioContext');
+          (Howler as any).ctx.resume().then(() => {
+            console.log(`[useAudioUnlock] Howler AudioContext state: ${(Howler as any).ctx.state}`);
+            isUnlocked.current = true;
+          }).catch((err: any) => {
+            console.warn('[useAudioUnlock] Failed to resume Howler AudioContext:', err);
+          });
         }
-      };
-
-      // Listen for common interaction events
-      document.addEventListener('click', unlockAudio, { once: true, capture: true });
-      document.addEventListener('touchend', unlockAudio, { once: true, capture: true });
-      document.addEventListener('keydown', unlockAudio, { once: true, capture: true });
-
-      // Cleanup function
-      return () => {
-        document.removeEventListener('click', unlockAudio);
-        document.removeEventListener('touchend', unlockAudio);
-        document.removeEventListener('keydown', unlockAudio);
-      };
+        
+        // Try to trigger Howler's unlock function if available
+        if (typeof (Howler as any)._autoUnlock === 'function') {
+          console.log('[useAudioUnlock] Calling Howler._autoUnlock()');
+          (Howler as any)._autoUnlock();
+        }
+      } catch (err) {
+        console.warn('[useAudioUnlock] Error unlocking Howler audio:', err);
+      }
+      
+      // Check for HTML5 audio unlock as well
+      try {
+        const audio = new Audio();
+        audio.muted = true;
+        
+        // Just trying to play something can help unlock audio
+        audio.play().then(() => {
+          console.log('[useAudioUnlock] HTML5 Audio unlock successful');
+          setTimeout(() => {
+            audio.pause();
+            audio.src = '';
+          }, 100);
+        }).catch(err => {
+          console.warn('[useAudioUnlock] HTML5 Audio unlock failed:', err);
+        });
+      } catch (err) {
+        console.warn('[useAudioUnlock] Error with HTML5 Audio unlock:', err);
+      }
+      
+      // Increment attempt counter
+      unlockAttempts.current++;
+      
+      // Consider successful after didUnmute or multiple attempts
+      if (didUnmute || unlockAttempts.current >= 3) {
+        isUnlocked.current = true;
+        return true;
+      }
+      
+      return didUnmute;
+    } catch (err) {
+      console.error('[useAudioUnlock] Error during audio unlock:', err);
+      return false;
     }
   }, []);
-
-  // Return the unlock function in case it's needed manually (optional)
-  return { attemptAudioUnlock: unmuteAudio };
+  
+  // Set up unlock listeners
+  useEffect(() => {
+    // Only try to set up if not already unlocked
+    if (isUnlocked.current) return;
+    
+    const unlockEvents = ['touchstart', 'touchend', 'click', 'keydown'];
+    
+    // Handler to be called on user interaction
+    const unlockHandler = () => {
+      attemptAudioUnlock();
+      
+      // If we've succeeded, remove all the listeners
+      if (isUnlocked.current) {
+        unlockEvents.forEach(event => {
+          document.removeEventListener(event, unlockHandler);
+        });
+      }
+    };
+    
+    // Add interaction listeners
+    unlockEvents.forEach(event => {
+      document.addEventListener(event, unlockHandler);
+    });
+    
+    // Clean up listeners on unmount
+    return () => {
+      unlockEvents.forEach(event => {
+        document.removeEventListener(event, unlockHandler);
+      });
+    };
+  }, [attemptAudioUnlock]);
+  
+  // Return the unlock function so it can be called manually when needed
+  return { 
+    attemptAudioUnlock,
+    isAudioUnlocked: isUnlocked.current
+  };
 };
-

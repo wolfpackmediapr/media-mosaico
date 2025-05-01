@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getAudioFormatDetails } from "@/utils/audio-format-helper";
+import { getAudioFormatDetails, canBrowserPlayFile } from "@/utils/audio-format-helper";
 import { toast } from "sonner";
 
 interface AudioErrorHandlingOptions {
@@ -31,7 +31,13 @@ export const useAudioErrorHandling = ({
         clearTimeout(recoveryTimerRef.current);
         recoveryTimerRef.current = null;
       }
-      console.log(`[useAudioErrorHandling] New file loaded, resetting errors.`);
+      
+      // Log format details when new file is loaded
+      const details = getAudioFormatDetails(currentFile);
+      const canPlay = canBrowserPlayFile(currentFile);
+      console.log(`[useAudioErrorHandling] New file loaded: ${currentFile.name}`);
+      console.log(`[useAudioErrorHandling] File details: ${details}`);
+      console.log(`[useAudioErrorHandling] Browser can play: ${canPlay ? 'Yes' : 'No'}`);
     }
   }, [currentFile]);
 
@@ -62,7 +68,6 @@ export const useAudioErrorHandling = ({
        // toast.error("Error de reproducción de audio", { description: error, duration: 5000 });
     }
   }, [currentFile]);
-
 
   // Effect to handle error notification and potential recovery
   useEffect(() => {
@@ -102,4 +107,3 @@ export const useAudioErrorHandling = ({
     setPlaybackErrors // Allow external setting if absolutely necessary
   };
 };
-

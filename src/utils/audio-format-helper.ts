@@ -6,15 +6,26 @@
 // Import Howler directly
 import { Howl, Howler } from 'howler';
 
+// Enhanced MIME type mapping with more alternatives for each format
 const AUDIO_MIME_MAP: Record<string, string[]> = {
-  'mp3': ['audio/mpeg', 'audio/mp3'],
-  'wav': ['audio/wav', 'audio/wave', 'audio/x-wav'],
-  'ogg': ['audio/ogg', 'audio/vorbis'],
-  'm4a': ['audio/x-m4a', 'audio/mp4', 'audio/aac'],
-  'aac': ['audio/aac', 'audio/aacp'],
+  'mp3': ['audio/mpeg', 'audio/mp3', 'audio/x-mp3', 'audio/x-mpeg', 'audio/mpeg3', 'audio/x-mpeg3'],
+  'wav': ['audio/wav', 'audio/wave', 'audio/x-wav', 'audio/webm-wav', 'audio/webm-wave'],
+  'ogg': ['audio/ogg', 'audio/vorbis', 'audio/x-ogg', 'application/ogg'],
+  'm4a': ['audio/x-m4a', 'audio/mp4', 'audio/aac', 'audio/x-mp4'],
+  'aac': ['audio/aac', 'audio/aacp', 'audio/x-aac', 'audio/x-hx-aac-adts'],
   'flac': ['audio/flac', 'audio/x-flac'],
-  'webm': ['audio/webm']
+  'webm': ['audio/webm', 'audio/webm; codecs=opus']
 };
+
+// Reverse mapping from MIME to format extension
+const MIME_TO_FORMAT: Record<string, string> = {};
+
+// Initialize reverse mapping
+Object.entries(AUDIO_MIME_MAP).forEach(([format, mimeTypes]) => {
+  mimeTypes.forEach(mime => {
+    MIME_TO_FORMAT[mime] = format;
+  });
+});
 
 /**
  * Get audio format details for debugging purposes
@@ -45,12 +56,52 @@ export const getAudioFormatDetails = (file: File): string => {
         }
       }
     }
+    
+    // Enhanced browser support detection
+    const audio = new Audio();
+    if (mimeType !== 'unknown') {
+      const canPlay = audio.canPlayType(mimeType);
+      supportInfo += `, navegador: ${canPlay ? (canPlay === 'probably' ? 'compatible' : 'posiblemente compatible') : 'no compatible'}`;
+    }
+    
   } catch (e) {
     console.warn('Error al verificar soporte de audio:', e);
     supportInfo += ' (error al verificar soporte)';
   }
   
   return `Formato: ${extension}, MIME: ${mimeType}, Tamaño: ${fileSizeMB}MB, Soporte: ${supportInfo}`;
+};
+
+/**
+ * Detect format from file extension and MIME type
+ */
+export const detectAudioFormat = (file: File): string | null => {
+  if (!file) return null;
+  
+  // Try to get format from MIME type first
+  if (file.type && MIME_TO_FORMAT[file.type]) {
+    return MIME_TO_FORMAT[file.type];
+  }
+  
+  // If not found by MIME, try file extension
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  if (extension && AUDIO_MIME_MAP[extension]) {
+    return extension;
+  }
+  
+  // If we can't detect the format, return null
+  return null;
+};
+
+/**
+ * Get the most likely MIME type for a file based on extension
+ */
+export const getMostLikelyMimeType = (file: File): string | null => {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  if (extension && AUDIO_MIME_MAP[extension]) {
+    return AUDIO_MIME_MAP[extension][0]; // Return first (most common) MIME type
+  }
+  return file.type || null;
 };
 
 /**
@@ -67,23 +118,52 @@ export const isAudioFormatSupported = (format: string): boolean => {
     const audio = document.createElement('audio');
     
     // Map format extension to mime type for testing
-    const mimeTypes: Record<string, string> = {
-      'mp3': 'audio/mpeg',
-      'wav': 'audio/wav',
-      'ogg': 'audio/ogg',
-      'm4a': 'audio/mp4',
-      'aac': 'audio/aac',
-      'flac': 'audio/flac',
-      'webm': 'audio/webm'
-    };
-    
-    if (mimeTypes[format]) {
-      return audio.canPlayType(mimeTypes[format]) !== '';
+    if (AUDIO_MIME_MAP[format]) {
+      // Try all MIME types associated with this format
+      for (const mimeType of AUDIO_MIME_MAP[format]) {
+        const support = audio.canPlayType(mimeType);
+        if (support === 'probably' || support === 'maybe') {
+          return true;
+        }
+      }
     }
     
     return false;
   } catch (e) {
     console.warn('Error al verificar soporte de formato:', e);
+    return false;
+  }
+};
+
+/**
+ * Check if browser can play a specific file
+ */
+export const canBrowserPlayFile = (file: File): boolean => {
+  try {
+    const audio = document.createElement('audio');
+    
+    // Check MIME type first
+    if (file.type) {
+      const support = audio.canPlayType(file.type);
+      if (support === 'probably' || support === 'maybe') {
+        return true;
+      }
+    }
+    
+    // Try by extension as fallback
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (extension && AUDIO_MIME_MAP[extension]) {
+      for (const mime of AUDIO_MIME_MAP[extension]) {
+        const support = audio.canPlayType(mime);
+        if (support === 'probably' || support === 'maybe') {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  } catch (e) {
+    console.warn('Error checking browser playback support:', e);
     return false;
   }
 };
