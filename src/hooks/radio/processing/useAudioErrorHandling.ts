@@ -21,6 +21,7 @@ export const useAudioErrorHandling = ({
   const errorShownRef = useRef<boolean>(false);
   const lastErrorTime = useRef<number>(0);
   const recoveryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const fallbackElementRef = useRef<HTMLAudioElement | null>(null);
 
   // Reset error state when file changes
   useEffect(() => {
@@ -38,6 +39,11 @@ export const useAudioErrorHandling = ({
       console.log(`[useAudioErrorHandling] New file loaded: ${currentFile.name}`);
       console.log(`[useAudioErrorHandling] File details: ${details}`);
       
+      // Create a fallback audio element to try to play the file directly if needed
+      if (!fallbackElementRef.current) {
+        fallbackElementRef.current = new Audio();
+      }
+      
       // Proactive warning for incompatible formats
       if (!canPlay) {
         const message = `El formato de audio ${currentFile.name.split('.').pop()?.toUpperCase()} podría no ser compatible con este navegador.`;
@@ -49,6 +55,54 @@ export const useAudioErrorHandling = ({
         });
       }
     }
+    
+    return () => {
+      // Clean up fallback audio element
+      if (fallbackElementRef.current) {
+        fallbackElementRef.current.src = '';
+        fallbackElementRef.current.load();
+      }
+    };
+  }, [currentFile]);
+
+  // Try to play with native HTML5 audio as a fallback
+  const attemptFallbackPlay = useCallback(() => {
+    if (!currentFile || !fallbackElementRef.current) return false;
+    
+    try {
+      const url = URL.createObjectURL(currentFile);
+      fallbackElementRef.current.src = url;
+      
+      // Listen for errors and success
+      const handleCanPlay = () => {
+        console.log('[useAudioErrorHandling] Fallback audio can play the file');
+        // We can play this file with native audio, suggest using it
+        toast.info('Reproducción nativa disponible', {
+          description: 'Puede utilizar el reproductor nativo de HTML5 en lugar del reproductor avanzado para este archivo.',
+          duration: 8000
+        });
+        
+        // Clean up
+        fallbackElementRef.current?.removeEventListener('canplay', handleCanPlay);
+        fallbackElementRef.current?.removeEventListener('error', handleError);
+      };
+      
+      const handleError = () => {
+        console.log('[useAudioErrorHandling] Fallback audio also failed to play the file');
+        // File really can't be played
+        fallbackElementRef.current?.removeEventListener('canplay', handleCanPlay);
+        fallbackElementRef.current?.removeEventListener('error', handleError);
+      };
+      
+      fallbackElementRef.current.addEventListener('canplay', handleCanPlay, { once: true });
+      fallbackElementRef.current.addEventListener('error', handleError, { once: true });
+      
+      fallbackElementRef.current.load();
+      return true;
+    } catch (error) {
+      console.error('[useAudioErrorHandling] Error setting up fallback audio:', error);
+      return false;
+    }
   }, [currentFile]);
 
   // Sync with audioError from the underlying player
@@ -56,8 +110,14 @@ export const useAudioErrorHandling = ({
     if (playerAudioError && playerAudioError !== playbackErrors) {
       console.warn('[useAudioErrorHandling] Received error from player:', playerAudioError);
       setPlaybackErrors(playerAudioError);
+      
+      // If we get a codec error, try the fallback player
+      if (playerAudioError.includes("codec") || 
+          playerAudioError.includes("No codec support")) {
+        attemptFallbackPlay();
+      }
     }
-  }, [playerAudioError, playbackErrors]);
+  }, [playerAudioError, playbackErrors, attemptFallbackPlay]);
 
   // Handle showing error toasts (throttled)
   const handleErrorNotification = useCallback((error: string) => {
@@ -70,16 +130,18 @@ export const useAudioErrorHandling = ({
       lastErrorTime.current = now;
 
       // Check for common error patterns
-      const isFormatError = error.includes('format') || error.includes('NotSupported');
+      const isFormatError = error.includes('format') || error.includes('NotSupported') || error.includes('codec');
       const isPermissionError = error.includes('NotAllowed') || error.includes('permission');
       const isNetworkError = error.includes('network') || error.includes('fetch') || error.includes('load');
       
       if (currentFile) {
         if (isFormatError) {
           toast.error("Formato de audio incompatible", { 
-            description: `El navegador no puede reproducir este formato de archivo: ${currentFile.name.split('.').pop()?.toUpperCase()}`,
+            description: `El navegador no puede reproducir este formato de archivo: ${currentFile.name.split('.').pop()?.toUpperCase()}. Intente utilizar el reproductor nativo en su lugar.`,
             duration: 5000
           });
+          // Try fallback
+          attemptFallbackPlay();
         } else if (isPermissionError) {
           toast.error("Permiso denegado", { 
             description: "El navegador no permite reproducir audio automáticamente. Haga clic en el botón de reproducción.",
@@ -99,7 +161,7 @@ export const useAudioErrorHandling = ({
         }
       }
     }
-  }, [currentFile]);
+  }, [currentFile, attemptFallbackPlay]);
 
   // Effect to handle error notification and potential recovery
   useEffect(() => {
@@ -136,6 +198,7 @@ export const useAudioErrorHandling = ({
 
   return {
     playbackErrors,
-    setPlaybackErrors // Allow external setting if absolutely necessary
+    setPlaybackErrors, // Allow external setting if absolutely necessary
+    attemptFallbackPlay // Expose the fallback play method
   };
 };

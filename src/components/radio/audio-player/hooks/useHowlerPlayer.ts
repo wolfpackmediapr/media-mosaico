@@ -39,7 +39,8 @@ export const useHowlerPlayer = ({
     onError: (error) => {
       if (onError) onError(error);
       setPlaybackErrorsState(prev => ({ ...prev, howlerError: error }));
-    }
+    },
+    forceHTML5: true // Force HTML5 Audio playback
   });
 
   // Playback state - manages play/pause, time tracking, volume, etc.

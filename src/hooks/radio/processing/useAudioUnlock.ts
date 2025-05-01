@@ -10,6 +10,21 @@ import { Howler } from "howler";
 export const useAudioUnlock = () => {
   const isUnlocked = useRef<boolean>(false);
   const unlockAttempts = useRef<number>(0);
+  const nativeAudioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Initialize audio element for native audio check
+  useEffect(() => {
+    if (!nativeAudioRef.current) {
+      nativeAudioRef.current = new Audio();
+    }
+    
+    return () => {
+      if (nativeAudioRef.current) {
+        nativeAudioRef.current.src = '';
+        nativeAudioRef.current = null;
+      }
+    };
+  }, []);
   
   // Comprehensive audio unlock function
   const attemptAudioUnlock = useCallback(() => {
@@ -36,22 +51,34 @@ export const useAudioUnlock = () => {
           console.log('[useAudioUnlock] Calling Howler._autoUnlock()');
           (Howler as any)._autoUnlock();
         }
+        
+        // Try direct unlock for mobile Safari
+        if (typeof (Howler as any)._unlockAudio === 'function') {
+          console.log('[useAudioUnlock] Calling Howler._unlockAudio()');
+          (Howler as any)._unlockAudio();
+        }
       } catch (err) {
         console.warn('[useAudioUnlock] Error unlocking Howler audio:', err);
       }
       
       // Check for HTML5 audio unlock as well
       try {
-        const audio = new Audio();
+        if (!nativeAudioRef.current) {
+          nativeAudioRef.current = new Audio();
+        }
+        const audio = nativeAudioRef.current;
         audio.muted = true;
+        
+        // Create a very short audio for better unlocking
+        audio.src = 'data:audio/mp3;base64,/+MYxAAAAANIAUAAAASEEB/jwOFM/0MM/90b/+RhST//w4NFwOjf///PZu////9lns5GFDv//l9GlUIEEIAAAgIg8Ir/JGq3/+MYxDsLIj5QMYcoAP0dv9HIjUcH//yYSg+CIbkGP//8w0bLVjUP///3Z0x5QCAv/yLjwtGKTEFNRTMuOTeqqqqqqqqqqqqq/+MYxEkNmdJkUYc4AKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
         
         // Just trying to play something can help unlock audio
         audio.play().then(() => {
           console.log('[useAudioUnlock] HTML5 Audio unlock successful');
           setTimeout(() => {
             audio.pause();
-            audio.src = '';
           }, 100);
+          isUnlocked.current = true;
         }).catch(err => {
           console.warn('[useAudioUnlock] HTML5 Audio unlock failed:', err);
         });
@@ -98,6 +125,9 @@ export const useAudioUnlock = () => {
     unlockEvents.forEach(event => {
       document.addEventListener(event, unlockHandler);
     });
+    
+    // Attempt unlock immediately (might work if already interacted)
+    attemptAudioUnlock();
     
     // Clean up listeners on unmount
     return () => {

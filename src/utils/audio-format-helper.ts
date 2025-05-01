@@ -9,12 +9,25 @@ export const unmuteAudio = (): void => {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
 
+    // Try to resume any existing AudioContext
     const audioContext = new AudioContext();
     if (audioContext.state === "suspended") {
       audioContext.resume().catch(err => {
         console.warn("Failed to resume AudioContext:", err);
       });
     }
+    
+    // Also try to unlock audio by creating and playing a short buffer
+    const buffer = audioContext.createBuffer(1, 1, 22050);
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    source.start(0);
+    
+    // Create and start a silent HTML5 audio element to help unlock playback
+    const silentAudio = new Audio();
+    silentAudio.muted = true;
+    silentAudio.play().catch(() => {}); // Ignore errors
   } catch (error) {
     console.warn("Error initializing AudioContext:", error);
   }

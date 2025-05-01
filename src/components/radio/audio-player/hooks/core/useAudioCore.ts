@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
+import { getMimeTypeFromFile, canBrowserPlayFile } from '@/utils/audio-format-helper';
 
 export interface AudioCoreState {
   howl: Howl | null;
@@ -20,6 +21,7 @@ export interface UseAudioCoreOptions {
   file?: File;
   onEnded?: () => void;
   onError?: (error: string) => void;
+  forceHTML5?: boolean;
 }
 
 /**
@@ -28,7 +30,8 @@ export interface UseAudioCoreOptions {
 export const useAudioCore = ({
   file,
   onEnded,
-  onError
+  onError,
+  forceHTML5 = false
 }: UseAudioCoreOptions): [
   AudioCoreState,
   React.Dispatch<React.SetStateAction<Howl | null>>,
@@ -45,6 +48,7 @@ export const useAudioCore = ({
   
   const currentFileUrlRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const nativeAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize AudioContext
   useEffect(() => {
@@ -68,6 +72,37 @@ export const useAudioCore = ({
       }
     };
   }, []);
+
+  // Preload check using HTML5 audio
+  const preloadCheck = (url: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!nativeAudioRef.current) {
+        nativeAudioRef.current = new Audio();
+      }
+      
+      const audio = nativeAudioRef.current;
+      const timeoutId = setTimeout(() => {
+        // If loading takes too long, consider it a failure
+        resolve(false);
+      }, 3000);
+      
+      const handleCanPlay = () => {
+        clearTimeout(timeoutId);
+        resolve(true);
+      };
+      
+      const handleError = () => {
+        clearTimeout(timeoutId);
+        resolve(false);
+      };
+      
+      audio.addEventListener('canplay', handleCanPlay, { once: true });
+      audio.addEventListener('error', handleError, { once: true });
+      
+      audio.src = url;
+      audio.load();
+    });
+  };
 
   // Load and unload audio file
   useEffect(() => {
@@ -103,41 +138,81 @@ export const useAudioCore = ({
     if (howl) {
       howl.unload();
     }
+    
+    // Get MIME type for better format support
+    const mimeType = getMimeTypeFromFile(file);
+    const canPlay = canBrowserPlayFile(file);
+    
+    if (!canPlay) {
+      console.warn(`[AudioCore] Format may not be supported: ${file.name}`);
+    }
 
-    const newHowl = new Howl({
-      src: [currentUrl],
-      html5: true, // Force HTML5 Audio for large files
-      onload: () => {
-        console.log('[AudioCore] Audio loaded successfully');
-        setHowl(newHowl);
-        setDuration(newHowl.duration());
-        setPlaybackErrors({ howlerError: null, contextError: null });
-        setIsLoading(false);
-        setIsReady(true);
-      },
-      onend: () => {
-        console.log('[AudioCore] Audio ended');
-        if (onEnded) onEnded();
-      },
-      onloaderror: (id, error) => {
-        console.error('[AudioCore] Load error:', error);
-        setPlaybackErrors(prev => ({ ...prev, howlerError: `Failed to load audio: ${error}` }));
-        setIsLoading(false);
-        setIsReady(false);
-      },
-      onplayerror: (id, error) => {
-        console.error('[AudioCore] Playback error:', error);
-        if (onError) onError(`Playback error: ${error}`);
-      }
-    });
+    // Pre-check using a native HTML5 audio element
+    const initializeHowl = async () => {
+      // Ensure we can play this file before initializing Howler
+      const canPlayWithNative = await preloadCheck(currentUrl);
+      console.log(`[AudioCore] Pre-check result: ${canPlayWithNative ? 'Can play' : 'Cannot play'} with native audio`);
+      
+      // Prepare format configuration
+      const format = file.name.split('.').pop()?.toLowerCase();
+      
+      const howlConfig: Howl.Options = {
+        src: [currentUrl],
+        html5: true, // Always use HTML5 Audio for large files and better format support
+        format: format ? [format] : undefined, // Explicitly tell Howler the format
+        preload: true,
+        onload: () => {
+          console.log('[AudioCore] Audio loaded successfully');
+          setHowl(newHowl);
+          setDuration(newHowl.duration());
+          setPlaybackErrors({ howlerError: null, contextError: null });
+          setIsLoading(false);
+          setIsReady(true);
+        },
+        onend: () => {
+          console.log('[AudioCore] Audio ended');
+          if (onEnded) onEnded();
+        },
+        onloaderror: (id, error) => {
+          console.error('[AudioCore] Load error:', error);
+          const errorMessage = `Failed to load audio: ${error}`;
+          setPlaybackErrors(prev => ({ ...prev, howlerError: errorMessage }));
+          setIsLoading(false);
+          setIsReady(false);
+          
+          // Try to fallback to native HTML5 audio if Howler fails
+          if (canPlayWithNative && nativeAudioRef.current) {
+            console.log('[AudioCore] Howler failed but native audio can play. Consider using the native audio element directly.');
+          }
+          
+          if (onError) onError(errorMessage);
+        },
+        onplayerror: (id, error) => {
+          console.error('[AudioCore] Playback error:', error);
+          if (onError) onError(`Playback error: ${error}`);
+        }
+      };
+      
+      // Create and configure the Howl instance
+      const newHowl = new Howl(howlConfig);
+    };
+
+    // Start the initialization
+    initializeHowl();
 
     return () => {
       // Clean up when the component unmounts or currentFile changes
-      if (newHowl) {
-        newHowl.unload();
+      if (howl) {
+        howl.unload();
       }
       URL.revokeObjectURL(currentUrl);
       currentFileUrlRef.current = null;
+      
+      // Clean up the native audio element
+      if (nativeAudioRef.current) {
+        nativeAudioRef.current.src = '';
+        nativeAudioRef.current.load();
+      }
     };
   }, [file, howl, onEnded, onError]);
 
