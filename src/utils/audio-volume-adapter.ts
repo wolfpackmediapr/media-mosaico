@@ -53,6 +53,7 @@ export const isAudioVolumeFormat = (volume: unknown): volume is number => {
 
 /**
  * Ensures volume is in audio engine format (0-1)
+ * Accepts either UI format (number[]) or audio format (number)
  */
 export const ensureAudioVolumeFormat = (volume: number | number[]): number => {
   if (isUiVolumeFormat(volume)) {
@@ -65,6 +66,7 @@ export const ensureAudioVolumeFormat = (volume: number | number[]): number => {
 
 /**
  * Ensures volume is in UI format (array [0-100])
+ * Accepts either UI format (number[]) or audio format (number)
  */
 export const ensureUiVolumeFormat = (volume: number | number[]): number[] => {
   if (isAudioVolumeFormat(volume)) {
