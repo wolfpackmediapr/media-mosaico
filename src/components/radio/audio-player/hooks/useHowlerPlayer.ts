@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Howl, Howler } from 'howler';
 import { toast } from 'sonner';
@@ -609,7 +608,7 @@ export const useHowlerPlayer = ({
         console.error('[HowlerPlayer] Error in play/pause:', error);
         
         // Special handling for AbortError - common during rapid play/pause
-        const errObj = error as Error;
+        const errObj = error as { name?: string; message?: string };
         if (errObj && errObj.name === 'AbortError') {
           console.log('[HowlerPlayer] AbortError detected - ignoring as this is expected with rapid interactions');
         } else {
@@ -619,7 +618,7 @@ export const useHowlerPlayer = ({
           // Only show toast for non-abort errors
           if (!(errObj && errObj.name === 'AbortError')) {
             toast.error('Error playing audio file');
-            if (onError) onError(errObj ? errObj.message : String(error));
+            if (onError) onError(errObj && 'message' in errObj ? errObj.message : String(error));
           }
         }
       }
