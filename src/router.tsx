@@ -1,4 +1,3 @@
-
 import React, { Suspense } from "react";
 import { createBrowserRouter, Outlet } from "react-router-dom";
 import { lazyRoutes, settingsRoutes, publitecaRoutes, Index } from "./config/routes";
@@ -62,9 +61,7 @@ export const router = createBrowserRouter([
         path: "radio",
         element: (
           <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.Radio />
-            </ProtectedRoute>
+            <lazyRoutes.Radio />
           </Suspense>
         )
       },
