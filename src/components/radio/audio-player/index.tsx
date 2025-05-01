@@ -37,6 +37,15 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
     handleSkip(direction, amount);
   };
 
+  // Wrapper for playback rate change to handle the different function signature
+  const handlePlaybackRateChangeWrapper = () => {
+    // Get next playback rate in the sequence: 0.5 -> 1 -> 1.5 -> 2 -> 0.5
+    const rates = [0.5, 1, 1.5, 2];
+    const currentIndex = rates.indexOf(playbackRate);
+    const nextIndex = (currentIndex + 1) % rates.length;
+    handlePlaybackRateChange(rates[nextIndex]);
+  };
+
   const handleSeekWithClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
     const rect = container.getBoundingClientRect();
@@ -71,7 +80,7 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
             toggleMute: handleToggleMute
           }}
           playbackRate={playbackRate}
-          onChangePlaybackRate={handlePlaybackRateChange}
+          onChangePlaybackRate={handlePlaybackRateChangeWrapper}
         />
       </CardContent>
     </Card>

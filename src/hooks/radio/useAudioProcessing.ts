@@ -35,7 +35,7 @@ export const useAudioProcessing = ({
     volume,
     isMuted,
     playbackRate,
-    audioError,
+    playbackErrors,
     isLoading,
     isReady,
     handlePlayPause: originalHandlePlayPause,
@@ -44,7 +44,7 @@ export const useAudioProcessing = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp,
+    seekToTimestamp, // This is just an alias for handleSeek
   } = useAudioPlayer({ 
     file: currentFile || undefined,
     // Add these options to persist audio across tab changes
@@ -54,9 +54,9 @@ export const useAudioProcessing = ({
   });
 
   // Handle audio errors
-  const { playbackErrors, setPlaybackErrors } = useAudioErrorHandling({
+  const { playbackErrors: processedPlaybackErrors, setPlaybackErrors } = useAudioErrorHandling({
     currentFile,
-    playerAudioError: audioError,
+    playerAudioError: playbackErrors?.howlerError || null,
     onClearError: () => console.log("[useAudioProcessing] Error cleared")
   });
 
@@ -73,7 +73,7 @@ export const useAudioProcessing = ({
     isLoading,
     isReady,
     currentFile,
-    playbackErrors,
+    playbackErrors: processedPlaybackErrors,
     triggerPlay: originalHandlePlayPause,
     triggerPause: originalHandlePlayPause,
     onInternalPlayStateChange: (isPlaying) => {
@@ -87,7 +87,7 @@ export const useAudioProcessing = ({
     isLoading,
     isReady,
     currentFile,
-    playbackErrors,
+    playbackErrors: processedPlaybackErrors,
     triggerPlay: originalHandlePlayPause,
     triggerPause: originalHandlePlayPause
   });
@@ -99,9 +99,9 @@ export const useAudioProcessing = ({
     cleanupPendingOperations
   } = useAudioPlaybackControl({
     isPlaying,
-    playbackErrors,
+    playbackErrors: processedPlaybackErrors,
     originalHandlePlayPause,
-    seekToTimestamp,
+    seekToTimestamp: handleSeek,
     onPlayingChange
   });
 
@@ -130,7 +130,7 @@ export const useAudioProcessing = ({
     return () => {
       cleanupPendingOperations();
     };
-  }, []);
+  }, [cleanupPendingOperations]);
 
   return {
     isPlaying,
@@ -139,7 +139,7 @@ export const useAudioProcessing = ({
     volume,
     isMuted,
     playbackRate,
-    playbackErrors,
+    playbackErrors: processedPlaybackErrors,
     handlePlayPause,
     handleSeek,
     handleSkip,

@@ -1,11 +1,8 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useHowlerPlayer } from './useHowlerPlayer';
 import { useMediaControls } from './useMediaControls';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
-import { validateAudioFile, ensureFileExtension } from '@/utils/file-validation';
-import { validateAudioURL } from '@/utils/audio-format-helper';
-import { toast } from 'sonner';
 
 interface AudioPlayerOptions {
   file?: File;
@@ -25,47 +22,6 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
     preservePlaybackOnBlur = true,
     resumeOnFocus = true
   } = options;
-  
-  // Validate file before passing to player
-  const validateAndProcessFile = async (fileToProcess?: File) => {
-    if (!fileToProcess) return fileToProcess;
-
-    try {
-      // Ensure filename has extension - critical for format detection
-      if (fileToProcess.name && !fileToProcess.name.includes('.')) {
-        // Create a new file with corrected name
-        const newFileName = ensureFileExtension(fileToProcess.name, 'mp3');
-        Object.defineProperty(fileToProcess, 'name', {
-          writable: true,
-          value: newFileName
-        });
-        console.log(`[AudioPlayer] Fixed missing extension: ${newFileName}`);
-      }
-      
-      // For files loaded from persistent state, ensure they have required properties
-      if (!fileToProcess.type) {
-        const extension = fileToProcess.name.split('.').pop()?.toLowerCase();
-        const mimeType = extension === 'mp3' ? 'audio/mpeg' : 
-                       extension === 'wav' ? 'audio/wav' : 
-                       `audio/${extension}`;
-                       
-        Object.defineProperty(fileToProcess, 'type', {
-          writable: true,
-          value: mimeType
-        });
-        console.log(`[AudioPlayer] Added missing MIME type: ${mimeType}`);
-      }
-      
-      return fileToProcess;
-    } catch (err) {
-      console.error('[AudioPlayer] Error validating file:', err);
-      if (onError) onError('Error validating audio file');
-      return fileToProcess; // Return original file even if validation fails
-    }
-  };
-
-  // Process the file before usage
-  const processedFile = file ? validateAndProcessFile(file) : undefined;
   
   const {
     isPlaying,
@@ -89,7 +45,9 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
   } = useHowlerPlayer({
     file,
     onEnded,
-    onError
+    onError,
+    preservePlaybackOnBlur,
+    resumeOnFocus
   });
   
   // Integrate with Media Session API
@@ -111,6 +69,9 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
     onToggleMute: handleToggleMute
   });
 
+  // For compatibility, let's define seekToTimestamp as an alias for handleSeek
+  const seekToTimestamp = handleSeek;
+
   // Return the same API that the previous implementation provided
   return {
     isPlaying,
@@ -128,7 +89,9 @@ export const useAudioPlayer = (options: AudioPlayerOptions) => {
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp: handleSeek,
-    setIsPlaying
+    seekToTimestamp,
+    setIsPlaying,
+    handleVolumeUp,
+    handleVolumeDown
   };
 };
