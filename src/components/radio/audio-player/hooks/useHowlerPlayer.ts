@@ -752,7 +752,24 @@ export const useHowlerPlayer = ({
     }
   };
 
-  // Return the same API interface as the original useAudioPlayer hook
+  try {
+    // ... some code
+  } catch (error) {
+    // Fix the instanceof check by ensuring error is treated as an unknown type first
+    const isErrorInstance = error instanceof Error || 
+                            (typeof error === 'object' && error !== null && 'name' in error && 'message' in error);
+    
+    if (isErrorInstance) {
+      // Handle Error objects
+      console.error('[HowlerPlayer] Error:', error instanceof Error ? error.message : String(error));
+    } else {
+      // Handle non-Error objects
+      console.error('[HowlerPlayer] Unknown error:', String(error));
+    }
+    
+    // Continue with error handling...
+  }
+
   return {
     isPlaying,
     currentTime,
