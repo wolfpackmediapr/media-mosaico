@@ -1,3 +1,4 @@
+
 import React, { Suspense } from "react";
 import { createBrowserRouter, Outlet } from "react-router-dom";
 import { lazyRoutes, settingsRoutes, publitecaRoutes, Index } from "./config/routes";
@@ -21,9 +22,24 @@ const LayoutWithProviders = () => {
   );
 };
 
-// Create routes with layout wrapper and suspense fallback
-export const router = createBrowserRouter([
-  // Authentication routes - without the main layout
+// Helper function to create a protected route with suspense
+const createProtectedRoute = (Component, adminOnly = false) => (
+  <Suspense fallback={<PageLoader />}>
+    <ProtectedRoute adminOnly={adminOnly}>
+      <Component />
+    </ProtectedRoute>
+  </Suspense>
+);
+
+// Helper function to create a public route with suspense
+const createPublicRoute = (Component) => (
+  <Suspense fallback={<PageLoader />}>
+    <Component />
+  </Suspense>
+);
+
+// Authentication routes (public)
+const authRoutes = [
   {
     path: "/auth",
     element: (
@@ -47,196 +63,120 @@ export const router = createBrowserRouter([
         <RecuperarPassword />
       </PublicLayout>
     )
-  },
-  // Main application routes with layout
-  {
-    path: "/",
-    element: <LayoutWithProviders />,
-    children: [
-      {
-        index: true,
-        element: <Index />
-      },
-      {
-        path: "radio",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <lazyRoutes.Radio />
-          </Suspense>
-        )
-      },
-      {
-        path: "tv",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.Tv />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "prensa",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.Prensa />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "prensa-escrita",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.PrensaEscrita />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "redes-sociales",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.RedesSociales />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "reportes",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.Reportes />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "notificaciones",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.Notificaciones />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "envio-alertas",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.EnvioAlertas />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "ajustes",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.Ajustes />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "ayuda",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <lazyRoutes.Ayuda />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "media-monitoring",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute adminOnly>
-              <lazyRoutes.MediaMonitoring />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "admin",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute adminOnly>
-              <lazyRoutes.Admin />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      // Settings routes - adding protection to all settings routes
-      {
-        path: "configuracion/general",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <settingsRoutes.GeneralSettings />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "configuracion/notificaciones",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <settingsRoutes.NotificationsSettings />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      // Publiteca routes - adding protection
-      {
-        path: "publiteca/prensa",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <publitecaRoutes.PublitecaPrensa />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "publiteca/radio",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <publitecaRoutes.PublitecaRadio />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "publiteca/tv",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <publitecaRoutes.PublitecaTv />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      },
-      {
-        path: "publiteca/redes-sociales",
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <ProtectedRoute>
-              <publitecaRoutes.PublitecaRedesSociales />
-            </ProtectedRoute>
-          </Suspense>
-        )
-      }
-    ]
   }
+];
+
+// Main application routes that require authentication
+const protectedRoutes = [
+  {
+    path: "tv",
+    element: createProtectedRoute(lazyRoutes.Tv)
+  },
+  {
+    path: "prensa",
+    element: createProtectedRoute(lazyRoutes.Prensa)
+  },
+  {
+    path: "prensa-escrita",
+    element: createProtectedRoute(lazyRoutes.PrensaEscrita)
+  },
+  {
+    path: "redes-sociales",
+    element: createProtectedRoute(lazyRoutes.RedesSociales)
+  },
+  {
+    path: "reportes",
+    element: createProtectedRoute(lazyRoutes.Reportes)
+  },
+  {
+    path: "notificaciones",
+    element: createProtectedRoute(lazyRoutes.Notificaciones)
+  },
+  {
+    path: "envio-alertas",
+    element: createProtectedRoute(lazyRoutes.EnvioAlertas)
+  },
+  {
+    path: "ajustes",
+    element: createProtectedRoute(lazyRoutes.Ajustes)
+  },
+  {
+    path: "ayuda",
+    element: createProtectedRoute(lazyRoutes.Ayuda)
+  }
+];
+
+// Admin routes
+const adminRoutes = [
+  {
+    path: "media-monitoring",
+    element: createProtectedRoute(lazyRoutes.MediaMonitoring, true)
+  },
+  {
+    path: "admin",
+    element: createProtectedRoute(lazyRoutes.Admin, true)
+  }
+];
+
+// Public routes within the main layout (no authentication required)
+const publicLayoutRoutes = [
+  {
+    path: "radio",
+    element: createPublicRoute(lazyRoutes.Radio)
+  }
+];
+
+// Settings routes
+const configurationRoutes = [
+  {
+    path: "configuracion/general",
+    element: createProtectedRoute(settingsRoutes.GeneralSettings)
+  },
+  {
+    path: "configuracion/notificaciones",
+    element: createProtectedRoute(settingsRoutes.NotificationsSettings)
+  }
+];
+
+// Publiteca routes
+const publitecaLayoutRoutes = [
+  {
+    path: "publiteca/prensa",
+    element: createProtectedRoute(publitecaRoutes.PublitecaPrensa)
+  },
+  {
+    path: "publiteca/radio",
+    element: createProtectedRoute(publitecaRoutes.PublitecaRadio)
+  },
+  {
+    path: "publiteca/tv",
+    element: createProtectedRoute(publitecaRoutes.PublitecaTv)
+  },
+  {
+    path: "publiteca/redes-sociales",
+    element: createProtectedRoute(publitecaRoutes.PublitecaRedesSociales)
+  }
+];
+
+// Main application routes structure
+const mainAppRoutes = {
+  path: "/",
+  element: <LayoutWithProviders />,
+  children: [
+    {
+      index: true,
+      element: <Index />
+    },
+    ...publicLayoutRoutes,
+    ...protectedRoutes,
+    ...adminRoutes,
+    ...configurationRoutes,
+    ...publitecaLayoutRoutes
+  ]
+};
+
+// Create the router with all routes
+export const router = createBrowserRouter([
+  ...authRoutes,
+  mainAppRoutes
 ]);
