@@ -24,3 +24,4 @@ export interface PlaybackState {
   duration: number;
   isMuted: boolean;
 }
+

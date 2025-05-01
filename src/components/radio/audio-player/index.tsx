@@ -29,6 +29,7 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
 
   // Wrapper for volume change that accepts number arrays
   const handleVolumeChangeWrapper = (newVolume: number[]) => {
+    // Pass array directly without type conversion
     handleVolumeChange(newVolume);
   };
 

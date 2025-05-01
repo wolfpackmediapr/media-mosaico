@@ -44,7 +44,7 @@ const RadioContainer = ({
 
   // Create wrapper functions to handle type mismatches between components
   const handleVolumeChangeWrapper = (value: number[]) => {
-    // Always pass the array directly since our volume handler now accepts arrays
+    // Pass the array directly since our volume handler now accepts arrays
     state.handleVolumeChange(value);
   };
 

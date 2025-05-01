@@ -1,100 +1,111 @@
 
-import { useEffect } from 'react';
-import { useHowlerPlayer } from './useHowlerPlayer';
-import { useMediaControls } from './useMediaControls';
-import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { useState, useEffect, useRef } from 'react';
+import { Howl } from 'howler';
+import { toast } from 'sonner';
+import { useMediaControls } from './hooks/useMediaControls';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { usePlaybackControls } from './hooks/usePlaybackControls';
+import { useVolumeControls } from './hooks/useVolumeControls';
+import { useAudioProgress } from './hooks/useAudioProgress';
+import { formatTime } from './utils/timeFormatter';
 
 interface AudioPlayerOptions {
-  file?: File;
+  file: File;
   onEnded?: () => void;
   onError?: (error: string) => void;
-  preservePlaybackOnBlur?: boolean;
-  resumeOnFocus?: boolean;
 }
 
-// This hook maintains the same interface as the previous implementation
-// but delegates actual audio handling to useHowlerPlayer
-export const useAudioPlayer = (options: AudioPlayerOptions) => {
-  const {
-    file,
-    onEnded,
-    onError,
-    preservePlaybackOnBlur = true,
-    resumeOnFocus = true
-  } = options;
-  
-  const {
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    isMuted,
-    playbackRate,
-    playbackErrors,
-    isLoading,
-    isReady,
-    isUsingNativeAudio,
-    switchToNativeAudio,
-    handlePlayPause,
-    handleSeek,
-    handleSkip,
-    handleToggleMute,
-    handleVolumeChange,
-    handlePlaybackRateChange,
-    handleVolumeUp,
-    handleVolumeDown,
-    setIsPlaying
-  } = useHowlerPlayer({
-    file,
-    onEnded,
-    onError,
-    preservePlaybackOnBlur,
-    resumeOnFocus
+export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) => {
+  const howler = useRef<Howl | null>(null);
+  const [playbackRate, setPlaybackRate] = useState(1);
+
+  useEffect(() => {
+    try {
+      const fileUrl = URL.createObjectURL(file);
+      const sound = new Howl({
+        src: [fileUrl],
+        onplay: () => setIsPlaying(true),
+        onpause: () => setIsPlaying(false),
+        onend: () => {
+          setIsPlaying(false);
+          if (onEnded) onEnded();
+        },
+        onstop: () => setIsPlaying(false),
+        onloaderror: (id, error) => {
+          console.error('Audio loading error:', error);
+          toast.error('Error loading audio file');
+          if (onError) onError(`Error loading audio: ${error}`);
+        },
+        onplayerror: (id, error) => {
+          console.error('Audio playback error:', error);
+          toast.error('Error playing audio file');
+          if (onError) onError(`Error playing audio: ${error}`);
+        }
+      });
+
+      howler.current = sound;
+
+      return () => {
+        sound.unload();
+        URL.revokeObjectURL(fileUrl);
+      };
+    } catch (error) {
+      console.error('Error initializing audio player:', error);
+      toast.error('Error setting up audio player');
+      if (onError) onError(`Error initializing audio: ${error}`);
+    }
+  }, [file, onEnded, onError]);
+
+  const { isPlaying, handlePlayPause, handleSeek, handleSkip, changePlaybackRate, setIsPlaying } = usePlaybackControls({ 
+    howler, 
+    duration: howler.current?.duration() || 0 
   });
-  
-  // Integrate with Media Session API
+
+  const { volume, isMuted, handleVolumeChange, toggleMute } = useVolumeControls();
+
+  const { progress } = useAudioProgress({ howler, file, isPlaying });
+
   useMediaControls({
     onPlay: () => !isPlaying && handlePlayPause(),
     onPause: () => isPlaying && handlePlayPause(),
-    onSeekBackward: () => handleSkip('backward'),
-    onSeekForward: () => handleSkip('forward'),
-    title: file?.name || 'Audio'
+    onSeekBackward: (details) => handleSkip('backward', details.seekOffset),
+    onSeekForward: (details) => handleSkip('forward', details.seekOffset),
+    title: file.name
   });
 
-  // Setup keyboard shortcuts
   useKeyboardShortcuts({
     onPlayPause: handlePlayPause,
     onSkipBackward: () => handleSkip('backward'),
     onSkipForward: () => handleSkip('forward'),
-    onVolumeUp: handleVolumeUp,
-    onVolumeDown: handleVolumeDown,
-    onToggleMute: handleToggleMute
+    onVolumeUp: () => {
+      const newVolume = Math.min(100, volume[0] + 5);
+      handleVolumeChange([newVolume]);
+    },
+    onVolumeDown: () => {
+      const newVolume = Math.max(0, volume[0] - 5);
+      handleVolumeChange([newVolume]);
+    }
   });
 
-  // For compatibility, let's define seekToTimestamp as an alias for handleSeek
-  const seekToTimestamp = handleSeek;
-
   return {
-    isPlaying,
-    currentTime,
-    duration,
-    volume, // This is already an array from useHowlerPlayer
-    isMuted,
+    playbackState: {
+      isPlaying,
+      progress,
+      duration: howler.current?.duration() || 0,
+      isMuted
+    },
     playbackRate,
-    playbackErrors,
-    isLoading,
-    isReady,
-    isUsingNativeAudio,
-    switchToNativeAudio,
-    handlePlayPause,
-    handleSeek,
-    handleSkip,
-    handleToggleMute,
-    handleVolumeChange,
-    handlePlaybackRateChange,
-    seekToTimestamp,
-    setIsPlaying,
-    handleVolumeUp,
-    handleVolumeDown
+    volumeControls: {
+      isMuted,
+      volume,
+      handleVolumeChange,
+      toggleMute
+    },
+    playbackControls: {
+      handlePlayPause,
+      handleSkip,
+      handleSeek
+    },
+    changePlaybackRate
   };
 };

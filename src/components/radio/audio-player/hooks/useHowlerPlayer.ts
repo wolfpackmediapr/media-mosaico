@@ -82,7 +82,7 @@ export const useHowlerPlayer = ({
     isPlaying,
     currentTime,
     duration: coreState.duration,
-    volume: volume[0] / 100, // Convert array to number for controls
+    volume: Array.isArray(volume) ? volume[0] / 100 : volume / 100, // Convert to normalized value for controls
     isMuted,
     playbackRate,
     setIsPlaying,
@@ -231,6 +231,7 @@ export const useHowlerPlayer = ({
       },
       handleVolumeChange: (newVolume: number[]) => {
         if (!nativeAudioRef.current) return;
+        // Convert array volume to a single normalized value
         const volumeValue = newVolume[0] / 100;
         nativeAudioRef.current.volume = volumeValue;
         setVolume(newVolume);
