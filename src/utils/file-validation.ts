@@ -73,3 +73,40 @@ export const isFileSizeValid = (file: File, maxSizeMB: number = 50): boolean => 
   const fileSizeMB = file.size / (1024 * 1024);
   return fileSizeMB <= maxSizeMB;
 };
+
+/**
+ * Ensure a filename has a valid extension
+ * @param filename The filename to check/fix
+ * @param defaultExt Default extension to add if none exists
+ */
+export const ensureFileExtension = (filename: string, defaultExt: string = 'mp3'): string => {
+  if (!filename) return `file.${defaultExt}`;
+  
+  const hasExtension = AUDIO_FILE_EXTENSIONS.some(ext => 
+    filename.toLowerCase().endsWith(ext)
+  );
+  
+  if (!hasExtension) {
+    return `${filename}.${defaultExt}`;
+  }
+  
+  return filename;
+};
+
+/**
+ * Check if a file can be reliably reconstructed from metadata
+ * Ensures file has all required properties for successful playback
+ */
+export const validateFileMetadata = (file: File): boolean => {
+  // Check for essential properties
+  if (!file || !file.name) return false;
+  
+  // Validate file has extension
+  const hasExtension = file.name.includes('.');
+  if (!hasExtension) return false;
+  
+  // Check type information is present
+  if (!file.type) return false;
+  
+  return true;
+};

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Howl, Howler } from 'howler';
 import { toast } from 'sonner';
@@ -118,6 +117,26 @@ export const useHowlerPlayer = ({
     isUsingHTML5Fallback.current = false;
   };
 
+  // Choose the best audio playback strategy based on file format
+  const choosePlaybackStrategy = (file: File): boolean => {
+    const format = detectAudioFormat(file);
+    const details = getAudioFormatDetails(file);
+    console.log(`[HowlerPlayer] File analysis: ${details}`);
+    
+    // Detect if browser can play this file directly
+    const canPlay = canBrowserPlayFile(file);
+    console.log(`[HowlerPlayer] Browser reports it can play this file: ${canPlay}`);
+    
+    // Special handling for MP3 files - prefer HTML5 Audio for better compatibility
+    if (format === 'mp3' || (file.name && file.name.toLowerCase().endsWith('.mp3'))) {
+      console.log('[HowlerPlayer] MP3 format detected - using HTML5 Audio player for better compatibility');
+      return true; // Use HTML5 Audio for MP3s by default
+    }
+    
+    // For other formats, use Web Audio API first with fallback to HTML5
+    return false;
+  };
+
   // Create a Howl instance with appropriate configuration
   const createHowl = (
     fileUrl: string, 
@@ -128,19 +147,44 @@ export const useHowlerPlayer = ({
     console.log(`[HowlerPlayer] Creating Howl instance with html5=${useHTML5}, format=${detectedFormat || 'auto'}`);
     
     // Set formats array based on detected format or file extension
-    const formats = detectedFormat ? [detectedFormat] : 
-      file ? file.name.split('.').pop()?.toLowerCase() as string : undefined;
+    let formats: string | undefined = undefined;
+    
+    if (detectedFormat) {
+      formats = detectedFormat;
+    } else if (file) {
+      // Safely extract extension from filename
+      const nameParts = file.name ? file.name.split('.') : [];
+      if (nameParts.length > 1) {
+        formats = nameParts.pop()?.toLowerCase();
+      }
+    } else if (fileUrl) {
+      // Try to extract format from URL if file object is not available
+      const urlParts = fileUrl.split('.');
+      if (urlParts.length > 1) {
+        formats = urlParts.pop()?.toLowerCase();
+        
+        // Clean up any query params
+        if (formats && formats.includes('?')) {
+          formats = formats.split('?')[0];
+        }
+      }
+    }
+    
+    // Convert to array as required by Howler
+    const formatsArray = formats ? [formats] : undefined;
+    
+    console.log(`[HowlerPlayer] Using audio format(s):`, formatsArray);
     
     // Return a configured Howl instance
     return new Howl({
       src: [fileUrl],
       html5: useHTML5, // Use HTML5 Audio instead of Web Audio API when true
-      format: formats ? [formats] : undefined,
+      format: formatsArray,
       preload: true,
       autoplay: false,
       pool: 1, // Reduce pool size to save memory
       onload: () => {
-        console.log(`[HowlerPlayer] Audio loaded successfully (html5=${useHTML5}): ${file?.name}`);
+        console.log(`[HowlerPlayer] Audio loaded successfully (html5=${useHTML5}): ${file?.name || fileUrl}`);
         setDuration(howlRef.current?.duration() || 0);
         setIsLoading(false);
         setIsReady(true);
@@ -314,26 +358,6 @@ export const useHowlerPlayer = ({
     });
   };
 
-  // Choose the best audio playback strategy based on file format
-  const choosePlaybackStrategy = (file: File): boolean => {
-    const format = detectAudioFormat(file);
-    const details = getAudioFormatDetails(file);
-    console.log(`[HowlerPlayer] File analysis: ${details}`);
-    
-    // Detect if browser can play this file directly
-    const canPlay = canBrowserPlayFile(file);
-    console.log(`[HowlerPlayer] Browser reports it can play this file: ${canPlay}`);
-    
-    // Special handling for MP3 files - prefer HTML5 Audio for better compatibility
-    if (format === 'mp3' || file.name.toLowerCase().endsWith('.mp3')) {
-      console.log('[HowlerPlayer] MP3 format detected - using HTML5 Audio player for better compatibility');
-      return true; // Use HTML5 Audio for MP3s by default
-    }
-    
-    // For other formats, use Web Audio API first with fallback to HTML5
-    return false;
-  };
-
   // Initialize Howler instance when file changes
   useEffect(() => {
     // Reset error state when file changes
@@ -353,6 +377,11 @@ export const useHowlerPlayer = ({
       
       // Clean up previous audio resources
       cleanupAudio();
+      
+      // Verify file is accessible and valid
+      if (!(file instanceof File) && !(file instanceof Blob)) {
+        throw new Error('Invalid file object provided');
+      }
       
       // Create object URL for the file
       const fileUrl = URL.createObjectURL(file);
