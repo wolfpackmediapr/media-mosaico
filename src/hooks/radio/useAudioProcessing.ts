@@ -7,6 +7,7 @@ import { useAudioErrorHandling } from "./processing/useAudioErrorHandling";
 import { useExternalAudioSync } from "./processing/useExternalAudioSync";
 import { useAudioUnlock } from "./processing/useAudioUnlock";
 import { UploadedFile } from "@/components/radio/types";
+import { ensureUiVolumeFormat } from "@/utils/audio-volume-adapter";
 
 interface AudioProcessingOptions {
   currentFile: UploadedFile | null;
@@ -113,7 +114,7 @@ export const useAudioProcessing = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume: ensureUiVolumeFormat(volume), // Ensure consistent volume format
     isMuted,
     playbackRate,
     playbackErrors,

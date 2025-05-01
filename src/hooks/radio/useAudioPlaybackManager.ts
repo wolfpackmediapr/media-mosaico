@@ -1,7 +1,9 @@
+
 import { useCallback, useState } from "react";
 import { useRadioPlayer } from "./useRadioPlayer";
 import { UploadedFile } from "@/components/radio/types";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
+import { ensureUiVolumeFormat, uiVolumeToAudioVolume } from "@/utils/audio-volume-adapter";
 
 interface UseAudioPlaybackManagerProps {
   currentFile: UploadedFile | null;
@@ -56,20 +58,15 @@ export const useAudioPlaybackManager = ({
     handleSeekToSegment(segmentOrTime);
   }, [handleSeekToSegment]);
 
-  // Volume wrapper: Receives number[] (0-100) from UI, calls handler expecting number (0-1)
+  // Volume wrapper: Convert UI volume format (array [0-100]) to audio core format (number 0-1)
   const onVolumeChange = useCallback((value: number[]) => {
     if (Array.isArray(value) && value.length > 0) {
-      // Convert slider value (e.g., 50) to volume scale (e.g., 0.5)
-      const volumeLevel = value[0] / 100;
-      // Ensure volume is within 0-1 range
-      const clampedVolume = Math.max(0, Math.min(1, volumeLevel));
-       // Call the underlying handler with the expected number type
-      // The 'as any' is a workaround for the incorrect intersection type (number & number[]) reported by TS.
-      // We are confident the underlying function actually expects 'number'.
-      (handleVolumeChange as any)(clampedVolume);
+      // Convert to audio volume format and pass to the handler
+      const audioVolume = uiVolumeToAudioVolume(value);
+      handleVolumeChange(audioVolume);
     } else {
-       // Default to 0 if value is invalid
-      (handleVolumeChange as any)(0);
+      // Default to 0 if value is invalid
+      handleVolumeChange(0);
     }
   }, [handleVolumeChange]);
 
@@ -78,7 +75,7 @@ export const useAudioPlaybackManager = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume: ensureUiVolumeFormat(volume), // Ensure volume is always in UI format
     isMuted,
     playbackRate,
     playbackErrors,
@@ -87,7 +84,7 @@ export const useAudioPlaybackManager = ({
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange: onVolumeChange, // Use the corrected wrapper
+    handleVolumeChange: onVolumeChange, // Use the adapter for volume conversion
     handlePlaybackRateChange,
     seekToSegment, // Renamed for clarity
   };

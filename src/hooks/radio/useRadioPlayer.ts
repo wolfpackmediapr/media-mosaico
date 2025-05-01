@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useAudioProcessing } from "./useAudioProcessing";
 import { useAudioStateSync } from "./useAudioStateSync";
 import { UploadedFile } from "@/components/radio/types";
+import { ensureUiVolumeFormat } from "@/utils/audio-volume-adapter";
 
 interface RadioPlayerOptions {
   currentFile: UploadedFile | null;
@@ -67,7 +68,7 @@ export const useRadioPlayer = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume: ensureUiVolumeFormat(volume), // Ensure consistent volume format
     isMuted,
     playbackRate,
     playbackErrors,

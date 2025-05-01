@@ -1,9 +1,5 @@
 
-export interface AudioPlayerProps {
-  file: File;
-  onEnded?: () => void;
-  onError?: (error: string) => void;
-}
+import { VolumeValue } from '@/types/player';
 
 export interface PlaybackControls {
   handlePlayPause: () => void;
@@ -18,10 +14,16 @@ export interface VolumeControls {
   toggleMute: () => void;
 }
 
-export interface PlaybackState {
-  isPlaying: boolean;
-  progress: number;
-  duration: number;
-  isMuted: boolean;
+export interface AudioPlayerProps {
+  file: File;
+  onEnded?: () => void;
 }
 
+export interface AudioPlayerState {
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  volume: number[];
+  isMuted: boolean;
+  playbackRate: number;
+}
