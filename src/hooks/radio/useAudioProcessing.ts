@@ -14,15 +14,17 @@ interface AudioProcessingOptions {
   isActiveMediaRoute?: boolean;
   externalIsPlaying?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
+  preferNativeAudio?: boolean; // New option to control native audio preference
 }
 
 export const useAudioProcessing = ({
   currentFile,
   isActiveMediaRoute = true,
   externalIsPlaying = false,
-  onPlayingChange = () => {}
+  onPlayingChange = () => {},
+  preferNativeAudio = true // Default to using native audio first
 }: AudioProcessingOptions) => {
-  // Initialize Howler player
+  // Initialize Howler player with preferNative option
   const {
     isPlaying,
     currentTime,
@@ -33,6 +35,7 @@ export const useAudioProcessing = ({
     playbackErrors: rawPlaybackErrors,
     isLoading,
     isReady,
+    isUsingNativeAudio, // Track which player is active
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
@@ -41,10 +44,12 @@ export const useAudioProcessing = ({
     handlePlaybackRateChange,
     setIsPlaying,
     seekToTimestamp,
-    switchToNativeAudio, // Get this from useHowlerPlayer
+    switchToNativeAudio,
+    switchToHowler,
   } = useHowlerPlayer({
     file: currentFile,
-    onPlayingChange
+    onPlayingChange,
+    preferNative: preferNativeAudio // Pass the preference to useHowlerPlayer
   });
 
   // Convert complex error object to string for simpler handling
@@ -83,7 +88,7 @@ export const useAudioProcessing = ({
   useAudioErrorHandling({
     currentFile,
     playerAudioError: playbackErrors,
-    onSwitchToNative: switchToNativeAudio // Pass the switchToNativeAudio function
+    onSwitchToNative: switchToNativeAudio
   });
 
   // Audio unlock mechanism for iOS
@@ -107,10 +112,11 @@ export const useAudioProcessing = ({
         `[useAudioProcessing] Player state: ${isPlaying ? 'playing' : 'paused'}, ` +
         `time: ${currentTime.toFixed(1)}/${duration.toFixed(1)}, ` +
         `volume: ${Array.isArray(volume) ? volume[0] : volume}, ` +
-        `muted: ${isMuted}, rate: ${playbackRate}`
+        `muted: ${isMuted}, rate: ${playbackRate}, ` +
+        `using: ${isUsingNativeAudio ? 'native' : 'howler'}`
       );
     }
-  }, [isPlaying, currentTime, duration, volume, isMuted, playbackRate, currentFile]);
+  }, [isPlaying, currentTime, duration, volume, isMuted, playbackRate, currentFile, isUsingNativeAudio]);
 
   return {
     isPlaying,
@@ -120,6 +126,7 @@ export const useAudioProcessing = ({
     isMuted,
     playbackRate,
     playbackErrors,
+    isUsingNativeAudio, // Expose this so components can know which player is in use
     handlePlayPause,
     handleSeek,
     handleSkip,
@@ -127,6 +134,7 @@ export const useAudioProcessing = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
-    switchToNativeAudio, // Expose this function
+    switchToNativeAudio,
+    switchToHowler, // Expose the function to switch back if needed
   };
 };

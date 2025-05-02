@@ -14,6 +14,7 @@ interface HowlerPlayerHookProps {
   preservePlaybackOnBlur?: boolean;
   resumeOnFocus?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
+  preferNative?: boolean; // New option to prefer native audio
 }
 
 export const useHowlerPlayer = ({
@@ -22,14 +23,15 @@ export const useHowlerPlayer = ({
   onError,
   preservePlaybackOnBlur = true,
   resumeOnFocus = true,
-  onPlayingChange
+  onPlayingChange,
+  preferNative = true // Default to preferring native audio
 }: HowlerPlayerHookProps) => {
   // Change error structure to a simple string for easier handling
   const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
 
-  // Native HTML5 audio fallback element
+  // Native HTML5 audio element
   const nativeAudioRef = useRef<HTMLAudioElement | null>(null);
-  const [isUsingNativeAudio, setIsUsingNativeAudio] = useState(false);
+  const [isUsingNativeAudio, setIsUsingNativeAudio] = useState(preferNative);
   const nativeAudioReadyRef = useRef<boolean>(false);
 
   // Initialize metadata state (could be moved to its own hook if it grows)
@@ -54,28 +56,38 @@ export const useHowlerPlayer = ({
         
         // Test playback - this helps identify problem files early
         const testResult = await testAudioPlayback(file);
-        if (!testResult.canPlay) {
-          console.warn(`[useHowlerPlayer] Audio pre-test failed: ${testResult.error}`);
-          return false;
-        }
+        return {
+          canPlay: testResult.canPlay,
+          needsHowler: !testResult.canPlay || testResult.needsAdvancedFeatures,
+          error: testResult.error
+        };
       } catch (error) {
         console.error('[useHowlerPlayer] Error in pre-test audio:', error);
-        return false;
+        return {
+          canPlay: false,
+          needsHowler: true,
+          error: String(error)
+        };
       }
     }
-    return true;
+    return {
+      canPlay: false,
+      needsHowler: true,
+      error: 'No file provided'
+    };
   };
 
   // Core audio setup - manages Howl instance and file loading
+  // Will only be used if we're not using native audio
   const [coreState, setHowl, coreSetPlaybackErrors] = useAudioCore({
-    file,
+    file: isUsingNativeAudio ? undefined : file,
     onEnded,
     onError: (error) => {
       if (onError) onError(error);
       setPlaybackErrors(error);
       
-      // If we get an error and native audio is ready, auto-switch to it
-      if (nativeAudioReadyRef.current) {
+      // If we get an error and native audio is ready, auto-switch to native
+      if (nativeAudioReadyRef.current && !isUsingNativeAudio) {
         console.log('[useHowlerPlayer] Auto-switching to native audio after Howler error');
         switchToNativeAudio();
       }
@@ -155,7 +167,7 @@ export const useHowlerPlayer = ({
     return false;
   }, [coreState.howl, file]);
 
-  // Native audio fallback logic
+  // Switch from Howler to native audio (can be called programmatically)
   const switchToNativeAudio = useCallback(() => {
     if (!file || isUsingNativeAudio) return;
 
@@ -217,6 +229,54 @@ export const useHowlerPlayer = ({
     }
   }, [file, isUsingNativeAudio, playbackRate, volume, isMuted, setHowl, currentTime, isPlaying, onEnded, setIsPlaying]);
 
+  // Switch from native to Howler (can be called programmatically)
+  const switchToHowler = useCallback(() => {
+    if (!file || !isUsingNativeAudio) return;
+    
+    try {
+      console.log('[HowlerPlayer] Switching to Howler audio');
+      
+      // Save current playback state
+      const wasPlaying = isPlaying;
+      const currentPosition = nativeAudioRef.current?.currentTime || 0;
+      
+      // Stop native audio
+      if (nativeAudioRef.current) {
+        nativeAudioRef.current.pause();
+      }
+      
+      // Switch state first so useAudioCore will load the file
+      setIsUsingNativeAudio(false);
+      
+      // When Howler is ready, restore state
+      const checkHowlerReady = setInterval(() => {
+        if (coreState.howl && coreState.isReady) {
+          clearInterval(checkHowlerReady);
+          
+          // Set position
+          if (currentPosition > 0) {
+            coreState.howl.seek(currentPosition);
+          }
+          
+          // Resume playing if needed
+          if (wasPlaying) {
+            coreState.howl.play();
+          }
+        }
+      }, 100);
+      
+      // Clean up interval after max 5 seconds
+      setTimeout(() => {
+        clearInterval(checkHowlerReady);
+      }, 5000);
+      
+    } catch (error) {
+      console.error('[HowlerPlayer] Error switching to Howler audio:', error);
+      // If switching to Howler fails, go back to native
+      setIsUsingNativeAudio(true);
+    }
+  }, [file, isUsingNativeAudio, isPlaying, coreState.howl, coreState.isReady]);
+
   // Register error handler on howl instance
   useEffect(() => {
     if (coreState.howl) {
@@ -227,6 +287,42 @@ export const useHowlerPlayer = ({
       };
     }
   }, [coreState.howl, handlePlayError]);
+
+  // Initial file load - decide whether to use native or Howler
+  useEffect(() => {
+    if (!file) return;
+    
+    // Initialize native audio reference
+    if (!nativeAudioRef.current) {
+      nativeAudioRef.current = new Audio();
+    }
+    
+    // If we should prefer native audio, test it first
+    if (preferNative) {
+      preTestAudio(file).then(result => {
+        if (result.canPlay && !result.needsHowler) {
+          // File can play natively, use native audio
+          setIsUsingNativeAudio(true);
+          nativeAudioReadyRef.current = true;
+          console.log('[HowlerPlayer] Using native audio as primary player');
+          
+          // Set up native audio
+          const audioUrl = URL.createObjectURL(file);
+          nativeAudioRef.current!.src = audioUrl;
+          nativeAudioRef.current!.load();
+          
+        } else {
+          // File needs Howler features or can't play natively
+          setIsUsingNativeAudio(false);
+          console.log('[HowlerPlayer] Using Howler as primary player');
+        }
+      });
+    } else {
+      // We prefer Howler, but still set up native as fallback
+      setIsUsingNativeAudio(false);
+      preTestAudio(file);
+    }
+  }, [file, preferNative]);
 
   // Set up native audio tracking if using native audio
   useEffect(() => {
@@ -276,21 +372,10 @@ export const useHowlerPlayer = ({
         }
         nativeAudioRef.current = null;
       }
-      setIsUsingNativeAudio(false);
+      setIsUsingNativeAudio(preferNative);
       nativeAudioReadyRef.current = false;
     };
-  }, [file]);
-
-  // Pre-test the audio when file changes
-  useEffect(() => {
-    if (file) {
-      preTestAudio(file).then(canPlay => {
-        if (!canPlay && !isUsingNativeAudio) {
-          console.log('[HowlerPlayer] Pre-test indicates potential issues, preparing native fallback');
-        }
-      });
-    }
-  }, [file, isUsingNativeAudio]);
+  }, [file, preferNative]);
 
   // Custom native audio controls
   const nativeAudioControls = useCallback(() => {
@@ -407,7 +492,8 @@ export const useHowlerPlayer = ({
     isLoading: coreState.isLoading,
     isReady: coreState.isReady || (isUsingNativeAudio && nativeAudioReadyRef.current),
     isUsingNativeAudio,
-    switchToNativeAudio, // Expose this method so error components can trigger fallback
+    switchToNativeAudio, // For switching to native audio
+    switchToHowler, // For switching back to Howler if needed
     ...activeControls, // Spread the appropriate controls based on mode
     setIsPlaying,
     seekToTimestamp, // Add the seekToTimestamp function

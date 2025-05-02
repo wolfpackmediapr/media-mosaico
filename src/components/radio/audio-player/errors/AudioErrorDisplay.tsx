@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { AlertCircle, Headphones } from 'lucide-react';
+import { AlertCircle, Headphones, Music } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 
@@ -8,6 +8,8 @@ interface AudioErrorDisplayProps {
   error: string;
   file?: File;
   onSwitchToNative?: () => void;
+  onSwitchToHowler?: () => void;
+  isUsingNativeAudio?: boolean; // Add this to show appropriate buttons
 }
 
 /**
@@ -16,7 +18,9 @@ interface AudioErrorDisplayProps {
 export const AudioErrorDisplay: React.FC<AudioErrorDisplayProps> = ({ 
   error, 
   file,
-  onSwitchToNative 
+  onSwitchToNative,
+  onSwitchToHowler,
+  isUsingNativeAudio = false
 }) => {
   // Get file extension if available
   const fileExtension = file?.name?.split('.')?.pop()?.toUpperCase() || '';
@@ -34,7 +38,7 @@ export const AudioErrorDisplay: React.FC<AudioErrorDisplayProps> = ({
   
   if (isFormatError) {
     errorTitle = 'Formato no compatible';
-    errorMessage = `El navegador no puede reproducir este archivo ${fileExtension} con el reproductor avanzado.`;
+    errorMessage = `El navegador no puede reproducir este archivo ${fileExtension} con el ${isUsingNativeAudio ? 'reproductor nativo' : 'reproductor avanzado'}.`;
   } else if (isNetworkError) {
     errorTitle = 'Error de carga';
     errorMessage = 'No se pudo cargar el archivo de audio.';
@@ -52,17 +56,31 @@ export const AudioErrorDisplay: React.FC<AudioErrorDisplayProps> = ({
       <AlertTitle>{errorTitle}</AlertTitle>
       <AlertDescription className="space-y-2">
         <p>{errorMessage}</p>
-        {onSwitchToNative && (
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={onSwitchToNative}
-            className="mt-2 flex items-center gap-1"
-          >
-            <Headphones className="h-3.5 w-3.5" />
-            Usar reproductor nativo
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2 mt-2">
+          {!isUsingNativeAudio && onSwitchToNative && (
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={onSwitchToNative}
+              className="flex items-center gap-1"
+            >
+              <Headphones className="h-3.5 w-3.5" />
+              Usar reproductor nativo
+            </Button>
+          )}
+          
+          {isUsingNativeAudio && onSwitchToHowler && (
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={onSwitchToHowler}
+              className="flex items-center gap-1"
+            >
+              <Music className="h-3.5 w-3.5" />
+              Usar reproductor avanzado
+            </Button>
+          )}
+        </div>
         {process.env.NODE_ENV === 'development' && (
           <div className="text-xs mt-2 opacity-80 font-mono">
             Error: {error}

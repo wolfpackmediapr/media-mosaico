@@ -14,6 +14,7 @@ interface RadioPlayerOptions {
   transcriptionText?: string;
   setTranscriptionText?: (text: string) => void;
   onTextChange?: (text: string) => void;
+  preferNativeAudio?: boolean; // New option to control native audio preference
 }
 
 export const useRadioPlayer = ({
@@ -24,7 +25,8 @@ export const useRadioPlayer = ({
   persistedText = "",
   transcriptionText = "",
   setTranscriptionText = () => {},
-  onTextChange
+  onTextChange,
+  preferNativeAudio = true // Default to preferring native audio
 }: RadioPlayerOptions) => {
   // Handle audio state sync
   useAudioStateSync({
@@ -43,6 +45,7 @@ export const useRadioPlayer = ({
     isMuted,
     playbackRate,
     playbackErrors,
+    isUsingNativeAudio, // Now exposed from useAudioProcessing
     handlePlayPause,
     handleSeek,
     handleSkip,
@@ -50,12 +53,14 @@ export const useRadioPlayer = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
-    switchToNativeAudio, // Add this to expose the native audio switch functionality
+    switchToNativeAudio,
+    switchToHowler,
   } = useAudioProcessing({
     currentFile,
     isActiveMediaRoute,
     externalIsPlaying: isMediaPlaying,
-    onPlayingChange: setIsMediaPlaying
+    onPlayingChange: setIsMediaPlaying,
+    preferNativeAudio // Pass through the preference
   });
 
   // Log any playback errors
@@ -73,6 +78,7 @@ export const useRadioPlayer = ({
     isMuted,
     playbackRate,
     playbackErrors,
+    isUsingNativeAudio, // Expose this so components can know which player is active
     handlePlayPause,
     handleSeek,
     handleSkip,
@@ -80,6 +86,7 @@ export const useRadioPlayer = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
-    switchToNativeAudio, // Expose this function
+    switchToNativeAudio,
+    switchToHowler,
   };
 };

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getAudioFormatDetails, canBrowserPlayFile } from "@/utils/audio-format-helper";
 import { toast } from "sonner";
@@ -8,6 +7,8 @@ interface AudioErrorHandlingOptions {
   playerAudioError: string | null;
   onClearError?: () => void;
   onSwitchToNative?: () => void;
+  onSwitchToHowler?: () => void;
+  isUsingNativeAudio?: boolean; // Track which player is currently active
 }
 
 /**
@@ -17,7 +18,9 @@ export const useAudioErrorHandling = ({
   currentFile,
   playerAudioError,
   onClearError,
-  onSwitchToNative
+  onSwitchToNative,
+  onSwitchToHowler,
+  isUsingNativeAudio = false
 }: AudioErrorHandlingOptions) => {
   const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
   const errorShownRef = useRef<boolean>(false);
@@ -82,8 +85,9 @@ export const useAudioErrorHandling = ({
         console.log('[useAudioErrorHandling] Fallback audio can play the file');
         
         // Auto-switch to native player if we haven't already triggered this
-        if (!autoSwitchTriggeredRef.current && onSwitchToNative) {
-          console.log('[useAudioErrorHandling] Auto-switching to native player due to Howler failure');
+        // and we're not already using native audio
+        if (!autoSwitchTriggeredRef.current && onSwitchToNative && !isUsingNativeAudio) {
+          console.log('[useAudioErrorHandling] Auto-switching to native player due to error');
           autoSwitchTriggeredRef.current = true;
           onSwitchToNative();
           
@@ -100,7 +104,18 @@ export const useAudioErrorHandling = ({
       
       const handleError = () => {
         console.log('[useAudioErrorHandling] Fallback audio also failed to play the file');
-        // File really can't be played
+        
+        // If we're already using native audio and it's failing, try switching to Howler
+        if (isUsingNativeAudio && onSwitchToHowler) {
+          console.log('[useAudioErrorHandling] Native audio failed, trying Howler');
+          toast.info('El reproductor nativo tuvo problemas', {
+            description: 'Intentando reproducir con el reproductor avanzado.',
+            duration: 3000
+          });
+          onSwitchToHowler();
+        }
+        
+        // Clean up
         fallbackElementRef.current?.removeEventListener('canplay', handleCanPlay);
         fallbackElementRef.current?.removeEventListener('error', handleError);
       };
@@ -114,7 +129,7 @@ export const useAudioErrorHandling = ({
       console.error('[useAudioErrorHandling] Error setting up fallback audio:', error);
       return false;
     }
-  }, [currentFile, onSwitchToNative]);
+  }, [currentFile, onSwitchToNative, onSwitchToHowler, isUsingNativeAudio]);
 
   // Sync with audioError from the underlying player
   useEffect(() => {
@@ -122,7 +137,7 @@ export const useAudioErrorHandling = ({
       console.warn('[useAudioErrorHandling] Received error from player:', playerAudioError);
       setPlaybackErrors(playerAudioError);
       
-      // If we get any error related to audio loading, try the fallback player immediately
+      // If we get an error related to audio loading, try the fallback player
       if (playerAudioError.includes("error") || 
           playerAudioError.includes("codec") || 
           playerAudioError.includes("No codec support") ||
@@ -130,10 +145,18 @@ export const useAudioErrorHandling = ({
           playerAudioError.includes("Failed to") ||
           playerAudioError === "4") {  // Special case for Howler's "4" error code
             
-        attemptFallbackPlay();
+        // If we're in the native player and getting errors, try Howler
+        if (isUsingNativeAudio && onSwitchToHowler) {
+          console.log('[useAudioErrorHandling] Native player error, trying Howler');
+          onSwitchToHowler();
+        } 
+        // Otherwise, if in Howler, try native
+        else if (!isUsingNativeAudio && onSwitchToNative) {
+          attemptFallbackPlay();
+        }
       }
     }
-  }, [playerAudioError, playbackErrors, attemptFallbackPlay]);
+  }, [playerAudioError, playbackErrors, attemptFallbackPlay, isUsingNativeAudio, onSwitchToHowler, onSwitchToNative]);
 
   // Handle showing error toasts (throttled)
   const handleErrorNotification = useCallback((error: string) => {
@@ -153,12 +176,25 @@ export const useAudioErrorHandling = ({
       
       if (currentFile) {
         if (isFormatError) {
-          toast.error("Formato de audio incompatible", { 
-            description: `El navegador no puede reproducir este formato de archivo: ${currentFile.name.split('.').pop()?.toUpperCase()}. Cambiando automáticamente al reproductor nativo.`,
-            duration: 5000
-          });
-          // Try fallback and auto-switch
-          attemptFallbackPlay();
+          // Determine which player to suggest based on which one is failing
+          if (isUsingNativeAudio) {
+            toast.error("Formato de audio incompatible con reproductor nativo", { 
+              description: `El navegador no puede reproducir este formato de archivo: ${currentFile.name.split('.').pop()?.toUpperCase()} con el reproductor nativo. Cambiando al reproductor avanzado.`,
+              duration: 5000
+            });
+            
+            if (onSwitchToHowler) {
+              onSwitchToHowler();
+            }
+          } else {
+            toast.error("Formato de audio incompatible con reproductor avanzado", { 
+              description: `El reproductor avanzado no puede reproducir este formato de archivo: ${currentFile.name.split('.').pop()?.toUpperCase()}. Cambiando al reproductor nativo.`,
+              duration: 5000
+            });
+            
+            // Try fallback and auto-switch
+            attemptFallbackPlay();
+          }
         } else if (isPermissionError) {
           toast.error("Permiso denegado", { 
             description: "El navegador no permite reproducir audio automáticamente. Haga clic en el botón de reproducción.",
@@ -171,16 +207,23 @@ export const useAudioErrorHandling = ({
           });
         } else {
           // Generic error
-          toast.error("Error de reproducción", { 
-            description: "Ocurrió un problema al reproducir el audio. Cambiando al reproductor nativo.",
+          const playerType = isUsingNativeAudio ? "nativo" : "avanzado";
+          const alternateType = isUsingNativeAudio ? "avanzado" : "nativo";
+          toast.error(`Error de reproducción (${playerType})`, { 
+            description: `Ocurrió un problema al reproducir el audio con el reproductor ${playerType}. Cambiando al reproductor ${alternateType}.`,
             duration: 5000
           });
-          // For generic errors, also try fallback
-          attemptFallbackPlay();
+          
+          // For generic errors, try the other player
+          if (isUsingNativeAudio && onSwitchToHowler) {
+            onSwitchToHowler();
+          } else if (!isUsingNativeAudio) {
+            attemptFallbackPlay();
+          }
         }
       }
     }
-  }, [currentFile, attemptFallbackPlay]);
+  }, [currentFile, attemptFallbackPlay, isUsingNativeAudio, onSwitchToHowler, onSwitchToNative]);
 
   // Effect to handle error notification and potential recovery
   useEffect(() => {

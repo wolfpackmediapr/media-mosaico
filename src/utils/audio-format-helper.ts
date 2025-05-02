@@ -1,85 +1,87 @@
 
+// This is a new file to add helper functions for audio format support and testing
+
 /**
- * Audio format and compatibility utilities
+ * Creates a native HTML5 audio element for a file
  */
-
-// Helper to safely unmute audio - useful to handle autoplay restrictions
-export const unmuteAudio = (): void => {
-  try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-
-    // Try to resume any existing AudioContext
-    const audioContext = new AudioContext();
-    if (audioContext.state === "suspended") {
-      audioContext.resume().catch(err => {
-        console.warn("Failed to resume AudioContext:", err);
-      });
-    }
-    
-    // Also try to unlock audio by creating and playing a short buffer
-    const buffer = audioContext.createBuffer(1, 1, 22050);
-    const source = audioContext.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audioContext.destination);
-    source.start(0);
-    
-    // Create and start a silent HTML5 audio element to help unlock playback
-    const silentAudio = new Audio();
-    silentAudio.muted = true;
-    silentAudio.play().catch(() => {}); // Ignore errors
-  } catch (error) {
-    console.warn("Error initializing AudioContext:", error);
-  }
+export const createNativeAudioElement = (file: File): HTMLAudioElement => {
+  const audio = new Audio();
+  const url = URL.createObjectURL(file);
+  audio.src = url;
+  audio.load();
+  return audio;
 };
 
-// Get MIME type from file extension
-export const getMimeTypeFromFile = (file: File): string | null => {
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  if (!extension) return null;
-
-  // Map file extensions to MIME types
-  const mimeTypes: Record<string, string> = {
-    mp3: 'audio/mpeg',
-    wav: 'audio/wav',
-    ogg: 'audio/ogg',
-    m4a: 'audio/mp4',
-    aac: 'audio/aac',
-    flac: 'audio/flac',
-    webm: 'audio/webm',
-  };
-
-  return mimeTypes[extension] || null;
+/**
+ * Gets the MIME type from a file object
+ */
+export const getMimeTypeFromFile = (file: File): string => {
+  return file.type || `audio/${file.name.split('.').pop()?.toLowerCase()}`;
 };
 
-// Check if browser can play this audio format using native HTML5 Audio
-export const canBrowserPlayFile = (file: File): boolean => {
+/**
+ * Checks if the browser can play a specific audio format
+ */
+export const canBrowserPlayAudioType = (mimeType: string): boolean => {
   const audio = document.createElement('audio');
-  const mimeType = getMimeTypeFromFile(file);
-  
-  if (!mimeType) return false;
-  
-  // Check if the browser can play this type
-  return !!audio.canPlayType(mimeType).replace(/^no$/, '');
+  return audio.canPlayType(mimeType) !== '';
 };
 
-// Try to play a small portion of audio to verify decoder support
-export const testAudioPlayback = async (file: File): Promise<{canPlay: boolean, error?: string}> => {
-  return new Promise((resolve) => {
+/**
+ * Returns a detailed string with file information
+ */
+export const getAudioFormatDetails = (file: File): string => {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  const mimeType = getMimeTypeFromFile(file);
+  const audio = document.createElement('audio');
+  const canPlay = audio.canPlayType(mimeType);
+  
+  return `File: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)}MB, ` +
+         `Type: ${mimeType}, Extension: ${extension}, ` +
+         `Browser support: ${canPlay || 'none'}`;
+};
+
+/**
+ * Checks if the browser can play a specific file
+ */
+export const canBrowserPlayFile = (file: File): boolean => {
+  const mimeType = getMimeTypeFromFile(file);
+  return canBrowserPlayAudioType(mimeType);
+};
+
+/**
+ * Tests if a file can be played and whether it requires special features
+ */
+export const testAudioPlayback = async (file: File): Promise<{ 
+  canPlay: boolean; 
+  needsAdvancedFeatures: boolean;
+  error?: string;
+}> => {
+  return new Promise(resolve => {
     try {
       const audio = new Audio();
       const url = URL.createObjectURL(file);
       
+      const needsAdvancedFeatures = 
+        // Files over 50MB might benefit from streaming
+        file.size > 50 * 1024 * 1024 || 
+        // Complex audio formats that might need special decoding
+        /\.(ogg|flac|aac|m4a|wma|opus)$/i.test(file.name);
+      
       const onCanPlay = () => {
         cleanup();
-        resolve({canPlay: true});
+        resolve({ 
+          canPlay: true, 
+          needsAdvancedFeatures 
+        });
       };
       
       const onError = () => {
         cleanup();
-        resolve({
+        resolve({ 
           canPlay: false, 
-          error: `Failed to decode audio file: ${file.name}`
+          needsAdvancedFeatures: true,
+          error: `Cannot play file format: ${file.name.split('.').pop()}` 
         });
       };
       
@@ -89,52 +91,59 @@ export const testAudioPlayback = async (file: File): Promise<{canPlay: boolean, 
         URL.revokeObjectURL(url);
       };
       
-      // Set event handlers
-      audio.addEventListener('canplay', onCanPlay);
-      audio.addEventListener('error', onError);
+      // Set up timeout in case the audio doesn't fire events
+      const timeoutId = setTimeout(() => {
+        cleanup();
+        resolve({ 
+          canPlay: false, 
+          needsAdvancedFeatures: true,
+          error: 'Timeout while testing audio playback' 
+        });
+      }, 3000);
       
-      // Attempt to load the file
+      audio.addEventListener('canplay', onCanPlay, { once: true });
+      audio.addEventListener('error', onError, { once: true });
+      
       audio.src = url;
       audio.load();
       
-      // Set timeout to avoid hanging too long
-      setTimeout(() => {
-        if (audio.readyState < 2) { // HAVE_CURRENT_DATA
-          cleanup();
-          resolve({canPlay: false, error: 'Timeout loading audio file'});
-        }
-      }, 3000);
-    } catch (e) {
-      resolve({canPlay: false, error: String(e)});
+    } catch (error) {
+      resolve({ 
+        canPlay: false, 
+        needsAdvancedFeatures: true,
+        error: String(error) 
+      });
     }
   });
 };
 
-// Get detailed info about the audio file
-export const getAudioFormatDetails = (file: File): string => {
-  const mimeType = getMimeTypeFromFile(file);
-  const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-  const extension = file.name.split('.').pop()?.toLowerCase() || 'unknown';
-  const canPlay = canBrowserPlayFile(file);
-  
-  return `Format: ${extension.toUpperCase()}, Type: ${mimeType || 'unknown'}, Size: ${sizeInMB}MB, Browser Compatible: ${canPlay ? 'Yes' : 'No'}`;
-};
-
-// Create a preloaded HTML5 audio element for a file
-export const createNativeAudioElement = (file: File): HTMLAudioElement => {
-  const audio = new Audio();
-  audio.src = URL.createObjectURL(file);
-  
-  // Cleanup object URL when done
-  audio.addEventListener('canplay', () => {
-    console.log(`[Native Audio] File ${file.name} can be played`);
-  });
-  
-  audio.addEventListener('error', (e) => {
-    console.error(`[Native Audio] Error with file ${file.name}:`, e);
-    // Cleanup
-    URL.revokeObjectURL(audio.src);
-  });
-  
-  return audio;
+/**
+ * Attempts to unmute audio context - useful for mobile browsers
+ */
+export const unmuteAudio = (): void => {
+  try {
+    // Create a silent audio buffer
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    
+    const audioContext = new AudioContext();
+    const buffer = audioContext.createBuffer(1, 1, 22050);
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    
+    // Play and immediately stop
+    if (source.start) {
+      source.start(0);
+      source.stop(0.001);
+    }
+    
+    // Also resume AudioContext if suspended
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+    
+  } catch (e) {
+    console.warn('Could not unmute audio:', e);
+  }
 };
