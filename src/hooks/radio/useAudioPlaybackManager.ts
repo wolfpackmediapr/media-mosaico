@@ -65,9 +65,9 @@ export const useAudioPlaybackManager = ({
     // Need to call baseHandleVolumeChange with the first value from the array
     // since it expects a number, not an array
     if (Array.isArray(uiVolume) && uiVolume.length > 0) {
-      baseHandleVolumeChange(uiVolume[0]);
+      baseHandleVolumeChange(uiVolume[0] as number); // Add explicit type assertion here
     } else {
-      baseHandleVolumeChange(0); // Fallback
+      baseHandleVolumeChange(0 as number); // Add explicit type assertion here
     }
   }, [baseHandleVolumeChange]);
 

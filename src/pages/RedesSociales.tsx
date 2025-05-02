@@ -5,6 +5,7 @@ import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";
 import { useSocialFeeds } from "@/hooks/use-social-feeds";
 import { ITEMS_PER_PAGE } from "@/services/social/api";
+import { SocialPost } from "@/types/social";
 
 const RedesSociales = () => {
   const {
@@ -22,6 +23,7 @@ const RedesSociales = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [displayPosts, setDisplayPosts] = useState<SocialPost[]>([]);
 
   // Initial load - fetch platforms and posts
   useEffect(() => {
@@ -41,20 +43,36 @@ const RedesSociales = () => {
     };
     
     initialLoad();
-  }, []); // Empty dependency array means this runs once when component mounts
+  }, []); 
 
   // When search term or selected platforms change, reset to first page and fetch
   useEffect(() => {
     console.log('Search term or platforms changed:', searchTerm, selectedPlatforms);
     setCurrentPage(1);
-    fetchPosts(1, searchTerm, selectedPlatforms);
+    const fetchData = async () => {
+      const result = await fetchPosts(1, searchTerm, selectedPlatforms);
+      if (Array.isArray(result)) {
+        setDisplayPosts(result);
+      } else if (result && 'data' in result) {
+        setDisplayPosts(result.data as SocialPost[]);
+      }
+    };
+    fetchData();
   }, [searchTerm, selectedPlatforms, fetchPosts]);
 
   // When only page changes, fetch the new page
   useEffect(() => {
     if (currentPage > 1) { // Skip first page as it's handled by the above effect
       console.log('Page changed to:', currentPage);
-      fetchPosts(currentPage, searchTerm, selectedPlatforms);
+      const fetchPageData = async () => {
+        const result = await fetchPosts(currentPage, searchTerm, selectedPlatforms);
+        if (Array.isArray(result)) {
+          setDisplayPosts(result);
+        } else if (result && 'data' in result) {
+          setDisplayPosts(result.data as SocialPost[]);
+        }
+      };
+      fetchPageData();
     }
   }, [currentPage, fetchPosts, searchTerm, selectedPlatforms]);
 
@@ -107,7 +125,7 @@ const RedesSociales = () => {
         </div>
         <div className="lg:col-span-3">
           <SocialFeedList
-            posts={posts}
+            posts={displayPosts}
             isLoading={isLoading}
             searchTerm={searchTerm}
             onSearchChange={handleSearchChange}
