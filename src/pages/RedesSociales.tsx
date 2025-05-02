@@ -6,6 +6,7 @@ import PlatformFilters from "@/components/social/PlatformFilters";
 import { useSocialFeeds } from "@/hooks/use-social-feeds";
 import { ITEMS_PER_PAGE } from "@/services/social/api";
 import { SocialPost } from "@/types/social";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const RedesSociales = () => {
   const {
@@ -99,42 +100,44 @@ const RedesSociales = () => {
   console.log('Platforms in component:', platforms);
 
   return (
-    <div className="w-full space-y-6">
-      <SocialHeader onRefresh={handleRefresh} isRefreshing={isRefreshing} />
-      
-      {lastRefreshTime && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Última actualización: {lastRefreshTime.toLocaleString()}
-          </p>
-        </div>
-      )}
-      
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-1">
-          <PlatformFilters 
-            platforms={platforms}
-            selectedPlatforms={selectedPlatforms}
-            onPlatformChange={handlePlatformChange}
-          />
-        </div>
-        <div className="lg:col-span-3">
-          <SocialFeedList
-            posts={displayPosts}
-            isLoading={isLoading}
-            searchTerm={searchTerm}
-            onSearchChange={handleSearchChange}
-            currentPage={currentPage}
-            totalCount={totalCount}
-            onPageChange={handlePageChange}
-            onClearSearch={() => {
-              setSearchTerm("");
-              setSelectedPlatforms([]);
-            }}
-          />
+    <ErrorBoundary>
+      <div className="w-full space-y-6">
+        <SocialHeader onRefresh={handleRefresh} isRefreshing={isRefreshing} />
+        
+        {lastRefreshTime && (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Última actualización: {lastRefreshTime.toLocaleString()}
+            </p>
+          </div>
+        )}
+        
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-1">
+            <PlatformFilters 
+              platforms={platforms}
+              selectedPlatforms={selectedPlatforms}
+              onPlatformChange={handlePlatformChange}
+            />
+          </div>
+          <div className="lg:col-span-3">
+            <SocialFeedList
+              posts={displayPosts}
+              isLoading={isLoading}
+              searchTerm={searchTerm}
+              onSearchChange={handleSearchChange}
+              currentPage={currentPage}
+              totalCount={totalCount}
+              onPageChange={handlePageChange}
+              onClearSearch={() => {
+                setSearchTerm("");
+                setSelectedPlatforms([]);
+              }}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 

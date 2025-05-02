@@ -31,7 +31,7 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
   const formattedDate = pub_date ? formatDistanceToNow(new Date(pub_date), { addSuffix: true }) : '';
   
   // Get the platform icon component
-  const PlatformIcon = platformIcons[platform] || platformIcons.social_media;
+  const PlatformIcon = platform && platformIcons[platform] ? platformIcons[platform] : platformIcons.social_media;
 
   return (
     <Card className="overflow-hidden flex flex-col h-full">

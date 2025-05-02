@@ -7,19 +7,22 @@ import { router } from "./router";
 import { Toaster } from "./components/ui/sonner";
 import { RealTimeAlertsProvider } from "./providers/RealTimeAlertsProvider";
 import { AuthProvider } from "@/context/AuthContext";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <RealTimeAlertsProvider>
-            <RouterProvider router={router} />
-            <Toaster position="top-right" richColors closeButton />
-          </RealTimeAlertsProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <AuthProvider>
+            <RealTimeAlertsProvider>
+              <RouterProvider router={router} />
+              <Toaster position="top-right" richColors closeButton />
+            </RealTimeAlertsProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
