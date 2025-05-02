@@ -1,22 +1,47 @@
 
-import { useEffect } from "react";
+import { useState } from "react";
+import { useTypeform } from "@/hooks/use-typeform";
+import { Button } from "@/components/ui/button";
+import { AlertCircle } from "lucide-react";
 
 const TvTypeformEmbed = () => {
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = "//embed.typeform.com/next/embed.js";
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
-
+  const [showTypeform, setShowTypeform] = useState(false);
+  
+  // Only initialize Typeform when user has chosen to show it
+  useTypeform(showTypeform);
+  
   return (
     <div className="mt-8 p-6 bg-muted rounded-lg w-full">
       <h2 className="text-2xl font-bold mb-4">Alerta TV</h2>
-      <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK" className="h-[500px] md:h-[600px]"></div>
+      
+      {!showTypeform ? (
+        <div className="text-center py-8">
+          <p className="mb-4 text-muted-foreground">
+            Haga clic en el botón a continuación para cargar el formulario de alerta de TV.
+            <br />
+            <span className="text-sm font-medium flex items-center justify-center mt-2 gap-1">
+              <AlertCircle className="h-4 w-4" />
+              Nota: El formulario puede solicitar acceso al micrófono para funcionalidad de voz.
+            </span>
+          </p>
+          <Button onClick={() => setShowTypeform(true)} className="mt-2">
+            Cargar formulario
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-end mb-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowTypeform(false)}
+            >
+              Ocultar formulario
+            </Button>
+          </div>
+          <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK" className="h-[500px] md:h-[600px]"></div>
+        </>
+      )}
     </div>
   );
 };
