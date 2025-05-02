@@ -1,9 +1,9 @@
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useRadioPlayer } from "./useRadioPlayer";
 import { UploadedFile } from "@/components/radio/types";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
-import { ensureUiVolumeFormat, uiVolumeToAudioVolume } from "@/utils/audio-volume-adapter";
+import { ensureUiVolumeFormat } from "@/utils/audio-volume-adapter";
 
 interface UseAudioPlaybackManagerProps {
   currentFile: UploadedFile | null;
@@ -31,7 +31,7 @@ export const useAudioPlaybackManager = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume, // This is likely number | number[] coming from useRadioPlayer
     isMuted,
     playbackRate,
     playbackErrors,
@@ -39,7 +39,7 @@ export const useAudioPlaybackManager = ({
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange,
+    handleVolumeChange: baseHandleVolumeChange, // Rename to avoid conflict
     handlePlaybackRateChange,
     handleSeekToSegment,
   } = useRadioPlayer({
@@ -58,38 +58,30 @@ export const useAudioPlaybackManager = ({
     handleSeekToSegment(segmentOrTime);
   }, [handleSeekToSegment]);
 
-  // Volume wrapper: Handle the type compatibility issue
+  // Volume wrapper: Ensure it accepts number[] and passes number[] to the base handler
   const onVolumeChange = useCallback((value: number[]) => {
-    if (Array.isArray(value) && value.length > 0) {
-      // First, ensure we're working with a proper UI volume format (array of numbers)
-      const uiVolume = ensureUiVolumeFormat(value);
-      
-      // Then call handleVolumeChange with the properly formatted volume
-      // This addresses the type mismatch by using the proper format expected by handleVolumeChange
-      handleVolumeChange(uiVolume);
-    } else {
-      // Default to [0] if value is invalid, properly formatted for handleVolumeChange
-      handleVolumeChange([0]);
-    }
-  }, [handleVolumeChange]);
+    // Ensure we always pass a correctly formatted UI volume array [0-100]
+    const uiVolume = ensureUiVolumeFormat(value);
+    baseHandleVolumeChange(uiVolume); // Call the original handler from useRadioPlayer
+  }, [baseHandleVolumeChange]);
 
   // Add volume up/down handlers that correctly handle array types
   const handleVolumeUp = useCallback(() => {
-    // Ensure we have a proper UI volume array
+    // Ensure we start with a proper UI volume array [0-100]
     const currentVolumeArray = ensureUiVolumeFormat(volume);
-    // Calculate new volume, ensuring it doesn't exceed 100
-    const newVolume = Math.min(100, currentVolumeArray[0] + 5);
-    // Pass as array to match expected type
-    onVolumeChange([newVolume]);
+    // Calculate new UI volume, ensuring it doesn't exceed 100
+    const newVolumeValue = Math.min(100, currentVolumeArray[0] + 5);
+    // Pass the new volume as an array [0-100] to the wrapper
+    onVolumeChange([newVolumeValue]);
   }, [volume, onVolumeChange]);
 
   const handleVolumeDown = useCallback(() => {
-    // Ensure we have a proper UI volume array
+    // Ensure we start with a proper UI volume array [0-100]
     const currentVolumeArray = ensureUiVolumeFormat(volume);
-    // Calculate new volume, ensuring it doesn't go below 0
-    const newVolume = Math.max(0, currentVolumeArray[0] - 5);
-    // Pass as array to match expected type
-    onVolumeChange([newVolume]);
+    // Calculate new UI volume, ensuring it doesn't go below 0
+    const newVolumeValue = Math.max(0, currentVolumeArray[0] - 5);
+    // Pass the new volume as an array [0-100] to the wrapper
+    onVolumeChange([newVolumeValue]);
   }, [volume, onVolumeChange]);
 
   return {
@@ -97,7 +89,7 @@ export const useAudioPlaybackManager = ({
     isPlaying,
     currentTime,
     duration,
-    volume: ensureUiVolumeFormat(volume), // Ensure volume is always in UI format
+    volume: ensureUiVolumeFormat(volume), // Ensure volume is always in UI format [0-100]
     isMuted,
     playbackRate,
     playbackErrors,
@@ -106,7 +98,7 @@ export const useAudioPlaybackManager = ({
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange: onVolumeChange, // Use the adapter for volume conversion
+    handleVolumeChange: onVolumeChange, // Use the wrapper which accepts number[]
     handlePlaybackRateChange,
     handleVolumeUp,
     handleVolumeDown,
