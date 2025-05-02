@@ -97,7 +97,12 @@ export const extractImageFromHtml = (content: string): string | null => {
 /**
  * Generate a placeholder image URL for social platforms
  */
-export const getPlatformPlaceholderImage = (platform: string): string => {
+export const getPlatformPlaceholderImage = (platform: string, sourceName?: string): string => {
+  // Special case for Molusco feed
+  if (sourceName === 'Molusco') {
+    return "/lovable-uploads/3201a499-9523-4ff1-a701-cadf852b7314.png";
+  }
+
   const placeholders = {
     twitter: "https://images.unsplash.com/photo-1611162616475-46b635cb6868",
     facebook: "https://images.unsplash.com/photo-1611162618071-b39a2ec055fb",

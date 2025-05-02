@@ -1,5 +1,6 @@
+
 import type { SocialPost, SocialPlatform } from "@/types/social";
-import { extractImageFromHtml } from "./content-sanitizer";
+import { extractImageFromHtml, getPlatformPlaceholderImage } from "./content-sanitizer";
 import { SOCIAL_PLATFORMS } from "./api";
 
 // Extract image URL from various possible sources in social feed data
@@ -33,7 +34,16 @@ export const transformArticlesToPosts = (articlesData: any[]): SocialPost[] => {
   return articlesData
     .map(article => {
       // Handle image extraction from various sources
-      const image = article.image_url || extractImageUrl(article);
+      let image = article.image_url || extractImageUrl(article);
+      
+      // Apply source-specific fallback if no image is found
+      if (!image && article.feed_source?.name) {
+        // Get platform-specific placeholder based on source name
+        image = getPlatformPlaceholderImage(
+          article.feed_source?.platform || 'social_media', 
+          article.feed_source?.name
+        );
+      }
       
       // Make sure we have all the required properties for the SocialPost type
       return {
