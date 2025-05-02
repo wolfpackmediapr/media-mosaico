@@ -51,11 +51,7 @@ const RedesSociales = () => {
     setCurrentPage(1);
     const fetchData = async () => {
       const result = await fetchPosts(1, searchTerm, selectedPlatforms);
-      if (Array.isArray(result)) {
-        setDisplayPosts(result);
-      } else if (result && 'data' in result) {
-        setDisplayPosts(result.data as SocialPost[]);
-      }
+      setDisplayPosts(result);
     };
     fetchData();
   }, [searchTerm, selectedPlatforms, fetchPosts]);
@@ -66,11 +62,7 @@ const RedesSociales = () => {
       console.log('Page changed to:', currentPage);
       const fetchPageData = async () => {
         const result = await fetchPosts(currentPage, searchTerm, selectedPlatforms);
-        if (Array.isArray(result)) {
-          setDisplayPosts(result);
-        } else if (result && 'data' in result) {
-          setDisplayPosts(result.data as SocialPost[]);
-        }
+        setDisplayPosts(result);
       };
       fetchPageData();
     }
@@ -102,6 +94,9 @@ const RedesSociales = () => {
     setSelectedPlatforms([]);
     setCurrentPage(1);
   };
+
+  // Log platforms for debugging
+  console.log('Platforms in component:', platforms);
 
   return (
     <div className="w-full space-y-6">

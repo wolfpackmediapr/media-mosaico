@@ -58,19 +58,23 @@ export const transformArticlesToPosts = (articlesData: any[]): SocialPost[] => {
 
 // Transform platform data into SocialPlatform format
 export const transformPlatformData = (
-  platformData: Array<any>,
+  feedSources: Array<any>,
   platformCounts: Record<string, number>
 ): SocialPlatform[] => {
+  // Debug what we're working with
+  console.log('Transform platform data:', { feedSources, platformCounts });
+  
   const platformMap: Record<string, SocialPlatform> = {};
   
   // Create platform entries from feed sources
-  platformData.forEach(fs => {
+  feedSources.forEach(fs => {
     // Use the source name (e.g., "Jay Fonseca") as the platform identifier
     const platformName = fs.name;
+    
     if (platformName) {
       // If this platform name is already in the map, just update the count
       if (platformMap[platformName]) {
-        platformMap[platformName].count += platformCounts[platformName] || 0;
+        platformMap[platformName].count = platformCounts[platformName] || 0;
       } else {
         // Otherwise create a new entry
         platformMap[platformName] = {
@@ -84,6 +88,9 @@ export const transformPlatformData = (
   
   // Convert map to array and sort
   const platforms = Object.values(platformMap);
+  
+  // Debug the resulting platforms
+  console.log('Final platforms data:', platforms);
   
   // Sort by count descending, then name ascending
   platforms.sort((a, b) => {
@@ -105,5 +112,6 @@ export const calculatePlatformCounts = (articles: any[]): Record<string, number>
     }
   });
   
+  console.log('Platform counts calculated:', platformCounts);
   return platformCounts;
 };

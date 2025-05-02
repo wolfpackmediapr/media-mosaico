@@ -29,6 +29,9 @@ const PlatformFilters = ({
     onPlatformChange([]);
   };
 
+  // Debug the platforms data
+  console.log('PlatformFilters received platforms:', platforms);
+
   return (
     <Card className="h-full">
       <CardHeader className="pb-3">

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { SocialPost, SocialPlatform } from "@/types/social";
 
@@ -50,7 +49,7 @@ export const fetchPlatformsData = async () => {
   }
   
   console.log('Fetched platforms:', data?.length || 0);
-  return data;
+  return data || [];
 };
 
 // Fetch platform counts
@@ -68,7 +67,7 @@ export const fetchPlatformCounts = async () => {
     throw sourcesError;
   }
   
-  console.log('Feed sources found:', feedSources?.map(s => s.name));
+  console.log('Feed sources found:', feedSources?.map(s => s.name) || []);
   
   const feedSourceIds = feedSources?.map(fs => fs.id) || [];
   if (feedSourceIds.length === 0) {
@@ -76,10 +75,10 @@ export const fetchPlatformCounts = async () => {
     return [];
   }
   
-  // Now get articles only from these feed sources
+  // Now get articles only from these feed sources to count them
   const { data: articles, error } = await supabase
     .from('news_articles')
-    .select('id, feed_source_id, feed_source:feed_source_id(name, platform)')
+    .select('id, feed_source:feed_source_id(name, platform)')
     .in('feed_source_id', feedSourceIds);
     
   if (error) {
@@ -87,8 +86,8 @@ export const fetchPlatformCounts = async () => {
     throw error;
   }
   
-  console.log('Articles for platform counts:', articles?.length || 0);
-  return articles;
+  console.log('Articles fetched for platform counts:', articles?.length || 0);
+  return articles || [];
 };
 
 // Fetch social media posts
@@ -143,8 +142,8 @@ export const fetchSocialPosts = async (
     
     // Get feed sources that match the selected names/platforms
     const filteredSourceIds = feedSources
-      .filter(fs => selectedPlatforms.includes(fs.name))
-      .map(fs => fs.id);
+      ?.filter(fs => selectedPlatforms.includes(fs.name))
+      .map(fs => fs.id) || [];
     
     console.log('Filtered source IDs:', filteredSourceIds);
     
@@ -169,7 +168,7 @@ export const fetchSocialPosts = async (
     throw error;
   }
   
-  console.log(`Fetched ${data?.length || 0} social posts out of ${count} total`);
+  console.log(`Fetched ${data?.length || 0} social posts out of ${count || 0} total`);
   
   // Debug the actual data fetched
   if (data && data.length > 0) {
@@ -177,7 +176,7 @@ export const fetchSocialPosts = async (
     console.log('Sources in fetched data:', [...new Set(data.map(item => item.feed_source?.name))]);
   }
   
-  return { data, count: count || 0 };
+  return { data: data || [], count: count || 0 };
 };
 
 // Refresh social feeds via the edge function
