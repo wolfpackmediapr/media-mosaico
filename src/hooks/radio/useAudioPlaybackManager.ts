@@ -1,9 +1,8 @@
-
 import { useCallback } from "react";
 import { useRadioPlayer } from "./useRadioPlayer";
 import { UploadedFile } from "@/components/radio/types";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
-import { ensureUiVolumeFormat } from "@/utils/audio-volume-adapter";
+import { ensureUiVolumeFormat, uiVolumeToAudioVolume } from "@/utils/audio-volume-adapter";
 
 interface UseAudioPlaybackManagerProps {
   currentFile: UploadedFile | null;
@@ -60,15 +59,14 @@ export const useAudioPlaybackManager = ({
 
   // Volume wrapper: Fix the type issue by explicitly handling the types
   const onVolumeChange = useCallback((value: number[]) => {
-    // Ensure we always pass a correctly formatted UI volume array [0-100]
-    const uiVolume = ensureUiVolumeFormat(value);
-    // Need to call baseHandleVolumeChange with the first value from the array
-    // since it expects a number, not an array
-    if (Array.isArray(uiVolume) && uiVolume.length > 0) {
-      baseHandleVolumeChange(uiVolume[0] as number); // Add explicit type assertion here
-    } else {
-      baseHandleVolumeChange(0 as number); // Add explicit type assertion here
-    }
+    // Ensure we always start with a correctly formatted UI volume array [0-100]
+    const uiVolume = ensureUiVolumeFormat(value); 
+    
+    // Convert UI volume (0-100) to audio engine volume (0-1)
+    const audioVolume = uiVolumeToAudioVolume(uiVolume); 
+    
+    // Call baseHandleVolumeChange with the converted audio engine volume (number 0-1)
+    baseHandleVolumeChange(audioVolume); 
   }, [baseHandleVolumeChange]);
 
   // Add volume up/down handlers that correctly handle array types

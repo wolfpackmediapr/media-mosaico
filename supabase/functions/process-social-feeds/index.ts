@@ -1,7 +1,6 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "@supabase/supabase-js"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4" 
 import { SOCIAL_FEEDS, POSTS_PER_FEED } from "./constants.ts"
 import { processRssJsonFeed, updateFeedSource, logProcessingError } from "./feed-processor.ts"
 
