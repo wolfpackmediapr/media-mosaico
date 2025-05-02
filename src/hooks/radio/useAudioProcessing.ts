@@ -40,7 +40,8 @@ export const useAudioProcessing = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     setIsPlaying,
-    seekToTimestamp
+    seekToTimestamp,
+    switchToNativeAudio, // Get this from useHowlerPlayer
   } = useHowlerPlayer({
     file: currentFile,
     onPlayingChange
@@ -78,10 +79,11 @@ export const useAudioProcessing = ({
     onInternalPlayStateChange: onPlayingChange
   });
 
-  // Error handling
+  // Error handling with auto-fallback to native
   useAudioErrorHandling({
     currentFile,
-    playerAudioError: playbackErrors
+    playerAudioError: playbackErrors,
+    onSwitchToNative: switchToNativeAudio // Pass the switchToNativeAudio function
   });
 
   // Audio unlock mechanism for iOS
@@ -125,5 +127,6 @@ export const useAudioProcessing = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
+    switchToNativeAudio, // Expose this function
   };
 };

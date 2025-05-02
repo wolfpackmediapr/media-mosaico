@@ -8,7 +8,26 @@ const TvTypeformEmbed = () => {
   const [showTypeform, setShowTypeform] = useState(false);
   
   // Only initialize Typeform when user has chosen to show it
-  useTypeform(showTypeform);
+  // Pass options to disable microphone access by default
+  const typeform = useTypeform(showTypeform, {
+    disableMicrophone: true, // Prevent microphone access
+    keyboardShortcuts: true,
+    lazy: true // Use lazy loading to prevent immediate initialization
+  });
+  
+  const handleShowTypeform = () => {
+    setShowTypeform(true);
+    // Wait a moment for the DOM to update before initializing
+    setTimeout(() => {
+      typeform.initialize();
+    }, 100);
+  };
+  
+  const handleHideTypeform = () => {
+    // Clean up typeform before hiding it
+    typeform.cleanup();
+    setShowTypeform(false);
+  };
   
   return (
     <div className="mt-8 p-6 bg-muted rounded-lg w-full">
@@ -24,7 +43,7 @@ const TvTypeformEmbed = () => {
               Nota: El formulario puede solicitar acceso al micrófono para funcionalidad de voz.
             </span>
           </p>
-          <Button onClick={() => setShowTypeform(true)} className="mt-2">
+          <Button onClick={handleShowTypeform} className="mt-2">
             Cargar formulario
           </Button>
         </div>
@@ -34,7 +53,7 @@ const TvTypeformEmbed = () => {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setShowTypeform(false)}
+              onClick={handleHideTypeform}
             >
               Ocultar formulario
             </Button>

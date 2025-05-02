@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
@@ -48,6 +49,7 @@ export const useAudioCore = ({
   const currentFileUrlRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const nativeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const loadAttemptsRef = useRef<number>(0);
 
   // Initialize AudioContext
   useEffect(() => {
@@ -82,21 +84,24 @@ export const useAudioCore = ({
       const audio = nativeAudioRef.current;
       const timeoutId = setTimeout(() => {
         // If loading takes too long, consider it a failure
+        console.log('[AudioCore] Preload check timed out');
         resolve(false);
       }, 3000);
       
       const handleCanPlay = () => {
         clearTimeout(timeoutId);
+        console.log('[AudioCore] Preload check successful - can play with native audio');
         resolve(true);
       };
       
-      const handleError = () => {
+      const handleError = (e: ErrorEvent) => {
         clearTimeout(timeoutId);
+        console.warn('[AudioCore] Preload check failed:', e);
         resolve(false);
       };
       
       audio.addEventListener('canplay', handleCanPlay, { once: true });
-      audio.addEventListener('error', handleError, { once: true });
+      audio.addEventListener('error', handleError as EventListener, { once: true });
       
       audio.src = url;
       audio.load();
@@ -114,6 +119,7 @@ export const useAudioCore = ({
       setIsLoading(false);
       setIsReady(false);
       setDuration(0);
+      loadAttemptsRef.current = 0;
       return;
     }
 
@@ -131,6 +137,7 @@ export const useAudioCore = ({
     
     currentFileUrlRef.current = currentUrl;
     setIsLoading(true);
+    loadAttemptsRef.current = 0;
     console.log('[AudioCore] Loading audio:', currentUrl);
     
     // Destroy the previous Howl instance if it exists
@@ -148,9 +155,28 @@ export const useAudioCore = ({
 
     // Initialize Howl instance
     const initializeHowl = async () => {
+      // Increase load attempts counter
+      loadAttemptsRef.current++;
+      
+      // Log this attempt
+      console.log(`[AudioCore] Attempt #${loadAttemptsRef.current} to load audio`);
+      
       // Ensure we can play this file before initializing Howler
       const canPlayWithNative = await preloadCheck(currentUrl);
       console.log(`[AudioCore] Pre-check result: ${canPlayWithNative ? 'Can play' : 'Cannot play'} with native audio`);
+      
+      // If native can't play it, there's no point trying with Howler
+      if (!canPlayWithNative) {
+        console.error('[AudioCore] Native audio can\'t play this file, Howler will likely fail too');
+        setPlaybackErrors(prev => ({ 
+          ...prev, 
+          howlerError: `Browser cannot play this audio format: ${file.name.split('.').pop()?.toUpperCase()}` 
+        }));
+        setIsLoading(false);
+        
+        if (onError) onError(`Format not supported: ${file.name.split('.').pop()?.toUpperCase()}`);
+        return;
+      }
       
       // Prepare format configuration
       const format = file.name.split('.').pop()?.toLowerCase();
@@ -174,7 +200,7 @@ export const useAudioCore = ({
         },
         onloaderror: (id, error) => {
           console.error('[AudioCore] Load error:', error);
-          const errorMessage = `Failed to load audio: ${error}`;
+          const errorMessage = `${error}`;
           setPlaybackErrors(prev => ({ ...prev, howlerError: errorMessage }));
           setIsLoading(false);
           setIsReady(false);

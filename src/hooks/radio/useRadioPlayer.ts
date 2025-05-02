@@ -50,6 +50,7 @@ export const useRadioPlayer = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
+    switchToNativeAudio, // Add this to expose the native audio switch functionality
   } = useAudioProcessing({
     currentFile,
     isActiveMediaRoute,
@@ -79,5 +80,6 @@ export const useRadioPlayer = ({
     handleVolumeChange,
     handlePlaybackRateChange,
     handleSeekToSegment,
+    switchToNativeAudio, // Expose this function
   };
 };

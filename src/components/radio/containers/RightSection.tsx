@@ -31,6 +31,7 @@ interface RightSectionProps {
   onVolumeChange: (value: number[]) => void;
   onPlaybackRateChange: () => void;
   handleTrackSelect: (index: number) => void;
+  onSwitchToNative?: () => void;
 }
 
 // Use memo to prevent unnecessary re-renders
@@ -52,7 +53,8 @@ const RightSection = memo(({
   onToggleMute,
   onVolumeChange,
   onPlaybackRateChange,
-  handleTrackSelect
+  handleTrackSelect,
+  onSwitchToNative
 }: RightSectionProps) => {
   const { lastPlaybackPosition, setLastPlaybackPosition } = useMediaPersistence();
   const previousTimeRef = useRef<number>(currentTime);
@@ -119,11 +121,12 @@ const RightSection = memo(({
 
   return (
     <div className="space-y-4">
-      {/* Use our new error display component */}
+      {/* Use our enhanced error display component */}
       {playbackErrors && currentFile && (
         <AudioErrorDisplay 
           error={playbackErrors} 
           file={currentFile}
+          onSwitchToNative={onSwitchToNative}
         />
       )}
       

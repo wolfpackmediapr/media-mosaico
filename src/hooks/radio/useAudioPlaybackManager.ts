@@ -42,6 +42,7 @@ export const useAudioPlaybackManager = ({
     handleVolumeChange: baseHandleVolumeChange, // Rename to avoid conflict
     handlePlaybackRateChange,
     handleSeekToSegment,
+    switchToNativeAudio, // Add this from the Radio Player
   } = useRadioPlayer({
     currentFile,
     isActiveMediaRoute,
@@ -110,5 +111,6 @@ export const useAudioPlaybackManager = ({
     handleVolumeUp,
     handleVolumeDown,
     seekToSegment, // Renamed for clarity
+    switchToNativeAudio, // Add the ability to switch to native audio
   };
 };
