@@ -65,13 +65,18 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
             }
             
             // Create widget with options
-            typeformWidgetRef.current = window.tf.createWidget({
-              disableKeyboardShortcuts: !keyboardShortcuts,
-              disableAutoFocus: false, // Allow auto-focus for better accessibility
-              enableSandbox: true, // Use sandbox mode for added security
-              disableMicrophone: disableMicrophone, // Use option to control microphone access
-              disableTracking: true, // Disable tracking for privacy
-            });
+            typeformWidgetRef.current = window.tf.createWidget();
+            
+            // Configure widget with options if needed
+            if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
+              typeformWidgetRef.current.options({
+                disableKeyboardShortcuts: !keyboardShortcuts,
+                disableAutoFocus: false, // Allow auto-focus for better accessibility
+                enableSandbox: true, // Use sandbox mode for added security
+                disableMicrophone: disableMicrophone, // Use option to control microphone access
+                disableTracking: true, // Disable tracking for privacy
+              });
+            }
             
             typeformInitializedRef.current = true;
             console.log("Typeform widget initialized with options:", { 
@@ -115,12 +120,20 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
             console.warn("Error cleaning up previous Typeform widget:", err);
           }
         }
-        typeformWidgetRef.current = window.tf.createWidget({
-          disableKeyboardShortcuts: !keyboardShortcuts,
-          disableMicrophone: disableMicrophone,
-          disableTracking: true,
-          enableSandbox: true
-        });
+        
+        // Create widget first
+        typeformWidgetRef.current = window.tf.createWidget();
+        
+        // Then configure it with options
+        if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
+          typeformWidgetRef.current.options({
+            disableKeyboardShortcuts: !keyboardShortcuts,
+            disableMicrophone: disableMicrophone,
+            disableTracking: true,
+            enableSandbox: true
+          });
+        }
+        
         typeformInitializedRef.current = true;
         console.log("Typeform widget manually initialized");
       }
