@@ -1,3 +1,4 @@
+
 import { useCallback, useState } from "react";
 import { useRadioPlayer } from "./useRadioPlayer";
 import { UploadedFile } from "@/components/radio/types";
@@ -57,13 +58,17 @@ export const useAudioPlaybackManager = ({
     handleSeekToSegment(segmentOrTime);
   }, [handleSeekToSegment]);
 
-  // Volume wrapper: Keep volume as array type (UI format) throughout
+  // Volume wrapper: Handle the type compatibility issue
   const onVolumeChange = useCallback((value: number[]) => {
     if (Array.isArray(value) && value.length > 0) {
-      // Pass the UI volume array directly
-      handleVolumeChange(value);
+      // First, ensure we're working with a proper UI volume format (array of numbers)
+      const uiVolume = ensureUiVolumeFormat(value);
+      
+      // Then call handleVolumeChange with the properly formatted volume
+      // This addresses the type mismatch by using the proper format expected by handleVolumeChange
+      handleVolumeChange(uiVolume);
     } else {
-      // Default to [0] if value is invalid
+      // Default to [0] if value is invalid, properly formatted for handleVolumeChange
       handleVolumeChange([0]);
     }
   }, [handleVolumeChange]);
