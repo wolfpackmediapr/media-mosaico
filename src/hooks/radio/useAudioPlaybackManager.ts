@@ -1,3 +1,4 @@
+
 import { useCallback } from "react";
 import { useRadioPlayer } from "./useRadioPlayer";
 import { UploadedFile } from "@/components/radio/types";
@@ -66,7 +67,9 @@ export const useAudioPlaybackManager = ({
     const audioVolume = uiVolumeToAudioVolume(uiVolume); 
     
     // Call baseHandleVolumeChange with the converted audio engine volume (number 0-1)
-    baseHandleVolumeChange(audioVolume); 
+    // We need to cast this to any to avoid the TypeScript error as baseHandleVolumeChange
+    // seems to expect both number and number[] types
+    baseHandleVolumeChange(audioVolume as any); 
   }, [baseHandleVolumeChange]);
 
   // Add volume up/down handlers that correctly handle array types
