@@ -7,21 +7,16 @@ interface TopSectionProps {
   handleClearAll: () => void;
   files: File[];
   transcriptionText: string;
-  isClearing?: boolean;
 }
 
 const TopSection = ({
   handleClearAll,
   files,
-  transcriptionText,
-  isClearing = false
+  transcriptionText
 }: TopSectionProps) => (
   <ErrorBoundary>
     <div className="flex justify-end mb-2">
-      <ClearAllButton 
-        onClearAll={handleClearAll}
-        isClearing={isClearing}
-      />
+      <ClearAllButton onClearAll={handleClearAll} />
     </div>
   </ErrorBoundary>
 );

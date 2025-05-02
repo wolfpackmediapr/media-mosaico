@@ -2,35 +2,28 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Trash, Loader2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { toast } from "sonner";
 
 interface ClearAllButtonProps {
   onClearAll: () => void;
-  isClearing?: boolean; // Add prop to show clearing state
 }
 
-const ClearAllButton: React.FC<ClearAllButtonProps> = ({ 
-  onClearAll,
-  isClearing = false
-}) => {
+const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll }) => {
   const [open, setOpen] = React.useState(false);
-  const [isConfirming, setIsConfirming] = React.useState(false);
-  
-  // Combine both loading states
-  const isLoading = isClearing || isConfirming;
+  const [isClearing, setIsClearing] = React.useState(false);
 
   const handleConfirm = async () => {
     try {
-      setIsConfirming(true);
+      setIsClearing(true);
       await onClearAll();
       setOpen(false);
-      // Don't show success toast here, it will be shown in the onClearAll function
+      toast.success("Se han borrado todos los archivos y transcripciones");
     } catch (error) {
       console.error("Error clearing state:", error);
       toast.error("No se pudieron borrar todos los elementos");
     } finally {
-      setIsConfirming(false);
+      setIsClearing(false);
     }
   };
 
@@ -41,14 +34,10 @@ const ClearAllButton: React.FC<ClearAllButtonProps> = ({
           variant="destructive"
           className="flex items-center gap-2"
           size="sm"
-          disabled={isLoading}
+          disabled={isClearing}
         >
-          {isLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Trash className="w-4 h-4" />
-          )}
-          {isLoading ? "Borrando..." : "Borrar todo"}
+          <Trash className="w-4 h-4" />
+          {isClearing ? "Borrando..." : "Borrar todo"}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -62,23 +51,16 @@ const ClearAllButton: React.FC<ClearAllButtonProps> = ({
           <Button 
             variant="secondary" 
             onClick={() => setOpen(false)}
-            disabled={isLoading}
+            disabled={isClearing}
           >
             Cancelar
           </Button>
           <Button 
             variant="destructive" 
             onClick={handleConfirm}
-            disabled={isLoading}
+            disabled={isClearing}
           >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Borrando...
-              </>
-            ) : (
-              "Borrar todo"
-            )}
+            {isClearing ? "Borrando..." : "Borrar todo"}
           </Button>
         </DialogFooter>
       </DialogContent>

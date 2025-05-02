@@ -20,18 +20,11 @@ export const calculateCurrentSegment = (
 
   try {
     // Find the utterance where currentTime falls between start and end times
-    const segment = utterances.find(
+    return utterances.find(
       (utterance) => 
         currentTime >= utterance.start && 
         currentTime <= (utterance.end || utterance.start + 30)
     ) || null;
-    
-    // Add more detailed debug logging when segments change
-    if (segment) {
-      console.debug(`[calculateCurrentSegment] Found segment at time ${currentTime}s: ${segment.start}s-${segment.end}s`);
-    }
-    
-    return segment;
   } catch (error) {
     console.error("[calculateCurrentSegment] Error finding current segment:", error);
     return null;

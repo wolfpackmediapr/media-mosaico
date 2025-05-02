@@ -84,18 +84,9 @@ const RadioTranscriptionSlot = ({
   // Reset view mode to edit when transcription text is cleared
   useEffect(() => {
     if (!transcriptionText) {
-      console.log('[RadioTranscriptionSlot] Transcription cleared, resetting view mode to edit');
       setViewMode('edit');
     }
   }, [transcriptionText, setViewMode]);
-  
-  // Reset view mode when transcription result changes to null/undefined
-  useEffect(() => {
-    if (!transcriptionResult?.utterances || transcriptionResult.utterances.length === 0) {
-      console.log('[RadioTranscriptionSlot] Transcription result cleared, resetting view mode to edit');
-      setViewMode('edit');
-    }
-  }, [transcriptionResult, setViewMode]);
 
   // Local state to store the reset method
   const resetFnRef = useRef<() => void>(() => {});
@@ -109,7 +100,6 @@ const RadioTranscriptionSlot = ({
 
   // Handle view mode change
   const handleViewModeChange = (mode: 'interactive' | 'edit') => {
-    console.log(`[RadioTranscriptionSlot] View mode changed to ${mode}`);
     setViewMode(mode);
   };
 
