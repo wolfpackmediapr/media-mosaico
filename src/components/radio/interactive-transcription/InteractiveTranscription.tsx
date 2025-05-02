@@ -38,6 +38,18 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   const lastCurrentTimeRef = useRef<number>(0);
   const activeSegmentIdRef = useRef<string | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const segmentUpdateRequested = useRef<boolean>(false);
+  
+  // Debug logging for time updates
+  useEffect(() => {
+    // Only log significant changes (more than 1 second) to reduce noise
+    if (Math.abs(currentTime - lastCurrentTimeRef.current) > 1) {
+      console.log(`[InteractiveTranscription] currentTime updated: ${currentTime.toFixed(2)}s (delta: ${(currentTime - lastCurrentTimeRef.current).toFixed(2)}s)`);
+      lastCurrentTimeRef.current = currentTime;
+      // Request update on significant change
+      segmentUpdateRequested.current = true;
+    }
+  }, [currentTime]);
 
   // Clean up timeouts when component unmounts
   useEffect(() => {
@@ -57,7 +69,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     };
   }, []);
 
-  // Find the active segment based on current playback time with debouncing
+  // Find the active segment based on current playback time
   const findActiveSegment = useCallback((time: number) => {
     if (!hasUtterances || !transcriptionResult?.utterances) return null;
     
@@ -69,42 +81,66 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     }
   }, [hasUtterances, transcriptionResult?.utterances]);
 
-  // More stable debounced segment updater function
-  const updateActiveSegment = useCallback(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    
-    debounceTimerRef.current = setTimeout(() => {
-      if (!hasUtterances || audioSeekPending.current) return;
+  // Force update active segment immediately when requested
+  useEffect(() => {
+    if (segmentUpdateRequested.current) {
+      segmentUpdateRequested.current = false;
       
       try {
+        if (!hasUtterances || audioSeekPending.current) return;
+        
         const active = findActiveSegment(currentTime);
         if (active) {
           const newSegmentId = `segment-${active.start}-${active.end}`;
           if (activeSegmentIdRef.current !== newSegmentId) {
             activeSegmentIdRef.current = newSegmentId;
             setActiveSegmentId(newSegmentId);
+            console.log(`[InteractiveTranscription] Updated active segment: ${newSegmentId}`);
           }
         } else if (activeSegmentIdRef.current !== null) {
           activeSegmentIdRef.current = null;
           setActiveSegmentId(null);
+          console.log(`[InteractiveTranscription] Cleared active segment`);
         }
       } catch (error) {
-        console.error("[InteractiveTranscription] Error in debounced update:", error);
+        console.error("[InteractiveTranscription] Error in immediate update:", error);
       }
-    }, 400);
+    }
   }, [currentTime, findActiveSegment, hasUtterances]);
 
-  // Update active segment with significantly improved change detection
+  // More reliable update active segment method that runs periodically when playing
   useEffect(() => {
-    // Only update if time has changed significantly (more than 0.5 seconds)
-    // This drastically reduces unnecessary updates
-    if (Math.abs(currentTime - lastCurrentTimeRef.current) > 0.5) {
-      lastCurrentTimeRef.current = currentTime;
-      updateActiveSegment();
+    let updateInterval: NodeJS.Timeout | null = null;
+    
+    if (isPlaying && hasUtterances) {
+      // When playing, update active segment every 200ms
+      updateInterval = setInterval(() => {
+        try {
+          if (audioSeekPending.current) return;
+          
+          const active = findActiveSegment(currentTime);
+          if (active) {
+            const newSegmentId = `segment-${active.start}-${active.end}`;
+            if (activeSegmentIdRef.current !== newSegmentId) {
+              activeSegmentIdRef.current = newSegmentId;
+              setActiveSegmentId(newSegmentId);
+            }
+          } else if (activeSegmentIdRef.current !== null) {
+            activeSegmentIdRef.current = null;
+            setActiveSegmentId(null);
+          }
+        } catch (error) {
+          console.error("[InteractiveTranscription] Error in interval update:", error);
+        }
+      }, 200);
     }
-  }, [currentTime, updateActiveSegment]);
+    
+    return () => {
+      if (updateInterval) {
+        clearInterval(updateInterval);
+      }
+    };
+  }, [isPlaying, currentTime, hasUtterances, findActiveSegment]);
 
   // Update the ref value when state changes
   useEffect(() => {
@@ -117,7 +153,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         !scrollOperationOngoing.current && !audioSeekPending.current) {
       // Throttle scrolling more aggressively to improve performance
       const now = Date.now();
-      if (now - lastScrollTime.current > 1800) { // Increased from 1500ms to 1800ms
+      if (now - lastScrollTime.current > 1000) { // Increased to 1 second for better stability
         lastScrollTime.current = now;
         scrollOperationOngoing.current = true;
         
@@ -125,8 +161,8 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
           // Use smooth scrolling only if not playing for better performance
           const behavior = isPlaying ? "auto" : "smooth";
           
-          // Wrap in setTimeout with longer delay to ensure DOM is ready
-          setTimeout(() => {
+          // Wrap in requestAnimationFrame for better timing
+          requestAnimationFrame(() => {
             if (activeSegmentRef.current && !audioSeekPending.current) {
               try {
                 activeSegmentRef.current.scrollIntoView({
@@ -146,18 +182,19 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
                     setVisibleRange({ start, end });
                   }
                 }
+                
+                // Reset scroll operation flag after a delay
+                setTimeout(() => {
+                  scrollOperationOngoing.current = false;
+                }, 800);
               } catch (scrollError) {
                 console.error("[InteractiveTranscription] Error during scroll operation:", scrollError);
-              }
-              
-              // Reset scroll operation flag after a delay
-              setTimeout(() => {
                 scrollOperationOngoing.current = false;
-              }, 500); // Increased from 300ms for better stability
+              }
             } else {
               scrollOperationOngoing.current = false;
             }
-          }, 150); // Increased from 100ms
+          });
         } catch (error) {
           // Reset flag if scrolling fails
           console.error("[InteractiveTranscription] Error scrolling:", error);
@@ -167,13 +204,13 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     }
   }, [activeSegmentId, isPlaying, transcriptionResult?.utterances]);
 
-  // Handle clicking on a transcript segment with improved debouncing
+  // Handle clicking on a transcript segment with improved reliability
   const handleSegmentClick = useCallback((timestamp: number) => {
     const now = Date.now();
     
-    // Increased cooldown period to 1000ms for maximum stability
-    if (now - lastSegmentClickTime.current < 1000) {
-      console.log(`[InteractiveTranscription] Ignoring rapid segment click within 1000ms cooldown`);
+    // Strict cooldown period to prevent multiple clicks
+    if (now - lastSegmentClickTime.current < 800) {
+      console.log(`[InteractiveTranscription] Ignoring rapid segment click within cooldown`);
       return;
     }
     
@@ -188,21 +225,22 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
       clearTimeout(segmentClickTimeoutRef.current);
     }
     
-    // Increased delay before seeking to better prevent conflicts
-    segmentClickTimeoutRef.current = setTimeout(() => {
-      try {
-        console.log(`[InteractiveTranscription] Executing seek to ${timestamp}s after delay`);
-        onSeek(timestamp);
-      } catch (error) {
-        console.error("[InteractiveTranscription] Error during seek operation:", error);
-      }
+    try {
+      // Execute seek immediately
+      onSeek(timestamp);
       
-      // Reset seek pending flag after a longer delay
-      setTimeout(() => {
+      // Clear the pending flag after a delay to allow time for the player to update
+      segmentClickTimeoutRef.current = setTimeout(() => {
         audioSeekPending.current = false;
         segmentClickTimeoutRef.current = null;
-      }, 1200); // Increased significantly from 1000ms
-    }, 400); // Increased from 300ms
+        
+        // Force update of active segment after seeking
+        segmentUpdateRequested.current = true;
+      }, 800);
+    } catch (err) {
+      console.error("[InteractiveTranscription] Error during segment click:", err);
+      audioSeekPending.current = false;
+    }
   }, [onSeek]);
 
   if (!hasUtterances || !transcriptionResult?.utterances) {
@@ -244,7 +282,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         ref={scrollAreaRef}
         onScrollCapture={() => {
           // Update the last scroll time to prevent auto-scrolling right after manual scroll
-          // Extend the cooldown period to 5 seconds after manual scroll (from 3 seconds)
+          // Extend the cooldown period significantly after manual scroll
           lastScrollTime.current = Date.now() + 5000;
         }}
       >

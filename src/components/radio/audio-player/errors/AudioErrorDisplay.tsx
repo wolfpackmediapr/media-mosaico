@@ -26,11 +26,11 @@ export const AudioErrorDisplay: React.FC<AudioErrorDisplayProps> = ({
   const fileExtension = file?.name?.split('.')?.pop()?.toUpperCase() || '';
   
   // Determine error category to provide more helpful messages
-  const isFormatError = error.includes('format') || error.includes('codec') || 
-                        error.includes('NotSupported') || error.includes('_id');
-  const isNetworkError = error.includes('network') || error.includes('fetch') || 
-                         error.includes('load');
-  const isPermissionError = error.includes('permission') || error.includes('NotAllowed');
+  const isFormatError = error?.includes('format') || error?.includes('codec') || 
+                        error?.includes('NotSupported') || error?.includes('_id');
+  const isNetworkError = error?.includes('network') || error?.includes('fetch') || 
+                         error?.includes('load');
+  const isPermissionError = error?.includes('permission') || error?.includes('NotAllowed');
   
   // Determine appropriate error message
   let errorTitle = 'Error de reproducción';
@@ -81,7 +81,7 @@ export const AudioErrorDisplay: React.FC<AudioErrorDisplayProps> = ({
             </Button>
           )}
         </div>
-        {process.env.NODE_ENV === 'development' && (
+        {process.env.NODE_ENV === 'development' && error && (
           <div className="text-xs mt-2 opacity-80 font-mono">
             Error: {error}
           </div>

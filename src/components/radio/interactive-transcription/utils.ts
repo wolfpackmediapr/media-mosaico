@@ -1,81 +1,70 @@
 
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 
-// Optimized function to calculate the current segment with improved accuracy
+/**
+ * Find the utterance that corresponds to the current playback time
+ */
 export const calculateCurrentSegment = (
   utterances: UtteranceTimestamp[],
   currentTime: number
 ): UtteranceTimestamp | null => {
-  // Edge case: no utterances
-  if (!utterances || utterances.length === 0) return null;
-  
-  // Edge case: before first segment
-  if (currentTime < utterances[0].start) return null;
-  
-  // Edge case: after last segment
-  const lastUtterance = utterances[utterances.length - 1];
-  if (currentTime > lastUtterance.end + 1) return null;
-  
-  // Binary search for more efficient segment finding
-  // Much faster than linear search for large transcriptions
-  let low = 0;
-  let high = utterances.length - 1;
-  
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const segment = utterances[mid];
-    
-    // Check if currentTime is within this segment's range (with small buffer)
-    // Allow small 0.2s buffer at the end to avoid gaps between segments
-    if (currentTime >= segment.start && currentTime <= segment.end + 0.2) {
-      return segment;
-    }
-    
-    // If currentTime is before this segment
-    if (currentTime < segment.start) {
-      high = mid - 1;
-    } else {
-      // If currentTime is after this segment
-      low = mid + 1;
-    }
+  if (!utterances || utterances.length === 0 || !isFinite(currentTime)) {
+    return null;
   }
-  
-  // If we didn't find an exact match, return the last segment
-  // that starts before currentTime
-  for (let i = utterances.length - 1; i >= 0; i--) {
-    if (utterances[i].start <= currentTime) {
-      return utterances[i];
-    }
+
+  // Safety check for invalid time values
+  if (currentTime < 0 || currentTime > 24 * 60 * 60) { // Max 24 hours
+    console.warn(`[calculateCurrentSegment] Possibly invalid time value: ${currentTime}`);
+    return null;
   }
-  
-  return null;
+
+  try {
+    // Find the utterance where currentTime falls between start and end times
+    return utterances.find(
+      (utterance) => 
+        currentTime >= utterance.start && 
+        currentTime <= (utterance.end || utterance.start + 30)
+    ) || null;
+  } catch (error) {
+    console.error("[calculateCurrentSegment] Error finding current segment:", error);
+    return null;
+  }
 };
 
-// Color palette for speakers
-const SPEAKER_COLORS = [
-  "#4E79A7", "#F28E2B", "#E15759", "#76B7B2", 
-  "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7",
-  "#9C755F", "#BAB0AC", "#2E8A99", "#7A6F9B"
-];
+/**
+ * Format timestamp in seconds to MM:SS format
+ */
+export const formatTimestamp = (timestamp: number): string => {
+  if (!isFinite(timestamp) || timestamp < 0) {
+    return "00:00";
+  }
+  
+  try {
+    const minutes = Math.floor(timestamp / 60);
+    const seconds = Math.floor(timestamp % 60);
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  } catch (error) {
+    console.error("[formatTimestamp] Error formatting timestamp:", error);
+    return "00:00";
+  }
+};
 
-// Get consistent color for a speaker
-export const getSpeakerColor = (speakerId: string | number): string => {
-  let id = "";
-  
-  if (typeof speakerId === 'string') {
-    // Extract numeric portion if format is "speaker_X"
-    const match = speakerId.match(/(\d+)$/);
-    id = match ? match[1] : speakerId;
-  } else {
-    id = String(speakerId);
+/**
+ * Get unique speakers from utterances
+ */
+export const getUniqueSpeakers = (utterances: UtteranceTimestamp[]): string[] => {
+  if (!utterances || utterances.length === 0) {
+    return [];
   }
   
-  // Convert the id to a number for color selection
-  let numericId = 0;
-  for (let i = 0; i < id.length; i++) {
-    numericId += id.charCodeAt(i);
+  try {
+    const speakers = utterances
+      .map(utterance => utterance.speaker)
+      .filter((speaker): speaker is string => !!speaker);
+      
+    return [...new Set(speakers)];
+  } catch (error) {
+    console.error("[getUniqueSpeakers] Error getting unique speakers:", error);
+    return [];
   }
-  
-  // Use modulo to get a consistent color from the palette
-  return SPEAKER_COLORS[numericId % SPEAKER_COLORS.length];
 };
