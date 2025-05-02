@@ -11,7 +11,7 @@ interface UseRadioActionsProps {
   handleFilesAddedOriginal: (newFiles: File[]) => void; // Renamed to avoid conflict
   resetTranscription: () => void;
   setNewsSegments: React.Dispatch<React.SetStateAction<any[]>>; // Use specific type if available
-  clearAllStorageState: () => Promise<void>; // Update return type to Promise<void>
+  clearAllStorageState: () => Promise<boolean>; // Updated return type to Promise<boolean>
   // Add resetPlaybackErrors if needed from useRadioPlayer
 }
 
@@ -26,25 +26,58 @@ export const useRadioActions = ({
   clearAllStorageState,
 }: UseRadioActionsProps) => {
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const [isClearingState, setIsClearingState] = useState(false);
 
   const handleClearAll = useCallback(async () => {
     console.log('[RadioActions] handleClearAll: Starting clear sequence');
+    
+    if (isClearingState) {
+      console.log('[RadioActions] Clear operation already in progress, ignoring');
+      return;
+    }
+    
     try {
+      setIsClearingState(true);
+      
+      // First reset the transcription state (text, utterances, etc)
+      console.log('[RadioActions] Resetting transcription');
       resetTranscription();
+      
+      // Then clear the news segments
+      console.log('[RadioActions] Clearing news segments');
       setNewsSegments([]);
+      
+      // Reset file state
+      console.log('[RadioActions] Clearing file state');
       setFiles([]);
       setCurrentFileIndex(0);
-      // Assuming clearAllStorageState handles storage keys and potentially editor/analysis reset
-      await clearAllStorageState(); // Await the void promise
-      toast.success('Todos los datos han sido borrados'); // Assume success if no error
+      
+      // Finally clear all storage state with persistence
+      console.log('[RadioActions] Clearing persistent storage');
+      const clearSuccess = await clearAllStorageState(); // Now awaiting the boolean result
+      
+      if (clearSuccess) {
+        toast.success('Todos los datos han sido borrados');
+        console.log('[RadioActions] All data successfully cleared');
+      } else {
+        console.warn('[RadioActions] Some storage items may not have been cleared');
+        toast.success('Datos principales borrados'); // Still show success since UI state is cleared
+      }
     } catch (error) {
       console.error('[RadioActions] Error during clear all:', error);
-      toast.error('Error al borrar los datos almacenados.'); // Show error toast on failure
+      toast.error('Error al borrar los datos almacenados.');
     } finally {
-      // setPlaybackErrors(null); // This needs to be handled via props if needed
+      setIsClearingState(false);
       setLastAction('clear');
     }
-  }, [resetTranscription, setNewsSegments, setFiles, setCurrentFileIndex, clearAllStorageState]);
+  }, [
+    resetTranscription, 
+    setNewsSegments, 
+    setFiles, 
+    setCurrentFileIndex, 
+    clearAllStorageState, 
+    isClearingState
+  ]);
 
   const handleTrackSelect = useCallback((index: number) => {
     if (index !== currentFileIndex) {
@@ -69,5 +102,6 @@ export const useRadioActions = ({
     handleClearAll,
     handleTrackSelect,
     handleFilesAdded, // Export the enhanced version
+    isClearingState
   };
 };

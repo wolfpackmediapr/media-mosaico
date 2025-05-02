@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 
@@ -69,13 +69,30 @@ export const useRadioTranscription = () => {
     }
   }, [isProcessing]);
 
-  const resetTranscription = () => {
-    setTranscriptionText("");
-    setTranscriptionId(undefined);
-    setTranscriptionResult(undefined);
-    setNewsSegments([]);
-    setMetadata({});
-  };
+  // Enhanced reset function to properly clear all state
+  const resetTranscription = useCallback(() => {
+    console.log('[useRadioTranscription] Resetting all transcription state');
+    
+    try {
+      // Reset all state values
+      setTranscriptionText("");
+      setTranscriptionId(undefined);
+      
+      // Explicitly clear the transcription result including utterances
+      setTranscriptionResult(undefined);
+      
+      setNewsSegments([]);
+      setMetadata({});
+      
+      console.log('[useRadioTranscription] Transcription reset complete');
+    } catch (error) {
+      console.error('[useRadioTranscription] Error during transcription reset:', error);
+      
+      // Ensure we still reset critical states even if there's an error
+      setTranscriptionText("");
+      setTranscriptionResult(undefined);
+    }
+  }, []);
 
   return {
     isProcessing,
