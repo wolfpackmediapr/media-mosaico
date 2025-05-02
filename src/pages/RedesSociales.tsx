@@ -1,13 +1,13 @@
-
 import { useEffect, useState } from "react";
 import SocialHeader from "@/components/social/SocialHeader";
 import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";
-import { useSocialFeeds } from "@/hooks/use-social-feeds";
+import { useSocialFeeds } from "@/hooks/social/use-social-feeds";
 import { ITEMS_PER_PAGE } from "@/services/social/api";
 import { SocialPost } from "@/types/social";
 
 const RedesSociales = () => {
+  // Use the refactored hook
   const {
     posts,
     platforms,
@@ -17,13 +17,14 @@ const RedesSociales = () => {
     fetchPosts,
     fetchPlatforms,
     refreshFeeds,
-    lastRefreshTime
+    lastRefreshTime,
+    displayPosts,
+    setDisplayPosts
   } = useSocialFeeds();
   
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [displayPosts, setDisplayPosts] = useState<SocialPost[]>([]);
 
   // Initial load - fetch platforms and posts
   useEffect(() => {
@@ -54,7 +55,7 @@ const RedesSociales = () => {
       setDisplayPosts(result);
     };
     fetchData();
-  }, [searchTerm, selectedPlatforms, fetchPosts]);
+  }, [searchTerm, selectedPlatforms, fetchPosts, setDisplayPosts]);
 
   // When only page changes, fetch the new page
   useEffect(() => {
@@ -66,7 +67,7 @@ const RedesSociales = () => {
       };
       fetchPageData();
     }
-  }, [currentPage, fetchPosts, searchTerm, selectedPlatforms]);
+  }, [currentPage, fetchPosts, searchTerm, selectedPlatforms, setDisplayPosts]);
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
