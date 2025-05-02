@@ -2,8 +2,9 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, ExternalLink } from "lucide-react";
+import { Calendar, ExternalLink, Image as ImageIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useState } from "react";
 import type { SocialPost } from "@/types/social";
 import { platformIcons } from "@/lib/platform-icons";
 
@@ -23,6 +24,9 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
     platform_display_name
   } = post;
 
+  // Track image loading state
+  const [imageError, setImageError] = useState(false);
+
   // Format the publication date
   const formattedDate = pub_date ? formatDistanceToNow(new Date(pub_date), { addSuffix: true }) : '';
   
@@ -31,19 +35,20 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
 
   return (
     <Card className="overflow-hidden flex flex-col h-full">
-      {image_url && (
+      {image_url && !imageError ? (
         <div className="relative w-full aspect-video overflow-hidden">
           <img 
             src={image_url} 
             alt={title || "Social media post"} 
             className="object-cover w-full h-full"
-            onError={(e) => {
-              // Hide broken images
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
+            onError={() => setImageError(true)}
           />
         </div>
-      )}
+      ) : imageError ? (
+        <div className="relative w-full aspect-video bg-muted flex items-center justify-center">
+          <ImageIcon className="h-12 w-12 text-muted-foreground opacity-50" />
+        </div>
+      ) : null}
       
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
