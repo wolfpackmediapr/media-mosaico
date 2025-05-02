@@ -68,3 +68,40 @@ export const getUniqueSpeakers = (utterances: UtteranceTimestamp[]): string[] =>
     return [];
   }
 };
+
+/**
+ * Generate a consistent color for a speaker based on their ID
+ */
+export const getSpeakerColor = (speakerId: string | number | undefined): string => {
+  if (!speakerId) {
+    return "#6b7280"; // Default gray color
+  }
+  
+  // Convert speaker ID to string
+  const speakerStr = String(speakerId);
+  
+  // Pre-defined colors for better readability and contrast
+  const colors = [
+    "#3b82f6", // blue
+    "#ef4444", // red
+    "#10b981", // green
+    "#f59e0b", // amber
+    "#8b5cf6", // purple
+    "#ec4899", // pink
+    "#14b8a6", // teal
+    "#f97316", // orange
+    "#6366f1", // indigo
+    "#a855f7"  // violet
+  ];
+  
+  // Generate a consistent index based on the speaker string
+  let hash = 0;
+  for (let i = 0; i < speakerStr.length; i++) {
+    hash = ((hash << 5) - hash) + speakerStr.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  
+  // Get a positive index within the colors array length
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+};
