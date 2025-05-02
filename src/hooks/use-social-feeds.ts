@@ -5,6 +5,7 @@ import { handleSocialFeedError } from "@/services/social/error-handler";
 import { useState } from "react";
 import { transformArticlesToPosts, transformPlatformData, calculatePlatformCounts } from "@/services/social/utils";
 import type { SocialPost, SocialPlatform } from "@/types/social";
+import { SOCIAL_PLATFORMS } from "@/services/social/api";
 
 // Add the useSocialFeeds hook for the RedesSociales page
 export function useSocialFeeds() {
@@ -16,18 +17,43 @@ export function useSocialFeeds() {
   const fetchPosts = async (page = 1, searchTerm = "", selectedPlatforms: string[] = []) => {
     console.log('Fetching posts with:', { page, searchTerm, selectedPlatforms });
     
+    // First get all feed sources that match social platforms
+    const { data: feedSources, error: sourceError } = await supabase
+      .from("feed_sources")
+      .select("id, name, platform")
+      .in("platform", SOCIAL_PLATFORMS);
+      
+    if (sourceError) throw sourceError;
+    
+    const socialFeedSourceIds = feedSources?.map(fs => fs.id) || [];
+    console.log('Social feed source IDs:', socialFeedSourceIds);
+    
+    // If no social feed sources found, return empty result
+    if (socialFeedSourceIds.length === 0) {
+      console.log('No social feed sources found');
+      return { data: [], count: 0 };
+    }
+    
     let query = supabase
       .from("news_articles")
-      .select("*, feed_source:feed_source_id(*)", { count: "exact" });
+      .select("*, feed_source:feed_source_id(*)", { count: "exact" })
+      .in("feed_source_id", socialFeedSourceIds);
       
     // Apply search filter if provided
     if (searchTerm) {
-      query = query.ilike("content", `%${searchTerm}%`);
+      query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
     }
     
     // Apply platform filter if provided
     if (selectedPlatforms.length > 0) {
-      query = query.in("feed_source_id", selectedPlatforms);
+      // Filter by platform name
+      const filteredSourceIds = feedSources
+        ?.filter(fs => selectedPlatforms.includes(fs.name))
+        .map(fs => fs.id);
+      
+      if (filteredSourceIds && filteredSourceIds.length > 0) {
+        query = query.in("feed_source_id", filteredSourceIds);
+      }
     }
     
     const { data, count, error } = await query
@@ -43,19 +69,23 @@ export function useSocialFeeds() {
     return transformArticlesToPosts(data || []);
   };
   
-  // Fetch available platforms
+  // Fetch available platforms - filter to only social media platforms
   const fetchPlatforms = async () => {
     const { data: feedSources, error } = await supabase
       .from("feed_sources")
       .select("*")
+      .in("platform", SOCIAL_PLATFORMS)
       .order("name", { ascending: true });
       
     if (error) throw error;
     
-    // Fetch articles to calculate counts per platform
+    console.log('Fetched social platforms:', feedSources);
+    
+    // Fetch articles to calculate counts per platform, but only for social media sources
     const { data: articles } = await supabase
       .from("news_articles")
-      .select("feed_source_id, feed_source:feed_source_id(name)");
+      .select("feed_source_id, feed_source:feed_source_id(name, platform)")
+      .in("feed_source:feed_source_id.platform", SOCIAL_PLATFORMS);
     
     // Calculate platform counts from the articles
     const platformCounts = calculatePlatformCounts(articles || []);
@@ -64,11 +94,16 @@ export function useSocialFeeds() {
     return transformPlatformData(feedSources || [], platformCounts);
   };
   
-  // Manual refresh function
+  // Manual refresh function - updates to use process-social-feeds
   const refreshFeeds = async () => {
     try {
       setIsRefreshing(true);
-      const { error } = await supabase.functions.invoke("refresh-social-feeds");
+      const { error } = await supabase.functions.invoke("process-social-feeds", {
+        body: { 
+          timestamp: new Date().toISOString(),
+          forceFetch: true
+        }
+      });
       
       if (error) throw error;
       

@@ -58,11 +58,17 @@ export const useAudioPlaybackManager = ({
     handleSeekToSegment(segmentOrTime);
   }, [handleSeekToSegment]);
 
-  // Volume wrapper: Ensure it accepts number[] and passes number[] to the base handler
+  // Volume wrapper: Fix the type issue by explicitly handling the types
   const onVolumeChange = useCallback((value: number[]) => {
     // Ensure we always pass a correctly formatted UI volume array [0-100]
     const uiVolume = ensureUiVolumeFormat(value);
-    baseHandleVolumeChange(uiVolume); // Call the original handler from useRadioPlayer
+    // Need to call baseHandleVolumeChange with the first value from the array
+    // since it expects a number, not an array
+    if (Array.isArray(uiVolume) && uiVolume.length > 0) {
+      baseHandleVolumeChange(uiVolume[0]);
+    } else {
+      baseHandleVolumeChange(0); // Fallback
+    }
   }, [baseHandleVolumeChange]);
 
   // Add volume up/down handlers that correctly handle array types
