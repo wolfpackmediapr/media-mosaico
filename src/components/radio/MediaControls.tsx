@@ -1,6 +1,6 @@
 
+import React, { useCallback } from "react";
 import { MusicCard } from "@/components/ui/music-card";
-import { useCallback } from "react";
 import { AudioMetadataDisplay, AudioPlayerState, AudioControls } from "@/types/player";
 
 interface UploadedFile extends File {
@@ -10,6 +10,10 @@ interface UploadedFile extends File {
 interface MediaControlsProps extends AudioPlayerState, AudioControls {
   currentFile?: UploadedFile;
   metadata?: AudioMetadataDisplay;
+  playbackErrors?: string | null;  // Added to match what RightSection is passing
+  isFileValid?: boolean;          // Added to match what RightSection is passing
+  onSwitchToNative?: () => void;  // Added to match what RightSection is passing
+  className?: string;             // Added to support class name customization
 }
 
 const MediaControls = ({
@@ -21,12 +25,16 @@ const MediaControls = ({
   isMuted,
   volume,
   playbackRate,
+  playbackErrors,
+  isFileValid = true,
   onPlayPause,
   onSeek,
   onSkip,
   onToggleMute,
   onVolumeChange,
-  onPlaybackRateChange
+  onPlaybackRateChange,
+  onSwitchToNative,
+  className = ""
 }: MediaControlsProps) => {
   if (!currentFile) return null;
 
@@ -40,6 +48,9 @@ const MediaControls = ({
     onPlaybackRateChange(nextRate);
   }, [playbackRate, onPlaybackRateChange]);
 
+  // Show error indicator or warning if file is not valid
+  const showErrorIndicator = !!playbackErrors || !isFileValid;
+  
   return (
     <MusicCard
       file={currentFile}
@@ -59,6 +70,9 @@ const MediaControls = ({
       onToggleMute={onToggleMute}
       onVolumeChange={onVolumeChange}
       onPlaybackRateChange={handlePlaybackRateChange}
+      error={showErrorIndicator ? (playbackErrors || "Error al reproducir este archivo") : undefined}
+      onSwitchPlayback={onSwitchToNative}
+      className={className}
     />
   );
 };

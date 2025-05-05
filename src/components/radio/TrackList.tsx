@@ -10,24 +10,36 @@ interface UploadedFile extends File {
 
 interface TrackListProps {
   files: UploadedFile[];
-  currentFileIndex: number;
-  onSelectTrack: (index: number) => void;
-  isPlaying: boolean;
-  currentTime: number;
-  duration: number;
+  currentFileIndex?: number;  // Changed from original "currentFileIndex" to be optional
+  activeIndex?: number;       // Added to match what RightSection is passing
+  onSelectTrack?: (index: number) => void;  // Made optional
+  onSelect?: (index: number) => void;       // Added to match what RightSection is passing
+  isPlaying?: boolean;
+  currentTime?: number;
+  duration?: number;
+  className?: string;  // Added to support className prop
 }
 
-const TrackList = ({
+const TrackList: React.FC<TrackListProps> = ({
   files,
   currentFileIndex,
+  activeIndex,
   onSelectTrack,
-  isPlaying,
-  currentTime,
-  duration,
-}: TrackListProps) => {
+  onSelect,
+  isPlaying = false,
+  currentTime = 0,
+  duration = 0,
+  className = "",
+}) => {
   if (files.length === 0) {
     return null;
   }
+
+  // Use activeIndex if provided, otherwise fall back to currentFileIndex
+  const activeTrackIndex = activeIndex !== undefined ? activeIndex : currentFileIndex || 0;
+  
+  // Use onSelect if provided, otherwise fall back to onSelectTrack
+  const handleTrackSelect = onSelect || onSelectTrack || (() => {});
 
   const formatTime = (seconds: number) => {
     if (!seconds || isNaN(seconds)) return "0:00";
@@ -40,19 +52,19 @@ const TrackList = ({
   const publimediaGreen = "#66cc00";
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Lista de Pistas ({files.length})</span>
           <span className="text-sm font-normal">
-            {currentFileIndex + 1} de {files.length}
+            {activeTrackIndex + 1} de {files.length}
           </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <ul className="divide-y">
           {files.map((file, index) => {
-            const isActive = index === currentFileIndex;
+            const isActive = index === activeTrackIndex;
             const progress = isActive ? (currentTime / (duration || 1)) * 100 : 0;
             
             return (
@@ -60,7 +72,7 @@ const TrackList = ({
                 "relative p-3 flex items-center hover:bg-muted/50 transition-colors cursor-pointer",
                 isActive && "bg-muted"
               )}
-              onClick={() => onSelectTrack(index)}
+              onClick={() => handleTrackSelect(index)}
               >
                 {/* Progress bar for current track */}
                 {isActive && (

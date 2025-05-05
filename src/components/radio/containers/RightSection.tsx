@@ -3,7 +3,6 @@ import React, { useEffect, useRef, memo } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
-import { AudioErrorDisplay } from "../audio-player/errors/AudioErrorDisplay";
 
 interface RightSectionProps {
   currentFile: File | null;
@@ -146,8 +145,14 @@ export const RightSection = memo(({
       {files.length > 0 && (
         <TrackList
           files={files}
+          currentFileIndex={currentFileIndex}
           activeIndex={currentFileIndex}
           onSelect={handleTrackSelect}
+          onSelectTrack={handleTrackSelect}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          className="flex-1 overflow-auto"
         />
       )}
     </div>

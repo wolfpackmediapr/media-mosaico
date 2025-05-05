@@ -1,13 +1,14 @@
 
-import React from "react";
-import { Button } from "@/components/ui/button";
-import { Trash2, Layout, LayoutGrid } from "lucide-react";
+import React from 'react';
+import { Trash2, Layout } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { 
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
 
 interface FileOperationsProps {
   onRemoveFile: () => void;
@@ -21,58 +22,35 @@ const FileOperations: React.FC<FileOperationsProps> = ({
   onChangeLayout
 }) => {
   return (
-    <div className="flex justify-between">
-      <TooltipProvider>
-        <div className="flex gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => onChangeLayout("split")}
-                className={selectedLayout === "split" ? "bg-primary text-primary-foreground" : ""}
-              >
-                <Layout className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Vista dividida</p>
-            </TooltipContent>
-          </Tooltip>
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => onChangeLayout("grid")}
-                className={selectedLayout === "grid" ? "bg-primary text-primary-foreground" : ""}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Vista en cuadrícula</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-        
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={onRemoveFile}
-              className="text-red-500 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Eliminar archivo actual</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+    <div className="flex justify-between items-center">
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRemoveFile}
+          className="text-destructive"
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Eliminar archivo
+        </Button>
+      </div>
+      
+      <div className="flex items-center gap-2">
+        <Layout className="w-4 h-4 text-muted-foreground" />
+        <Select 
+          value={selectedLayout} 
+          onValueChange={onChangeLayout}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Diseño" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="split">Vista dividida</SelectItem>
+            <SelectItem value="full">Pantalla completa</SelectItem>
+            <SelectItem value="compact">Compacto</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 };

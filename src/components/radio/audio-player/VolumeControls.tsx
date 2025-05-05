@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Volume1, Volume2, VolumeX } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 
 interface VolumeControlsProps {
   isMuted: boolean;
@@ -18,35 +19,32 @@ export function VolumeControls({
 }: VolumeControlsProps) {
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   
-  // Volume icon changes based on level
-  const volumeLevel = Array.isArray(volume) ? volume[0] : volume;
-  const VolumeIcon = isMuted ? VolumeX : volumeLevel < 50 ? Volume1 : Volume2;
+  // Always use the first volume value for icon determination
+  const volumeValue = Array.isArray(volume) ? volume[0] : volume;
+  const VolumeIcon = isMuted ? VolumeX : volumeValue < 50 ? Volume1 : Volume2;
 
   return (
     <div className="relative" 
       onMouseEnter={() => setShowVolumeSlider(true)} 
       onMouseLeave={() => setShowVolumeSlider(false)}
     >
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={onToggleMute}
-        className="p-2 text-gray-600 dark:text-gray-400 
-          hover:text-primary dark:hover:text-primary 
-          transition-colors"
-        title={isMuted ? "Activar sonido" : "Silenciar"}
+        className="h-8 w-8 text-muted-foreground"
       >
-        <VolumeIcon className="w-5 h-5" />
-      </button>
+        <VolumeIcon className="h-4 w-4" />
+      </Button>
       
-      {/* Volume slider that appears on hover */}
       {showVolumeSlider && (
-        <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-background border border-border rounded-lg shadow-lg p-3 w-24">
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-background border border-input rounded-lg shadow-lg p-3 mb-2 z-50">
           <Slider
-            defaultValue={volume}
+            value={volume}
             max={100}
             step={1}
-            value={volume}
-            onValueChange={onVolumeChange}
             orientation="vertical"
+            onValueChange={onVolumeChange}
             className="h-24"
           />
         </div>
@@ -54,3 +52,5 @@ export function VolumeControls({
     </div>
   );
 }
+
+export default VolumeControls;
