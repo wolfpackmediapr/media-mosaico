@@ -15,7 +15,6 @@ interface HowlerPlayerHookProps {
   resumeOnFocus?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
   preferNative?: boolean; // New option to prefer native audio
-  initialTime?: number; // New prop for restoring playback position
 }
 
 export const useHowlerPlayer = ({
@@ -25,8 +24,7 @@ export const useHowlerPlayer = ({
   preservePlaybackOnBlur = true,
   resumeOnFocus = true,
   onPlayingChange,
-  preferNative = true, // Default to preferring native audio
-  initialTime
+  preferNative = true // Default to preferring native audio
 }: HowlerPlayerHookProps) => {
   // Change error structure to a simple string for easier handling
   const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
@@ -35,9 +33,6 @@ export const useHowlerPlayer = ({
   const nativeAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isUsingNativeAudio, setIsUsingNativeAudio] = useState(preferNative);
   const nativeAudioReadyRef = useRef<boolean>(false);
-  
-  // Track if initial time was applied
-  const initialTimeAppliedRef = useRef<boolean>(false);
   
   // Time update tracking for native audio
   const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -576,34 +571,6 @@ export const useHowlerPlayer = ({
       nativeAudioRef.current.volume = newVolume / 100;
     }
   };
-
-  // Add effect to apply initial time
-  useEffect(() => {
-    if (initialTime && initialTime > 0 && isFinite(initialTime) && coreState.isReady && !initialTimeAppliedRef.current) {
-      console.log(`[useHowlerPlayer] Setting initial time to ${initialTime.toFixed(2)}`);
-      
-      if (isUsingNativeAudio && nativeAudioRef.current) {
-        try {
-          nativeAudioRef.current.currentTime = initialTime;
-          initialTimeAppliedRef.current = true;
-        } catch (err) {
-          console.warn('[useHowlerPlayer] Could not set initialTime on native audio:', err);
-        }
-      } else if (coreState.howl) {
-        try {
-          coreState.howl.seek(initialTime);
-          initialTimeAppliedRef.current = true;
-        } catch (err) {
-          console.warn('[useHowlerPlayer] Could not set initialTime on howler:', err);
-        }
-      }
-    }
-  }, [initialTime, coreState.isReady, isUsingNativeAudio, coreState.howl]);
-  
-  // Reset the initialTimeApplied flag when file changes
-  useEffect(() => {
-    initialTimeAppliedRef.current = false;
-  }, [file]);
 
   return {
     isPlaying,

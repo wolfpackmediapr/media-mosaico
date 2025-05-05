@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useHowlerPlayer } from "@/components/radio/audio-player/hooks/useHowlerPlayer";
 import { useAudioVisibilitySync } from "./processing/useAudioVisibilitySync";
 import { useAudioPlaybackControl } from "./processing/useAudioPlaybackControl";
@@ -8,7 +8,6 @@ import { useExternalAudioSync } from "./processing/useExternalAudioSync";
 import { useAudioUnlock } from "./processing/useAudioUnlock";
 import { UploadedFile } from "@/components/radio/types";
 import { ensureUiVolumeFormat } from "@/utils/audio-volume-adapter";
-import { toast } from "sonner";
 
 interface AudioProcessingOptions {
   currentFile: UploadedFile | null;
@@ -16,7 +15,6 @@ interface AudioProcessingOptions {
   externalIsPlaying?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
   preferNativeAudio?: boolean; // Option to control native audio preference
-  lastPlaybackPosition?: number; // Optional last playback position
 }
 
 export const useAudioProcessing = ({
@@ -24,16 +22,10 @@ export const useAudioProcessing = ({
   isActiveMediaRoute = true,
   externalIsPlaying = false,
   onPlayingChange = () => {},
-  preferNativeAudio = true, // Default to using native audio first
-  lastPlaybackPosition
+  preferNativeAudio = true // Default to using native audio first
 }: AudioProcessingOptions) => {
   // Track previous error messages to avoid repeated logs
   const previousErrorRef = useRef<string | null>(null);
-  const fileLoadAttempts = useRef<number>(0);
-  const [hasFallbackToNative, setHasFallbackToNative] = useState(false);
-  
-  // Track if we've shown an error toast already to avoid spamming
-  const hasShownErrorToast = useRef<boolean>(false);
   
   // Initialize Howler player with preferNative option
   const {
@@ -60,8 +52,7 @@ export const useAudioProcessing = ({
   } = useHowlerPlayer({
     file: currentFile,
     onPlayingChange,
-    preferNative: preferNativeAudio,
-    initialTime: lastPlaybackPosition
+    preferNative: preferNativeAudio
   });
 
   // Convert complex error object to string for simpler handling
@@ -69,27 +60,6 @@ export const useAudioProcessing = ({
     (typeof rawPlaybackErrors === 'string' ?
       rawPlaybackErrors :
       "Unknown error") : null;
-
-  // Auto-recover from errors by switching audio players
-  useEffect(() => {
-    if (playbackErrors && currentFile) {
-      // If we encounter errors and haven't tried native audio yet, try it
-      if (!isUsingNativeAudio && !hasFallbackToNative) {
-        console.log("[useAudioProcessing] Attempting to recover by switching to native audio");
-        switchToNativeAudio();
-        setHasFallbackToNative(true);
-        
-        // Reset error toast flag for potential future native audio errors
-        hasShownErrorToast.current = false;
-      } 
-      // If we're already using native audio and still have errors
-      else if (isUsingNativeAudio && !hasShownErrorToast.current) {
-        console.error("[useAudioProcessing] Native audio also failed:", playbackErrors);
-        toast.error("Problema con la reproducción de audio. Por favor, intente con otro archivo o refresque la página.");
-        hasShownErrorToast.current = true;
-      }
-    }
-  }, [playbackErrors, isUsingNativeAudio, hasFallbackToNative, currentFile, switchToNativeAudio]);
 
   // Handle audio state sync with other tabs
   useAudioVisibilitySync({
@@ -137,14 +107,6 @@ export const useAudioProcessing = ({
     seekToTimestamp
   });
 
-  // Set initial position if provided
-  useEffect(() => {
-    if (lastPlaybackPosition && isReady && currentTime === 0) {
-      console.log(`[useAudioProcessing] Restoring playback position to ${lastPlaybackPosition.toFixed(2)}`);
-      handleSeek(lastPlaybackPosition);
-    }
-  }, [isReady, lastPlaybackPosition, handleSeek, currentTime]);
-
   // Log player state changes - but only when significant changes happen
   useEffect(() => {
     if (currentFile) {
@@ -166,24 +128,6 @@ export const useAudioProcessing = ({
     }
   }, [playbackErrors]);
 
-  // Enhanced force reload function to handle stubborn files
-  const forceReloadAudio = useCallback(() => {
-    // Switch to the opposite player first then back again
-    if (isUsingNativeAudio) {
-      switchToHowler();
-      setTimeout(() => switchToNativeAudio(), 500);
-    } else {
-      switchToNativeAudio();
-      setTimeout(() => switchToHowler(), 500);
-    }
-    
-    // Reset error states
-    hasShownErrorToast.current = false;
-    previousErrorRef.current = null;
-    
-    toast.success("Intentando recargar el audio...");
-  }, [isUsingNativeAudio, switchToHowler, switchToNativeAudio]);
-
   return {
     isPlaying,
     currentTime,
@@ -202,6 +146,5 @@ export const useAudioProcessing = ({
     handleSeekToSegment,
     switchToNativeAudio,
     switchToHowler, // Expose the function to switch back if needed
-    forceReloadAudio, // New utility function for users to manually trigger reload
   };
 };

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
 import { TranscriptionEditorWrapper } from "./editor/TranscriptionEditorWrapper";
@@ -46,32 +46,6 @@ const RadioTranscriptionEditor = ({
   // Track if component is mounted to avoid state updates after unmount
   const isMountedRef = useRef<boolean>(true);
   
-  // Track last props for debugging
-  const lastPropsRef = useRef({
-    transcriptionText,
-    currentTime,
-    isProcessing
-  });
-  
-  // Track the last timestamp click time to prevent duplicate clicks
-  const lastTimestampClickTimeRef = useRef<number>(0);
-  
-  // Enhanced timestamp click handler with debouncing
-  const handleTimestampClick = useCallback((timestamp: number) => {
-    if (!onTimestampClick) return;
-    
-    // Debounce timestamp clicks to prevent rapid multiple clicks
-    const now = Date.now();
-    if (now - lastTimestampClickTimeRef.current < 200) {
-      console.log('[RadioTranscriptionEditor] Ignoring rapid timestamp click');
-      return;
-    }
-    
-    lastTimestampClickTimeRef.current = now;
-    console.log(`[RadioTranscriptionEditor] Timestamp clicked: ${timestamp.toFixed(2)}s`);
-    onTimestampClick(timestamp);
-  }, [onTimestampClick]);
-  
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -90,37 +64,21 @@ const RadioTranscriptionEditor = ({
     }
   }, [registerReset, resetLocalSpeakerText]);
 
-  // Debug changes in props for synchronization issues
-  useEffect(() => {
-    const propsChanged = {
-      text: transcriptionText !== lastPropsRef.current.transcriptionText,
-      time: currentTime !== lastPropsRef.current.currentTime,
-      processing: isProcessing !== lastPropsRef.current.isProcessing
-    };
-    
-    if (propsChanged.text || propsChanged.time || propsChanged.processing) {
-      console.log('[RadioTranscriptionEditor] Props changed:', propsChanged, {
-        currentTime: currentTime?.toFixed(2) || 'none',
-        prevTime: lastPropsRef.current.currentTime?.toFixed(2) || 'none'
-      });
-      lastPropsRef.current = {
-        transcriptionText,
-        currentTime,
-        isProcessing
-      };
-    }
-  }, [transcriptionText, currentTime, isProcessing]);
-
   // Calculate the final processing state with more granular logging
   const finalIsProcessing = isProcessing || isLoadingUtterances;
-  
-  // Only log significant changes to reduce noise
+  console.log('[RadioTranscriptionEditor] Processing state details:', {
+    isProcessing,
+    isLoadingUtterances,
+    finalIsProcessing,
+    hasTranscriptionText: !!transcriptionText,
+    hasTranscriptionResult: !!transcriptionResult,
+    hasEnhancedResult: !!enhancedTranscriptionResult,
+    currentTime: currentTime?.toFixed(2) || 'none'
+  });
+
+  // Log when the processing state changes
   useEffect(() => {
-    if (finalIsProcessing) {
-      console.log('[RadioTranscriptionEditor] Processing state started');
-    } else {
-      console.log('[RadioTranscriptionEditor] Processing state ended');
-    }
+    console.log('[RadioTranscriptionEditor] Processing state changed:', finalIsProcessing);
   }, [finalIsProcessing]);
 
   return (
@@ -129,7 +87,7 @@ const RadioTranscriptionEditor = ({
       transcriptionText={localText || transcriptionText}
       isProcessing={finalIsProcessing}
       onTranscriptionChange={handleTextChange}
-      onTimestampClick={handleTimestampClick}
+      onTimestampClick={onTimestampClick}
       currentTime={currentTime}
       isSaving={isSaving}
       hasSpeakerLabels={hasSpeakerLabels}

@@ -1,51 +1,10 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
 
 export const usePersistentAudioState = () => {
-  const { activeMediaRoute, setActiveMediaRoute, isMediaPlaying, setIsMediaPlaying } = useMediaPersistence();
-  const [lastPlaybackPosition, setLastPlaybackPosition] = useState<number | undefined>(undefined);
+  const { activeMediaRoute, setActiveMediaRoute, isMediaPlaying, setIsMediaPlaying, lastPlaybackPosition } = useMediaPersistence();
   const initialLoad = useRef(true);
-  
-  // Load last playback position on mount
-  useEffect(() => {
-    try {
-      const savedPosition = sessionStorage.getItem('radio-last-position');
-      if (savedPosition) {
-        const position = parseFloat(savedPosition);
-        if (!isNaN(position)) {
-          setLastPlaybackPosition(position);
-          console.log(`[usePersistentAudioState] Loaded last position: ${position.toFixed(2)}s`);
-        }
-      }
-    } catch (err) {
-      console.warn('[usePersistentAudioState] Error loading last position:', err);
-    }
-  }, []);
-  
-  // Save last position periodically
-  useEffect(() => {
-    if (!isMediaPlaying) return;
-    
-    // Save position every 5 seconds during playback
-    const saveInterval = setInterval(() => {
-      try {
-        // Use the audio element's currentTime if available (more accurate)
-        const audioElement = document.querySelector('audio');
-        if (audioElement) {
-          const currentTime = audioElement.currentTime;
-          if (currentTime > 0 && isFinite(currentTime)) {
-            sessionStorage.setItem('radio-last-position', currentTime.toString());
-            setLastPlaybackPosition(currentTime);
-          }
-        }
-      } catch (err) {
-        console.warn('[usePersistentAudioState] Error saving position:', err);
-      }
-    }, 5000);
-    
-    return () => clearInterval(saveInterval);
-  }, [isMediaPlaying]);
   
   // Set this component as the active media route when mounted
   useEffect(() => {
@@ -89,12 +48,7 @@ export const usePersistentAudioState = () => {
         // even when navigating away
       }
     };
-  }, [setActiveMediaRoute, activeMediaRoute, setIsMediaPlaying]);
-
-  // Update the media-playing session storage when isMediaPlaying changes
-  useEffect(() => {
-    sessionStorage.setItem('media-playing', isMediaPlaying.toString());
-  }, [isMediaPlaying]);
+  }, [setActiveMediaRoute]);
 
   return {
     isActiveMediaRoute: activeMediaRoute === '/radio',

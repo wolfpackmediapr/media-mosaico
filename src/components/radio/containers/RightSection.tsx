@@ -3,6 +3,7 @@ import React, { useEffect, useRef, memo } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
+import { AudioErrorDisplay } from "../audio-player/errors/AudioErrorDisplay";
 
 interface RightSectionProps {
   currentFile: File | null;
@@ -23,7 +24,6 @@ interface RightSectionProps {
   volume: number[];
   playbackRate: number;
   playbackErrors?: string | null;
-  isFileValid?: boolean;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (direction: 'forward' | 'backward') => void;
@@ -35,7 +35,7 @@ interface RightSectionProps {
 }
 
 // Use memo to prevent unnecessary re-renders
-export const RightSection = memo(({
+const RightSection = memo(({
   currentFile,
   metadata,
   files,
@@ -47,7 +47,6 @@ export const RightSection = memo(({
   volume,
   playbackRate,
   playbackErrors,
-  isFileValid = true,
   onPlayPause,
   onSeek,
   onSkip,
@@ -118,41 +117,45 @@ export const RightSection = memo(({
         navigator.mediaSession.setActionHandler('seekforward', null);
       };
     }
-  }, [currentFile, isPlaying, metadata, onPlayPause, onSkip]);
+  }, [currentFile, metadata, isPlaying, onPlayPause, onSkip]);
 
   return (
     <div className="space-y-4">
-      <MediaControls
-        currentFile={currentFile}
-        metadata={metadata}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-        isMuted={isMuted}
-        volume={volume}
-        playbackRate={playbackRate}
-        playbackErrors={playbackErrors}
-        isFileValid={isFileValid}
-        onPlayPause={onPlayPause}
-        onSeek={onSeek}
-        onSkip={onSkip}
-        onToggleMute={onToggleMute}
-        onVolumeChange={onVolumeChange}
-        onPlaybackRateChange={onPlaybackRateChange}
-        onSwitchToNative={onSwitchToNative}
-      />
+      {/* Use our enhanced error display component */}
+      {playbackErrors && currentFile && (
+        <AudioErrorDisplay 
+          error={playbackErrors} 
+          file={currentFile}
+          onSwitchToNative={onSwitchToNative}
+        />
+      )}
       
+      {currentFile && (
+        <MediaControls
+          currentFile={currentFile}
+          metadata={metadata}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          isMuted={isMuted}
+          volume={volume}
+          playbackRate={playbackRate}
+          onPlayPause={onPlayPause}
+          onSeek={onSeek}
+          onSkip={onSkip}
+          onToggleMute={onToggleMute}
+          onVolumeChange={onVolumeChange}
+          onPlaybackRateChange={onPlaybackRateChange}
+        />
+      )}
       {files.length > 0 && (
         <TrackList
           files={files}
           currentFileIndex={currentFileIndex}
-          activeIndex={currentFileIndex}
-          onSelect={handleTrackSelect}
           onSelectTrack={handleTrackSelect}
           isPlaying={isPlaying}
           currentTime={currentTime}
           duration={duration}
-          className="flex-1 overflow-auto"
         />
       )}
     </div>

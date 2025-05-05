@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AudioMetadata } from '@/types/audio';
 import { useAudioCore } from './core/useAudioCore';
@@ -393,13 +394,11 @@ export const useHowlerPlayer = ({
     };
     
     const handlePlay = () => {
-      console.log('[useHowlerPlayer] Native audio play event detected');
       setIsPlaying(true);
       if (onPlayingChange) onPlayingChange(true);
     };
     
     const handlePause = () => {
-      console.log('[useHowlerPlayer] Native audio pause event detected');
       setIsPlaying(false);
       if (onPlayingChange) onPlayingChange(false);
     };
@@ -423,28 +422,17 @@ export const useHowlerPlayer = ({
     
     // Add seeking events to better track when audio position changes
     nativeAudio.addEventListener('seeking', () => {
-      console.log('[useHowlerPlayer] Native audio seeking event detected');
+      console.log('[HowlerPlayer] Native audio seeking event detected');
       if (nativeAudioRef.current) {
         setCurrentTime(nativeAudioRef.current.currentTime);
       }
     });
     
     nativeAudio.addEventListener('seeked', () => {
-      console.log('[useHowlerPlayer] Native audio seeked event completed');
+      console.log('[HowlerPlayer] Native audio seeked event completed');
       if (nativeAudioRef.current) {
         setCurrentTime(nativeAudioRef.current.currentTime);
       }
-    });
-    
-    // Add playing and waiting events to better track play state
-    nativeAudio.addEventListener('playing', () => {
-      console.log('[useHowlerPlayer] Native audio playing event detected');
-      setIsPlaying(true);
-      if (onPlayingChange) onPlayingChange(true);
-    });
-    
-    nativeAudio.addEventListener('waiting', () => {
-      console.log('[useHowlerPlayer] Native audio waiting for data');
     });
     
     return () => {
@@ -455,8 +443,6 @@ export const useHowlerPlayer = ({
         nativeAudio.removeEventListener('timeupdate', handleTimeUpdate);
         nativeAudio.removeEventListener('seeking', handleTimeUpdate);
         nativeAudio.removeEventListener('seeked', handleTimeUpdate);
-        nativeAudio.removeEventListener('playing', handlePlay);
-        nativeAudio.removeEventListener('waiting', () => {});
       }
     };
   }, [isUsingNativeAudio, onEnded, onPlayingChange, setIsPlaying]);
@@ -489,49 +475,30 @@ export const useHowlerPlayer = ({
         if (!nativeAudioRef.current) return;
         
         try {
-          console.log(`[useHowlerPlayer] Native handlePlayPause called, paused state: ${nativeAudioRef.current.paused}`);
-          
           if (nativeAudioRef.current.paused) {
             nativeAudioRef.current.play().catch(err => {
-              console.error('[useHowlerPlayer] Native audio play error:', err);
+              console.error('[HowlerPlayer] Native audio play error:', err);
               setPlaybackErrors(`Native audio error: ${err.message || 'Unknown error'}`);
             });
           } else {
             nativeAudioRef.current.pause();
           }
-          
-          // Update the React state immediately for better UI feedback
-          setIsPlaying(!nativeAudioRef.current.paused);
-          
-          // Double-check the state after a short delay
-          setTimeout(() => {
-            if (nativeAudioRef.current) {
-              const actuallyPlaying = !nativeAudioRef.current.paused;
-              if (isPlaying !== actuallyPlaying) {
-                console.log('[useHowlerPlayer] Correcting play state mismatch');
-                setIsPlaying(actuallyPlaying);
-                if (onPlayingChange) onPlayingChange(actuallyPlaying);
-              }
-            }
-          }, 100);
         } catch (err) {
-          console.error('[useHowlerPlayer] Error toggling native audio playback:', err);
+          console.error('[HowlerPlayer] Error toggling native audio playback:', err);
         }
       },
-      
       handleSeek: (time: number) => {
         if (!nativeAudioRef.current) return;
         try {
           // IMPROVED: Log the seek operation
-          console.log(`[useHowlerPlayer] Seeking to ${time.toFixed(2)}s`);
+          console.log(`[HowlerPlayer] Seeking to ${time.toFixed(2)}s`);
           nativeAudioRef.current.currentTime = time;
           // Immediately update the current time state to prevent UI lag
           setCurrentTime(time);
         } catch (err) {
-          console.warn('[useHowlerPlayer] Error seeking native audio:', err);
+          console.warn('[HowlerPlayer] Error seeking native audio:', err);
         }
       },
-      
       handleSkip: (direction: 'forward' | 'backward', amount: number = 10) => {
         if (!nativeAudioRef.current) return;
         try {
@@ -540,15 +507,14 @@ export const useHowlerPlayer = ({
           const skipAmount = direction === 'forward' ? amount : -amount;
           const newTime = Math.max(0, Math.min(currentPosition + skipAmount, duration));
           
-          console.log(`[useHowlerPlayer] Skipping ${direction} to ${newTime.toFixed(2)}s (from ${currentPosition.toFixed(2)}s)`);
+          console.log(`[HowlerPlayer] Skipping ${direction} to ${newTime.toFixed(2)}s (from ${currentPosition.toFixed(2)}s)`);
           
           nativeAudioRef.current.currentTime = newTime;
           setCurrentTime(newTime);
         } catch (err) {
-          console.warn('[useHowlerPlayer] Error skipping native audio:', err);
+          console.warn('[HowlerPlayer] Error skipping native audio:', err);
         }
       },
-      
       handleToggleMute: () => {
         if (!nativeAudioRef.current) return;
         try {
@@ -556,10 +522,9 @@ export const useHowlerPlayer = ({
           nativeAudioRef.current.muted = newMuted;
           setIsMuted(newMuted);
         } catch (err) {
-          console.warn('[useHowlerPlayer] Error toggling mute on native audio:', err);
+          console.warn('[HowlerPlayer] Error toggling mute on native audio:', err);
         }
       },
-      
       handleVolumeChange: (newVolume: number[]) => {
         if (!nativeAudioRef.current) return;
         try {
@@ -568,23 +533,22 @@ export const useHowlerPlayer = ({
           nativeAudioRef.current.volume = volumeValue;
           setVolume(newVolume);
         } catch (err) {
-          console.warn('[useHowlerPlayer] Error changing volume on native audio:', err);
+          console.warn('[HowlerPlayer] Error changing volume on native audio:', err);
         }
       },
-      
       handlePlaybackRateChange: (rate: number) => {
         if (!nativeAudioRef.current) return;
         try {
           nativeAudioRef.current.playbackRate = rate;
           setPlaybackRate(rate);
         } catch (err) {
-          console.warn('[useHowlerPlayer] Error changing playback rate on native audio:', err);
+          console.warn('[HowlerPlayer] Error changing playback rate on native audio:', err);
         }
       }
     };
     
     return enhancedControls;
-  }, [isUsingNativeAudio, controls, isPlaying, setIsPlaying, onPlayingChange]);
+  }, [isUsingNativeAudio, controls, setIsPlaying, setIsMuted, setVolume, setPlaybackRate]);
 
   // Get the active controls based on current mode
   const activeControls = isUsingNativeAudio ? nativeAudioControls() || controls : controls;
@@ -603,14 +567,14 @@ export const useHowlerPlayer = ({
     if (isUsingNativeAudio && nativeAudioRef.current) {
       try {
         // IMPROVED: Add logging and immediate state update
-        console.log(`[useHowlerPlayer] seekToTimestamp: ${time.toFixed(2)}s`);
+        console.log(`[HowlerPlayer] seekToTimestamp: ${time.toFixed(2)}s`);
         nativeAudioRef.current.currentTime = time;
         setCurrentTime(time);
       } catch (err) {
-        console.warn('[useHowlerPlayer] Error seeking native audio:', err);
+        console.warn('[HowlerPlayer] Error seeking native audio:', err);
       }
     } else if (coreState.howl) {
-      console.log(`[useHowlerPlayer] seekToTimestamp (Howler): ${time.toFixed(2)}s`);
+      console.log(`[HowlerPlayer] seekToTimestamp (Howler): ${time.toFixed(2)}s`);
       coreState.howl.seek(time);
     } else {
       console.warn('[useHowlerPlayer] Cannot seek to timestamp - no audio player available');

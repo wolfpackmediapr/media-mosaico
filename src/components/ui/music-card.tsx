@@ -7,16 +7,9 @@ import {
   SkipBack, 
   SkipForward, 
   Volume2, 
-  VolumeX,
-  AlertCircle,
-  RefreshCw 
+  VolumeX 
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
-import { Button } from "@/components/ui/button";
-import { 
-  Card, 
-  CardContent 
-} from "@/components/ui/card";
 
 interface MusicCardProps {
   src?: string;
@@ -38,9 +31,6 @@ interface MusicCardProps {
   volume?: number[];
   playbackRate?: number;
   onPlaybackRateChange?: () => void;
-  error?: string;
-  onSwitchPlayback?: () => void;
-  className?: string;
 }
 
 export function MusicCard({
@@ -63,9 +53,6 @@ export function MusicCard({
   volume = [50],
   playbackRate = 1,
   onPlaybackRateChange,
-  error,
-  onSwitchPlayback,
-  className,
 }: MusicCardProps) {
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const [localIsPlaying, setLocalIsPlaying] = useState(false);
@@ -222,51 +209,9 @@ export function MusicCard({
   // Create a lighter version of the main color for gradient
   const lighterColor = lightenColor(mainColor, 70);
   
-  // Render error state if there's an error
-  if (error) {
-    return (
-      <Card className={cn("rounded-xl p-4 w-full overflow-hidden border-red-200 bg-red-50/20 dark:bg-red-950/10", className)}>
-        <CardContent className="p-0">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className="font-medium text-red-700 dark:text-red-400">Error de reproducción</h3>
-              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{error}</p>
-              
-              <div className="flex gap-2 mt-3">
-                {onPlayPause && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={onPlayPause} 
-                    className="text-xs"
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" />
-                    Reintentar
-                  </Button>
-                )}
-                
-                {onSwitchPlayback && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={onSwitchPlayback} 
-                    className="text-xs"
-                  >
-                    Usar reproductor nativo
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  
   return (
     <div 
-      className={cn("rounded-xl p-4 w-full overflow-hidden", className)}
+      className="rounded-xl p-4 w-full overflow-hidden"
       style={{
         background: `linear-gradient(to bottom right, ${mainColor}30, ${lighterColor}20)`,
         borderColor: `${mainColor}50`,
