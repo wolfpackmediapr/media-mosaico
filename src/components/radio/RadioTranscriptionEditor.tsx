@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+
+import React, { useEffect, useRef } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
 import { TranscriptionEditorWrapper } from "./editor/TranscriptionEditorWrapper";
@@ -42,12 +43,23 @@ const RadioTranscriptionEditor = ({
     onTranscriptionChange,
   });
 
+  // Track if component is mounted to avoid state updates after unmount
+  const isMountedRef = useRef<boolean>(true);
+  
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Register the reset function if the prop is provided
   useEffect(() => {
     if (registerReset && resetLocalSpeakerText) {
       registerReset(resetLocalSpeakerText);
       return () => {
-        registerReset(() => {});
+        if (isMountedRef.current && registerReset) {
+          registerReset(() => {});
+        }
       };
     }
   }, [registerReset, resetLocalSpeakerText]);
@@ -60,7 +72,8 @@ const RadioTranscriptionEditor = ({
     finalIsProcessing,
     hasTranscriptionText: !!transcriptionText,
     hasTranscriptionResult: !!transcriptionResult,
-    hasEnhancedResult: !!enhancedTranscriptionResult
+    hasEnhancedResult: !!enhancedTranscriptionResult,
+    currentTime: currentTime?.toFixed(2) || 'none'
   });
 
   // Log when the processing state changes

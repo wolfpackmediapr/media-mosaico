@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Howl } from 'howler';
 
 interface AudioCoreProps {
@@ -23,6 +23,10 @@ export const useAudioCore = ({
   const [isReady, setIsReady] = useState(false);
   const [duration, setDuration] = useState(0);
   const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
+  
+  // Add file URL reference to prevent memory leaks
+  const currentFileUrlRef = useRef<string | null>(null);
+  const loadAttemptsRef = useRef<number>(0);
 
   useEffect(() => {
     let fileUrl: string | undefined;
@@ -34,12 +38,25 @@ export const useAudioCore = ({
         setIsReady(false);
         setPlaybackErrors(null);
         
+        // Check if file has changed
         fileUrl = URL.createObjectURL(file);
+        if (fileUrl === currentFileUrlRef.current) {
+          console.log('[useAudioCore] Same file, skipping reload');
+          setIsLoading(false);
+          return;
+        }
+        
+        // Store current file URL
+        currentFileUrlRef.current = fileUrl;
+        loadAttemptsRef.current = 0;
+        
+        console.log(`[useAudioCore] Loading audio file: ${file.name} (${file.type}), size: ${Math.round(file.size/1024)}KB`);
         
         sound = new Howl({
           src: [fileUrl],
-          html5: forceHTML5, // Force HTML5 Audio to avoid streaming issues
+          html5: true, // Always use HTML5 Audio to avoid streaming issues 
           preload: true,
+          format: [file.name.split('.').pop()?.toLowerCase()], // Explicitly specify format
           onload: () => {
             console.log('[useAudioCore] Audio loaded successfully');
             setIsLoading(false);
@@ -49,13 +66,23 @@ export const useAudioCore = ({
           onloaderror: (id, error) => {
             console.error('[useAudioCore] Loading error:', error);
             setIsLoading(false);
-            setPlaybackErrors(typeof error === 'string' ? error : 'Error loading audio');
-            if (onError) onError(typeof error === 'string' ? error : 'Error loading audio');
+            loadAttemptsRef.current += 1;
+            
+            if (loadAttemptsRef.current <= 2) {
+              console.log(`[useAudioCore] Retry attempt ${loadAttemptsRef.current}`);
+              // Don't report error on first retry
+              return;
+            }
+            
+            const errorMessage = typeof error === 'string' ? error : 'Error loading audio';
+            setPlaybackErrors(errorMessage);
+            if (onError) onError(errorMessage);
           },
           onplayerror: (id, error) => {
             console.error('[useAudioCore] Playback error:', error);
-            setPlaybackErrors(typeof error === 'string' ? error : 'Error during playback');
-            if (onError) onError(typeof error === 'string' ? error : 'Error during playback');
+            const errorMessage = typeof error === 'string' ? error : 'Error during playback';
+            setPlaybackErrors(errorMessage);
+            if (onError) onError(errorMessage);
           },
           onend: () => {
             if (onEnded) onEnded();
@@ -66,8 +93,9 @@ export const useAudioCore = ({
       } catch (error) {
         console.error('[useAudioCore] Error initializing audio:', error);
         setIsLoading(false);
-        setPlaybackErrors(`Error initializing audio: ${error}`);
-        if (onError) onError(`Error initializing audio: ${error}`);
+        const errorMessage = `Error initializing audio: ${error}`;
+        setPlaybackErrors(errorMessage);
+        if (onError) onError(errorMessage);
       }
     }
     

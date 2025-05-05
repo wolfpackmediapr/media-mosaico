@@ -1,181 +1,96 @@
 
-import { useRef } from "react";
-import { unmuteAudio } from "@/utils/audio-format-helper";
-import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
-import { toast } from "sonner";
+import { useCallback, useRef } from 'react';
+import { RadioNewsSegment } from '@/components/radio/RadioNewsSegmentsContainer';
 
-interface AudioPlaybackControlOptions {
+interface UseAudioPlaybackControlProps {
   isPlaying: boolean;
   playbackErrors: string | null;
   originalHandlePlayPause: () => void;
   seekToTimestamp: (time: number) => void;
-  onPlayingChange?: (isPlaying: boolean) => void;
 }
 
-/**
- * Hook to provide enhanced playback control with error handling and feedback.
- */
 export const useAudioPlaybackControl = ({
   isPlaying,
   playbackErrors,
   originalHandlePlayPause,
-  seekToTimestamp,
-  onPlayingChange = () => {}
-}: AudioPlaybackControlOptions) => {
-  // Track play/pause operation state to prevent multiple operations at once
-  const playPauseOperationInProgress = useRef<boolean>(false);
-  const playPauseOperationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  seekToTimestamp
+}: UseAudioPlaybackControlProps) => {
+  // Use a ref to track if a seek operation is in progress
   const seekOperationInProgressRef = useRef<boolean>(false);
-  const seekOperationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Cleanup function to reset all pending operations
-  const cleanupPendingOperations = () => {
-    // Clear any pending timeouts
-    if (playPauseOperationTimeoutRef.current) {
-      clearTimeout(playPauseOperationTimeoutRef.current);
-      playPauseOperationTimeoutRef.current = null;
-    }
-    
-    if (seekOperationTimeoutRef.current) {
-      clearTimeout(seekOperationTimeoutRef.current);
-      seekOperationTimeoutRef.current = null;
-    }
-    
-    // Reset operation flags
-    playPauseOperationInProgress.current = false;
-    seekOperationInProgressRef.current = false;
-  };
-  
-  // Wrapper for play/pause that also updates external state and handles errors
-  const handlePlayPause = () => {
-    // Don't allow new operations if one is already in progress
-    if (playPauseOperationInProgress.current) {
-      console.log("[useAudioPlaybackControl] Ignoring play/pause, operation already in progress");
-      return;
-    }
-    
-    // Try to unlock audio on every play attempt
-    unmuteAudio();
-    
-    if (playbackErrors) {
-      toast.error("No se puede reproducir el audio", { 
-        description: "El archivo de audio no se puede reproducir debido a errores",
-        duration: 3000
-      });
-      return;
-    }
-    
-    try {
-      // Set flag to indicate operation is in progress
-      playPauseOperationInProgress.current = true;
-      
-      // Clear any existing timeout
-      if (playPauseOperationTimeoutRef.current) {
-        clearTimeout(playPauseOperationTimeoutRef.current);
-      }
-      
-      // Execute immediately instead of with a delay to improve responsiveness
-      try {
-        originalHandlePlayPause();
-        onPlayingChange(!isPlaying);
-        
-        // Set a timeout to clear the operation flag after a short delay
-        playPauseOperationTimeoutRef.current = setTimeout(() => {
-          playPauseOperationInProgress.current = false;
-          playPauseOperationTimeoutRef.current = null;
-        }, 300); // Allow operations to be done again after 300ms
-      } catch (err) {
-        console.error("[useAudioPlaybackControl] Error in handlePlayPause:", err);
-        playPauseOperationInProgress.current = false;
-        toast.error("Error al controlar la reproducción", { 
-          duration: 3000
-        });
-      }
-    } catch (err) {
-      console.error("[useAudioPlaybackControl] Error in handlePlayPause:", err);
-      playPauseOperationInProgress.current = false;
-      toast.error("Error al controlar la reproducción", { 
-        duration: 3000
-      });
-    }
-  };
+  // Use a ref to track the last seek time to avoid duplicate operations
+  const lastSeekTimeRef = useRef<number>(0);
 
-  // Enhanced handler to seek to a specific segment with better error handling
-  const handleSeekToSegment = (segment: RadioNewsSegment | number) => {
+  // Enhanced play/pause handler with error checking
+  const handlePlayPause = useCallback(() => {
     if (playbackErrors) {
-      toast.error("No se puede buscar en el audio", { 
-        description: "El archivo de audio no se puede reproducir debido a errores",
-        duration: 3000
-      });
+      console.error('[useAudioPlaybackControl] Cannot play/pause due to errors:', playbackErrors);
       return;
     }
     
-    // Don't allow new seek operations if one is already in progress
     if (seekOperationInProgressRef.current) {
-      console.log("[useAudioPlaybackControl] Ignoring seek, operation already in progress");
-      return;
-    }
-    
-    // Clear any existing timeout first
-    if (seekOperationTimeoutRef.current) {
-      clearTimeout(seekOperationTimeoutRef.current);
-      seekOperationTimeoutRef.current = null;
-    }
-    
-    // Set flag to indicate seek operation is in progress
-    seekOperationInProgressRef.current = true;
-    
-    // Handle either segment object or direct timestamp number
-    let timestamp: number;
-    
-    if (typeof segment === 'number') {
-      timestamp = segment;
-      console.log(`[useAudioPlaybackControl] Seeking to time ${timestamp.toFixed(2)}s (from number)`);
-    } else if (segment && typeof segment === 'object' && segment.startTime !== undefined) {
-      // IMPROVED: Ensure consistent time unit handling (milliseconds to seconds)
-      timestamp = typeof segment.startTime === 'number' ? 
-        (segment.startTime > 1000 ? segment.startTime / 1000 : segment.startTime) : 0;
-      console.log(`[useAudioPlaybackControl] Seeking to time ${timestamp.toFixed(2)}s (from segment)`);
-    } else {
-      console.error("[useAudioPlaybackControl] Invalid segment or missing startTime:", segment);
-      seekOperationInProgressRef.current = false;
+      console.log('[useAudioPlaybackControl] Ignoring play/pause during seek operation');
       return;
     }
     
     try {
-      // Execute seek operation immediately without delay
+      originalHandlePlayPause();
+    } catch (error) {
+      console.error('[useAudioPlaybackControl] Error during play/pause:', error);
+    }
+  }, [playbackErrors, originalHandlePlayPause]);
+
+  // Handler for seeking to a specific segment
+  const handleSeekToSegment = useCallback((segment: RadioNewsSegment | number) => {
+    if (playbackErrors) {
+      console.error('[useAudioPlaybackControl] Cannot seek due to errors:', playbackErrors);
+      return;
+    }
+    
+    try {
+      // Mark that a seek operation is in progress
+      seekOperationInProgressRef.current = true;
+      
+      // Determine the timestamp to seek to
+      const timestamp = typeof segment === 'number' 
+        ? segment 
+        : (segment.startTime / 1000); // Convert ms to seconds
+      
+      // Check if this is a duplicate seek operation (within 500ms)
+      const now = Date.now();
+      if (Math.abs(timestamp - lastSeekTimeRef.current) < 0.1 && 
+          now - lastSeekTimeRef.current < 500) {
+        console.log('[useAudioPlaybackControl] Ignoring duplicate seek operation');
+        seekOperationInProgressRef.current = false;
+        return;
+      }
+      
+      lastSeekTimeRef.current = timestamp;
+      
+      console.log(`[useAudioPlaybackControl] Seeking to ${timestamp.toFixed(2)}s`);
+      
+      // Perform the seek operation
       seekToTimestamp(timestamp);
       
-      // Optionally start playing if not already playing, but after a longer delay
-      // IMPROVED: Increase delay from 100ms to 300ms
-      if (!isPlaying) {
+      // Resume playback if it was playing before
+      if (isPlaying) {
         setTimeout(() => {
-          try {
-            handlePlayPause();
-          } catch (err) {
-            console.error("[useAudioPlaybackControl] Error in delayed play after seek:", err);
-          }
-        }, 300); // Increased from 100ms to give seek time to complete
+          originalHandlePlayPause();
+        }, 300);
       }
       
-      // Clear the seek operation flag after a delay
-      // IMPROVED: Use a dedicated timeout reference for proper cleanup
-      seekOperationTimeoutRef.current = setTimeout(() => {
+      // Reset the seek operation flag after a delay
+      setTimeout(() => {
         seekOperationInProgressRef.current = false;
-        seekOperationTimeoutRef.current = null;
-        console.log("[useAudioPlaybackControl] Seek operation completed and flag cleared");
-      }, 800); // Longer timeout to ensure seeking fully completes
-    } catch (err) {
-      console.error("[useAudioPlaybackControl] Error in handleSeekToSegment:", err);
-      // Make sure we clear the flag even if there's an error
+      }, 500);
+    } catch (error) {
+      // Make sure to reset the flag even if an error occurs
       seekOperationInProgressRef.current = false;
+      console.error('[useAudioPlaybackControl] Error seeking to segment:', error);
     }
-  };
+  }, [playbackErrors, isPlaying, originalHandlePlayPause, seekToTimestamp]);
 
-  // Return both handler functions and the cleanup function
   return {
     handlePlayPause,
-    handleSeekToSegment,
-    cleanupPendingOperations
+    handleSeekToSegment
   };
 };

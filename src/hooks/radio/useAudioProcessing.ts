@@ -1,5 +1,5 @@
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useHowlerPlayer } from "@/components/radio/audio-player/hooks/useHowlerPlayer";
 import { useAudioVisibilitySync } from "./processing/useAudioVisibilitySync";
 import { useAudioPlaybackControl } from "./processing/useAudioPlaybackControl";
@@ -14,7 +14,7 @@ interface AudioProcessingOptions {
   isActiveMediaRoute?: boolean;
   externalIsPlaying?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
-  preferNativeAudio?: boolean; // New option to control native audio preference
+  preferNativeAudio?: boolean; // Option to control native audio preference
 }
 
 export const useAudioProcessing = ({
@@ -24,6 +24,9 @@ export const useAudioProcessing = ({
   onPlayingChange = () => {},
   preferNativeAudio = true // Default to using native audio first
 }: AudioProcessingOptions) => {
+  // Track previous error messages to avoid repeated logs
+  const previousErrorRef = useRef<string | null>(null);
+  
   // Initialize Howler player with preferNative option
   const {
     isPlaying,
@@ -35,7 +38,7 @@ export const useAudioProcessing = ({
     playbackErrors: rawPlaybackErrors,
     isLoading,
     isReady,
-    isUsingNativeAudio, // Track which player is active
+    isUsingNativeAudio,
     handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
@@ -49,15 +52,14 @@ export const useAudioProcessing = ({
   } = useHowlerPlayer({
     file: currentFile,
     onPlayingChange,
-    preferNative: preferNativeAudio // Pass the preference to useHowlerPlayer
+    preferNative: preferNativeAudio
   });
 
   // Convert complex error object to string for simpler handling
   const playbackErrors = rawPlaybackErrors ?
     (typeof rawPlaybackErrors === 'string' ?
       rawPlaybackErrors :
-      "Unknown error")
-    : null;
+      "Unknown error") : null;
 
   // Handle audio state sync with other tabs
   useAudioVisibilitySync({
@@ -105,7 +107,7 @@ export const useAudioProcessing = ({
     seekToTimestamp
   });
 
-  // Log player state changes
+  // Log player state changes - but only when significant changes happen
   useEffect(() => {
     if (currentFile) {
       console.log(
@@ -116,7 +118,15 @@ export const useAudioProcessing = ({
         `using: ${isUsingNativeAudio ? 'native' : 'howler'}`
       );
     }
-  }, [isPlaying, currentTime, duration, volume, isMuted, playbackRate, currentFile, isUsingNativeAudio]);
+  }, [isPlaying, currentFile, isUsingNativeAudio, playbackRate]);
+  
+  // Only log errors once to avoid console spam
+  useEffect(() => {
+    if (playbackErrors && playbackErrors !== previousErrorRef.current) {
+      console.error("[useAudioProcessing] Audio playback error:", playbackErrors);
+      previousErrorRef.current = playbackErrors;
+    }
+  }, [playbackErrors]);
 
   return {
     isPlaying,

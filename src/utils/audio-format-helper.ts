@@ -1,5 +1,5 @@
 
-// This is a new file to add helper functions for audio format support and testing
+// This file contains helper functions for audio format support and testing
 
 /**
  * Creates a native HTML5 audio element for a file
@@ -76,18 +76,24 @@ export const testAudioPlayback = async (file: File): Promise<{
         });
       };
       
-      const onError = () => {
+      const onError = (e: Event) => {
         cleanup();
+        const audioElement = e.target as HTMLAudioElement;
+        const errorCode = audioElement.error ? audioElement.error.code : 0;
+        const errorMessage = getAudioErrorMessage(errorCode);
+        
+        console.warn('[testAudioPlayback] Native audio error:', errorMessage);
+        
         resolve({ 
           canPlay: false, 
           needsAdvancedFeatures: true,
-          error: `Cannot play file format: ${file.name.split('.').pop()}` 
+          error: `Cannot play file: ${errorMessage}` 
         });
       };
       
       const cleanup = () => {
         audio.removeEventListener('canplay', onCanPlay);
-        audio.removeEventListener('error', onError);
+        audio.removeEventListener('error', onError as EventListener);
         URL.revokeObjectURL(url);
       };
       
@@ -102,7 +108,7 @@ export const testAudioPlayback = async (file: File): Promise<{
       }, 3000);
       
       audio.addEventListener('canplay', onCanPlay, { once: true });
-      audio.addEventListener('error', onError, { once: true });
+      audio.addEventListener('error', onError as EventListener, { once: true });
       
       audio.src = url;
       audio.load();
@@ -115,6 +121,24 @@ export const testAudioPlayback = async (file: File): Promise<{
       });
     }
   });
+};
+
+/**
+ * Get a human-readable error message from an audio error code
+ */
+const getAudioErrorMessage = (errorCode: number): string => {
+  switch (errorCode) {
+    case 1:
+      return 'Fetching process aborted by user';
+    case 2:
+      return 'Error occurred when downloading';
+    case 3:
+      return 'Error occurred when decoding';
+    case 4:
+      return 'Audio not supported';
+    default:
+      return 'Unknown audio error';
+  }
 };
 
 /**
@@ -146,4 +170,30 @@ export const unmuteAudio = (): void => {
   } catch (e) {
     console.warn('Could not unmute audio:', e);
   }
+};
+
+/**
+ * Detects browser information to handle audio compatibility issues
+ */
+export const getBrowserInfo = (): { name: string; version: string; isMobile: boolean } => {
+  const userAgent = navigator.userAgent;
+  let name = 'Unknown';
+  let version = 'Unknown';
+  const isMobile = /Mobi|Android/i.test(userAgent);
+  
+  if (userAgent.includes('Firefox')) {
+    name = 'Firefox';
+    version = userAgent.match(/Firefox\/([\d.]+)/)?.[1] || '';
+  } else if (userAgent.includes('Chrome')) {
+    name = 'Chrome';
+    version = userAgent.match(/Chrome\/([\d.]+)/)?.[1] || '';
+  } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+    name = 'Safari';
+    version = userAgent.match(/Version\/([\d.]+)/)?.[1] || '';
+  } else if (userAgent.includes('Edge') || userAgent.includes('Edg')) {
+    name = 'Edge';
+    version = userAgent.match(/Edge?\/([\d.]+)/)?.[1] || '';
+  }
+  
+  return { name, version, isMobile };
 };
