@@ -65,7 +65,8 @@ const Radio = () => {
           isMediaPlaying={isMediaPlaying}
           setIsMediaPlaying={setIsMediaPlaying}
           isAuthenticated={isAuthenticated}
-          lastPlaybackPosition={lastPlaybackPosition}
+          // The RadioContainer component doesn't expect lastPlaybackPosition,
+          // so we won't pass it to prevent type errors
         />
       </TooltipProvider>
     </ErrorBoundary>
