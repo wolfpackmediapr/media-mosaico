@@ -93,3 +93,49 @@ export const calculateCurrentSegment = (
   console.log(`[calculateCurrentSegment] No suitable segment found at ${timeInSeconds.toFixed(2)}s`);
   return null;
 };
+
+/**
+ * Generate a consistent color for a specific speaker
+ * 
+ * @param speaker Speaker identifier (string or number)
+ * @returns CSS color string
+ */
+export const getSpeakerColor = (speaker: string | number): string => {
+  // Convert speaker to string to handle both numeric and string IDs
+  const speakerId = String(speaker);
+  
+  // Extract numeric portion if in format "speaker_1" or similar
+  const numericPart = speakerId.includes('_') ? 
+    parseInt(speakerId.split('_')[1], 10) : 
+    parseInt(speakerId, 10);
+  
+  // Use a fixed color palette for common speakers
+  const colorPalette = [
+    "#4C72B0", // blue
+    "#DD8452", // orange
+    "#55A868", // green
+    "#C44E52", // red
+    "#8172B3", // purple
+    "#937860", // brown
+    "#DA8BC3", // pink
+    "#8C8C8C", // gray
+    "#CCB974", // yellow
+    "#64B5CD"  // light blue
+  ];
+  
+  // If we have a valid numeric ID, use it to pick from the palette
+  if (!isNaN(numericPart)) {
+    // Make sure we wrap around if we have more speakers than colors
+    return colorPalette[numericPart % colorPalette.length];
+  }
+  
+  // If we couldn't parse a number, use string hashing for consistent color
+  let hash = 0;
+  for (let i = 0; i < speakerId.length; i++) {
+    hash = speakerId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  // Convert hash to RGB color
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 50%)`;
+};
