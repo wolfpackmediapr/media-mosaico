@@ -261,4 +261,5 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     handleRemoveFile,
     isInitialized
   };
-}, []);
+};
+
