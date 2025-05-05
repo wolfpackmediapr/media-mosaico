@@ -24,6 +24,7 @@ interface RightSectionProps {
   volume: number[];
   playbackRate: number;
   playbackErrors?: string | null;
+  isFileValid?: boolean;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (direction: 'forward' | 'backward') => void;
@@ -35,7 +36,7 @@ interface RightSectionProps {
 }
 
 // Use memo to prevent unnecessary re-renders
-const RightSection = memo(({
+export const RightSection = memo(({
   currentFile,
   metadata,
   files,
@@ -47,6 +48,7 @@ const RightSection = memo(({
   volume,
   playbackRate,
   playbackErrors,
+  isFileValid = true,
   onPlayPause,
   onSeek,
   onSkip,
@@ -117,45 +119,35 @@ const RightSection = memo(({
         navigator.mediaSession.setActionHandler('seekforward', null);
       };
     }
-  }, [currentFile, metadata, isPlaying, onPlayPause, onSkip]);
+  }, [currentFile, isPlaying, metadata, onPlayPause, onSkip]);
 
   return (
     <div className="space-y-4">
-      {/* Use our enhanced error display component */}
-      {playbackErrors && currentFile && (
-        <AudioErrorDisplay 
-          error={playbackErrors} 
-          file={currentFile}
-          onSwitchToNative={onSwitchToNative}
-        />
-      )}
+      <MediaControls
+        currentFile={currentFile}
+        metadata={metadata}
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        duration={duration}
+        isMuted={isMuted}
+        volume={volume}
+        playbackRate={playbackRate}
+        playbackErrors={playbackErrors}
+        isFileValid={isFileValid}
+        onPlayPause={onPlayPause}
+        onSeek={onSeek}
+        onSkip={onSkip}
+        onToggleMute={onToggleMute}
+        onVolumeChange={onVolumeChange}
+        onPlaybackRateChange={onPlaybackRateChange}
+        onSwitchToNative={onSwitchToNative}
+      />
       
-      {currentFile && (
-        <MediaControls
-          currentFile={currentFile}
-          metadata={metadata}
-          isPlaying={isPlaying}
-          currentTime={currentTime}
-          duration={duration}
-          isMuted={isMuted}
-          volume={volume}
-          playbackRate={playbackRate}
-          onPlayPause={onPlayPause}
-          onSeek={onSeek}
-          onSkip={onSkip}
-          onToggleMute={onToggleMute}
-          onVolumeChange={onVolumeChange}
-          onPlaybackRateChange={onPlaybackRateChange}
-        />
-      )}
       {files.length > 0 && (
         <TrackList
           files={files}
-          currentFileIndex={currentFileIndex}
-          onSelectTrack={handleTrackSelect}
-          isPlaying={isPlaying}
-          currentTime={currentTime}
-          duration={duration}
+          activeIndex={currentFileIndex}
+          onSelect={handleTrackSelect}
         />
       )}
     </div>
