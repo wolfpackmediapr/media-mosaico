@@ -46,6 +46,13 @@ const RadioTranscriptionEditor = ({
   // Track if component is mounted to avoid state updates after unmount
   const isMountedRef = useRef<boolean>(true);
   
+  // Track last props for debugging
+  const lastPropsRef = useRef({
+    transcriptionText,
+    currentTime,
+    isProcessing
+  });
+  
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -63,6 +70,24 @@ const RadioTranscriptionEditor = ({
       };
     }
   }, [registerReset, resetLocalSpeakerText]);
+
+  // Debug changes in props for synchronization issues
+  useEffect(() => {
+    const propsChanged = {
+      text: transcriptionText !== lastPropsRef.current.transcriptionText,
+      time: currentTime !== lastPropsRef.current.currentTime,
+      processing: isProcessing !== lastPropsRef.current.isProcessing
+    };
+    
+    if (propsChanged.text || propsChanged.time || propsChanged.processing) {
+      console.log('[RadioTranscriptionEditor] Props changed:', propsChanged);
+      lastPropsRef.current = {
+        transcriptionText,
+        currentTime,
+        isProcessing
+      };
+    }
+  }, [transcriptionText, currentTime, isProcessing]);
 
   // Calculate the final processing state with more granular logging
   const finalIsProcessing = isProcessing || isLoadingUtterances;

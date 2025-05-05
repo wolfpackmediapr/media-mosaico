@@ -1,5 +1,5 @@
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { RadioNewsSegment } from '@/components/radio/RadioNewsSegmentsContainer';
 
 interface UseAudioPlaybackControlProps {
@@ -19,6 +19,25 @@ export const useAudioPlaybackControl = ({
   const seekOperationInProgressRef = useRef<boolean>(false);
   // Use a ref to track the last seek time to avoid duplicate operations
   const lastSeekTimeRef = useRef<number>(0);
+  // Track the last known play state to help with synchronization
+  const lastPlayStateRef = useRef<boolean>(isPlaying);
+
+  // Update last play state ref when isPlaying changes
+  useEffect(() => {
+    lastPlayStateRef.current = isPlaying;
+    
+    // Clear any stuck seek operation flags after 600ms
+    if (seekOperationInProgressRef.current) {
+      const timeoutId = setTimeout(() => {
+        if (seekOperationInProgressRef.current) {
+          console.log('[useAudioPlaybackControl] Force clearing stuck seek operation flag');
+          seekOperationInProgressRef.current = false;
+        }
+      }, 600);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isPlaying]);
 
   // Enhanced play/pause handler with error checking
   const handlePlayPause = useCallback(() => {
@@ -33,11 +52,14 @@ export const useAudioPlaybackControl = ({
     }
     
     try {
+      console.log(`[useAudioPlaybackControl] Calling play/pause, current state: ${isPlaying ? 'playing' : 'paused'}`);
       originalHandlePlayPause();
     } catch (error) {
       console.error('[useAudioPlaybackControl] Error during play/pause:', error);
+      // Force reset the seek flag in case of error
+      seekOperationInProgressRef.current = false;
     }
-  }, [playbackErrors, originalHandlePlayPause]);
+  }, [playbackErrors, originalHandlePlayPause, isPlaying]);
 
   // Handler for seeking to a specific segment
   const handleSeekToSegment = useCallback((segment: RadioNewsSegment | number) => {
@@ -66,21 +88,32 @@ export const useAudioPlaybackControl = ({
       
       lastSeekTimeRef.current = timestamp;
       
-      console.log(`[useAudioPlaybackControl] Seeking to ${timestamp.toFixed(2)}s`);
+      console.log(`[useAudioPlaybackControl] Seeking to ${timestamp.toFixed(2)}s, wasPlaying: ${isPlaying}`);
       
       // Perform the seek operation
       seekToTimestamp(timestamp);
       
-      // Resume playback if it was playing before
+      // Was the audio playing before? If so, resume after a longer delay
+      // to allow the seek operation to complete
       if (isPlaying) {
         setTimeout(() => {
+          console.log('[useAudioPlaybackControl] Auto-resuming playback after seek');
           originalHandlePlayPause();
-        }, 300);
+          
+          // Set another timeout to check if play state is correct
+          setTimeout(() => {
+            if (lastPlayStateRef.current !== isPlaying) {
+              console.log('[useAudioPlaybackControl] Playback state mismatch detected, syncing');
+              originalHandlePlayPause();
+            }
+          }, 200);
+        }, 300); // Increased from 100ms to allow more time for seek
       }
       
       // Reset the seek operation flag after a delay
       setTimeout(() => {
         seekOperationInProgressRef.current = false;
+        console.log('[useAudioPlaybackControl] Seek operation completed and flag reset');
       }, 500);
     } catch (error) {
       // Make sure to reset the flag even if an error occurs
