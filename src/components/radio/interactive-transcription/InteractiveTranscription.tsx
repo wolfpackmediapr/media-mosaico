@@ -42,8 +42,9 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   
   // Debug logging for time updates
   useEffect(() => {
-    // Only log significant changes (more than 1 second) to reduce noise
-    if (Math.abs(currentTime - lastCurrentTimeRef.current) > 1) {
+    // Only log significant changes (more than 0.5 second) to reduce noise
+    // IMPROVED: More sensitive time change detection (was 1 second)
+    if (Math.abs(currentTime - lastCurrentTimeRef.current) > 0.5) {
       console.log(`[InteractiveTranscription] currentTime updated: ${currentTime.toFixed(2)}s (delta: ${(currentTime - lastCurrentTimeRef.current).toFixed(2)}s)`);
       lastCurrentTimeRef.current = currentTime;
       // Request update on significant change
@@ -74,7 +75,12 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     if (!hasUtterances || !transcriptionResult?.utterances) return null;
     
     try {
-      return calculateCurrentSegment(transcriptionResult.utterances, time);
+      // IMPROVED: Added logging to debug segment calculations
+      const result = calculateCurrentSegment(transcriptionResult.utterances, time);
+      if (result) {
+        console.log(`[InteractiveTranscription] Found active segment: ${result.start}-${result.end} at time ${time.toFixed(2)}s`);
+      }
+      return result;
     } catch (error) {
       console.error("[InteractiveTranscription] Error calculating current segment:", error);
       return null;
@@ -113,7 +119,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     let updateInterval: NodeJS.Timeout | null = null;
     
     if (isPlaying && hasUtterances) {
-      // When playing, update active segment every 200ms
+      // IMPROVED: Update the active segment more frequently when playing (150ms instead of 200ms)
       updateInterval = setInterval(() => {
         try {
           if (audioSeekPending.current) return;
@@ -132,7 +138,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         } catch (error) {
           console.error("[InteractiveTranscription] Error in interval update:", error);
         }
-      }, 200);
+      }, 150); // IMPROVED: Faster updates (was 200ms)
     }
     
     return () => {
@@ -151,9 +157,9 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   useEffect(() => {
     if (activeSegmentId && activeSegmentRef.current && scrollAreaRef.current && 
         !scrollOperationOngoing.current && !audioSeekPending.current) {
-      // Throttle scrolling more aggressively to improve performance
+      // IMPROVED: Throttle scrolling less aggressively (500ms instead of 1000ms)
       const now = Date.now();
-      if (now - lastScrollTime.current > 1000) { // Increased to 1 second for better stability
+      if (now - lastScrollTime.current > 500) { // Decreased to 0.5 second for better responsiveness
         lastScrollTime.current = now;
         scrollOperationOngoing.current = true;
         
@@ -208,7 +214,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   const handleSegmentClick = useCallback((timestamp: number) => {
     const now = Date.now();
     
-    // Strict cooldown period to prevent multiple clicks
+    // IMPROVED: Maintain the strict cooldown period for reliability
     if (now - lastSegmentClickTime.current < 800) {
       console.log(`[InteractiveTranscription] Ignoring rapid segment click within cooldown`);
       return;
@@ -226,8 +232,11 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     }
     
     try {
-      // Execute seek immediately
-      onSeek(timestamp);
+      // Execute seek immediately and ensure the timestamp is in seconds
+      // IMPROVED: Make sure the timestamp is in the correct format
+      const timeInSeconds = timestamp > 1000 ? timestamp / 1000 : timestamp;
+      console.log(`[InteractiveTranscription] Executing seek to ${timeInSeconds.toFixed(2)}s`);
+      onSeek(timeInSeconds);
       
       // Clear the pending flag after a delay to allow time for the player to update
       segmentClickTimeoutRef.current = setTimeout(() => {
@@ -236,6 +245,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         
         // Force update of active segment after seeking
         segmentUpdateRequested.current = true;
+        console.log(`[InteractiveTranscription] Segment click cooldown completed`);
       }, 800);
     } catch (err) {
       console.error("[InteractiveTranscription] Error during segment click:", err);
@@ -281,9 +291,10 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         className="h-[400px] p-4" 
         ref={scrollAreaRef}
         onScrollCapture={() => {
+          // IMPROVED: Extend cooldown period after manual scroll
           // Update the last scroll time to prevent auto-scrolling right after manual scroll
-          // Extend the cooldown period significantly after manual scroll
-          lastScrollTime.current = Date.now() + 5000;
+          lastScrollTime.current = Date.now() + 2000; // 2 second penalty after manual scroll
+          console.log('[InteractiveTranscription] Manual scroll detected - pausing auto-scroll');
         }}
       >
         <div className="space-y-4">

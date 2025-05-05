@@ -2,106 +2,94 @@
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 
 /**
- * Find the utterance that corresponds to the current playback time
+ * Calculate which segment should be active based on the current playback time
+ * 
+ * @param utterances Array of utterances with timestamps
+ * @param currentTime Current audio playback time in seconds
+ * @returns The active utterance or null if none matches
  */
 export const calculateCurrentSegment = (
   utterances: UtteranceTimestamp[],
   currentTime: number
 ): UtteranceTimestamp | null => {
-  if (!utterances || utterances.length === 0 || !isFinite(currentTime)) {
-    return null;
-  }
-
-  // Safety check for invalid time values
-  if (currentTime < 0 || currentTime > 24 * 60 * 60) { // Max 24 hours
-    console.warn(`[calculateCurrentSegment] Possibly invalid time value: ${currentTime}`);
-    return null;
-  }
-
-  try {
-    // Find the utterance where currentTime falls between start and end times
-    return utterances.find(
-      (utterance) => 
-        currentTime >= utterance.start && 
-        currentTime <= (utterance.end || utterance.start + 30)
-    ) || null;
-  } catch (error) {
-    console.error("[calculateCurrentSegment] Error finding current segment:", error);
-    return null;
-  }
-};
-
-/**
- * Format timestamp in seconds to MM:SS format
- */
-export const formatTimestamp = (timestamp: number): string => {
-  if (!isFinite(timestamp) || timestamp < 0) {
-    return "00:00";
-  }
-  
-  try {
-    const minutes = Math.floor(timestamp / 60);
-    const seconds = Math.floor(timestamp % 60);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  } catch (error) {
-    console.error("[formatTimestamp] Error formatting timestamp:", error);
-    return "00:00";
-  }
-};
-
-/**
- * Get unique speakers from utterances
- */
-export const getUniqueSpeakers = (utterances: UtteranceTimestamp[]): string[] => {
   if (!utterances || utterances.length === 0) {
-    return [];
+    console.log('[calculateCurrentSegment] No utterances available');
+    return null;
   }
-  
-  try {
-    const speakers = utterances
-      .map(utterance => utterance.speaker)
-      .filter((speaker): speaker is string => !!speaker);
-      
-    return [...new Set(speakers)];
-  } catch (error) {
-    console.error("[getUniqueSpeakers] Error getting unique speakers:", error);
-    return [];
-  }
-};
 
-/**
- * Generate a consistent color for a speaker based on their ID
- */
-export const getSpeakerColor = (speakerId: string | number | undefined): string => {
-  if (!speakerId) {
-    return "#6b7280"; // Default gray color
+  // Make sure currentTime is in seconds
+  let timeInSeconds = currentTime;
+  
+  // Log input for debugging
+  console.log(`[calculateCurrentSegment] Finding segment at ${timeInSeconds.toFixed(2)}s in ${utterances.length} utterances`);
+  
+  // Find the utterance that contains the current time
+  const currentUtterance = utterances.find(utterance => {
+    // Ensure utterance times are in seconds (some may be in milliseconds)
+    const startTime = utterance.start > 1000 ? utterance.start / 1000 : utterance.start;
+    const endTime = utterance.end > 1000 ? utterance.end / 1000 : utterance.end;
+    
+    // Check if current time falls within this utterance's range
+    const isWithinRange = timeInSeconds >= startTime && timeInSeconds <= endTime;
+    
+    if (isWithinRange) {
+      console.log(`[calculateCurrentSegment] Found segment: ${startTime.toFixed(2)}s to ${endTime.toFixed(2)}s`);
+    }
+    
+    return isWithinRange;
+  });
+
+  if (currentUtterance) {
+    return currentUtterance;
   }
-  
-  // Convert speaker ID to string
-  const speakerStr = String(speakerId);
-  
-  // Pre-defined colors for better readability and contrast
-  const colors = [
-    "#3b82f6", // blue
-    "#ef4444", // red
-    "#10b981", // green
-    "#f59e0b", // amber
-    "#8b5cf6", // purple
-    "#ec4899", // pink
-    "#14b8a6", // teal
-    "#f97316", // orange
-    "#6366f1", // indigo
-    "#a855f7"  // violet
-  ];
-  
-  // Generate a consistent index based on the speaker string
-  let hash = 0;
-  for (let i = 0; i < speakerStr.length; i++) {
-    hash = ((hash << 5) - hash) + speakerStr.charCodeAt(i);
-    hash = hash & hash; // Convert to 32bit integer
+
+  // If we didn't find a direct match, find the closest upcoming utterance
+  // This helps when we're in a gap between utterances
+  const upcomingUtterances = utterances
+    .filter(utterance => {
+      const startTime = utterance.start > 1000 ? utterance.start / 1000 : utterance.start;
+      return startTime > timeInSeconds;
+    })
+    .sort((a, b) => {
+      const aStart = a.start > 1000 ? a.start / 1000 : a.start;
+      const bStart = b.start > 1000 ? b.start / 1000 : b.start;
+      return aStart - bStart;
+    });
+
+  if (upcomingUtterances.length > 0) {
+    const nextUtterance = upcomingUtterances[0];
+    const startTime = nextUtterance.start > 1000 ? nextUtterance.start / 1000 : nextUtterance.start;
+    
+    // If the next utterance is very close (within 1 second), consider it current
+    if (startTime - timeInSeconds < 1.0) {
+      console.log(`[calculateCurrentSegment] Using upcoming segment starting at ${startTime.toFixed(2)}s (in ${(startTime - timeInSeconds).toFixed(2)}s)`);
+      return nextUtterance;
+    }
   }
-  
-  // Get a positive index within the colors array length
-  const index = Math.abs(hash) % colors.length;
-  return colors[index];
+
+  // If no current or upcoming utterance is found, find the most recent past utterance
+  const pastUtterances = utterances
+    .filter(utterance => {
+      const endTime = utterance.end > 1000 ? utterance.end / 1000 : utterance.end;
+      return endTime < timeInSeconds;
+    })
+    .sort((a, b) => {
+      const aEnd = a.end > 1000 ? a.end / 1000 : a.end;
+      const bEnd = b.end > 1000 ? b.end / 1000 : b.end;
+      return bEnd - aEnd; // Sort descending to get the most recent
+    });
+
+  if (pastUtterances.length > 0) {
+    const lastUtterance = pastUtterances[0];
+    const endTime = lastUtterance.end > 1000 ? lastUtterance.end / 1000 : lastUtterance.end;
+    
+    // If the last utterance ended very recently (within 2 seconds), consider it current
+    if (timeInSeconds - endTime < 2.0) {
+      console.log(`[calculateCurrentSegment] Using recent past segment ending at ${endTime.toFixed(2)}s (${(timeInSeconds - endTime).toFixed(2)}s ago)`);
+      return lastUtterance;
+    }
+  }
+
+  console.log(`[calculateCurrentSegment] No suitable segment found at ${timeInSeconds.toFixed(2)}s`);
+  return null;
 };

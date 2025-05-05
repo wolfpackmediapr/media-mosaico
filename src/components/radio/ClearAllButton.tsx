@@ -16,11 +16,13 @@ const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll }) => {
   const handleConfirm = async () => {
     try {
       setIsClearing(true);
+      console.log("[ClearAllButton] Starting clear all operation");
       await onClearAll();
       setOpen(false);
       toast.success("Se han borrado todos los archivos y transcripciones");
+      console.log("[ClearAllButton] Clear all completed successfully");
     } catch (error) {
-      console.error("Error clearing state:", error);
+      console.error("[ClearAllButton] Error clearing state:", error);
       toast.error("No se pudieron borrar todos los elementos");
     } finally {
       setIsClearing(false);
