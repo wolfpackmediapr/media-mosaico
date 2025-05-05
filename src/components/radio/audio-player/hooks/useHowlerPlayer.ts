@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AudioMetadata } from '@/types/audio';
 import { useAudioCore } from './core/useAudioCore';
@@ -15,6 +14,7 @@ interface HowlerPlayerHookProps {
   resumeOnFocus?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
   preferNative?: boolean; // New option to prefer native audio
+  initialTime?: number; // New prop for restoring playback position
 }
 
 export const useHowlerPlayer = ({
@@ -24,7 +24,8 @@ export const useHowlerPlayer = ({
   preservePlaybackOnBlur = true,
   resumeOnFocus = true,
   onPlayingChange,
-  preferNative = true // Default to preferring native audio
+  preferNative = true, // Default to preferring native audio
+  initialTime
 }: HowlerPlayerHookProps) => {
   // Change error structure to a simple string for easier handling
   const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
@@ -571,6 +572,34 @@ export const useHowlerPlayer = ({
       nativeAudioRef.current.volume = newVolume / 100;
     }
   };
+
+  // Add effect to apply initial time
+  useEffect(() => {
+    if (initialTime && initialTime > 0 && isFinite(initialTime) && isReady && !initialTimeApplied.current) {
+      console.log(`[useHowlerPlayer] Setting initial time to ${initialTime.toFixed(2)}`);
+      
+      if (isUsingNativeAudio && nativeAudioRef.current) {
+        try {
+          nativeAudioRef.current.currentTime = initialTime;
+          initialTimeApplied.current = true;
+        } catch (err) {
+          console.warn('[useHowlerPlayer] Could not set initialTime on native audio:', err);
+        }
+      } else if (coreState.howl) {
+        try {
+          coreState.howl.seek(initialTime);
+          initialTimeApplied.current = true;
+        } catch (err) {
+          console.warn('[useHowlerPlayer] Could not set initialTime on howler:', err);
+        }
+      }
+    }
+  }, [initialTime, isReady, isUsingNativeAudio, coreState.howl]);
+  
+  // Reset the initialTimeApplied flag when file changes
+  useEffect(() => {
+    initialTimeApplied.current = false;
+  }, [file]);
 
   return {
     isPlaying,
