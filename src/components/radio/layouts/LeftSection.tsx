@@ -51,6 +51,9 @@ const LeftSection: React.FC<LeftSectionProps> = (props) => {
     setMetadata,
     onInfoGenerated,
     isAuthenticated,
+    isProcessing,
+    transcriptionResult,
+    onTimestampClick
   } = props;
 
   // Only render editor for transcription tab
@@ -67,15 +70,13 @@ const LeftSection: React.FC<LeftSectionProps> = (props) => {
         
         <RadioTranscriptionEditor
           transcriptionText={transcriptionText}
-          onTextChange={onTranscriptionChange}
-          currentPlaybackTime={currentTime}
-          segments={segments}
-          resetLocalContent={resetLocalContent}
-          setResetFunction={setResetFunction}
+          onTranscriptionChange={onTranscriptionChange}
+          isProcessing={isProcessing}
+          currentTime={currentTime}
           transcriptionId={transcriptionId}
-          metadata={metadata}
-          setMetadata={setMetadata}
-          onInfoGenerated={onInfoGenerated}
+          transcriptionResult={transcriptionResult}
+          onTimestampClick={onTimestampClick}
+          registerReset={setResetFunction}
         />
       </div>
     );
