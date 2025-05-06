@@ -9,6 +9,7 @@ interface AudioPlayerContextType extends AudioPlayerState, AudioControls {
   isReady: boolean;
   errors: any;
   metadata: any;
+  playbackErrors?: string | null;
   seekToTimestamp: (time: number) => void;
 }
 
@@ -24,6 +25,7 @@ const defaultContext: AudioPlayerContextType = {
   isReady: false,
   errors: null,
   metadata: null,
+  playbackErrors: null,
   onPlayPause: () => {},
   onSeek: () => {},
   onSkip: () => {},

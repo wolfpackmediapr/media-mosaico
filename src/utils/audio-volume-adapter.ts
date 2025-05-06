@@ -1,115 +1,65 @@
+import { VolumeValue } from '@/types/player';
 
 /**
- * Audio Volume Adapter Utilities
- * 
- * This module provides utilities for converting between different volume formats:
- * - UI components typically use number[] with values 0-100
- * - Audio core (Howler) uses a single number with values 0-1
+ * Convert any volume format to UI volume format (array of numbers 0-100)
+ * @param volume Volume in any format (0-1, 0-100, or array)
+ * @returns Volume as array of numbers 0-100
  */
-
-/**
- * Converts a UI volume array [0-100] to an audio engine volume number (0-1)
- */
-export const uiVolumeToAudioVolume = (uiVolume: number[]): number => {
-  if (!Array.isArray(uiVolume) || uiVolume.length === 0) {
-    console.warn('[audio-volume-adapter] Invalid UI volume format provided, using default 0');
-    return 0;
-  }
-  
-  // Convert 0-100 scale to 0-1 scale
-  const normalizedVolume = uiVolume[0] / 100;
-  
-  // Ensure the volume is within valid range
-  return Math.max(0, Math.min(1, normalizedVolume));
-};
-
-/**
- * Converts an audio engine volume (0-1) to a UI volume array [0-100]
- */
-export const audioVolumeToUiVolume = (audioVolume: number): number[] => {
-  // Ensure the input is a valid number
-  if (typeof audioVolume !== 'number' || isNaN(audioVolume)) {
-    console.warn('[audio-volume-adapter] Invalid audio volume format provided, using default 0');
-    return [0];
-  }
-  
-  // Convert 0-1 scale to 0-100 scale and ensure valid range
-  const uiVolume = Math.round(Math.max(0, Math.min(1, audioVolume)) * 100);
-  
-  return [uiVolume];
-};
-
-/**
- * Type guard to check if a volume value is in UI format (array)
- */
-export const isUiVolumeFormat = (volume: unknown): volume is number[] => {
-  return Array.isArray(volume);
-};
-
-/**
- * Type guard to check if a volume value is in audio engine format (number)
- */
-export const isAudioVolumeFormat = (volume: unknown): volume is number => {
-  return typeof volume === 'number';
-};
-
-/**
- * Ensures volume is in audio engine format (0-1)
- * Accepts either UI format (number[]) or audio format (number)
- */
-export const ensureAudioVolumeFormat = (volume: number | number[]): number => {
-  // Handle null or undefined
-  if (volume === null || volume === undefined) {
-    console.warn('[audio-volume-adapter] Null/undefined volume provided, using default 0');
-    return 0;
-  }
-  
-  if (isUiVolumeFormat(volume)) {
-    return uiVolumeToAudioVolume(volume);
-  }
-  
-  // If already a number, just clamp to 0-1
-  if (isAudioVolumeFormat(volume)) {
-    return Math.max(0, Math.min(1, volume));
-  }
-  
-  // If we get here, we have an invalid type - use safe default
-  console.warn('[audio-volume-adapter] Invalid volume format provided, using default 0');
-  return 0;
-};
-
-/**
- * Ensures volume is in UI format (array [0-100])
- * Accepts either UI format (number[]) or audio format (number)
- */
-export const ensureUiVolumeFormat = (volume: number | number[]): number[] => {
-  // Handle null or undefined
-  if (volume === null || volume === undefined) {
-    console.warn('[audio-volume-adapter] Null/undefined volume provided, using default 0');
-    return [0];
-  }
-  
-  if (isAudioVolumeFormat(volume)) {
-    return audioVolumeToUiVolume(volume);
-  }
-  
-  // If already an array, ensure values are clamped
+export const ensureUiVolumeFormat = (volume: VolumeValue): number[] => {
+  // If it's already an array, ensure values are in 0-100 range
   if (Array.isArray(volume)) {
-    if (volume.length === 0) {
-      console.warn('[audio-volume-adapter] Empty volume array provided, using default 0');
-      return [0];
-    }
-    
-    // Handle NaN or invalid values
-    if (typeof volume[0] !== 'number' || isNaN(volume[0])) {
-      console.warn('[audio-volume-adapter] Invalid volume value in array, using default 0');
-      return [0];
-    }
-    
-    return [Math.max(0, Math.min(100, volume[0]))];
+    return volume.map(v => {
+      // If value appears to be in 0-1 range, convert to 0-100
+      if (v >= 0 && v <= 1) {
+        return Math.round(v * 100);
+      }
+      // Otherwise assume it's already in 0-100 range
+      return Math.max(0, Math.min(100, Math.round(v)));
+    });
   }
   
-  // If we get here, we have an invalid type - use safe default
-  console.warn('[audio-volume-adapter] Invalid volume format provided, using default 0');
-  return [0];
+  // For single number values
+  if (typeof volume === 'number') {
+    // If value appears to be in 0-1 range, convert to 0-100
+    if (volume >= 0 && volume <= 1) {
+      return [Math.round(volume * 100)];
+    }
+    // Otherwise assume it's already in 0-100 range
+    return [Math.max(0, Math.min(100, Math.round(volume)))];
+  }
+  
+  // Default fallback
+  return [50];
+};
+
+/**
+ * Convert UI volume format to audio volume format (single number 0-1)
+ * @param volume Volume as array of numbers 0-100 or single number
+ * @returns Volume as single number 0-1
+ */
+export const uiVolumeToAudioVolume = (volume: VolumeValue): number => {
+  if (Array.isArray(volume) && volume.length > 0) {
+    // Convert from 0-100 to 0-1
+    return Math.max(0, Math.min(1, volume[0] / 100));
+  }
+  
+  if (typeof volume === 'number') {
+    // If already in 0-1 range, return as is
+    if (volume >= 0 && volume <= 1) {
+      return volume;
+    }
+    // Otherwise convert from 0-100 to 0-1
+    return Math.max(0, Math.min(1, volume / 100));
+  }
+  
+  // Default fallback
+  return 0.5;
+};
+
+/**
+ * Convert any volume format to audio system format (single number 0-1)
+ * This is a convenience function that combines the two above
+ */
+export const ensureAudioVolumeFormat = (volume: VolumeValue): number => {
+  return uiVolumeToAudioVolume(volume);
 };

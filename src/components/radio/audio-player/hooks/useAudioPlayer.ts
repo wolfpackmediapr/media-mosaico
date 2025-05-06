@@ -2,11 +2,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
-import { useMediaControls } from '../hooks/useMediaControls';
-import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { usePlaybackControls } from '../hooks/usePlaybackControls';
-import { useVolumeControls } from '../hooks/useVolumeControls';
-import { useAudioProgress } from '../hooks/useAudioProgress';
+import { useMediaControls } from './useMediaControls';
+import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { usePlaybackControls } from './usePlaybackControls';
+import { useVolumeControls } from './useVolumeControls';
+import { useAudioProgress } from './useAudioProgress';
 import { formatTime } from '../utils/timeFormatter';
 
 interface AudioPlayerOptions {
