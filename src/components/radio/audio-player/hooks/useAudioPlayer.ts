@@ -7,7 +7,7 @@ import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { usePlaybackControls } from './usePlaybackControls';
 import { useVolumeControls } from './useVolumeControls';
 import { useAudioProgress } from './useAudioProgress';
-import { formatTime } from './utils/timeFormatter';
+import { formatTime } from '../utils/timeFormatter';
 import { PlayDirection } from '@/types/player';
 
 interface AudioPlayerOptions {
@@ -92,6 +92,17 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     handleSkip(direction, amount);
   };
 
+  // Add missing properties to match the expected return type in AudioPlayerContext
+  const playbackErrors = null;
+  const isLoading = false;
+  const isReady = true;
+
+  // Add seekToTimestamp function that was missing
+  const seekToTimestamp = (time: number) => {
+    if (!howler.current) return;
+    handleSeek(time);
+  };
+
   return {
     isPlaying,
     currentTime: progress,
@@ -99,11 +110,15 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     volume,
     isMuted,
     playbackRate: howler.current?.rate() || 1,
+    playbackErrors,
+    isLoading,
+    isReady,
     handlePlayPause,
     handleSeek,
     handleSkip: handleSkipWrapper,
     handleToggleMute: toggleMute,
     handleVolumeChange,
-    handlePlaybackRateChange: changePlaybackRate
+    handlePlaybackRateChange: changePlaybackRate,
+    seekToTimestamp
   };
 };
