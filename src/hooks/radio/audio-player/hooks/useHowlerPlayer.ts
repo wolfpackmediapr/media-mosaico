@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Howler } from 'howler'; // Added Howler import
 import { AudioMetadata } from '@/types/audio';
@@ -32,6 +33,88 @@ export const useHowlerPlayer = ({
   const nativeAudioReadyRef = useRef<boolean>(false);
   const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [metadata, setMetadata] = useState<AudioMetadata | null>(null);
+
+  // Define these utility functions early to avoid "used before declaration" errors
+  // Function to stop time tracking
+  const stopNativeTimeTracking = useCallback(() => {
+    if (timeUpdateIntervalRef.current) {
+      clearInterval(timeUpdateIntervalRef.current);
+      timeUpdateIntervalRef.current = null;
+    }
+  }, []);
+  
+  // Function to start time tracking for native audio
+  const startNativeTimeTracking = useCallback(() => {
+    stopNativeTimeTracking();
+    if (nativeAudioRef.current) {
+      timeUpdateIntervalRef.current = setInterval(() => {
+        if (nativeAudioRef.current && isUsingNativeAudio) {
+          const newTime = nativeAudioRef.current.currentTime;
+          if (!isNaN(newTime)) {
+            setNativeCurrentTime(newTime);
+          }
+        }
+      }, 50); 
+    }
+  }, [isUsingNativeAudio, stopNativeTimeTracking]);
+
+  // Switch from Howler to native audio (can be called programmatically)
+  const switchToNativeAudio = useCallback(() => {
+    if (!file || isUsingNativeAudio) return;
+
+    try {
+      console.log('[HowlerPlayer] Switching to native HTML5 audio');
+      
+      if (nativeAudioRef.current && nativeAudioRef.current.src) {
+        URL.revokeObjectURL(nativeAudioRef.current.src); // Clean up old src if exists
+      }
+      nativeAudioRef.current = createNativeAudioElement(file); // Recreate to ensure fresh state
+      nativeAudioReadyRef.current = false; // Reset ready state
+
+      nativeAudioRef.current.addEventListener('canplaythrough', () => {
+          console.log('[HowlerPlayer] Native audio (switched) is ready to play through');
+          nativeAudioReadyRef.current = true;
+          if (nativeAudioRef.current) { // Check again as it might be null
+            nativeAudioRef.current.playbackRate = playbackRate;
+            // volume is number[] e.g. [50], native volume is 0-1
+            const currentVolumeValue = volume[0] / 100;
+            nativeAudioRef.current.volume = currentVolumeValue;
+            nativeAudioRef.current.muted = isMuted;
+
+            if (playbackStateCurrentTime > 0 && isFinite(playbackStateCurrentTime)) {
+                try {
+                    nativeAudioRef.current.currentTime = playbackStateCurrentTime;
+                    setNativeCurrentTime(playbackStateCurrentTime);
+                } catch (err) {
+                    console.warn('[HowlerPlayer] Could not set currentTime on native audio element:', err);
+                }
+            }
+            if (isPlaying) {
+                nativeAudioRef.current.play().catch(error => {
+                    console.error('[HowlerPlayer] Error auto-playing native audio on switch:', error);
+                    setIsPlaying(false); // Revert state if play fails
+                });
+            }
+          }
+      }, { once: true });
+      
+      nativeAudioRef.current.load(); // Important to load the new source
+
+      setPlaybackErrors(null);
+      setIsUsingNativeAudio(true);
+      if (coreState.howl) { // Stop and unload Howler
+          coreState.howl.stop();
+          coreState.howl.unload();
+      }
+      setHowl(null); // Clear Howler instance
+      
+      startNativeTimeTracking(); // Ensure time tracking starts
+      
+    } catch (error) {
+      console.error('[HowlerPlayer] Error switching to native audio:', error);
+      setPlaybackErrors(`Error switching to native: ${String(error)}`);
+    }
+  }, [file, isUsingNativeAudio, playbackRate, volume, isMuted, setHowl, playbackStateCurrentTime, isPlaying, setIsPlaying, coreState.howl, startNativeTimeTracking]);
 
   const preTestAudio = async (file: File) => {
     // Pre-test the file to check compatibility
@@ -163,64 +246,6 @@ export const useHowlerPlayer = ({
     return false;
   }, [coreState.howl, file, onError, isUsingNativeAudio, switchToNativeAudio]);
 
-  // Switch from Howler to native audio (can be called programmatically)
-  const switchToNativeAudio = useCallback(() => {
-    if (!file || isUsingNativeAudio) return;
-
-    try {
-      console.log('[HowlerPlayer] Switching to native HTML5 audio');
-      
-      if (nativeAudioRef.current && nativeAudioRef.current.src) {
-        URL.revokeObjectURL(nativeAudioRef.current.src); // Clean up old src if exists
-      }
-      nativeAudioRef.current = createNativeAudioElement(file); // Recreate to ensure fresh state
-      nativeAudioReadyRef.current = false; // Reset ready state
-
-      nativeAudioRef.current.addEventListener('canplaythrough', () => {
-          console.log('[HowlerPlayer] Native audio (switched) is ready to play through');
-          nativeAudioReadyRef.current = true;
-          if (nativeAudioRef.current) { // Check again as it might be null
-            nativeAudioRef.current.playbackRate = playbackRate;
-            // volume is number[] e.g. [50], native volume is 0-1
-            const currentVolumeValue = volume[0] / 100;
-            nativeAudioRef.current.volume = currentVolumeValue;
-            nativeAudioRef.current.muted = isMuted;
-
-            if (playbackStateCurrentTime > 0 && isFinite(playbackStateCurrentTime)) {
-                try {
-                    nativeAudioRef.current.currentTime = playbackStateCurrentTime;
-                    setNativeCurrentTime(playbackStateCurrentTime);
-                } catch (err) {
-                    console.warn('[HowlerPlayer] Could not set currentTime on native audio element:', err);
-                }
-            }
-            if (isPlaying) {
-                nativeAudioRef.current.play().catch(error => {
-                    console.error('[HowlerPlayer] Error auto-playing native audio on switch:', error);
-                    setIsPlaying(false); // Revert state if play fails
-                });
-            }
-          }
-      }, { once: true });
-      
-      nativeAudioRef.current.load(); // Important to load the new source
-
-      setPlaybackErrors(null);
-      setIsUsingNativeAudio(true);
-      if (coreState.howl) { // Stop and unload Howler
-          coreState.howl.stop();
-          coreState.howl.unload();
-      }
-      setHowl(null); // Clear Howler instance
-      
-      startNativeTimeTracking(); // Ensure time tracking starts
-      
-    } catch (error) {
-      console.error('[HowlerPlayer] Error switching to native audio:', error);
-      setPlaybackErrors(`Error switching to native: ${String(error)}`);
-    }
-  }, [file, isUsingNativeAudio, playbackRate, volume, isMuted, setHowl, playbackStateCurrentTime, isPlaying, setIsPlaying, coreState.howl, startNativeTimeTracking]); // Added dependencies
-
   // Switch from native to Howler (can be called programmatically)
   const switchToHowler = useCallback(() => {
     if (!file || !isUsingNativeAudio) return;
@@ -316,29 +341,6 @@ export const useHowlerPlayer = ({
       // nativeAudioRef cleanup is handled by its own useEffect below
     };
   }, [file, preferNative, startNativeTimeTracking, stopNativeTimeTracking]); // Added start/stop tracking to deps
-  
-  // Function to start time tracking for native audio
-  const startNativeTimeTracking = useCallback(() => {
-    stopNativeTimeTracking();
-    if (nativeAudioRef.current) {
-      timeUpdateIntervalRef.current = setInterval(() => {
-        if (nativeAudioRef.current && isUsingNativeAudio) {
-          const newTime = nativeAudioRef.current.currentTime;
-          if (!isNaN(newTime)) {
-            setNativeCurrentTime(newTime);
-          }
-        }
-      }, 50); 
-    }
-  }, [isUsingNativeAudio, stopNativeTimeTracking]); // Added stopNativeTimeTracking
-  
-  // Function to stop time tracking
-  const stopNativeTimeTracking = useCallback(() => {
-    if (timeUpdateIntervalRef.current) {
-      clearInterval(timeUpdateIntervalRef.current);
-      timeUpdateIntervalRef.current = null;
-    }
-  }, []);
 
   // Set up native audio event listeners
   useEffect(() => {
