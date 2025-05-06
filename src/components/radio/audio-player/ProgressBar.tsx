@@ -1,5 +1,8 @@
 
 import React from 'react';
+import { ProgressBar as GenericProgressBar } from '@/components/ui/audio-player/ProgressBar';
+import { ProgressDisplay } from '@/components/ui/audio-player/ProgressDisplay';
+import { formatTime } from './utils/timeFormatter';
 
 interface ProgressBarProps {
   progress: number;
@@ -9,25 +12,32 @@ interface ProgressBarProps {
 }
 
 export function ProgressBar({ progress, duration, onSeek, formatTime }: ProgressBarProps) {
+  // Adapter function to match interfaces
+  const handleSeek = (time: number) => {
+    // Since our new component takes a direct time value instead of event
+    // We create a mock event object to satisfy the original interface
+    const mockEvent = {
+      currentTarget: document.createElement('div'),
+      clientX: 0
+    } as unknown as React.MouseEvent<HTMLDivElement>;
+    
+    onSeek(mockEvent);
+  };
+  
   return (
-    <div className="mb-4 px-2">
-      <div
-        className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full cursor-pointer group"
-        onClick={onSeek}
-      >
-        <div
-          className="h-full bg-primary rounded-full relative"
-          style={{ width: `${(progress / duration) * 100}%` }}
-        >
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 
-            bg-primary rounded-full shadow-md transform scale-0 
-            group-hover:scale-100 transition-transform"
-          />
-        </div>
-      </div>
-      <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
-        <span>{formatTime(progress)}</span>
-        <span>{formatTime(duration)}</span>
+    <div className="mb-4">
+      <GenericProgressBar
+        progress={progress}
+        duration={duration}
+        onSeek={handleSeek}
+      />
+      
+      <div className="flex justify-end mt-1">
+        <ProgressDisplay
+          currentTime={progress}
+          duration={duration}
+          formatTime={formatTime}
+        />
       </div>
     </div>
   );
