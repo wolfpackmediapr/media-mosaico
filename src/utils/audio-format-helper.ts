@@ -72,7 +72,9 @@ export const canBrowserPlayFile = (file: File): boolean => {
   // Check if the browser can play this type
   const canPlay = audio.canPlayType(mimeType);
   
-  return canPlay !== '' && canPlay !== 'no';
+  // The canPlayType method returns "", "maybe", or "probably"
+  // An empty string means "no" in the HTML5 spec
+  return canPlay !== '';
 };
 
 /**
