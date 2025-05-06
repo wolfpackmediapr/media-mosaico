@@ -2,6 +2,7 @@
 import React from 'react';
 import { CirclePlay, CirclePause, SkipForward, SkipBack } from "lucide-react";
 import { PlaybackControls as PlaybackControlsType } from './types';
+import { useAudioDebounce } from '@/hooks/useAudioDebounce';
 
 interface PlaybackControlsProps {
   isPlaying: boolean;
@@ -10,33 +11,20 @@ interface PlaybackControlsProps {
 
 export function PlaybackControls({ isPlaying, controls }: PlaybackControlsProps) {
   const { handlePlayPause, handleSkip } = controls;
+  const { debounce } = useAudioDebounce();
   
-  // Enhanced event handling with additional protection
-  const handlePlayPauseClick = (e: React.MouseEvent) => {
+  // Enhanced event handling with debounced protection
+  const handlePlayPauseClick = debounce((e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    // Add delay to prevent multiple rapid clicks
-    const button = e.currentTarget as HTMLButtonElement;
-    if (button) button.disabled = true;
     handlePlayPause();
-    // Re-enable button after a short delay
-    setTimeout(() => {
-      if (button) button.disabled = false;
-    }, 300);
-  };
+  }, 'play-pause', 300);
 
-  const handleSkipClick = (direction: 'backward' | 'forward', e: React.MouseEvent) => {
+  const handleSkipClick = debounce((direction: 'backward' | 'forward', e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    // Add delay to prevent multiple rapid clicks
-    const button = e.currentTarget as HTMLButtonElement;
-    if (button) button.disabled = true;
     handleSkip(direction);
-    // Re-enable button after a short delay
-    setTimeout(() => {
-      if (button) button.disabled = false;
-    }, 300);
-  };
+  }, 'skip', 300);
   
   return (
     <div className="flex items-center space-x-1">

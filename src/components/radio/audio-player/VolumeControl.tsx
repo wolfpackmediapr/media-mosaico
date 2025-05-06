@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { Volume1, Volume2, VolumeX } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { VolumeControls } from './types';
+import { useAudioDebounce } from '@/hooks/useAudioDebounce';
 
 interface VolumeControlProps {
   volumeControls: VolumeControls;
@@ -11,7 +12,7 @@ interface VolumeControlProps {
 export function VolumeControl({ volumeControls }: VolumeControlProps) {
   const { isMuted, volume, handleVolumeChange, toggleMute } = volumeControls;
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-  const lastActionTimeRef = useRef<number>(0);
+  const { debounce } = useAudioDebounce();
   
   // Ensure volume is always in array format with valid values
   const safeVolume = Array.isArray(volume) ? volume : [0];
@@ -22,26 +23,18 @@ export function VolumeControl({ volumeControls }: VolumeControlProps) {
   const VolumeIcon = isMuted ? VolumeX : volumeValue < 50 ? Volume1 : Volume2;
 
   // Debounce volume changes to prevent excessive updates
-  const debounceVolumeChange = (newVolume: number[]) => {
-    const now = Date.now();
-    if (now - lastActionTimeRef.current > 50) { // 50ms debounce
-      lastActionTimeRef.current = now;
-      if (Array.isArray(newVolume) && newVolume.length > 0) {
-        handleVolumeChange(newVolume);
-      }
+  const debouncedVolumeChange = debounce((newVolume: number[]) => {
+    if (Array.isArray(newVolume) && newVolume.length > 0) {
+      handleVolumeChange(newVolume);
     }
-  };
+  }, 'volume-change', 50); // 50ms debounce
 
-  // Enhanced mute handler with protection against double-clicks
-  const handleMuteClick = (e: React.MouseEvent) => {
+  // Enhanced mute handler with debounce protection
+  const handleMuteClick = debounce((e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    const now = Date.now();
-    if (now - lastActionTimeRef.current > 300) { // 300ms protection
-      lastActionTimeRef.current = now;
-      toggleMute();
-    }
-  };
+    toggleMute();
+  }, 'toggle-mute', 300); // 300ms protection
 
   return (
     <div className="relative" 
@@ -67,7 +60,7 @@ export function VolumeControl({ volumeControls }: VolumeControlProps) {
             max={100}
             step={1}
             value={validVolume}
-            onValueChange={debounceVolumeChange}
+            onValueChange={debouncedVolumeChange}
             orientation="vertical"
             className="h-24"
             aria-label="Volumen"

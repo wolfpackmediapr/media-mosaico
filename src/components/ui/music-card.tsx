@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { 
@@ -10,6 +9,7 @@ import {
   VolumeX 
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { ensureUiVolumeFormat, ensureAudioVolumeFormat } from "@/utils/audio-volume-adapter";
 
 interface MusicCardProps {
   src?: string;
@@ -158,19 +158,27 @@ export function MusicCard({
   
   const handleVolumeChange = (value: number[]) => {
     if (customControls && onVolumeChange) {
+      // Ensure we're passing proper UI volume format (array)
       onVolumeChange(value);
       return;
     }
     
     if (audio) {
-      audio.volume = value[0] / 100;
-      setLocalVolume(value[0]);
-      if (value[0] === 0) {
-        setLocalIsMuted(true);
-        audio.muted = true;
-      } else if (localIsMuted) {
-        setLocalIsMuted(false);
-        audio.muted = false;
+      try {
+        // Convert UI volume (0-100 array) to audio volume (0-1)
+        const volumeValue = value[0] / 100;
+        audio.volume = volumeValue;
+        setLocalVolume(value[0]);
+        
+        if (value[0] === 0) {
+          setLocalIsMuted(true);
+          audio.muted = true;
+        } else if (localIsMuted) {
+          setLocalIsMuted(false);
+          audio.muted = false;
+        }
+      } catch (err) {
+        console.warn('[MusicCard] Error setting volume:', err);
       }
     }
   };
@@ -180,7 +188,11 @@ export function MusicCard({
   const displayCurrentTime = customControls ? currentTime : localCurrentTime;
   const displayDuration = customControls ? duration : localDuration;
   const displayIsMuted = customControls ? isMuted : localIsMuted;
-  const displayVolume = customControls ? volume : [localVolume];
+  
+  // Ensure volume is always in the correct format
+  const displayVolume = customControls ? 
+    ensureUiVolumeFormat(volume) : 
+    [localVolume];
   
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -320,6 +332,7 @@ export function MusicCard({
               max={100}
               step={1}
               onValueChange={handleVolumeChange}
+              aria-label="Volume"
               style={{ 
                 "--thumb-bg": mainColor,
                 "--track-active-bg": mainColor
