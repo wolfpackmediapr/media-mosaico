@@ -11,17 +11,31 @@ interface PlaybackControlsProps {
 export function PlaybackControls({ isPlaying, controls }: PlaybackControlsProps) {
   const { handlePlayPause, handleSkip } = controls;
   
-  // Prevent event propagation to avoid multiple click handlers triggering
+  // Enhanced event handling with additional protection
   const handlePlayPauseClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    // Add delay to prevent multiple rapid clicks
+    const button = e.currentTarget as HTMLButtonElement;
+    if (button) button.disabled = true;
     handlePlayPause();
+    // Re-enable button after a short delay
+    setTimeout(() => {
+      if (button) button.disabled = false;
+    }, 300);
   };
 
   const handleSkipClick = (direction: 'backward' | 'forward', e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    // Add delay to prevent multiple rapid clicks
+    const button = e.currentTarget as HTMLButtonElement;
+    if (button) button.disabled = true;
     handleSkip(direction);
+    // Re-enable button after a short delay
+    setTimeout(() => {
+      if (button) button.disabled = false;
+    }, 300);
   };
   
   return (

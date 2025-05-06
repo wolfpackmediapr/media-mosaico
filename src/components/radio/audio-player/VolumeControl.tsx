@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Volume1, Volume2, VolumeX } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { VolumeControls } from './types';
@@ -11,27 +11,36 @@ interface VolumeControlProps {
 export function VolumeControl({ volumeControls }: VolumeControlProps) {
   const { isMuted, volume, handleVolumeChange, toggleMute } = volumeControls;
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const lastActionTimeRef = useRef<number>(0);
   
-  // Handle volume safely - ensure we have an array with valid values
+  // Ensure volume is always in array format with valid values
   const safeVolume = Array.isArray(volume) ? volume : [0];
   const validVolume = safeVolume.length > 0 ? safeVolume : [0];
   
-  // Always use the first value for icon determination, with a fallback
+  // Select the appropriate icon based on volume level and mute state
   const volumeValue = validVolume[0];
   const VolumeIcon = isMuted ? VolumeX : volumeValue < 50 ? Volume1 : Volume2;
 
-  // Handle volume change with proper event prevention
-  const handleSliderChange = (newVolume: number[]) => {
-    if (Array.isArray(newVolume) && newVolume.length > 0) {
-      handleVolumeChange(newVolume);
+  // Debounce volume changes to prevent excessive updates
+  const debounceVolumeChange = (newVolume: number[]) => {
+    const now = Date.now();
+    if (now - lastActionTimeRef.current > 50) { // 50ms debounce
+      lastActionTimeRef.current = now;
+      if (Array.isArray(newVolume) && newVolume.length > 0) {
+        handleVolumeChange(newVolume);
+      }
     }
   };
 
-  // Prevent event bubbling for the toggle mute button
+  // Enhanced mute handler with protection against double-clicks
   const handleMuteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    toggleMute();
+    const now = Date.now();
+    if (now - lastActionTimeRef.current > 300) { // 300ms protection
+      lastActionTimeRef.current = now;
+      toggleMute();
+    }
   };
 
   return (
@@ -58,7 +67,7 @@ export function VolumeControl({ volumeControls }: VolumeControlProps) {
             max={100}
             step={1}
             value={validVolume}
-            onValueChange={handleSliderChange}
+            onValueChange={debounceVolumeChange}
             orientation="vertical"
             className="h-24"
             aria-label="Volumen"
