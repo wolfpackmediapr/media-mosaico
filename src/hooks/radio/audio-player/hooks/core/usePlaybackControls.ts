@@ -1,4 +1,3 @@
-
 import { useCallback, useRef } from 'react';
 import { Howl } from 'howler';
 import { unmuteAudio } from '@/utils/audio-format-helper';
@@ -8,7 +7,7 @@ export interface PlaybackControls {
   handleSeek: (time: number) => void;
   handleSkip: (direction: 'forward' | 'backward', amount?: number) => void;
   handleToggleMute: () => void;
-  handleVolumeChange: (newVolume: number) => void;
+  handleVolumeChange: (newVolume: number[]) => void; // Changed to number[] (e.g., [50])
   handleVolumeUp: () => void;
   handleVolumeDown: () => void;
   handlePlaybackRateChange: (newRate: number) => void;
@@ -19,12 +18,12 @@ interface UsePlaybackControlsOptions {
   isPlaying: boolean;
   currentTime: number;
   duration: number;
-  volume: number;
+  volume: number[]; // Changed to number[] (e.g., [50])
   isMuted: boolean;
   playbackRate: number;
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   setIsMuted: React.Dispatch<React.SetStateAction<boolean>>;
-  setVolume: React.Dispatch<React.SetStateAction<number>>;
+  setVolume: React.Dispatch<React.SetStateAction<number[]>>; // Changed to expect number[]
   setPlaybackRate: React.Dispatch<React.SetStateAction<number>>;
 }
 
@@ -36,39 +35,69 @@ export const usePlaybackControls = ({
   isPlaying,
   currentTime,
   duration,
-  volume,
+  volume, // Now number[]
   isMuted,
   playbackRate,
   setIsPlaying,
   setIsMuted,
-  setVolume,
+  setVolume, // Now expects number[]
   setPlaybackRate
 }: UsePlaybackControlsOptions): PlaybackControls => {
   // Add a reference to track seek operations
   const seekOperationInProgressRef = useRef<boolean>(false);
+  // Add debounce ref to prevent rapid button clicks
+  const lastActionTimeRef = useRef<number>(0);
+
+  // Debounce utility to prevent rapid consecutive actions
+  const debounce = (fn: Function, delay: number = 200) => {
+    const now = Date.now();
+    if (now - lastActionTimeRef.current > delay) {
+      lastActionTimeRef.current = now;
+      fn();
+    } else {
+      console.log('[usePlaybackControls] Action debounced, ignoring');
+    }
+  };
 
   const handlePlayPause = useCallback(() => {
-    if (!howl) return;
-    
-    try {
-      // Try to unlock audio context first
-      unmuteAudio();
-      
-      // Don't allow play/pause during seek operations
-      if (seekOperationInProgressRef.current) {
-        console.log('[usePlaybackControls] Ignoring play/pause during seek operation');
-        return;
-      }
-      
-      if (isPlaying) {
-        howl.pause();
-      } else {
-        howl.play();
-      }
-    } catch (error) {
-      console.error('[usePlaybackControls] Error toggling playback:', error);
+    if (!howl) {
+      // Even without a howl instance, update the UI state
+      setIsPlaying(!isPlaying);
+      console.log('[usePlaybackControls] No howl instance, updating UI state only');
+      return;
     }
-  }, [howl, isPlaying]);
+    
+    debounce(() => {
+      try {
+        // Try to unlock audio context first
+        unmuteAudio();
+        
+        // Don't allow play/pause during seek operations
+        if (seekOperationInProgressRef.current) {
+          console.log('[usePlaybackControls] Ignoring play/pause during seek operation');
+          return;
+        }
+        
+        console.log(`[usePlaybackControls] ${isPlaying ? 'Pausing' : 'Playing'} audio`);
+        
+        if (isPlaying) {
+          howl.pause();
+        } else {
+          howl.play();
+        }
+        
+        // Force update the UI state to ensure it reflects the intended action
+        // This helps when the howl event handlers might be delayed
+        // Note: Howler's onplay/onpause events should ideally handle setIsPlaying.
+        // Direct call might lead to race conditions if not careful.
+        // setIsPlaying(!isPlaying); // Consider if this is truly needed or if event handlers are sufficient
+      } catch (error) {
+        // If there's an error, at least try to update the UI state
+        console.error('[usePlaybackControls] Error toggling playback:', error);
+        // setIsPlaying(!isPlaying); // See comment above
+      }
+    });
+  }, [howl, isPlaying, setIsPlaying]);
 
   const handleSeek = useCallback((time: number) => {
     if (!howl) return;
@@ -99,7 +128,7 @@ export const usePlaybackControls = ({
 
     try {
       const skipAmount = direction === 'forward' ? amount : -amount;
-      const newTime = Math.max(0, Math.min(currentTime + skipAmount, duration));
+      const newTime = Math.max(0, Math.min(currentTime + skipAmount, duration || Infinity)); // Ensure duration is not NaN
       
       console.log(`[usePlaybackControls] Skipping ${direction} by ${amount}s to ${newTime.toFixed(2)}s`);
       
@@ -110,25 +139,25 @@ export const usePlaybackControls = ({
   }, [howl, currentTime, duration, handleSeek]);
 
   const handleToggleMute = useCallback(() => {
-    setIsMuted(prev => !prev);
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState);
     
-    // Also update the Howl instance's mute state if available
     if (howl) {
       try {
-        howl.mute(!isMuted);
+        howl.mute(newMutedState);
       } catch (error) {
         console.error('[usePlaybackControls] Error toggling mute:', error);
       }
     }
   }, [setIsMuted, howl, isMuted]);
 
-  const handleVolumeChange = useCallback((newVolume: number) => {
-    setVolume(newVolume);
+  const handleVolumeChange = useCallback((newVolumeArray: number[]) => { // Accepts number[] e.g. [50]
+    setVolume(newVolumeArray); // Set state with number[]
     
-    // Also update the Howl instance's volume if available
     if (howl) {
       try {
-        howl.volume(newVolume);
+        const volumeValueForHowl = newVolumeArray[0] / 100; // Convert to 0-1 for Howler
+        howl.volume(volumeValueForHowl);
       } catch (error) {
         console.error('[usePlaybackControls] Error changing volume:', error);
       }
@@ -136,19 +165,20 @@ export const usePlaybackControls = ({
   }, [setVolume, howl]);
 
   const handleVolumeUp = useCallback(() => {
-    const newVolume = Math.min(1, volume + 0.1);
-    handleVolumeChange(newVolume);
+    const currentVolumePercent = volume[0]; // volume is number[]
+    const newVolumePercent = Math.min(100, currentVolumePercent + 10); // Standard 10% increment
+    handleVolumeChange([newVolumePercent]);
   }, [volume, handleVolumeChange]);
 
   const handleVolumeDown = useCallback(() => {
-    const newVolume = Math.max(0, volume - 0.1);
-    handleVolumeChange(newVolume);
+    const currentVolumePercent = volume[0]; // volume is number[]
+    const newVolumePercent = Math.max(0, currentVolumePercent - 10);
+    handleVolumeChange([newVolumePercent]);
   }, [volume, handleVolumeChange]);
 
   const handlePlaybackRateChange = useCallback((newRate: number) => {
     setPlaybackRate(newRate);
     
-    // Also update the Howl instance's rate if available
     if (howl) {
       try {
         howl.rate(newRate);
