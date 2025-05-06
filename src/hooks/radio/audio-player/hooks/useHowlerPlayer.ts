@@ -33,9 +33,36 @@ export const useHowlerPlayer = ({
   const nativeAudioReadyRef = useRef<boolean>(false);
   const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [metadata, setMetadata] = useState<AudioMetadata | null>(null);
+  
+  // Initialize core state and player controls first before they're referenced
+  const [coreState, setHowl, coreSetPlaybackErrors] = useAudioCore({
+    file: isUsingNativeAudio ? undefined : file,
+    onEnded,
+    onError: (error) => {
+      if (onError) onError(error);
+      setPlaybackErrors(error);
+      
+      if (nativeAudioReadyRef.current && !isUsingNativeAudio && file) {
+        console.log('[useHowlerPlayer] Auto-switching to native audio after Howler error');
+        // We'll call switchToNativeAudio once it's defined
+        setTimeout(() => switchToNativeAudio(), 0);
+      }
+    },
+    forceHTML5: true 
+  });
 
-  // Define these utility functions early to avoid "used before declaration" errors
-  // Function to stop time tracking
+  // Playback state setup before it's referenced in other functions
+  const [
+    { isPlaying, currentTime: playbackStateCurrentTime, playbackRate, volume, isMuted },
+    { setIsPlaying, setPlaybackRate, setVolume, setIsMuted }
+  ] = usePlaybackState({
+    howl: !isUsingNativeAudio ? coreState.howl : null
+  });
+
+  // Track current time for native audio player
+  const [nativeCurrentTime, setNativeCurrentTime] = useState(0);
+
+  // Function to stop time tracking - Defined early so it can be used by other functions
   const stopNativeTimeTracking = useCallback(() => {
     if (timeUpdateIntervalRef.current) {
       clearInterval(timeUpdateIntervalRef.current);
@@ -43,7 +70,7 @@ export const useHowlerPlayer = ({
     }
   }, []);
   
-  // Function to start time tracking for native audio
+  // Function to start time tracking for native audio - Defined after stopNativeTimeTracking
   const startNativeTimeTracking = useCallback(() => {
     stopNativeTimeTracking();
     if (nativeAudioRef.current) {
@@ -163,44 +190,6 @@ export const useHowlerPlayer = ({
       error: 'No file provided'
     };
   };
-
-  const [coreState, setHowl, coreSetPlaybackErrors] = useAudioCore({
-    file: isUsingNativeAudio ? undefined : file,
-    onEnded,
-    onError: (error) => {
-      if (onError) onError(error);
-      setPlaybackErrors(error);
-      
-      if (nativeAudioReadyRef.current && !isUsingNativeAudio && file) {
-        console.log('[useHowlerPlayer] Auto-switching to native audio after Howler error');
-        switchToNativeAudio();
-      }
-    },
-    forceHTML5: true 
-  });
-
-  const [
-    { isPlaying, currentTime : playbackStateCurrentTime, playbackRate, volume, isMuted }, // volume is number[] e.g. [50]
-    { setIsPlaying, setPlaybackRate, setVolume, setIsMuted }
-  ] = usePlaybackState({
-    howl: !isUsingNativeAudio ? coreState.howl : null
-  });
-
-  const [nativeCurrentTime, setNativeCurrentTime] = useState(0);
-
-  const controls = useCorePlaybackControls({
-    howl: !isUsingNativeAudio ? coreState.howl : null,
-    isPlaying,
-    currentTime: playbackStateCurrentTime,
-    duration: coreState.duration,
-    volume: volume, // Pass volume (number[]) directly
-    isMuted,
-    playbackRate,
-    setIsPlaying,
-    setIsMuted,
-    setVolume: setVolume, // Pass setVolume (for number[]) directly
-    setPlaybackRate
-  });
 
   const safelyHandleError = (error: unknown): { name?: string; message?: string } => {
     if (error && typeof error === 'object') {
@@ -425,6 +414,20 @@ export const useHowlerPlayer = ({
     };
   }, [file, stopNativeTimeTracking]); // Removed preferNative, its role is in initial setup
 
+  // Use playback controls from core
+  const controls = useCorePlaybackControls({
+    howl: !isUsingNativeAudio ? coreState.howl : null,
+    isPlaying,
+    currentTime: playbackStateCurrentTime,
+    duration: coreState.duration,
+    volume: volume, // Pass volume (number[]) directly
+    isMuted,
+    playbackRate,
+    setIsPlaying,
+    setIsMuted,
+    setVolume: setVolume, // Pass setVolume (for number[]) directly
+    setPlaybackRate
+  });
 
   const nativeAudioControls = useCallback(() => {
     // This function needs to be memoized or its identity will change on every render,
