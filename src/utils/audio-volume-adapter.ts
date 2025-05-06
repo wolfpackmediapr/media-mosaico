@@ -12,6 +12,7 @@
  */
 export const uiVolumeToAudioVolume = (uiVolume: number[]): number => {
   if (!Array.isArray(uiVolume) || uiVolume.length === 0) {
+    console.warn('[audio-volume-adapter] Invalid UI volume format provided, using default 0');
     return 0;
   }
   
@@ -28,6 +29,7 @@ export const uiVolumeToAudioVolume = (uiVolume: number[]): number => {
 export const audioVolumeToUiVolume = (audioVolume: number): number[] => {
   // Ensure the input is a valid number
   if (typeof audioVolume !== 'number' || isNaN(audioVolume)) {
+    console.warn('[audio-volume-adapter] Invalid audio volume format provided, using default 0');
     return [0];
   }
   
@@ -56,12 +58,24 @@ export const isAudioVolumeFormat = (volume: unknown): volume is number => {
  * Accepts either UI format (number[]) or audio format (number)
  */
 export const ensureAudioVolumeFormat = (volume: number | number[]): number => {
+  // Handle null or undefined
+  if (volume === null || volume === undefined) {
+    console.warn('[audio-volume-adapter] Null/undefined volume provided, using default 0');
+    return 0;
+  }
+  
   if (isUiVolumeFormat(volume)) {
     return uiVolumeToAudioVolume(volume);
   }
   
   // If already a number, just clamp to 0-1
-  return Math.max(0, Math.min(1, volume));
+  if (isAudioVolumeFormat(volume)) {
+    return Math.max(0, Math.min(1, volume));
+  }
+  
+  // If we get here, we have an invalid type - use safe default
+  console.warn('[audio-volume-adapter] Invalid volume format provided, using default 0');
+  return 0;
 };
 
 /**
@@ -69,14 +83,33 @@ export const ensureAudioVolumeFormat = (volume: number | number[]): number => {
  * Accepts either UI format (number[]) or audio format (number)
  */
 export const ensureUiVolumeFormat = (volume: number | number[]): number[] => {
+  // Handle null or undefined
+  if (volume === null || volume === undefined) {
+    console.warn('[audio-volume-adapter] Null/undefined volume provided, using default 0');
+    return [0];
+  }
+  
   if (isAudioVolumeFormat(volume)) {
     return audioVolumeToUiVolume(volume);
   }
   
   // If already an array, ensure values are clamped
-  if (Array.isArray(volume) && volume.length > 0) {
+  if (Array.isArray(volume)) {
+    if (volume.length === 0) {
+      console.warn('[audio-volume-adapter] Empty volume array provided, using default 0');
+      return [0];
+    }
+    
+    // Handle NaN or invalid values
+    if (typeof volume[0] !== 'number' || isNaN(volume[0])) {
+      console.warn('[audio-volume-adapter] Invalid volume value in array, using default 0');
+      return [0];
+    }
+    
     return [Math.max(0, Math.min(100, volume[0]))];
   }
   
+  // If we get here, we have an invalid type - use safe default
+  console.warn('[audio-volume-adapter] Invalid volume format provided, using default 0');
   return [0];
 };
