@@ -2,13 +2,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
-import { useMediaControls } from './useMediaControls';
-import { useKeyboardShortcuts } from './useKeyboardShortcuts';
-import { usePlaybackControls } from './usePlaybackControls';
-import { useVolumeControls } from './useVolumeControls';
-import { useAudioProgress } from './useAudioProgress';
+import { useMediaControls } from '../hooks/useMediaControls';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { usePlaybackControls } from '../hooks/usePlaybackControls';
+import { useVolumeControls } from '../hooks/useVolumeControls';
+import { useAudioProgress } from '../hooks/useAudioProgress';
 import { formatTime } from '../utils/timeFormatter';
-import { PlayDirection } from '@/types/player';
 
 interface AudioPlayerOptions {
   file: File;
@@ -18,7 +17,11 @@ interface AudioPlayerOptions {
 
 export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) => {
   const howler = useRef<Howl | null>(null);
-  
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
+  const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
+
   useEffect(() => {
     try {
       const fileUrl = URL.createObjectURL(file);
@@ -34,12 +37,18 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
         onloaderror: (id, error) => {
           console.error('Audio loading error:', error);
           toast.error('Error loading audio file');
+          setPlaybackErrors(`Error loading audio: ${error}`);
           if (onError) onError(`Error loading audio: ${error}`);
         },
         onplayerror: (id, error) => {
           console.error('Audio playback error:', error);
           toast.error('Error playing audio file');
+          setPlaybackErrors(`Error playing audio: ${error}`);
           if (onError) onError(`Error playing audio: ${error}`);
+        },
+        onload: () => {
+          setIsLoading(false);
+          setIsReady(true);
         }
       });
 
@@ -52,6 +61,7 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     } catch (error) {
       console.error('Error initializing audio player:', error);
       toast.error('Error setting up audio player');
+      setPlaybackErrors(`Error initializing audio: ${error}`);
       if (onError) onError(`Error initializing audio: ${error}`);
     }
   }, [file, onEnded, onError]);
@@ -64,6 +74,10 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
   const { volume, isMuted, handleVolumeChange, toggleMute } = useVolumeControls();
 
   const { progress } = useAudioProgress({ howler, file, isPlaying });
+  
+  // Calculate current time based on progress
+  const currentTime = progress;
+  const duration = howler.current?.duration() || 0;
 
   useMediaControls({
     onPlay: () => !isPlaying && handlePlayPause(),
@@ -86,36 +100,26 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
       handleVolumeChange([newVolume]);
     }
   });
-  
-  // Enhanced wrapper for skip that accepts PlayDirection from the new type definition
-  const handleSkipWrapper = (direction: PlayDirection, amount: number = 10) => {
-    handleSkip(direction, amount);
-  };
 
-  // Add missing properties to match the expected return type in AudioPlayerContext
-  const playbackErrors = null;
-  const isLoading = false;
-  const isReady = true;
-
-  // Add seekToTimestamp function that was missing
   const seekToTimestamp = (time: number) => {
-    if (!howler.current) return;
-    handleSeek(time);
+    if (howler.current && isReady) {
+      handleSeek(time);
+    }
   };
 
   return {
     isPlaying,
-    currentTime: progress,
-    duration: howler.current?.duration() || 0,
+    currentTime,
+    duration,
     volume,
     isMuted,
-    playbackRate: howler.current?.rate() || 1,
+    playbackRate,
     playbackErrors,
     isLoading,
     isReady,
     handlePlayPause,
     handleSeek,
-    handleSkip: handleSkipWrapper,
+    handleSkip,
     handleToggleMute: toggleMute,
     handleVolumeChange,
     handlePlaybackRateChange: changePlaybackRate,

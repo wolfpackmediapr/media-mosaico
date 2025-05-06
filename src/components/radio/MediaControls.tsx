@@ -1,5 +1,5 @@
 
-import { CompactMusicCard } from "@/components/ui/audio-player/CompactMusicCard";
+import { MusicCard } from "@/components/ui/music-card";
 import { useCallback } from "react";
 import { AudioMetadataDisplay, AudioPlayerState, AudioControls } from "@/types/player";
 
@@ -41,15 +41,17 @@ const MediaControls = ({
   }, [playbackRate, onPlaybackRateChange]);
 
   return (
-    <CompactMusicCard
+    <MusicCard
+      file={currentFile}
       title={currentFile.name}
       artist={metadata?.emisora || 'Radio Transcription'}
       mainColor={publimediaGreen}
+      customControls={true}
       isPlaying={isPlaying}
       currentTime={currentTime}
       duration={duration}
       isMuted={isMuted}
-      volume={volume}
+      volume={Array.isArray(volume) ? volume : [volume * 100]}
       playbackRate={playbackRate}
       onPlayPause={onPlayPause}
       onSeek={onSeek}
