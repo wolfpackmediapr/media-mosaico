@@ -2,7 +2,6 @@
 import React from 'react';
 import { CirclePlay, CirclePause, SkipForward, SkipBack } from "lucide-react";
 import { PlaybackControls as PlaybackControlsType } from './types';
-import { useAudioDebounce } from '@/hooks/useAudioDebounce';
 
 interface PlaybackControlsProps {
   isPlaying: boolean;
@@ -11,20 +10,31 @@ interface PlaybackControlsProps {
 
 export function PlaybackControls({ isPlaying, controls }: PlaybackControlsProps) {
   const { handlePlayPause, handleSkip } = controls;
-  const { debounce } = useAudioDebounce();
   
-  // Enhanced event handling with debounced protection
-  const handlePlayPauseClick = debounce((e: React.MouseEvent) => {
+  // Enhanced event handling with protection against event bubbling
+  const handlePlayPauseClick = (e: React.MouseEvent) => {
+    // Prevent event bubbling
     e.stopPropagation();
     e.preventDefault();
+    
+    // Log action
+    console.log('[PlaybackControls] Play/pause button clicked, current state:', isPlaying ? 'playing' : 'paused');
+    
+    // Trigger handler
     handlePlayPause();
-  }, 'play-pause', 300);
+  };
 
-  const handleSkipClick = debounce((direction: 'backward' | 'forward', e: React.MouseEvent) => {
+  const handleSkipClick = (direction: 'backward' | 'forward', e: React.MouseEvent) => {
+    // Prevent event bubbling
     e.stopPropagation();
     e.preventDefault();
+    
+    // Log action
+    console.log(`[PlaybackControls] Skip ${direction} button clicked`);
+    
+    // Trigger handler
     handleSkip(direction);
-  }, 'skip', 300);
+  };
   
   return (
     <div className="flex items-center space-x-1">

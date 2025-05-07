@@ -36,10 +36,10 @@ export const useAudioPlaybackManager = ({
     isMuted,
     playbackRate,
     playbackErrors,
-    handlePlayPause,
+    handlePlayPause: baseHandlePlayPause,
     handleSeek,
     handleSkip,
-    handleToggleMute,
+    handleToggleMute: baseHandleToggleMute,
     handleVolumeChange: baseHandleVolumeChange, // Rename to avoid conflict
     handlePlaybackRateChange,
     handleSeekToSegment,
@@ -54,6 +54,18 @@ export const useAudioPlaybackManager = ({
     setTranscriptionText,
     onTextChange
   });
+
+  // Enhanced play/pause handler with debugging
+  const handlePlayPause = useCallback(() => {
+    console.log('[useAudioPlaybackManager] Play/pause triggered, current state:', isPlaying ? 'playing' : 'paused');
+    baseHandlePlayPause();
+  }, [baseHandlePlayPause, isPlaying]);
+
+  // Enhanced toggle mute handler with debugging
+  const handleToggleMute = useCallback(() => {
+    console.log('[useAudioPlaybackManager] Toggle mute triggered, current state:', isMuted ? 'muted' : 'unmuted');
+    baseHandleToggleMute();
+  }, [baseHandleToggleMute, isMuted]);
 
   // Create wrapper functions with consistent types if needed
   const seekToSegment = useCallback((segmentOrTime: RadioNewsSegment | number) => {
@@ -85,16 +97,19 @@ export const useAudioPlaybackManager = ({
 
   // Volume wrapper: Fix the type issue by explicitly handling the types
   const onVolumeChange = useCallback((value: number[]) => {
+    // Log the incoming volume value
+    console.log('[useAudioPlaybackManager] Volume change requested:', value);
+    
     // Ensure we always start with a correctly formatted UI volume array [0-100]
     const uiVolume = ensureUiVolumeFormat(value); 
+    console.log('[useAudioPlaybackManager] Normalized UI volume:', uiVolume);
     
     // Convert UI volume (0-100) to audio engine volume (0-1)
     const audioVolume = uiVolumeToAudioVolume(uiVolume); 
+    console.log('[useAudioPlaybackManager] Converted to audio volume (0-1):', audioVolume);
     
     // Call baseHandleVolumeChange with the converted audio engine volume (number 0-1)
-    // We need to cast this to any to avoid the TypeScript error as baseHandleVolumeChange
-    // seems to expect both number and number[] types
-    baseHandleVolumeChange(audioVolume as any); 
+    baseHandleVolumeChange(audioVolume); 
   }, [baseHandleVolumeChange]);
 
   // Add volume up/down handlers that correctly handle array types
@@ -103,6 +118,7 @@ export const useAudioPlaybackManager = ({
     const currentVolumeArray = ensureUiVolumeFormat(volume);
     // Calculate new UI volume, ensuring it doesn't exceed 100
     const newVolumeValue = Math.min(100, currentVolumeArray[0] + 5);
+    console.log(`[useAudioPlaybackManager] Volume up: ${currentVolumeArray[0]} -> ${newVolumeValue}`);
     // Pass the new volume as an array [0-100] to the wrapper
     onVolumeChange([newVolumeValue]);
   }, [volume, onVolumeChange]);
@@ -112,6 +128,7 @@ export const useAudioPlaybackManager = ({
     const currentVolumeArray = ensureUiVolumeFormat(volume);
     // Calculate new UI volume, ensuring it doesn't go below 0
     const newVolumeValue = Math.max(0, currentVolumeArray[0] - 5);
+    console.log(`[useAudioPlaybackManager] Volume down: ${currentVolumeArray[0]} -> ${newVolumeValue}`);
     // Pass the new volume as an array [0-100] to the wrapper
     onVolumeChange([newVolumeValue]);
   }, [volume, onVolumeChange]);

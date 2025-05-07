@@ -9,17 +9,22 @@ import { VolumeValue } from '@/types/player';
 export const ensureUiVolumeFormat = (volume: VolumeValue): number[] => {
   // Handle null/undefined case
   if (volume === null || volume === undefined) {
+    console.log('[audio-volume-adapter] Received null/undefined volume, using default');
     return [50]; // Default fallback
   }
   
   // If it's already an array, ensure values are in 0-100 range and valid
   if (Array.isArray(volume)) {
     // If array is empty, return default
-    if (volume.length === 0) return [50];
+    if (volume.length === 0) {
+      console.log('[audio-volume-adapter] Received empty volume array, using default');
+      return [50];
+    }
     
     return volume.map(v => {
       // Check for invalid values
       if (v === null || v === undefined || !isFinite(v)) {
+        console.log('[audio-volume-adapter] Found invalid volume value in array, using default');
         return 50; // Default for invalid values
       }
       
@@ -35,7 +40,10 @@ export const ensureUiVolumeFormat = (volume: VolumeValue): number[] => {
   // For single number values
   if (typeof volume === 'number') {
     // Handle invalid values
-    if (!isFinite(volume)) return [50];
+    if (!isFinite(volume)) {
+      console.log('[audio-volume-adapter] Received non-finite volume number, using default');
+      return [50];
+    }
     
     // If value appears to be in 0-1 range, convert to 0-100
     if (volume >= 0 && volume <= 1) {
@@ -46,6 +54,7 @@ export const ensureUiVolumeFormat = (volume: VolumeValue): number[] => {
   }
   
   // Default fallback
+  console.log('[audio-volume-adapter] Received unhandled volume format, using default');
   return [50];
 };
 
@@ -57,13 +66,17 @@ export const ensureUiVolumeFormat = (volume: VolumeValue): number[] => {
 export const uiVolumeToAudioVolume = (volume: VolumeValue): number => {
   // Handle null/undefined case
   if (volume === null || volume === undefined) {
+    console.log('[audio-volume-adapter] Received null/undefined volume for conversion, using default');
     return 0.5; // Default fallback
   }
   
   if (Array.isArray(volume) && volume.length > 0) {
     // Get first value and ensure it's valid
     const val = volume[0];
-    if (!isFinite(val)) return 0.5;
+    if (!isFinite(val)) {
+      console.log('[audio-volume-adapter] Array contains non-finite volume, using default');
+      return 0.5;
+    }
     
     // Convert from 0-100 to 0-1
     return Math.max(0, Math.min(1, val / 100));
@@ -71,7 +84,10 @@ export const uiVolumeToAudioVolume = (volume: VolumeValue): number => {
   
   if (typeof volume === 'number') {
     // Handle invalid values
-    if (!isFinite(volume)) return 0.5;
+    if (!isFinite(volume)) {
+      console.log('[audio-volume-adapter] Number volume is non-finite, using default');
+      return 0.5;
+    }
     
     // If already in 0-1 range, return as is
     if (volume >= 0 && volume <= 1) {
@@ -82,6 +98,7 @@ export const uiVolumeToAudioVolume = (volume: VolumeValue): number => {
   }
   
   // Default fallback
+  console.log('[audio-volume-adapter] Unhandled volume format for conversion, using default');
   return 0.5;
 };
 

@@ -1,9 +1,8 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Volume1, Volume2, VolumeX } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { VolumeControls } from './types';
-import { useAudioDebounce } from '@/hooks/useAudioDebounce';
 
 interface VolumeControlProps {
   volumeControls: VolumeControls;
@@ -12,7 +11,6 @@ interface VolumeControlProps {
 export function VolumeControl({ volumeControls }: VolumeControlProps) {
   const { isMuted, volume, handleVolumeChange, toggleMute } = volumeControls;
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-  const { debounce } = useAudioDebounce();
   
   // Ensure volume is always in array format with valid values
   const safeVolume = Array.isArray(volume) ? volume : [0];
@@ -21,30 +19,33 @@ export function VolumeControl({ volumeControls }: VolumeControlProps) {
     ? safeVolume.map(v => isFinite(v) ? v : 50) 
     : [50];
   
+  console.log('[VolumeControl] Current volume:', validVolume);
+  
   // Select the appropriate icon based on volume level and mute state
   const volumeValue = validVolume[0];
   const VolumeIcon = isMuted ? VolumeX : volumeValue < 50 ? Volume1 : Volume2;
 
-  // Debounce volume changes to prevent excessive updates
-  const debouncedVolumeChange = debounce((newVolume: number[]) => {
+  // Enhanced event handlers with protection against event bubbling
+  const handleMuteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    console.log('[VolumeControl] Mute button clicked, current state:', isMuted ? 'muted' : 'unmuted');
+    toggleMute();
+  };
+
+  const handleVolumeChangeInternal = (newVolume: number[]) => {
     // Validate before passing to handler
     if (Array.isArray(newVolume) && newVolume.length > 0 && isFinite(newVolume[0])) {
       // Ensure all values in the array are finite
       const validatedVolume = newVolume.map(v => isFinite(v) ? v : 50);
+      console.log('[VolumeControl] Volume changed to:', validatedVolume);
       handleVolumeChange(validatedVolume);
     } else {
       // Fallback to default if invalid
-      handleVolumeChange([50]);
       console.warn('[VolumeControl] Received invalid volume value, using default', newVolume);
+      handleVolumeChange([50]);
     }
-  }, 'volume-change', 50); // 50ms debounce
-
-  // Enhanced mute handler with debounce protection
-  const handleMuteClick = debounce((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    toggleMute();
-  }, 'toggle-mute', 300); // 300ms protection
+  };
 
   return (
     <div className="relative" 
@@ -70,7 +71,7 @@ export function VolumeControl({ volumeControls }: VolumeControlProps) {
             max={100}
             step={1}
             value={validVolume}
-            onValueChange={debouncedVolumeChange}
+            onValueChange={handleVolumeChangeInternal}
             orientation="vertical"
             className="h-24"
             aria-label="Volumen"
