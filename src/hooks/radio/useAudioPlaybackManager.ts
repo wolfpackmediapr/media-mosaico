@@ -56,7 +56,14 @@ export const useAudioPlaybackManager = ({
 
   // Create wrapper functions with consistent types if needed
   const seekToSegment = useCallback((segmentOrTime: RadioNewsSegment | number) => {
-    handleSeekToSegment(segmentOrTime);
+    // Fix: Handle both segment and number types correctly
+    if (typeof segmentOrTime === 'number') {
+      handleSeekToSegment(segmentOrTime);
+    } else {
+      // It's a RadioNewsSegment, extract the startTime and convert to seconds
+      const timeInSeconds = segmentOrTime.startTime / 1000;
+      handleSeekToSegment(timeInSeconds);
+    }
   }, [handleSeekToSegment]);
 
   // Volume wrapper: Fix the type issue by explicitly handling the types
