@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Howler } from 'howler'; // Added Howler import
 import { AudioMetadata } from '@/types/audio';
@@ -7,6 +6,7 @@ import { usePlaybackState } from './core/usePlaybackState';
 import { usePlaybackControls as useCorePlaybackControls } from './core/usePlaybackControls';
 import { createNativeAudioElement, testAudioPlayback } from '@/utils/audio-format-helper';
 import { toast } from 'sonner';
+import { ensureAudioVolumeFormat } from '@/utils/audio-volume-adapter';
 
 interface HowlerPlayerHookProps {
   file?: File;
@@ -461,7 +461,39 @@ export const useHowlerPlayer = ({
             },
             handleVolumeChange: (newVolumeArray: number[]) => { // Expects number[] e.g. [50]
                 if (!nativeAudioRef.current) return;
-                nativeAudioRef.current.volume = newVolumeArray[0] / 100; setVolume(newVolumeArray);
+                try {
+                  // Added validation to ensure volume is a valid number
+                  if (!Array.isArray(newVolumeArray) || newVolumeArray.length === 0 || !isFinite(newVolumeArray[0])) {
+                    console.warn('[HowlerPlayer] Received invalid volume value, using default', newVolumeArray);
+                    // Use default value if invalid
+                    setVolume([50]);
+                    nativeAudioRef.current.volume = 0.5;
+                    return;
+                  }
+                  
+                  const volumeValue = Math.max(0, Math.min(100, newVolumeArray[0])) / 100;
+                  
+                  // Additional safeguard for non-finite values
+                  if (!isFinite(volumeValue)) {
+                    console.warn('[HowlerPlayer] Calculated non-finite volume value, using default');
+                    nativeAudioRef.current.volume = 0.5;
+                    setVolume([50]);
+                  } else {
+                    // Safe to set volume now
+                    nativeAudioRef.current.volume = volumeValue;
+                    setVolume(newVolumeArray);
+                  }
+                } catch (err) {
+                  console.warn('[HowlerPlayer] Error changing volume on native audio:', err);
+                  // Recovery fallback
+                  try {
+                    nativeAudioRef.current.volume = 0.5;
+                    setVolume([50]);
+                  } catch (fallbackErr) {
+                    // Last resort, just log the error
+                    console.error('[HowlerPlayer] Critical volume error:', fallbackErr);
+                  }
+                }
             },
             handlePlaybackRateChange: (rate: number) => {
                 if (!nativeAudioRef.current) return;
@@ -526,8 +558,8 @@ export const useHowlerPlayer = ({
             handleVolumeChange: (newVolumeArray: number[]) => { // Expects number[] e.g. [50]
               if (!nativeAudioRef.current) return;
               try {
-                const volumeValue = newVolumeArray[0] / 100;
-                nativeAudioRef.current.volume = Math.max(0, Math.min(1, volumeValue));
+                const volumeValue = Math.max(0, Math.min(100, newVolumeArray[0])) / 100;
+                nativeAudioRef.current.volume = volumeValue;
                 setVolume(newVolumeArray); 
               } catch (err) {
                 console.warn('[HowlerPlayer] Error changing volume on native audio:', err);
@@ -582,16 +614,20 @@ export const useHowlerPlayer = ({
   }, [isUsingNativeAudio, coreState.howl, coreState.isReady, setNativeCurrentTime]); // Added setNativeCurrentTime
 
   const handleVolumeUp = useCallback(() => {
-    const currentVolumePercent = volume[0]; // volume is [percent] from usePlaybackState
+    const currentVolumePercent = Array.isArray(volume) && volume.length > 0 && isFinite(volume[0]) 
+      ? volume[0] 
+      : 50; // Safe default
     const newVolumePercent = Math.min(100, currentVolumePercent + 5);
-    // activeControls.handleVolumeChange now consistently expects number[]
+    // Use safe volume array
     activeControls.handleVolumeChange([newVolumePercent]);
   }, [volume, activeControls]);
 
   const handleVolumeDown = useCallback(() => {
-    const currentVolumePercent = volume[0]; // volume is [percent] from usePlaybackState
+    const currentVolumePercent = Array.isArray(volume) && volume.length > 0 && isFinite(volume[0]) 
+      ? volume[0] 
+      : 50; // Safe default
     const newVolumePercent = Math.max(0, currentVolumePercent - 5);
-    // activeControls.handleVolumeChange now consistently expects number[]
+    // Use safe volume array
     activeControls.handleVolumeChange([newVolumePercent]);
   }, [volume, activeControls]);
 

@@ -43,7 +43,7 @@ export const useAudioProcessing = ({
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange,
+    handleVolumeChange: originalHandleVolumeChange,
     handlePlaybackRateChange,
     setIsPlaying,
     seekToTimestamp,
@@ -54,6 +54,23 @@ export const useAudioProcessing = ({
     onPlayingChange,
     preferNative: preferNativeAudio
   });
+
+  // Enhanced volume change handler with additional validation
+  const handleVolumeChange = (newVolume: number[]) => {
+    // Validate volume before passing it to the player
+    if (!Array.isArray(newVolume) || newVolume.length === 0 || !isFinite(newVolume[0])) {
+      console.warn('[useAudioProcessing] Received invalid volume, using default', newVolume);
+      originalHandleVolumeChange([50]); // Default fallback
+      return;
+    }
+    
+    // Ensure values are in valid range
+    const safeVolume = newVolume.map(v => 
+      isFinite(v) ? Math.max(0, Math.min(100, v)) : 50
+    );
+    
+    originalHandleVolumeChange(safeVolume);
+  };
 
   // Convert complex error object to string for simpler handling
   const playbackErrors = rawPlaybackErrors ?
@@ -110,10 +127,15 @@ export const useAudioProcessing = ({
   // Log player state changes - but only when significant changes happen
   useEffect(() => {
     if (currentFile) {
+      // Added safety check for volume display
+      const safeVolume = Array.isArray(volume) && volume.length > 0 && isFinite(volume[0]) 
+        ? volume[0] 
+        : 50;
+        
       console.log(
         `[useAudioProcessing] Player state: ${isPlaying ? 'playing' : 'paused'}, ` +
         `time: ${currentTime.toFixed(1)}/${duration.toFixed(1)}, ` +
-        `volume: ${Array.isArray(volume) ? volume[0] : volume}, ` +
+        `volume: ${safeVolume}, ` +
         `muted: ${isMuted}, rate: ${playbackRate}, ` +
         `using: ${isUsingNativeAudio ? 'native' : 'howler'}`
       );
@@ -132,18 +154,18 @@ export const useAudioProcessing = ({
     isPlaying,
     currentTime,
     duration,
-    volume: ensureUiVolumeFormat(volume), // Ensure consistent volume format
+    volume: ensureUiVolumeFormat(volume), // Ensure consistent volume format with enhanced validation
     isMuted,
     playbackRate,
     playbackErrors,
     isUsingNativeAudio, // Expose this so components can know which player is in use
-    handlePlayPause,
+    handlePlayPause: originalHandlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange,
+    handleVolumeChange, // Use the enhanced volume handler with validation
     handlePlaybackRateChange,
-    handleSeekToSegment,
+    handleSeekToSegment: seekToTimestamp,
     switchToNativeAudio,
     switchToHowler, // Expose the function to switch back if needed
   };

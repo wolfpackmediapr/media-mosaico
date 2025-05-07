@@ -152,12 +152,35 @@ export const usePlaybackControls = ({
   }, [setIsMuted, howl, isMuted]);
 
   const handleVolumeChange = useCallback((newVolumeArray: number[]) => { // Accepts number[] e.g. [50]
-    setVolume(newVolumeArray); // Set state with number[]
+    // Add validation to ensure volume is valid
+    if (!Array.isArray(newVolumeArray) || newVolumeArray.length === 0) {
+      console.warn('[usePlaybackControls] Invalid volume format received, using default');
+      newVolumeArray = [50]; // Default fallback
+    }
+    
+    // Ensure each value in array is a valid number
+    const safeVolumeArray = newVolumeArray.map(v => {
+      if (!isFinite(v)) {
+        console.warn('[usePlaybackControls] Non-finite volume value detected, using 50');
+        return 50;
+      }
+      return Math.max(0, Math.min(100, v));
+    });
+    
+    setVolume(safeVolumeArray); // Set state with safe number[]
     
     if (howl) {
       try {
-        const volumeValueForHowl = newVolumeArray[0] / 100; // Convert to 0-1 for Howler
-        howl.volume(volumeValueForHowl);
+        const volumeValueForHowl = safeVolumeArray[0] / 100; // Convert to 0-1 for Howler
+        
+        // Extra check before setting Howler volume
+        if (isFinite(volumeValueForHowl)) {
+          howl.volume(volumeValueForHowl);
+        } else {
+          console.warn('[usePlaybackControls] Attempted to set non-finite volume to Howler');
+          // Default fallback
+          howl.volume(0.5);
+        }
       } catch (error) {
         console.error('[usePlaybackControls] Error changing volume:', error);
       }
@@ -165,13 +188,25 @@ export const usePlaybackControls = ({
   }, [setVolume, howl]);
 
   const handleVolumeUp = useCallback(() => {
-    const currentVolumePercent = volume[0]; // volume is number[]
+    // Extract current volume safely
+    const currentVolumePercent = Array.isArray(volume) && volume.length > 0 && isFinite(volume[0])
+      ? volume[0]
+      : typeof volume === 'number' && isFinite(volume) 
+        ? (volume <= 1 ? volume * 100 : volume)
+        : 50;
+        
     const newVolumePercent = Math.min(100, currentVolumePercent + 10); // Standard 10% increment
     handleVolumeChange([newVolumePercent]);
   }, [volume, handleVolumeChange]);
 
   const handleVolumeDown = useCallback(() => {
-    const currentVolumePercent = volume[0]; // volume is number[]
+    // Extract current volume safely
+    const currentVolumePercent = Array.isArray(volume) && volume.length > 0 && isFinite(volume[0])
+      ? volume[0]
+      : typeof volume === 'number' && isFinite(volume) 
+        ? (volume <= 1 ? volume * 100 : volume)
+        : 50;
+        
     const newVolumePercent = Math.max(0, currentVolumePercent - 10);
     handleVolumeChange([newVolumePercent]);
   }, [volume, handleVolumeChange]);

@@ -16,7 +16,10 @@ export function VolumeControl({ volumeControls }: VolumeControlProps) {
   
   // Ensure volume is always in array format with valid values
   const safeVolume = Array.isArray(volume) ? volume : [0];
-  const validVolume = safeVolume.length > 0 ? safeVolume : [0];
+  // Handle invalid values and ensure we have at least one value
+  const validVolume = safeVolume.length > 0 && isFinite(safeVolume[0]) 
+    ? safeVolume.map(v => isFinite(v) ? v : 50) 
+    : [50];
   
   // Select the appropriate icon based on volume level and mute state
   const volumeValue = validVolume[0];
@@ -24,8 +27,15 @@ export function VolumeControl({ volumeControls }: VolumeControlProps) {
 
   // Debounce volume changes to prevent excessive updates
   const debouncedVolumeChange = debounce((newVolume: number[]) => {
-    if (Array.isArray(newVolume) && newVolume.length > 0) {
-      handleVolumeChange(newVolume);
+    // Validate before passing to handler
+    if (Array.isArray(newVolume) && newVolume.length > 0 && isFinite(newVolume[0])) {
+      // Ensure all values in the array are finite
+      const validatedVolume = newVolume.map(v => isFinite(v) ? v : 50);
+      handleVolumeChange(validatedVolume);
+    } else {
+      // Fallback to default if invalid
+      handleVolumeChange([50]);
+      console.warn('[VolumeControl] Received invalid volume value, using default', newVolume);
     }
   }, 'volume-change', 50); // 50ms debounce
 
