@@ -3,6 +3,7 @@ import React from "react";
 import RadioTranscriptionSlot from "../RadioTranscriptionSlot";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { RadioNewsSegment } from "../RadioNewsSegmentsContainer";
+import { normalizeTimeToSeconds } from "../interactive-transcription/utils";
 
 interface TranscriptionSectionProps {
   isProcessing: boolean;
@@ -49,6 +50,33 @@ const TranscriptionSection = ({
   currentTime,
   onPlayPause,
 }: TranscriptionSectionProps) => {
+  // IMPROVED: Handle both time values and segment objects consistently
+  const handleSeekOperation = (timeOrSegment: number | RadioNewsSegment) => {
+    console.log(`[TranscriptionSection] Seeking to:`, timeOrSegment);
+    
+    if (typeof timeOrSegment === 'number') {
+      // Create a temporary segment object for the timestamp
+      // Make sure we're using a consistent format for the segment
+      const timeInSeconds = normalizeTimeToSeconds(timeOrSegment);
+      console.log(`[TranscriptionSection] Creating temp segment with normalized time: ${timeInSeconds}s`);
+      
+      const tempSegment: RadioNewsSegment = {
+        headline: "Timestamp",
+        text: "",
+        // Use milliseconds for startTime as that's what the RadioNewsSegment expects
+        startTime: timeInSeconds * 1000,
+        end: timeInSeconds * 1000 + 1000,
+        keywords: []
+      };
+      handleSeekToSegment(tempSegment);
+    } else {
+      // We already have a segment object
+      // Make sure the startTime is properly formatted if needed
+      const segment = { ...timeOrSegment };
+      handleSeekToSegment(segment);
+    }
+  };
+
   return (
     <RadioTranscriptionSlot
       isProcessing={isProcessing}
@@ -64,21 +92,7 @@ const TranscriptionSection = ({
       isPlaying={isPlaying}
       currentTime={currentTime}
       onPlayPause={onPlayPause}
-      onSeek={(time) => {
-        if (typeof time === 'number') {
-          // Create a temporary segment object for the timestamp
-          const tempSegment: RadioNewsSegment = {
-            headline: "Timestamp",
-            text: "",
-            startTime: time,
-            end: time + 1000,
-            keywords: []
-          };
-          handleSeekToSegment(tempSegment);
-        } else {
-          handleSeekToSegment(time);
-        }
-      }}
+      onSeek={handleSeekOperation}
     />
   );
 };

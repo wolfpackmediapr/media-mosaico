@@ -43,7 +43,6 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   // Debug logging for time updates
   useEffect(() => {
     // Only log significant changes (more than 0.5 second) to reduce noise
-    // IMPROVED: More sensitive time change detection (was 1 second)
     if (Math.abs(currentTime - lastCurrentTimeRef.current) > 0.5) {
       console.log(`[InteractiveTranscription] currentTime updated: ${currentTime.toFixed(2)}s (delta: ${(currentTime - lastCurrentTimeRef.current).toFixed(2)}s)`);
       lastCurrentTimeRef.current = currentTime;
@@ -75,7 +74,6 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     if (!hasUtterances || !transcriptionResult?.utterances) return null;
     
     try {
-      // IMPROVED: Added logging to debug segment calculations
       const result = calculateCurrentSegment(transcriptionResult.utterances, time);
       if (result) {
         console.log(`[InteractiveTranscription] Found active segment: ${result.start}-${result.end} at time ${time.toFixed(2)}s`);
@@ -119,7 +117,6 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     let updateInterval: NodeJS.Timeout | null = null;
     
     if (isPlaying && hasUtterances) {
-      // IMPROVED: Update the active segment more frequently when playing (150ms instead of 200ms)
       updateInterval = setInterval(() => {
         try {
           if (audioSeekPending.current) return;
@@ -138,7 +135,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
         } catch (error) {
           console.error("[InteractiveTranscription] Error in interval update:", error);
         }
-      }, 150); // IMPROVED: Faster updates (was 200ms)
+      }, 150);
     }
     
     return () => {
@@ -157,9 +154,8 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   useEffect(() => {
     if (activeSegmentId && activeSegmentRef.current && scrollAreaRef.current && 
         !scrollOperationOngoing.current && !audioSeekPending.current) {
-      // IMPROVED: Throttle scrolling less aggressively (500ms instead of 1000ms)
       const now = Date.now();
-      if (now - lastScrollTime.current > 500) { // Decreased to 0.5 second for better responsiveness
+      if (now - lastScrollTime.current > 500) {
         lastScrollTime.current = now;
         scrollOperationOngoing.current = true;
         
@@ -214,7 +210,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   const handleSegmentClick = useCallback((timestamp: number) => {
     const now = Date.now();
     
-    // IMPROVED: Maintain the strict cooldown period for reliability
+    // Maintain the strict cooldown period for reliability
     if (now - lastSegmentClickTime.current < 800) {
       console.log(`[InteractiveTranscription] Ignoring rapid segment click within cooldown`);
       return;
@@ -224,7 +220,8 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     lastSegmentClickTime.current = now;
     audioSeekPending.current = true;
     
-    console.log(`[InteractiveTranscription] Segment clicked at ${timestamp}s`);
+    // Always log the raw timestamp we receive to help with debugging
+    console.log(`[InteractiveTranscription] Segment clicked with raw timestamp: ${timestamp}`);
     
     // Clear any previous timeout
     if (segmentClickTimeoutRef.current) {
@@ -232,9 +229,27 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     }
     
     try {
-      // Execute seek immediately and ensure the timestamp is in seconds
-      // IMPROVED: Make sure the timestamp is in the correct format
-      const timeInSeconds = timestamp > 1000 ? timestamp / 1000 : timestamp;
+      // IMPROVED: Standardize timestamp format conversion
+      // Always ensure we're passing seconds to the audio player
+      let timeInSeconds: number;
+      
+      // Check if timestamp is likely in milliseconds (over 1000)
+      if (timestamp > 1000) {
+        timeInSeconds = timestamp / 1000;
+        console.log(`[InteractiveTranscription] Converting timestamp from ms to seconds: ${timestamp} ms → ${timeInSeconds.toFixed(2)}s`);
+      } else {
+        // Already in seconds
+        timeInSeconds = timestamp;
+        console.log(`[InteractiveTranscription] Timestamp already in seconds: ${timeInSeconds.toFixed(2)}s`);
+      }
+      
+      // Validate the timestamp before seeking
+      if (!isFinite(timeInSeconds) || timeInSeconds < 0) {
+        console.error(`[InteractiveTranscription] Invalid timestamp: ${timeInSeconds}. Aborting seek.`);
+        audioSeekPending.current = false;
+        return;
+      }
+      
       console.log(`[InteractiveTranscription] Executing seek to ${timeInSeconds.toFixed(2)}s`);
       onSeek(timeInSeconds);
       

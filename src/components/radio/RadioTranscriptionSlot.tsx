@@ -9,6 +9,7 @@ import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { InteractiveTranscription, ViewModeToggle } from "./interactive-transcription";
+import { normalizeTimeToSeconds } from "./interactive-transcription/utils";
 
 interface RadioTranscriptionSlotProps {
   isProcessing: boolean;
@@ -90,6 +91,7 @@ const RadioTranscriptionSlot = ({
 
   // Local state to store the reset method
   const resetFnRef = useRef<() => void>(() => {});
+  
   // Pass a callback down to RadioTranscriptionEditor that lets it "register" its reset function
   const handleRegisterReset = (fn: () => void) => {
     resetFnRef.current = fn;
@@ -103,19 +105,30 @@ const RadioTranscriptionSlot = ({
     setViewMode(mode);
   };
 
+  // IMPROVED: Enhanced timestamp handling to ensure consistent format
   const handleTimestampClick = (timestamp: number) => {
+    // Add logging to track the timestamp format
+    console.log(`[RadioTranscriptionSlot] Timestamp clicked: ${timestamp}`);
+    
+    // Always normalize timestamp to seconds for consistency
+    const timeInSeconds = normalizeTimeToSeconds(timestamp);
+    console.log(`[RadioTranscriptionSlot] Normalized timestamp: ${timeInSeconds}s`);
+    
     if (onTimestampClick) {
       // Create a temporary segment object for the timestamp
       const tempSegment: RadioNewsSegment = {
         headline: "Timestamp",
         text: "",
-        startTime: timestamp,
-        end: timestamp + 1000,
+        startTime: timestamp, // Keep original format for the segment
+        end: timestamp + 1000, // Assume milliseconds for end time
         keywords: []
       };
+      console.log(`[RadioTranscriptionSlot] Passing segment with startTime: ${tempSegment.startTime}`);
       onTimestampClick(tempSegment);
     } else if (onSeek) {
-      onSeek(timestamp);
+      // Pass the normalized time in seconds directly to onSeek
+      console.log(`[RadioTranscriptionSlot] Seeking to: ${timeInSeconds}s`);
+      onSeek(timeInSeconds);
     }
   };
 
