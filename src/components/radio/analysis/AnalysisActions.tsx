@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
@@ -37,16 +36,6 @@ const AnalysisActions = ({
         )}
       </Button>
       
-      {showSegmentGeneration && onGenerateSegments && (
-        <Button
-          variant="default"
-          className="bg-black text-white hover:bg-black/90"
-          onClick={onGenerateSegments}
-          disabled={isAnalyzing || !canGenerateSegments}
-        >
-          Generar Segmentos con Timestamping
-        </Button>
-      )}
     </div>
   );
 };
