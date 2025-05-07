@@ -119,8 +119,8 @@ const RadioTranscriptionSlot = ({
       const tempSegment: RadioNewsSegment = {
         headline: "Timestamp",
         text: "",
-        startTime: timestamp, // Keep original format for the segment
-        end: timestamp + 1000, // Assume milliseconds for end time
+        startTime: timeInSeconds * 1000, // Convert back to milliseconds for the segment
+        end: timeInSeconds * 1000 + 1000, // Assume milliseconds for end time
         keywords: []
       };
       console.log(`[RadioTranscriptionSlot] Passing segment with startTime: ${tempSegment.startTime}`);

@@ -63,7 +63,7 @@ const TranscriptionSection = ({
       const tempSegment: RadioNewsSegment = {
         headline: "Timestamp",
         text: "",
-        // Use milliseconds for startTime as that's what the RadioNewsSegment expects
+        // Convert to milliseconds for startTime as that's what the RadioNewsSegment expects
         startTime: timeInSeconds * 1000,
         end: timeInSeconds * 1000 + 1000,
         keywords: []

@@ -5,7 +5,7 @@ import { TranscriptionResult, UtteranceTimestamp } from "@/services/audio/transc
 import { ScrollArea } from "@/components/ui/scroll-area";
 import SpeakerSegment from "./SpeakerSegment";
 import SpeakerLegend from "./SpeakerLegend";
-import { calculateCurrentSegment } from "./utils";
+import { calculateCurrentSegment, normalizeTimeToSeconds } from "./utils";
 import { Button } from "@/components/ui/button";
 import { Play, Pause } from "lucide-react";
 

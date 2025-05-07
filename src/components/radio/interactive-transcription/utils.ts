@@ -101,11 +101,21 @@ export const calculateCurrentSegment = (
  * @returns Time in seconds
  */
 export const normalizeTimeToSeconds = (time: number): number => {
+  // First, validate the input is actually a number
+  if (typeof time !== 'number' || !isFinite(time)) {
+    console.error(`[normalizeTimeToSeconds] Invalid time value: ${time}, returning 0`);
+    return 0;
+  }
+  
   // If time is over 1000, assume it's in milliseconds and convert to seconds
   if (time > 1000) {
-    return time / 1000;
+    const seconds = time / 1000;
+    console.log(`[normalizeTimeToSeconds] Converting ${time}ms to ${seconds.toFixed(2)}s`);
+    return seconds;
   }
+  
   // Otherwise assume it's already in seconds
+  console.log(`[normalizeTimeToSeconds] Time already in seconds: ${time.toFixed(2)}s`);
   return time;
 };
 

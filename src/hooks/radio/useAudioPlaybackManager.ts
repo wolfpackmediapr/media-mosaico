@@ -4,6 +4,7 @@ import { useRadioPlayer } from "./useRadioPlayer";
 import { UploadedFile } from "@/components/radio/types";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 import { ensureUiVolumeFormat, uiVolumeToAudioVolume } from "@/utils/audio-volume-adapter";
+import { normalizeTimeToSeconds } from "@/components/radio/interactive-transcription/utils";
 
 interface UseAudioPlaybackManagerProps {
   currentFile: UploadedFile | null;
@@ -56,13 +57,29 @@ export const useAudioPlaybackManager = ({
 
   // Create wrapper functions with consistent types if needed
   const seekToSegment = useCallback((segmentOrTime: RadioNewsSegment | number) => {
-    // Fix: Handle both segment and number types correctly
+    // IMPROVED: Robust handling of both segment and number types
     if (typeof segmentOrTime === 'number') {
-      handleSeekToSegment(segmentOrTime);
+      // It's a timestamp, normalize it to seconds
+      const timeInSeconds = normalizeTimeToSeconds(segmentOrTime);
+      console.log(`[useAudioPlaybackManager] Seeking to time: ${timeInSeconds.toFixed(2)}s`);
+      
+      if (isFinite(timeInSeconds) && timeInSeconds >= 0) {
+        handleSeekToSegment(timeInSeconds);
+      } else {
+        console.error(`[useAudioPlaybackManager] Invalid timestamp: ${timeInSeconds}, skipping seek`);
+      }
+    } else if (segmentOrTime && typeof segmentOrTime.startTime === 'number') {
+      // It's a RadioNewsSegment, extract the startTime and normalize it to seconds
+      const timeInSeconds = normalizeTimeToSeconds(segmentOrTime.startTime);
+      console.log(`[useAudioPlaybackManager] Seeking to segment at: ${timeInSeconds.toFixed(2)}s`);
+      
+      if (isFinite(timeInSeconds) && timeInSeconds >= 0) {
+        handleSeekToSegment(timeInSeconds);
+      } else {
+        console.error(`[useAudioPlaybackManager] Invalid segment startTime: ${timeInSeconds}, skipping seek`);
+      }
     } else {
-      // It's a RadioNewsSegment, extract the startTime and convert to seconds
-      const timeInSeconds = segmentOrTime.startTime / 1000;
-      handleSeekToSegment(timeInSeconds);
+      console.error('[useAudioPlaybackManager] Invalid segment or time provided for seeking', segmentOrTime);
     }
   }, [handleSeekToSegment]);
 
