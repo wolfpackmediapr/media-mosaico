@@ -35,10 +35,10 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
               className="rounded-none border-0 flex-1"
             >
               <Edit className="h-4 w-4 mr-2" />
-              Editar
+              Normal
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Modo de edición</TooltipContent>
+          <TooltipContent>Modo normal</TooltipContent>
         </Tooltip>
       </TooltipProvider>
 
