@@ -1,6 +1,6 @@
 
 import { useEffect, useRef } from "react";
-import { useHowlerPlayer } from "@/components/radio/audio-player/hooks/useHowlerPlayer";
+import { useHowlerPlayer } from "@/hooks/radio/audio-player/hooks/useHowlerPlayer";
 import { useAudioVisibilitySync } from "./processing/useAudioVisibilitySync";
 import { useAudioPlaybackControl } from "./processing/useAudioPlaybackControl";
 import { useAudioErrorHandling } from "./processing/useAudioErrorHandling";

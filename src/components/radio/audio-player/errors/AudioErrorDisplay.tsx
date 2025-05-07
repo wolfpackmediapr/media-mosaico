@@ -1,90 +1,83 @@
 
 import React from 'react';
-import { AlertCircle, Headphones, Music } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ExclamationTriangleIcon, ArrowLeftRight } from 'lucide-react';
+import { getAudioFormatDetails } from '@/utils/audio-format-helper';
 
 interface AudioErrorDisplayProps {
   error: string;
-  file?: File;
+  file: File;
   onSwitchToNative?: () => void;
   onSwitchToHowler?: () => void;
-  isUsingNativeAudio?: boolean; // Add this to show appropriate buttons
 }
 
-/**
- * Component to display audio playback errors with helpful messages and recovery options
- */
-export const AudioErrorDisplay: React.FC<AudioErrorDisplayProps> = ({ 
+export const AudioErrorDisplay = ({ 
   error, 
-  file,
-  onSwitchToNative,
-  onSwitchToHowler,
-  isUsingNativeAudio = false
-}) => {
-  // Get file extension if available
-  const fileExtension = file?.name?.split('.')?.pop()?.toUpperCase() || '';
+  file, 
+  onSwitchToNative, 
+  onSwitchToHowler 
+}: AudioErrorDisplayProps) => {
+  // Determine format of the current file
+  const format = file.name.split('.').pop()?.toUpperCase() || 'Unknown';
+  const formatDetails = getAudioFormatDetails(file);
   
-  // Determine error category to provide more helpful messages
-  const isFormatError = error?.includes('format') || error?.includes('codec') || 
-                        error?.includes('NotSupported') || error?.includes('_id');
-  const isNetworkError = error?.includes('network') || error?.includes('fetch') || 
-                         error?.includes('load');
-  const isPermissionError = error?.includes('permission') || error?.includes('NotAllowed');
+  // Determine what action to suggest based on the error
+  const shouldSuggestNativeSwitch = error.includes('format') || 
+    error.includes('codec') || 
+    error.includes('loading') || 
+    error.includes('playback');
   
-  // Determine appropriate error message
-  let errorTitle = 'Error de reproducción';
-  let errorMessage = 'Hubo un problema al reproducir este audio.';
+  const shouldSuggestHowlerSwitch = error.includes('native') ||
+    error.includes('HTML5') ||
+    error.includes('not supported');
   
-  if (isFormatError) {
-    errorTitle = 'Formato no compatible';
-    errorMessage = `El navegador no puede reproducir este archivo ${fileExtension} con el ${isUsingNativeAudio ? 'reproductor nativo' : 'reproductor avanzado'}.`;
-  } else if (isNetworkError) {
-    errorTitle = 'Error de carga';
-    errorMessage = 'No se pudo cargar el archivo de audio.';
-  } else if (isPermissionError) {
-    errorTitle = 'Permiso denegado';
-    errorMessage = 'El navegador no permite reproducir audio automáticamente.';
-  } else if (error === '4') {
-    errorTitle = 'Error de decodificación';
-    errorMessage = 'No se pudo decodificar el audio. Cambiando al reproductor nativo.';
-  }
-
   return (
     <Alert variant="destructive" className="mb-4">
-      <AlertCircle className="h-4 w-4" />
-      <AlertTitle>{errorTitle}</AlertTitle>
+      <ExclamationTriangleIcon className="h-4 w-4 mt-0.5" />
+      <AlertTitle>Audio Playback Issue</AlertTitle>
       <AlertDescription className="space-y-2">
-        <p>{errorMessage}</p>
-        <div className="flex flex-wrap gap-2 mt-2">
-          {!isUsingNativeAudio && onSwitchToNative && (
+        <p className="text-sm">{error}</p>
+        
+        {shouldSuggestNativeSwitch && onSwitchToNative && (
+          <div className="flex flex-col space-y-2">
+            <p className="text-xs">
+              This {format} audio file may have compatibility issues with the current player.
+            </p>
             <Button 
-              variant="outline"
+              variant="outline" 
               size="sm"
               onClick={onSwitchToNative}
-              className="flex items-center gap-1"
+              className="flex items-center gap-2"
             >
-              <Headphones className="h-3.5 w-3.5" />
-              Usar reproductor nativo
+              <ArrowLeftRight className="h-3 w-3" />
+              <span>Try Native Player</span>
             </Button>
-          )}
-          
-          {isUsingNativeAudio && onSwitchToHowler && (
+          </div>
+        )}
+        
+        {shouldSuggestHowlerSwitch && onSwitchToHowler && (
+          <div className="flex flex-col space-y-2">
+            <p className="text-xs">
+              Native playback failed. Try the advanced audio player instead.
+            </p>
             <Button 
-              variant="outline"
+              variant="outline" 
               size="sm"
               onClick={onSwitchToHowler}
-              className="flex items-center gap-1"
+              className="flex items-center gap-2"
             >
-              <Music className="h-3.5 w-3.5" />
-              Usar reproductor avanzado
+              <ArrowLeftRight className="h-3 w-3" />
+              <span>Try Advanced Player</span>
             </Button>
-          )}
-        </div>
-        {process.env.NODE_ENV === 'development' && error && (
-          <div className="text-xs mt-2 opacity-80 font-mono">
-            Error: {error}
           </div>
+        )}
+        
+        {!formatDetails.isFullySupported && (
+          <p className="text-xs text-yellow-800 dark:text-yellow-400">
+            Note: {format} format has {formatDetails.supportLevel} browser support.
+            {formatDetails.recommendation && ` ${formatDetails.recommendation}`}
+          </p>
         )}
       </AlertDescription>
     </Alert>
