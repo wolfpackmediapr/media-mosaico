@@ -2,7 +2,7 @@
 import React from 'react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { ExclamationTriangleIcon, ArrowLeftRight } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight } from 'lucide-react';
 import { getAudioFormatDetails } from '@/utils/audio-format-helper';
 
 interface AudioErrorDisplayProps {
@@ -34,7 +34,7 @@ export const AudioErrorDisplay = ({
   
   return (
     <Alert variant="destructive" className="mb-4">
-      <ExclamationTriangleIcon className="h-4 w-4 mt-0.5" />
+      <AlertTriangle className="h-4 w-4 mt-0.5" />
       <AlertTitle>Audio Playback Issue</AlertTitle>
       <AlertDescription className="space-y-2">
         <p className="text-sm">{error}</p>
@@ -73,9 +73,9 @@ export const AudioErrorDisplay = ({
           </div>
         )}
         
-        {!formatDetails.isFullySupported && (
+        {!formatDetails.isSupported && (
           <p className="text-xs text-yellow-800 dark:text-yellow-400">
-            Note: {format} format has {formatDetails.supportLevel} browser support.
+            Note: {format} format has limited browser support.
             {formatDetails.recommendation && ` ${formatDetails.recommendation}`}
           </p>
         )}
