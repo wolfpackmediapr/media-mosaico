@@ -108,8 +108,9 @@ export const useAudioPlaybackManager = ({
     const audioVolume = uiVolumeToAudioVolume(uiVolume); 
     console.log('[useAudioPlaybackManager] Converted to audio volume (0-1):', audioVolume);
     
-    // Call baseHandleVolumeChange with the converted audio engine volume (number 0-1)
-    baseHandleVolumeChange(audioVolume); 
+    // Call baseHandleVolumeChange with the converted audio engine volume
+    // FIX: Wrap the single number value in an array to satisfy TypeScript
+    baseHandleVolumeChange([audioVolume]); 
   }, [baseHandleVolumeChange]);
 
   // Add volume up/down handlers that correctly handle array types
