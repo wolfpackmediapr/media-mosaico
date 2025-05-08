@@ -1,3 +1,4 @@
+
 /**
  * Utilities for handling volume format conversions between UI formats and audio engine formats
  */
@@ -78,5 +79,36 @@ export const ensureUiVolumeFormat = (value: any): number[] => {
   } catch (error) {
     console.error('[audio-volume-adapter] Error ensuring UI volume format:', error);
     return [50]; // Default to 50% on error
+  }
+};
+
+/**
+ * Helper function to ensure a value is in the audio engine volume format (0-1 range)
+ * This was missing but is now added to support existing code
+ */
+export const ensureAudioVolumeFormat = (value: any): number => {
+  try {
+    // If already in audio format (0-1 range)
+    if (typeof value === 'number' && value >= 0 && value <= 1 && isFinite(value)) {
+      return value;
+    }
+    
+    // Convert from UI format array [0-100] to audio format (0-1)
+    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'number' && isFinite(value[0])) {
+      // Ensure the value is in 0-100 range, then convert to 0-1
+      return Math.max(0, Math.min(100, value[0])) / 100;
+    }
+    
+    // Handle number in UI format (0-100)
+    if (typeof value === 'number' && value > 1 && isFinite(value)) {
+      return Math.max(0, Math.min(100, value)) / 100;
+    }
+    
+    // Default fallback
+    console.warn('[audio-volume-adapter] Could not convert to audio volume format:', value);
+    return 0.5; // Default to 50% volume
+  } catch (error) {
+    console.error('[audio-volume-adapter] Error ensuring audio volume format:', error);
+    return 0.5;
   }
 };
