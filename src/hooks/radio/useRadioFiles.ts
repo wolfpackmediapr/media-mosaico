@@ -1,19 +1,10 @@
 
-import { usePersistentState } from "@/hooks/use-persistent-state";
-import { useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
-import { ensureValidBlobUrl, createNewBlobUrl } from "@/utils/audio-url-validator";
-import { supabase } from "@/integrations/supabase/client";
+import { usePersistentFileStorage } from "./file-management/usePersistentFileStorage";
+import { useSupabaseFileStorage } from "./file-management/useSupabaseFileStorage";
+import { useFilePreviewUrls } from "./file-management/useFilePreviewUrls";
+import { useEffect, useCallback } from "react";
+import { UploadedFile } from "@/components/radio/types";
 import { useAuthStatus } from "@/hooks/use-auth-status";
-import { uploadAudioToSupabase } from "@/utils/supabase-storage-helper";
-
-interface UploadedFile extends File {
-  preview?: string;
-  isReconstructed?: boolean;
-  storagePath?: string;  // Supabase storage path
-  storageUrl?: string;   // Public URL from Supabase
-  id?: string;          // Make id explicitly a string type
-}
 
 interface UseRadioFilesOptions {
   persistKey?: string;
@@ -36,177 +27,52 @@ export const useRadioFiles = ({
   storage = 'sessionStorage',
   maxFiles = 10
 }: UseRadioFilesOptions): UseRadioFilesReturn => {
-  // Make sure to pass persistKey as string to usePersistentState
-  const [files, setFiles] = usePersistentState<UploadedFile[]>([], {
-    key: persistKey, // Ensure this is a string
-    storage,
-    onRestore: async (restoredFiles) => {
-      console.log('[useRadioFiles] Restoring files from storage', restoredFiles);
-      
-      if (!Array.isArray(restoredFiles)) {
-        console.warn('[useRadioFiles] Restored files is not an array, resetting to empty array');
-        return [];
-      }
-
-      // Enhanced file restoration with proper type handling
-      try {
-        const reconstructedFiles = restoredFiles.map(file => {
-          // Ensure we only use string IDs
-          const fileId = typeof file.id === 'string' ? file.id : 
-                       (file.id ? String(file.id) : '');
-          
-          return {
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            lastModified: file.lastModified,
-            preview: file.preview,
-            storagePath: file.storagePath,
-            storageUrl: file.storageUrl,
-            id: fileId, // Now ensured to be string or empty string
-            isReconstructed: true
-          } as UploadedFile;
-        });
-        
-        return reconstructedFiles;
-      } catch (err) {
-        console.error('[useRadioFiles] Error reconstructing files:', err);
-        return [];
-      }
-    }
+  // Use our persistent file storage hook for basic file management
+  const fileStorage = usePersistentFileStorage({ persistKey, storage, maxFiles });
+  
+  // Get authentication status
+  const { isAuthenticated } = useAuthStatus();
+  
+  // Use our Supabase integration hook for cloud storage
+  const supabaseStorage = useSupabaseFileStorage({
+    files: fileStorage.files,
+    setFiles: fileStorage.setFiles
   });
   
-  const [isRestoringFiles, setIsRestoringFiles] = useState(false);
-  const { isAuthenticated } = useAuthStatus();
-  const [isUploading, setIsUploading] = useState<Record<string, boolean>>({});
+  // Use our preview URL management hook
+  useFilePreviewUrls({
+    files: fileStorage.files,
+    setFiles: fileStorage.setFiles
+  });
   
-  // Fix: Ensure indexKey is always a string, even if persistKey is undefined
-  // By providing a default value 'radio-files' for the persistKey if it's undefined
-  const indexKey = `${persistKey || 'radio-files'}-current-index`;
-  
-  const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
-    indexKey,
-    0,
-    { storage }
-  );
-
-  // Upload a file to Supabase storage
-  const uploadFileToStorage = useCallback(async (file: UploadedFile): Promise<boolean> => {
-    if (!isAuthenticated) return false;
-    
-    // Skip if the file already has a storage URL
-    if (file.storagePath && file.storageUrl) return true;
-    
-    // Skip if it's already uploading
-    if (isUploading[file.name]) return false;
-    
-    try {
-      setIsUploading(prev => ({ ...prev, [file.name]: true }));
-      console.log('[useRadioFiles] Uploading file to storage:', file.name);
-      
-      const result = await uploadAudioToSupabase(file);
-      if (result.error) {
-        console.error('[useRadioFiles] Upload error:', result.error);
-        toast.error(`Error uploading file: ${result.error}`);
-        return false;
-      }
-      
-      // Update the file object with storage info
-      file.storagePath = result.path;
-      file.storageUrl = result.url;
-      
-      // Update the metadata with the storage info
-      setFiles(prev => prev.map(f => {
-        if (f.name === file.name) {
-          return {
-            ...f,
-            storagePath: result.path,
-            storageUrl: result.url
-          };
-        }
-        return f;
-      }));
-      
-      console.log('[useRadioFiles] File uploaded successfully:', result.path);
-      return true;
-    } catch (error) {
-      console.error('[useRadioFiles] Error uploading file:', error);
-      return false;
-    } finally {
-      setIsUploading(prev => ({ ...prev, [file.name]: false }));
-    }
-  }, [isAuthenticated, setFiles, isUploading]);
-
-  // Enhanced file reconstruction - with proper storage URLs handling
-  useEffect(() => {
-    if (files.length === 0) return;
-    
-  }, [files, isAuthenticated, uploadFileToStorage]);
-
-  // Handle adding new files
+  // Enhanced file handling with Supabase integration
   const addFiles = useCallback((newFiles: File[]) => {
-    const processedFiles = newFiles.map(file => {
-      const uploadedFile = file as UploadedFile;
-      
-      // Create a preview URL if not already present
-      if (!uploadedFile.preview) {
-        uploadedFile.preview = URL.createObjectURL(file);
-      }
-      
-      return uploadedFile;
-    });
+    // First add files locally with the base hook
+    fileStorage.addFiles(newFiles);
     
-    setFiles(prev => [...prev, ...processedFiles]);
-    
-    // If authenticated, upload new files to storage
+    // Then upload to Supabase if authenticated 
     if (isAuthenticated) {
-      processedFiles.forEach(file => {
-        uploadFileToStorage(file);
-      });
+      // Upload in the next tick to allow UI to update first
+      setTimeout(() => {
+        supabaseStorage.syncFilesToSupabase();
+      }, 0);
     }
-    
-    // If this is the first file added, set it as current
-    if (files.length === 0 && processedFiles.length > 0) {
-      setCurrentFileIndex(0);
-    }
-  }, [files.length, setCurrentFileIndex, isAuthenticated, uploadFileToStorage, setFiles]);
+  }, [fileStorage.addFiles, isAuthenticated, supabaseStorage.syncFilesToSupabase]);
 
-  // Remove a file
-  const removeFile = useCallback((indexToRemove: number) => {
-    if (indexToRemove < 0 || indexToRemove >= files.length) return;
-    
-    // Get the file to remove
-    const fileToRemove = files[indexToRemove];
-    
-    // Clean up the blob URL if it exists and is not a storage URL
-    if (fileToRemove.preview && !fileToRemove.storageUrl && 
-        fileToRemove.preview.startsWith('blob:')) {
-      try {
-        URL.revokeObjectURL(fileToRemove.preview);
-      } catch (error) {
-        console.warn('[useRadioFiles] Error revoking blob URL:', error);
-      }
+  // Sync with Supabase when authentication changes
+  useEffect(() => {
+    if (isAuthenticated && fileStorage.files.length > 0) {
+      supabaseStorage.syncFilesToSupabase();
     }
-    
-    // Remove the file from the files array
-    setFiles(prev => prev.filter((_, index) => index !== indexToRemove));
-    
-    // Adjust current index if needed
-    if (currentFileIndex >= indexToRemove) {
-      if (currentFileIndex > 0 || files.length > 1) {
-        const newIndex = Math.max(0, Math.min(currentFileIndex - 1, files.length - 2));
-        setCurrentFileIndex(newIndex);
-      }
-    }
-  }, [files, currentFileIndex, setCurrentFileIndex, setFiles]);
+  }, [isAuthenticated, fileStorage.files, supabaseStorage.syncFilesToSupabase]);
 
   return {
-    files,
-    currentFile: files[currentFileIndex] || null,
-    currentFileIndex,
-    setCurrentFileIndex,
+    files: fileStorage.files,
+    currentFile: fileStorage.currentFile,
+    currentFileIndex: fileStorage.currentFileIndex, 
+    setCurrentFileIndex: fileStorage.setCurrentFileIndex,
     addFiles,
-    removeFile,
-    isRestoringFiles
+    removeFile: fileStorage.removeFile,
+    isRestoringFiles: fileStorage.isRestoringFiles
   };
 };
