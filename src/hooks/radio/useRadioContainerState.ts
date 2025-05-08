@@ -4,7 +4,7 @@ import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
 import { useRadioActions } from "@/hooks/radio/useRadioActions";
-import { useAudioPlaybackManager } from "@/hooks/radio/useAudioPlaybackManager";
+import { useRadioPlayerState } from "@/hooks/radio/useRadioPlayerState";
 import { UploadedFile } from "@/components/radio/types";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
@@ -86,7 +86,7 @@ export const useRadioContainerState = ({
     storage
   });
 
-  // Destructure with the correct property names
+  // Destructure radioFiles props
   const {
     files,
     currentFile,
@@ -98,13 +98,31 @@ export const useRadioContainerState = ({
   } = radioFiles;
 
   // Function to set files correctly
-  const setFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>> = (filesOrFn) => {
-    // Implementation that correctly handles the file updating logic
-    // This will replace the missing setFiles function from useRadioFiles
-    console.log('[useRadioContainerState] Setting files', typeof filesOrFn === 'function' ? 'via function' : 'directly');
-    // Since we don't have direct access to the internal state setter in useRadioFiles,
-    // we would need to handle this differently, perhaps by clearing and adding files
-    // This is a stub implementation
+  const setFiles = (filesOrFn: React.SetStateAction<UploadedFile[]>) => {
+    if (typeof filesOrFn === 'function') {
+      // Create a new array with the function result
+      const newFiles = filesOrFn(files);
+      
+      // Clear existing files
+      while (files.length > 0) {
+        removeFile(0);
+      }
+      
+      // Add new files
+      if (Array.isArray(newFiles) && newFiles.length > 0) {
+        addFiles(newFiles as File[]);
+      }
+    } else if (Array.isArray(filesOrFn)) {
+      // Clear existing files
+      while (files.length > 0) {
+        removeFile(0);
+      }
+      
+      // Add new files
+      if (filesOrFn.length > 0) {
+        addFiles(filesOrFn as File[]);
+      }
+    }
   };
 
   // Transcription state management
@@ -140,23 +158,8 @@ export const useRadioContainerState = ({
     onTextChange
   });
 
-  // Audio playback management
-  const {
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    isMuted,
-    playbackRate,
-    playbackErrors,
-    handlePlayPause,
-    handleSeek,
-    handleSkip,
-    handleToggleMute,
-    handleVolumeChange,
-    handlePlaybackRateChange,
-    seekToSegment: handleSeekToSegment
-  } = useAudioPlaybackManager({
+  // Use our newly extracted player state hook
+  const playerState = useRadioPlayerState({
     currentFile,
     isActiveMediaRoute,
     isMediaPlaying,
@@ -172,16 +175,16 @@ export const useRadioContainerState = ({
     addFiles(newFiles);
   };
   
-  // Radio actions - now with all required props
+  // Radio actions - with all required props
   const radioActions = useRadioActions({
     files,
     currentFileIndex,
+    setFiles, // Fixed: Include this missing prop
     setCurrentFileIndex,
+    handleFilesAddedOriginal, // Fixed: Include this missing prop
     resetTranscription,
     setNewsSegments,
-    clearAllStorageState,
-    setFiles,
-    handleFilesAddedOriginal  // Add the missing required props
+    clearAllStorageState
   });
   
   // Extract properties from radioActions
@@ -207,14 +210,8 @@ export const useRadioContainerState = ({
     transcriptionResult,
     metadata,
     newsSegments,
-    // Player
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    isMuted,
-    playbackRate,
-    playbackErrors,
+    // Player state from our new hook
+    ...playerState,
     // State tracking
     lastAction,
     // Handlers
@@ -233,13 +230,6 @@ export const useRadioContainerState = ({
     handleMetadataChange,
     handleEditorRegisterReset,
     setClearAnalysis,
-    handlePlayPause,
-    handleSeek,
-    handleSkip,
-    handleToggleMute,
-    handleVolumeChange,
-    handlePlaybackRateChange,
-    handleSeekToSegment,
     setNewsSegments,
     handleTranscriptionProcessingError
   };

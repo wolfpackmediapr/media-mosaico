@@ -80,9 +80,9 @@ export const useRadioFiles = ({
   const { isAuthenticated } = useAuthStatus();
   const [isUploading, setIsUploading] = useState<Record<string, boolean>>({});
   
-  // Make sure to use string concatenation for the key
+  // Fixed: Use a string for persistent storage key
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
-    persistKey + "-current-index", // Fixed: Use string concatenation instead of template literal
+    String(persistKey) + "-current-index", // Ensure it's a string with explicit conversion
     0,
     { storage }
   );

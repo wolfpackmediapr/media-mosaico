@@ -8,11 +8,10 @@ interface UseRadioActionsProps {
   currentFileIndex: number;
   setFiles: (files: UploadedFile[] | ((prev: UploadedFile[]) => UploadedFile[])) => void;
   setCurrentFileIndex: (index: number) => void;
-  handleFilesAddedOriginal: (newFiles: File[]) => void; // Renamed to avoid conflict
+  handleFilesAddedOriginal: (newFiles: File[]) => void;
   resetTranscription: () => void;
-  setNewsSegments: React.Dispatch<React.SetStateAction<any[]>>; // Use specific type if available
-  clearAllStorageState: () => Promise<void>; // Update return type to Promise<void>
-  // Add resetPlaybackErrors if needed from useRadioPlayer
+  setNewsSegments: React.Dispatch<React.SetStateAction<any[]>>;
+  clearAllStorageState: () => Promise<void>;
 }
 
 export const useRadioActions = ({
