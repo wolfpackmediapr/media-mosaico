@@ -6,7 +6,7 @@ import { Trash } from "lucide-react";
 import { toast } from "sonner";
 
 interface ClearAllButtonProps {
-  onClearAll: () => void;
+  onClearAll: () => Promise<void>;
 }
 
 const ClearAllButton: React.FC<ClearAllButtonProps> = ({ onClearAll }) => {

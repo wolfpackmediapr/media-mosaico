@@ -13,8 +13,8 @@ export function useSafeStorage(options: SafeStorageOptions = {}) {
 
   const storageObject = window[storage];
 
-  const clearStorageKeys = useCallback(async (keys: string[]) => {
-    if (isClearing) return false; // Prevent concurrent clearing operations
+  const clearStorageKeys = useCallback(async (keys: string[]): Promise<void> => {
+    if (isClearing) return; // Prevent concurrent clearing operations
     
     setIsClearing(true);
     const failedKeys: string[] = [];
@@ -63,13 +63,12 @@ export function useSafeStorage(options: SafeStorageOptions = {}) {
       if (failedKeys.length > 0) {
         console.warn(`Could not clear ${failedKeys.length} storage keys: ${failedKeys.join(', ')}`);
       }
-
-      return true;
+      
+      // Return type changed from boolean to void
     } catch (error) {
       console.error('Storage operation failed:', error);
       onError?.(error as Error);
       toast.error('Error al limpiar el almacenamiento');
-      return false;
     } finally {
       // Small delay before releasing the clearing flag to prevent rapid reruns
       setTimeout(() => {

@@ -11,7 +11,7 @@ interface UseRadioActionsProps {
   handleFilesAddedOriginal: (newFiles: File[]) => void;
   resetTranscription: () => void;
   setNewsSegments: React.Dispatch<React.SetStateAction<any[]>>;
-  clearAllStorageState: () => Promise<void>;
+  clearAllStorageState: () => Promise<void>; // Updated to match Promise<void>
 }
 
 export const useRadioActions = ({

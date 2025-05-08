@@ -33,7 +33,8 @@ export const useClearRadioState = ({
   }, []);
 
   // Improved state clearing implementation to avoid UI freezing
-  const clearAllState = useCallback(async () => {
+  // Modified to return Promise<void> instead of Promise<boolean>
+  const clearAllState = useCallback(async (): Promise<void> => {
     if (!mountedRef.current) return;
     
     console.log('[useClearRadioState] Starting clear all state operation');
@@ -113,10 +114,10 @@ export const useClearRadioState = ({
       }
       
       console.log('[useClearRadioState] Successfully cleared all state');
-      return true;
+      // No return value needed anymore
     } catch (error) {
       console.error('[useClearRadioState] Error clearing state:', error);
-      return false;
+      // No return value needed anymore
     }
   }, [persistKey, transcriptionId, onTextChange, clearStorageKeys]);
 
