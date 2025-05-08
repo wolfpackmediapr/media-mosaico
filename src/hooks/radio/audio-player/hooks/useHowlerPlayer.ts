@@ -34,6 +34,15 @@ export const useHowlerPlayer = ({
   const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [metadata, setMetadata] = useState<AudioMetadata | null>(null);
   
+  // Handle invalid blob URLs by automatically switching to native audio
+  const handleInvalidBlobUrl = useCallback((file: File) => {
+    console.log('[HowlerPlayer] Invalid blob URL detected, switching to native audio');
+    if (!isUsingNativeAudio && file) {
+      // Queue a switch to native audio
+      setTimeout(() => switchToNativeAudio(), 0);
+    }
+  }, [isUsingNativeAudio]); // switchToNativeAudio will be referenced later
+  
   // Initialize core state and player controls first before they're referenced
   const [coreState, setHowl, coreSetPlaybackErrors] = useAudioCore({
     file: isUsingNativeAudio ? undefined : file,
@@ -48,7 +57,8 @@ export const useHowlerPlayer = ({
         setTimeout(() => switchToNativeAudio(), 0);
       }
     },
-    forceHTML5: true 
+    forceHTML5: true,
+    onInvalidBlobUrl: handleInvalidBlobUrl // Add handler for invalid blob URLs
   });
 
   // Playback state setup before it's referenced in other functions

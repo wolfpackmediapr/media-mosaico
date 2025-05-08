@@ -1,5 +1,6 @@
+
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlignCenter } from "lucide-react";
 
 interface AnalysisActionsProps {
   isAnalyzing: boolean;
@@ -8,6 +9,7 @@ interface AnalysisActionsProps {
   showSegmentGeneration?: boolean;
   canGenerateSegments?: boolean;
   onGenerateSegments?: () => void;
+  isGeneratingSegments?: boolean;
 }
 
 const AnalysisActions = ({
@@ -16,7 +18,8 @@ const AnalysisActions = ({
   onAnalyzeContent,
   showSegmentGeneration = false,
   canGenerateSegments = false,
-  onGenerateSegments
+  onGenerateSegments,
+  isGeneratingSegments = false
 }: AnalysisActionsProps) => {
   return (
     <div className="flex justify-between">
@@ -36,6 +39,25 @@ const AnalysisActions = ({
         )}
       </Button>
       
+      {showSegmentGeneration && (
+        <Button
+          variant="outline"
+          onClick={onGenerateSegments}
+          disabled={!canGenerateSegments || isGeneratingSegments}
+        >
+          {isGeneratingSegments ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generando...
+            </>
+          ) : (
+            <>
+              <AlignCenter className="mr-2 h-4 w-4" />
+              Generar Segmentos
+            </>
+          )}
+        </Button>
+      )}
     </div>
   );
 };

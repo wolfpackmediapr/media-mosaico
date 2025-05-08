@@ -1,65 +1,87 @@
 
 import React from 'react';
-import { AlertCircle, RefreshCw } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 interface AudioErrorDisplayProps {
-  error: string | null;
-  file?: File;
+  error: string;
+  file: File;
   onSwitchToNative?: () => void;
+  onRetryUrl?: () => Promise<boolean>;
 }
 
-export const AudioErrorDisplay: React.FC<AudioErrorDisplayProps> = ({
-  error,
+export const AudioErrorDisplay = ({ 
+  error, 
   file,
-  onSwitchToNative
-}) => {
-  if (!error) return null;
+  onSwitchToNative,
+  onRetryUrl
+}: AudioErrorDisplayProps) => {
+  const isBlobUrlError = error?.toLowerCase().includes('request range') || 
+                        error?.includes('ERR_REQUEST_RANGE_NOT_SATISFIABLE');
+  
+  const isNotAllowedError = error?.includes('NotAllowedError') || 
+                           (error?.includes('play()') && error?.includes('user'));
 
-  const isFormatError = error.toLowerCase().includes('format') || 
-                        error.toLowerCase().includes('codec') ||
-                        error.toLowerCase().includes('unsupported');
-
-  const handleSwitchClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (onSwitchToNative) {
-      console.log('[AudioErrorDisplay] Switching to native audio player');
-      onSwitchToNative();
+  const handleRetryUrl = async () => {
+    if (onRetryUrl) {
+      try {
+        const success = await onRetryUrl();
+        if (success) {
+          console.log('[AudioErrorDisplay] Successfully refreshed blob URL');
+        } else {
+          console.log('[AudioErrorDisplay] Failed to refresh blob URL, switching to native');
+          if (onSwitchToNative) onSwitchToNative();
+        }
+      } catch (e) {
+        console.error('[AudioErrorDisplay] Error retrying URL:', e);
+        if (onSwitchToNative) onSwitchToNative();
+      }
     }
   };
-
+  
   return (
-    <Alert variant="destructive" className="mb-4">
+    <Alert variant="destructive" className="relative">
       <AlertCircle className="h-4 w-4" />
-      <AlertTitle>Error de reproducción</AlertTitle>
-      <AlertDescription className="mt-2">
-        <p className="mb-2">{isFormatError 
-          ? 'El archivo de audio tiene un formato no compatible con este reproductor.' 
-          : 'Ha ocurrido un error al reproducir el audio.'
-        }</p>
-        
-        {isFormatError && onSwitchToNative && (
+      <AlertTitle className="text-sm font-semibold">
+        {isBlobUrlError 
+          ? 'Error de reproducción (URL no válida)' 
+          : isNotAllowedError 
+            ? 'Error de reproducción (interacción requerida)' 
+            : 'Error de reproducción'}
+      </AlertTitle>
+      <AlertDescription className="text-xs">
+        {isBlobUrlError 
+          ? 'La URL del audio ya no es válida. Esto puede ocurrir después de recargar la página.' 
+          : isNotAllowedError
+            ? 'El navegador requiere interacción del usuario antes de reproducir audio.'
+            : (error || 'Error desconocido durante la reproducción')}
+      </AlertDescription>
+      
+      <div className="flex gap-2 mt-2">
+        {isBlobUrlError && onRetryUrl && (
           <Button 
             variant="outline" 
             size="sm" 
-            className="mt-2" 
-            onClick={handleSwitchClick}
+            onClick={handleRetryUrl}
+            className="text-xs"
           >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Cambiar a reproductor nativo
+            <RefreshCw className="mr-1 h-3 w-3" />
+            Actualizar URL
           </Button>
         )}
         
-        <div className="text-xs mt-2 opacity-70">
-          {file && (
-            <span>
-              Archivo: {file.name} ({Math.round(file.size / 1024)}KB)
-            </span>
-          )}
-        </div>
-      </AlertDescription>
+        {onSwitchToNative && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onSwitchToNative}
+            className="text-xs"
+          >
+            Usar reproductor nativo
+          </Button>
+        )}
+      </div>
     </Alert>
   );
 };

@@ -32,6 +32,7 @@ interface RightSectionProps {
   onPlaybackRateChange: () => void;
   handleTrackSelect: (index: number) => void;
   onSwitchToNative?: () => void;
+  onValidateFileUrl?: () => Promise<boolean>; // New prop to validate file URL before playback
 }
 
 // Use memo to prevent unnecessary re-renders
@@ -54,7 +55,8 @@ const RightSection = memo(({
   onVolumeChange,
   onPlaybackRateChange,
   handleTrackSelect,
-  onSwitchToNative
+  onSwitchToNative,
+  onValidateFileUrl
 }: RightSectionProps) => {
   const { lastPlaybackPosition, setLastPlaybackPosition } = useMediaPersistence();
   const previousTimeRef = useRef<number>(currentTime);
@@ -62,9 +64,16 @@ const RightSection = memo(({
   // Handle document visibility changes to maintain audio playback across tabs
   useEffect(() => {
     const handleVisibilityChange = () => {
-      // When tab becomes visible again, ensure audio state is correctly synced
+      // When tab becomes visible again, ensure audio state is correctly synced and validate Blob URLs
       if (!document.hidden && currentFile) {
         console.log("[RightSection] Tab became visible, ensuring audio state is synced");
+        
+        // Validate current file's blob URL if available
+        if (onValidateFileUrl) {
+          onValidateFileUrl().catch(error => {
+            console.error('[RightSection] Error validating file URL:', error);
+          });
+        }
       }
     };
 
@@ -73,7 +82,16 @@ const RightSection = memo(({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [currentFile]);
+  }, [currentFile, onValidateFileUrl]);
+
+  // When a file is first loaded, validate its URL
+  useEffect(() => {
+    if (currentFile && onValidateFileUrl) {
+      onValidateFileUrl().catch(error => {
+        console.error('[RightSection] Error validating initial file URL:', error);
+      });
+    }
+  }, [currentFile, onValidateFileUrl]);
 
   // Save playback position when it changes significantly
   useEffect(() => {
@@ -127,6 +145,7 @@ const RightSection = memo(({
           error={playbackErrors} 
           file={currentFile}
           onSwitchToNative={onSwitchToNative}
+          onRetryUrl={onValidateFileUrl}
         />
       )}
       

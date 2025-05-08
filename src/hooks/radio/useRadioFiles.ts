@@ -1,10 +1,12 @@
 
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { ensureValidBlobUrl, createNewBlobUrl } from "@/utils/audio-url-validator";
 
 interface UploadedFile extends File {
   preview?: string;
+  isReconstructed?: boolean;
 }
 
 interface UseRadioFilesOptions {
@@ -31,6 +33,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   );
   
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [isRestoringFiles, setIsRestoringFiles] = useState(false);
   
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
     `${persistKey}-current-index`,
@@ -38,43 +41,56 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     { storage }
   );
 
-  // Enhanced file reconstruction on mount/tab changes
+  // Enhanced file reconstruction - now with proper blob URL handling
   useEffect(() => {
     if (fileMetadata.length === 0 || files.length > 0) return;
     
-    try {
-      console.log('[useRadioFiles] Attempting to reconstruct files from metadata:', fileMetadata.length);
-      const reconstructedFiles = fileMetadata.map(meta => {
-        // Create an empty file with the same metadata
-        const file = new File([""], meta.name, { 
-          type: meta.type,
-          lastModified: meta.lastModified
-        });
-        
-        // Set size property
-        Object.defineProperty(file, 'size', {
-          value: meta.size,
-          writable: false
-        });
-        
-        // Add preview URL if available
-        if (meta.preview) {
-          Object.defineProperty(file, 'preview', {
-            value: meta.preview,
+    const reconstructFiles = async () => {
+      setIsRestoringFiles(true);
+      try {
+        console.log('[useRadioFiles] Reconstructing files from metadata:', fileMetadata.length);
+        const reconstructedFiles = await Promise.all(fileMetadata.map(async (meta) => {
+          // Create an empty file with the same metadata
+          const file = new File([""], meta.name, { 
+            type: meta.type,
+            lastModified: meta.lastModified
+          });
+          
+          // Set size property
+          Object.defineProperty(file, 'size', {
+            value: meta.size,
+            writable: false
+          });
+          
+          // Set isReconstructed flag to indicate this file was restored from metadata
+          Object.defineProperty(file, 'isReconstructed', {
+            value: true,
             writable: true
           });
-        }
+          
+          // Always create a new blob URL instead of trying to reuse the old one
+          // Since blob URLs don't survive page reloads
+          const newPreviewUrl = createNewBlobUrl(file);
+          Object.defineProperty(file, 'preview', {
+            value: newPreviewUrl,
+            writable: true
+          });
+          
+          return file as UploadedFile;
+        }));
         
-        return file as UploadedFile;
-      });
-      
-      console.log('[useRadioFiles] Successfully reconstructed files:', reconstructedFiles.map(f => f.name));
-      setFiles(reconstructedFiles);
-    } catch (error) {
-      console.error("[useRadioFiles] Error reconstructing files from metadata:", error);
-      toast.error("Error al cargar archivos guardados");
-      setFileMetadata([]);
-    }
+        console.log('[useRadioFiles] Successfully reconstructed files:', reconstructedFiles.map(f => f.name));
+        setFiles(reconstructedFiles);
+      } catch (error) {
+        console.error("[useRadioFiles] Error reconstructing files from metadata:", error);
+        toast.error("Error al cargar archivos guardados");
+        setFileMetadata([]);
+      } finally {
+        setIsRestoringFiles(false);
+      }
+    };
+    
+    reconstructFiles();
   }, [fileMetadata, setFileMetadata]);
 
   // Sync file metadata when files change
@@ -85,6 +101,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         type: file.type,
         size: file.size,
         lastModified: file.lastModified,
+        // Store the preview URL in metadata, but it won't be valid after page reload
         preview: file.preview
       }));
       
@@ -95,6 +112,38 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
       setFileMetadata([]);
     }
   }, [files, setFileMetadata, fileMetadata.length]);
+
+  // Validate blob URLs for current file - useful to check before playback
+  const validateCurrentFileUrl = useCallback(async () => {
+    if (files.length === 0 || currentFileIndex >= files.length) return false;
+    
+    const currentFile = files[currentFileIndex];
+    if (!currentFile || !currentFile.preview) return false;
+    
+    // Ensure the current file has a valid URL
+    try {
+      const validUrl = await ensureValidBlobUrl(currentFile);
+      
+      // If URL changed, update the file object
+      if (validUrl !== currentFile.preview) {
+        console.log('[useRadioFiles] Updating invalid blob URL for current file');
+        const updatedFiles = [...files];
+        
+        // Update the preview URL for the current file
+        Object.defineProperty(updatedFiles[currentFileIndex], 'preview', {
+          value: validUrl,
+          writable: true
+        });
+        
+        setFiles(updatedFiles);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('[useRadioFiles] Error validating current file URL:', error);
+      return false;
+    }
+  }, [files, currentFileIndex]);
 
   // Cleanup URL objects on unmount
   useEffect(() => {
@@ -110,9 +159,9 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
 
   const currentFile = files.length > 0 && currentFileIndex < files.length 
     ? files[currentFileIndex] 
-    : undefined;
+    : null;
 
-  const handleFilesAdded = (newFiles: File[]) => {
+  const handleFilesAdded = useCallback((newFiles: File[]) => {
     console.log('[useRadioFiles] handleFilesAdded called. Adding:', newFiles.length, 'files');
     if (!newFiles || newFiles.length === 0) {
       return;
@@ -128,6 +177,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
       return;
     }
     
+    // Create file objects with blob URLs
     const uploadedFiles = audioFiles.map((file) => {
       const uploadedFile = new File([file], file.name, { 
         type: file.type,
@@ -157,9 +207,9 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
       console.log('[useRadioFiles] Files after adding:', updatedFiles.length);
       return updatedFiles;
     });
-  };
+  }, []);
 
-  const handleRemoveFile = (index: number) => {
+  const handleRemoveFile = useCallback((index: number) => {
     setFiles(prevFiles => {
       const newFiles = [...prevFiles];
       // Revoke object URL before removing
@@ -178,7 +228,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
       
       return newFiles;
     });
-  };
+  }, [currentFileIndex, setCurrentFileIndex]);
 
   return {
     files,
@@ -186,7 +236,9 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     currentFileIndex,
     setCurrentFileIndex,
     currentFile,
+    isRestoringFiles,
     handleFilesAdded,
-    handleRemoveFile
+    handleRemoveFile,
+    validateCurrentFileUrl
   };
 };

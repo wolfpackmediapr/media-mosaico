@@ -12,12 +12,14 @@ interface ViewModeToggleProps {
   mode: 'interactive' | 'edit';
   onChange: (mode: 'interactive' | 'edit') => void;
   hasUtterances: boolean;
+  disabled?: boolean;
 }
 
 const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
   mode,
   onChange,
-  hasUtterances
+  hasUtterances,
+  disabled = false
 }) => {
   if (!hasUtterances) {
     return null;
@@ -33,6 +35,7 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
               size="sm"
               onClick={() => onChange('edit')}
               className="rounded-none border-0 flex-1"
+              disabled={disabled}
             >
               <Edit className="h-4 w-4 mr-2" />
               Normal
@@ -50,6 +53,7 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
               size="sm"
               onClick={() => onChange('interactive')}
               className="rounded-none border-0 flex-1"
+              disabled={disabled}
             >
               <Headphones className="h-4 w-4 mr-2" />
               Interactivo
