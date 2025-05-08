@@ -1,3 +1,4 @@
+
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
@@ -79,9 +80,10 @@ export const useRadioFiles = ({
   const { isAuthenticated } = useAuthStatus();
   const [isUploading, setIsUploading] = useState<Record<string, boolean>>({});
   
-  // Fixed: Use string concatenation to ensure the key is a string
+  // Fix: Ensure persistKey is always a string before concatenation
+  const indexKey = typeof persistKey === 'string' ? persistKey + "-current-index" : "radio-files-current-index";
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
-    persistKey + "-current-index", // Ensure it's a string with explicit concatenation
+    indexKey, // Now guaranteed to be a string
     0,
     { storage }
   );
