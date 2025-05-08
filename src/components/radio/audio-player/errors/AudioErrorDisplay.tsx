@@ -9,13 +9,15 @@ interface AudioErrorDisplayProps {
   file: File;
   onSwitchToNative?: () => void;
   onRetryUrl?: () => Promise<boolean>;
+  onTryStorageUrl?: () => Promise<boolean>;
 }
 
 export const AudioErrorDisplay = ({ 
   error, 
   file,
   onSwitchToNative,
-  onRetryUrl
+  onRetryUrl,
+  onTryStorageUrl
 }: AudioErrorDisplayProps) => {
   const isBlobUrlError = error?.toLowerCase().includes('request range') || 
                         error?.includes('ERR_REQUEST_RANGE_NOT_SATISFIABLE');
@@ -40,6 +42,26 @@ export const AudioErrorDisplay = ({
     }
   };
   
+  const handleTryStorageUrl = async () => {
+    if (onTryStorageUrl) {
+      try {
+        const success = await onTryStorageUrl();
+        if (success) {
+          console.log('[AudioErrorDisplay] Successfully switched to storage URL');
+        } else {
+          console.log('[AudioErrorDisplay] Failed to use storage URL, switching to native');
+          if (onSwitchToNative) onSwitchToNative();
+        }
+      } catch (e) {
+        console.error('[AudioErrorDisplay] Error using storage URL:', e);
+        if (onSwitchToNative) onSwitchToNative();
+      }
+    }
+  };
+  
+  // Check if the file has a storageUrl property (indicating it's from Supabase)
+  const hasStorageUrl = (file as any).storageUrl || ((file as any).preview && !((file as any).preview as string).startsWith('blob:'));
+  
   return (
     <Alert variant="destructive" className="relative">
       <AlertCircle className="h-4 w-4" />
@@ -59,6 +81,18 @@ export const AudioErrorDisplay = ({
       </AlertDescription>
       
       <div className="flex gap-2 mt-2">
+        {isBlobUrlError && onTryStorageUrl && hasStorageUrl && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleTryStorageUrl}
+            className="text-xs"
+          >
+            <RefreshCw className="mr-1 h-3 w-3" />
+            Usar URL almacenada
+          </Button>
+        )}
+
         {isBlobUrlError && onRetryUrl && (
           <Button 
             variant="outline" 

@@ -3,10 +3,14 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { ensureValidBlobUrl, createNewBlobUrl } from "@/utils/audio-url-validator";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuthStatus } from "@/hooks/use-auth-status";
 
 interface UploadedFile extends File {
   preview?: string;
   isReconstructed?: boolean;
+  storagePath?: string;  // Supabase storage path
+  storageUrl?: string;   // Public URL from Supabase
 }
 
 interface UseRadioFilesOptions {
@@ -26,6 +30,9 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     size: number;
     lastModified: number;
     preview?: string;
+    storagePath?: string;
+    storageUrl?: string;
+    id?: string;
   }>>(
     `${persistKey}-metadata`,
     [],
@@ -34,6 +41,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isRestoringFiles, setIsRestoringFiles] = useState(false);
+  const { isAuthenticated } = useAuthStatus();
   
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
     `${persistKey}-current-index`,
@@ -41,7 +49,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     { storage }
   );
 
-  // Enhanced file reconstruction - now with proper blob URL handling
+  // Enhanced file reconstruction - with proper storage URLs handling
   useEffect(() => {
     if (fileMetadata.length === 0 || files.length > 0) return;
     
@@ -68,13 +76,41 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
             writable: true
           });
           
-          // Always create a new blob URL instead of trying to reuse the old one
-          // Since blob URLs don't survive page reloads
-          const newPreviewUrl = createNewBlobUrl(file);
-          Object.defineProperty(file, 'preview', {
-            value: newPreviewUrl,
-            writable: true
-          });
+          // Set Supabase storage path and URL if available
+          if (meta.storagePath) {
+            Object.defineProperty(file, 'storagePath', {
+              value: meta.storagePath,
+              writable: true
+            });
+          }
+          
+          // Prefer Supabase URL if available for the preview
+          if (meta.storageUrl) {
+            Object.defineProperty(file, 'storageUrl', {
+              value: meta.storageUrl,
+              writable: true
+            });
+            
+            Object.defineProperty(file, 'preview', {
+              value: meta.storageUrl,
+              writable: true
+            });
+          } else {
+            // Fallback to creating a new blob URL
+            const newPreviewUrl = createNewBlobUrl(file);
+            Object.defineProperty(file, 'preview', {
+              value: newPreviewUrl,
+              writable: true
+            });
+          }
+          
+          // Set ID if available
+          if (meta.id) {
+            Object.defineProperty(file, 'id', {
+              value: meta.id,
+              writable: true
+            });
+          }
           
           return file as UploadedFile;
         }));
@@ -101,8 +137,10 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         type: file.type,
         size: file.size,
         lastModified: file.lastModified,
-        // Store the preview URL in metadata, but it won't be valid after page reload
-        preview: file.preview
+        preview: file.preview,
+        storagePath: (file as any).storagePath,
+        storageUrl: (file as any).storageUrl,
+        id: (file as any).id
       }));
       
       console.log('[useRadioFiles] Syncing file metadata:', metadata.length);
@@ -120,36 +158,45 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     const currentFile = files[currentFileIndex];
     if (!currentFile || !currentFile.preview) return false;
     
-    // Ensure the current file has a valid URL
-    try {
-      const validUrl = await ensureValidBlobUrl(currentFile);
-      
-      // If URL changed, update the file object
-      if (validUrl !== currentFile.preview) {
-        console.log('[useRadioFiles] Updating invalid blob URL for current file');
-        const updatedFiles = [...files];
-        
-        // Update the preview URL for the current file
-        Object.defineProperty(updatedFiles[currentFileIndex], 'preview', {
-          value: validUrl,
-          writable: true
-        });
-        
-        setFiles(updatedFiles);
-      }
-      
+    // If it's a Supabase URL, no need to validate
+    if (currentFile.storageUrl && currentFile.preview === currentFile.storageUrl) {
       return true;
-    } catch (error) {
-      console.error('[useRadioFiles] Error validating current file URL:', error);
-      return false;
     }
+    
+    // For blob URLs, ensure validity
+    if (currentFile.preview.startsWith('blob:')) {
+      try {
+        const validUrl = await ensureValidBlobUrl(currentFile);
+        
+        // If URL changed, update the file object
+        if (validUrl !== currentFile.preview) {
+          console.log('[useRadioFiles] Updating invalid blob URL for current file');
+          const updatedFiles = [...files];
+          
+          // Update the preview URL for the current file
+          Object.defineProperty(updatedFiles[currentFileIndex], 'preview', {
+            value: validUrl,
+            writable: true
+          });
+          
+          setFiles(updatedFiles);
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('[useRadioFiles] Error validating current file URL:', error);
+        return false;
+      }
+    }
+    
+    return true; // For non-blob URLs (like Supabase URLs)
   }, [files, currentFileIndex]);
 
   // Cleanup URL objects on unmount
   useEffect(() => {
     return () => {
       files.forEach(file => {
-        if (file.preview) {
+        if (file.preview && file.preview.startsWith('blob:')) {
           URL.revokeObjectURL(file.preview);
         }
       });

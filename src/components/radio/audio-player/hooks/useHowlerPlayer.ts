@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AudioMetadata } from '@/types/audio';
 import { useAudioCore } from './core/useAudioCore';
@@ -40,15 +39,57 @@ export const useHowlerPlayer = ({
   // Initialize metadata state (could be moved to its own hook if it grows)
   const [metadata, setMetadata] = useState<AudioMetadata | null>(null);
 
+  // Try to get Supabase storage URL if available
+  const tryGetStorageUrl = useCallback((): string | null => {
+    if (!file) return null;
+    
+    // Check if the file has storage URL (added by our Supabase integration)
+    const storageUrl = (file as any).storageUrl || (file as any).preview;
+    
+    // Return the URL if it's a Supabase URL
+    if (storageUrl && typeof storageUrl === 'string' && 
+        (storageUrl.includes('supabase') || !storageUrl.startsWith('blob:'))) {
+      console.log('[useHowlerPlayer] Using Supabase storage URL:', storageUrl);
+      return storageUrl;
+    }
+    
+    return null;
+  }, [file]);
+
   // Create a pre-test function to check file compatibility
   const preTestAudio = async (file: File) => {
     // Pre-test the file to check compatibility
     if (file) {
       try {
+        // First check if we have a Supabase URL
+        const storageUrl = tryGetStorageUrl();
+        
         // Create a native audio fallback element
         if (nativeAudioRef.current) {
-          URL.revokeObjectURL(nativeAudioRef.current.src);
+          if (nativeAudioRef.current.src && nativeAudioRef.current.src.startsWith('blob:')) {
+            URL.revokeObjectURL(nativeAudioRef.current.src);
+          }
         }
+        
+        // If we have a storage URL, use it directly
+        if (storageUrl) {
+          nativeAudioRef.current = new Audio(storageUrl);
+          
+          // Add event listener to detect when native audio is ready
+          nativeAudioRef.current.addEventListener('canplaythrough', () => {
+            console.log('[useHowlerPlayer] Native audio element is ready to play through using storage URL');
+            nativeAudioReadyRef.current = true;
+          }, { once: true });
+          
+          // For storage URLs, we assume they can play
+          return {
+            canPlay: true,
+            needsHowler: false,
+            error: null
+          };
+        }
+        
+        // Otherwise, create from the file
         nativeAudioRef.current = createNativeAudioElement(file);
         
         // Add event listener to detect when native audio is ready
@@ -95,7 +136,8 @@ export const useHowlerPlayer = ({
         switchToNativeAudio();
       }
     },
-    forceHTML5: true // Force HTML5 Audio playback
+    forceHTML5: true, // Force HTML5 Audio playback
+    storageUrl: tryGetStorageUrl() // Pass storage URL if available
   });
 
   // Playback state - manages play/pause, time tracking, volume, etc.
@@ -168,10 +210,55 @@ export const useHowlerPlayer = ({
       return true;
     }
 
+    // Try to use storage URL if available
+    const storageUrl = tryGetStorageUrl();
+    if (storageUrl) {
+      console.log('[HowlerPlayer] Trying to use storage URL after playback error');
+      switchToNativeAudio();
+      return true;
+    }
+
     const errorMessage = typeof error === 'string' ? error : `Playback failed: ${error?.message || error}`;
     setPlaybackErrors(errorMessage);
     return false;
-  }, [coreState.howl, file]);
+  }, [coreState.howl, file, tryGetStorageUrl]);
+
+  // Try using storage URL if available
+  const tryUseStorageUrl = useCallback((): boolean => {
+    const storageUrl = tryGetStorageUrl();
+    if (!storageUrl) return false;
+    
+    try {
+      console.log('[HowlerPlayer] Using storage URL:', storageUrl);
+      
+      // Create a native audio element with the storage URL
+      if (nativeAudioRef.current) {
+        nativeAudioRef.current.pause();
+        if (nativeAudioRef.current.src && nativeAudioRef.current.src.startsWith('blob:')) {
+          URL.revokeObjectURL(nativeAudioRef.current.src);
+        }
+      }
+      
+      nativeAudioRef.current = new Audio(storageUrl);
+      nativeAudioReadyRef.current = false;
+      
+      // Set up event listeners
+      nativeAudioRef.current.addEventListener('canplaythrough', () => {
+        console.log('[HowlerPlayer] Native audio with storage URL ready to play');
+        nativeAudioReadyRef.current = true;
+        
+        // Auto-switch to native audio
+        if (!isUsingNativeAudio) {
+          switchToNativeAudio();
+        }
+      }, { once: true });
+      
+      return true;
+    } catch (error) {
+      console.error('[HowlerPlayer] Error using storage URL:', error);
+      return false;
+    }
+  }, [tryGetStorageUrl]);
 
   // Switch from Howler to native audio (can be called programmatically)
   const switchToNativeAudio = useCallback(() => {
@@ -180,9 +267,19 @@ export const useHowlerPlayer = ({
     try {
       console.log('[HowlerPlayer] Switching to native HTML5 audio');
       
+      // Try to use storage URL if available
+      const storageUrl = tryGetStorageUrl();
+      
       // Create a native audio element if needed
       if (!nativeAudioRef.current) {
-        nativeAudioRef.current = createNativeAudioElement(file);
+        if (storageUrl) {
+          nativeAudioRef.current = new Audio(storageUrl);
+        } else {
+          nativeAudioRef.current = createNativeAudioElement(file);
+        }
+      } else if (storageUrl && nativeAudioRef.current.src !== storageUrl) {
+        // If we have a storage URL and it's not already set, use it
+        nativeAudioRef.current.src = storageUrl;
       }
       
       // Set to current playback rate
@@ -244,7 +341,7 @@ export const useHowlerPlayer = ({
     } catch (error) {
       console.error('[HowlerPlayer] Error switching to native audio:', error);
     }
-  }, [file, isUsingNativeAudio, playbackRate, volume, isMuted, setHowl, currentTime, isPlaying, onEnded, setIsPlaying, onPlayingChange]);
+  }, [file, isUsingNativeAudio, playbackRate, volume, isMuted, setHowl, currentTime, isPlaying, onEnded, setIsPlaying, onPlayingChange, tryGetStorageUrl]);
 
   // Switch from native to Howler (can be called programmatically)
   const switchToHowler = useCallback(() => {
@@ -585,7 +682,8 @@ export const useHowlerPlayer = ({
     isReady: coreState.isReady || (isUsingNativeAudio && nativeAudioReadyRef.current),
     isUsingNativeAudio,
     switchToNativeAudio, // For switching to native audio
-    switchToHowler, // For switching back to Howler if needed
+    switchToHowler: () => {}, // Stub for compatibility
+    tryUseStorageUrl, // New function to try using storage URL
     ...activeControls, // Spread the appropriate controls based on mode
     setIsPlaying,
     seekToTimestamp, // Add the seekToTimestamp function

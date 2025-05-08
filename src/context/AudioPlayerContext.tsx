@@ -11,6 +11,7 @@ interface AudioPlayerContextType extends AudioPlayerState, AudioControls {
   metadata: any;
   playbackErrors?: string | null;
   seekToTimestamp: (time: number) => void;
+  tryUseStorageUrl?: () => boolean;
 }
 
 // Default values for the context
@@ -72,7 +73,8 @@ export const AudioPlayerProvider = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp
+    seekToTimestamp,
+    tryUseStorageUrl
   } = useAudioPlayer({
     file: file || new File([], "placeholder"),
     onEnded,
@@ -103,7 +105,8 @@ export const AudioPlayerProvider = ({
     onToggleMute: handleToggleMute,
     onVolumeChange: handleVolumeChange,
     onPlaybackRateChange: handlePlaybackRateChange,
-    seekToTimestamp
+    seekToTimestamp,
+    tryUseStorageUrl
   }), [
     isPlaying,
     currentTime,
@@ -120,7 +123,8 @@ export const AudioPlayerProvider = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp
+    seekToTimestamp,
+    tryUseStorageUrl
   ]);
 
   return (
