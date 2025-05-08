@@ -25,38 +25,76 @@ export const useRadioActions = ({
   clearAllStorageState,
 }: UseRadioActionsProps) => {
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const [isClearingAll, setIsClearingAll] = useState<boolean>(false);
 
   const handleClearAll = useCallback(async () => {
+    if (isClearingAll) return; // Prevent multiple clicks
+    
+    setIsClearingAll(true);
     console.log('[RadioActions] handleClearAll: Starting clear sequence');
+    
     try {
-      // Reset state in this specific order for best results
-      resetTranscription();
-      console.log('[RadioActions] Transcription reset');
+      // Show toast first so user knows action is processing
+      toast.loading('Borrando datos...', { id: 'clear-all-toast' });
       
+      // First reset state that doesn't depend on storage
       setNewsSegments([]);
       console.log('[RadioActions] News segments cleared');
       
+      // Reset transcription (may involve UI updates)
+      await new Promise(resolve => {
+        setTimeout(() => {
+          resetTranscription();
+          console.log('[RadioActions] Transcription reset');
+          resolve(true);
+        }, 0);
+      });
+      
       // Clear files and reset index before storage to avoid rehydration issues
-      setFiles([]);
-      setCurrentFileIndex(0);
-      console.log('[RadioActions] Files cleared');
+      // Use separate microtasks to avoid UI freeze
+      await new Promise(resolve => {
+        setTimeout(() => {
+          // Revoke any object URLs to prevent memory leaks
+          files.forEach(file => {
+            if (file.preview) {
+              URL.revokeObjectURL(file.preview);
+            }
+          });
+          setFiles([]);
+          setCurrentFileIndex(0);
+          console.log('[RadioActions] Files cleared');
+          resolve(true);
+        }, 0);
+      });
       
-      // Await storage clearing to make sure it completes
-      await clearAllStorageState();
-      console.log('[RadioActions] Storage state cleared');
+      // Finally clear storage state with another microtask
+      await new Promise(resolve => {
+        setTimeout(async () => {
+          await clearAllStorageState();
+          console.log('[RadioActions] Storage state cleared');
+          resolve(true);
+        }, 0);
+      });
       
-      // Set a timeout to ensure UI has time to update
-      setTimeout(() => {
-        toast.success('Todos los datos han sido borrados');
-      }, 100);
+      // Update toast on success
+      toast.success('Todos los datos han sido borrados', { id: 'clear-all-toast' });
     } catch (error) {
       console.error('[RadioActions] Error during clear all:', error);
-      toast.error('Error al borrar los datos almacenados.');
+      toast.error('Error al borrar los datos almacenados.', { id: 'clear-all-toast' });
     } finally {
       // Mark last action as clear for any components that need to respond
       setLastAction('clear');
+      setIsClearingAll(false);
     }
-  }, [resetTranscription, setNewsSegments, setFiles, setCurrentFileIndex, clearAllStorageState]);
+  }, [
+    isClearingAll,
+    resetTranscription, 
+    setNewsSegments, 
+    setFiles, 
+    setCurrentFileIndex, 
+    clearAllStorageState,
+    files
+  ]);
 
   const handleTrackSelect = useCallback((index: number) => {
     if (index !== currentFileIndex) {
@@ -84,5 +122,6 @@ export const useRadioActions = ({
     handleClearAll,
     handleTrackSelect,
     handleFilesAdded, // Export the enhanced version
+    isClearingAll
   };
 };

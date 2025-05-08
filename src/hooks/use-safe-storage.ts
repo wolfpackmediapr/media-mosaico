@@ -14,6 +14,8 @@ export function useSafeStorage(options: SafeStorageOptions = {}) {
   const storageObject = window[storage];
 
   const clearStorageKeys = useCallback(async (keys: string[]) => {
+    if (isClearing) return false; // Prevent concurrent clearing operations
+    
     setIsClearing(true);
     const failedKeys: string[] = [];
 
@@ -27,34 +29,39 @@ export function useSafeStorage(options: SafeStorageOptions = {}) {
         throw new Error('Storage is not available');
       }
 
-      // Clear keys with retries
+      // Process keys in smaller batches to prevent UI freeze
       for (const key of keys) {
         try {
           storageObject.removeItem(key);
+          // Short yield to let browser process other events
+          await new Promise(resolve => setTimeout(resolve, 0));
         } catch (error) {
           console.error(`Error clearing key ${key}:`, error);
           failedKeys.push(key);
         }
       }
 
-      // Retry failed keys once
+      // Retry failed keys once after a short delay
       if (failedKeys.length > 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        const stillFailedKeys: string[] = [];
         for (const key of failedKeys) {
           try {
             storageObject.removeItem(key);
-            const index = failedKeys.indexOf(key);
-            if (index > -1) {
-              failedKeys.splice(index, 1);
-            }
           } catch (error) {
             console.error(`Retry failed for key ${key}:`, error);
+            stillFailedKeys.push(key);
           }
         }
+        
+        // Update failed keys list after retries
+        failedKeys.length = 0;
+        failedKeys.push(...stillFailedKeys);
       }
 
       if (failedKeys.length > 0) {
-        throw new Error(`Failed to clear some storage keys: ${failedKeys.join(', ')}`);
+        console.warn(`Could not clear ${failedKeys.length} storage keys: ${failedKeys.join(', ')}`);
       }
 
       return true;
@@ -64,9 +71,12 @@ export function useSafeStorage(options: SafeStorageOptions = {}) {
       toast.error('Error al limpiar el almacenamiento');
       return false;
     } finally {
-      setIsClearing(false);
+      // Small delay before releasing the clearing flag to prevent rapid reruns
+      setTimeout(() => {
+        setIsClearing(false);
+      }, 50);
     }
-  }, [storage, onError, storageObject]);
+  }, [storage, onError, storageObject, isClearing]);
 
   return {
     clearStorageKeys,

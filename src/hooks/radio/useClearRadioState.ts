@@ -32,11 +32,13 @@ export const useClearRadioState = ({
     clearAnalysisRef.current = fn;
   }, []);
 
+  // Improved state clearing implementation to avoid UI freezing
   const clearAllState = useCallback(async () => {
     if (!mountedRef.current) return;
-
-    console.log('[useClearRadioState] Clearing all state');
     
+    console.log('[useClearRadioState] Starting clear all state operation');
+    
+    // Define keys to delete
     const keysToDelete = [
       `${persistKey}-metadata`,
       `${persistKey}-current-index`,
@@ -52,6 +54,7 @@ export const useClearRadioState = ({
       "radio-transcription-text-content"
     ];
 
+    // Add transcription-specific keys if ID is available
     if (transcriptionId) {
       keysToDelete.push(
         `radio-transcription-${transcriptionId}`,
@@ -64,9 +67,27 @@ export const useClearRadioState = ({
       );
     }
 
-    const success = await clearStorageKeys(keysToDelete);
-
-    if (success) {
+    // Use Promise to handle storage clearing
+    try {
+      // Use microtask to avoid UI freezing
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      // Clear storage in batches to avoid blocking UI
+      const batchSize = 5;
+      for (let i = 0; i < keysToDelete.length; i += batchSize) {
+        const batch = keysToDelete.slice(i, i + batchSize);
+        await clearStorageKeys(batch);
+        
+        // Small delay between batches to let UI breathe
+        if (i + batchSize < keysToDelete.length) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+      
+      // Handle UI-related operations with delays to prevent freeze
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      // Clear analysis state if available
       if (clearAnalysisRef.current) {
         try {
           clearAnalysisRef.current();
@@ -75,6 +96,9 @@ export const useClearRadioState = ({
         }
       }
 
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      // Reset editor if available
       if (editorResetRef.current) {
         try {
           editorResetRef.current();
@@ -83,9 +107,16 @@ export const useClearRadioState = ({
         }
       }
 
+      // Clear text if callback is available
       if (onTextChange) {
         onTextChange("");
       }
+      
+      console.log('[useClearRadioState] Successfully cleared all state');
+      return true;
+    } catch (error) {
+      console.error('[useClearRadioState] Error clearing state:', error);
+      return false;
     }
   }, [persistKey, transcriptionId, onTextChange, clearStorageKeys]);
 
