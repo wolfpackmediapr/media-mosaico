@@ -44,7 +44,7 @@ interface RadioContainerState {
   // State tracking
   lastAction: string | null;
   // Handlers
-  handleClearAll: () => void;
+  handleClearAll: () => Promise<void>;
   handleTrackSelect: (index: number) => void;
   handleFilesAdded: (newFiles: File[]) => void;
   setFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
