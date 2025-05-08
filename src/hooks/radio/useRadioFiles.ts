@@ -1,3 +1,4 @@
+
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
@@ -35,8 +36,9 @@ export const useRadioFiles = ({
   storage = 'sessionStorage',
   maxFiles = 10
 }: UseRadioFilesOptions): UseRadioFilesReturn => {
+  // Make sure to pass persistKey as string to usePersistentState
   const [files, setFiles] = usePersistentState<UploadedFile[]>([], {
-    key: persistKey, // Now this is a string, not an array
+    key: persistKey, // Ensure this is a string
     storage,
     onRestore: async (restoredFiles) => {
       console.log('[useRadioFiles] Restoring files from storage', restoredFiles);
@@ -78,8 +80,9 @@ export const useRadioFiles = ({
   const { isAuthenticated } = useAuthStatus();
   const [isUploading, setIsUploading] = useState<Record<string, boolean>>({});
   
+  // Make sure to use string concatenation for the key
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
-    `${persistKey}-current-index`, // This is now correctly a string
+    persistKey + "-current-index", // Fixed: Use string concatenation instead of template literal
     0,
     { storage }
   );
