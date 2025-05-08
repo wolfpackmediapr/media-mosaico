@@ -30,56 +30,64 @@ export const usePersistentFileStorage = ({
   storage = 'sessionStorage',
   maxFiles = 10
 }: UsePersistentFileStorageOptions): UsePersistentFileStorageReturn => {
-  // Make sure to pass persistKey as string to usePersistentState
-  const [files, setFiles] = usePersistentState<UploadedFile[]>([], {
-    key: persistKey, // Ensure this is a string
-    storage,
-    onRestore: async (restoredFiles) => {
-      console.log('[usePersistentFileStorage] Restoring files from storage', restoredFiles);
-      
-      if (!Array.isArray(restoredFiles)) {
-        console.warn('[usePersistentFileStorage] Restored files is not an array, resetting to empty array');
-        return [];
-      }
-
-      // Enhanced file restoration with proper type handling
-      try {
-        const reconstructedFiles = restoredFiles.map(file => {
-          // Ensure we only use string IDs
-          const fileId = typeof file.id === 'string' ? file.id : 
-                       (file.id ? String(file.id) : '');
-          
-          return {
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            lastModified: file.lastModified,
-            preview: file.preview,
-            storagePath: file.storagePath,
-            storageUrl: file.storageUrl,
-            id: fileId, // Now ensured to be string or empty string
-            isReconstructed: true
-          } as UploadedFile;
-        });
-        
-        return reconstructedFiles;
-      } catch (err) {
-        console.error('[usePersistentFileStorage] Error reconstructing files:', err);
-        return [];
-      }
-    }
+  // Fixed: Properly pass persistKey as a string to usePersistentState as the first parameter
+  const [files, setFiles] = usePersistentState<UploadedFile[]>(persistKey, [], {
+    storage
   });
   
   const [isRestoringFiles, setIsRestoringFiles] = useState(false);
   
-  // Ensure indexKey is always a string, even if persistKey is undefined
+  // Create a proper string for the index key
   const indexKey = `${persistKey || 'radio-files'}-current-index`;
   
+  // Use the correct parameter order: key, initialValue, options
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
     indexKey,
     0,
     { storage }
   );
+
+  // Fix: Handle file restoration logic in a useEffect
+  useEffect(() => {
+    const restoreFiles = async () => {
+      if (files.length > 0) {
+        setIsRestoringFiles(true);
+        console.log('[usePersistentFileStorage] Restoring files from storage', files);
+        
+        try {
+          // Reconstruct files if needed
+          const reconstructedFiles = await Promise.all(files.map(async (file) => {
+            // Ensure we only use string IDs
+            const fileId = typeof file.id === 'string' ? file.id : 
+                        (file.id ? String(file.id) : '');
+            
+            return {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              lastModified: file.lastModified,
+              preview: file.preview,
+              storagePath: file.storagePath,
+              storageUrl: file.storageUrl,
+              id: fileId, // Now ensured to be string or empty string
+              isReconstructed: true
+            } as UploadedFile;
+          }));
+          
+          // Only update if we need to
+          if (JSON.stringify(reconstructedFiles) !== JSON.stringify(files)) {
+            setFiles(reconstructedFiles);
+          }
+        } catch (err) {
+          console.error('[usePersistentFileStorage] Error reconstructing files:', err);
+        } finally {
+          setIsRestoringFiles(false);
+        }
+      }
+    };
+    
+    restoreFiles();
+  }, []);
 
   // Handle adding new files
   const addFiles = useCallback((newFiles: File[]) => {
