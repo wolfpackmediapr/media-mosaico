@@ -11,7 +11,8 @@ interface AudioPlayerContextType extends AudioPlayerState, AudioControls {
   metadata: any;
   playbackErrors?: string | null;
   seekToTimestamp: (time: number) => void;
-  tryUseStorageUrl?: () => boolean;
+  // Fix: Update type to match actual implementation (Promise<boolean> instead of boolean)
+  tryUseStorageUrl?: () => Promise<boolean>;
 }
 
 // Default values for the context
