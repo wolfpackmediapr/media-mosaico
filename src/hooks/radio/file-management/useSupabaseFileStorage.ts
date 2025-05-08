@@ -28,7 +28,11 @@ export const useSupabaseFileStorage = ({
 
   // Upload a file to Supabase storage
   const uploadFileToStorage = useCallback(async (file: UploadedFile): Promise<boolean> => {
-    if (!isAuthenticated) return false;
+    if (!isAuthenticated) {
+      // Handle gracefully - not authenticated
+      console.log('[useSupabaseFileStorage] User not authenticated, skipping upload');
+      return false;
+    }
     
     // Skip if the file already has a storage URL
     if (file.storagePath && file.storageUrl) return true;
@@ -75,7 +79,10 @@ export const useSupabaseFileStorage = ({
 
   // Synchronize all files with Supabase storage
   const syncFilesToSupabase = useCallback(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      console.log('[useSupabaseFileStorage] User not authenticated, skipping sync');
+      return;
+    }
     
     files.forEach(file => {
       // Skip already uploaded files
