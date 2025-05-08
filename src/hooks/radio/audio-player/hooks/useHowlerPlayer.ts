@@ -806,4 +806,9 @@ export const useHowlerPlayer = ({
     switchToHowler,
     tryUseStorageUrl,
     ...activeControls, // Spread the appropriate controls based on mode
-    setIsPlaying, // Expose setIsPlaying for external
+    setIsPlaying, // Expose setIsPlaying for external control
+    seekToTimestamp,
+    handleVolumeUp,
+    handleVolumeDown
+  };
+};
