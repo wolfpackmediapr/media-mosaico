@@ -1,3 +1,4 @@
+
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
@@ -61,7 +62,7 @@ export const useRadioFiles = ({
             preview: file.preview,
             storagePath: file.storagePath,
             storageUrl: file.storageUrl,
-            id: fileId,
+            id: fileId, // Now ensured to be string or empty string
             isReconstructed: true
           } as UploadedFile;
         });

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
@@ -166,27 +167,30 @@ export const useRadioContainerState = ({
     onTextChange
   });
 
-  // Radio actions
+  // Define the handler for adding files before using it in radioActions
+  const handleFilesAddedOriginal = (newFiles: File[]) => {
+    addFiles(newFiles);
+  };
+  
+  // Radio actions - now with all required props
   const radioActions = useRadioActions({
     files,
     currentFileIndex,
     setCurrentFileIndex,
     resetTranscription,
     setNewsSegments,
-    clearAllStorageState
+    clearAllStorageState,
+    setFiles,
+    handleFilesAddedOriginal  // Add the missing required props
   });
   
   // Extract properties from radioActions
   const {
     lastAction,
     handleClearAll,
-    handleTrackSelect
+    handleTrackSelect,
+    handleFilesAdded
   } = radioActions;
-  
-  // Define handleFilesAdded function that uses addFiles from useRadioFiles
-  const handleFilesAdded = (newFiles: File[]) => {
-    addFiles(newFiles);
-  };
 
   // Return the complete state and handlers
   return {

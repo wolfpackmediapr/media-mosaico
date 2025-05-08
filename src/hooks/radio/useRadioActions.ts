@@ -6,7 +6,7 @@ import { UploadedFile } from '@/components/radio/types';
 interface UseRadioActionsProps {
   files: UploadedFile[];
   currentFileIndex: number;
-  setFiles: (files: UploadedFile[]) => void;
+  setFiles: (files: UploadedFile[] | ((prev: UploadedFile[]) => UploadedFile[])) => void;
   setCurrentFileIndex: (index: number) => void;
   handleFilesAddedOriginal: (newFiles: File[]) => void; // Renamed to avoid conflict
   resetTranscription: () => void;
