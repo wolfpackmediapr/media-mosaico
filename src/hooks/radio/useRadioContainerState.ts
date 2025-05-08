@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
@@ -146,7 +147,7 @@ export const useRadioContainerState = ({
     handleTranscriptionProcessingError
   } = useTranscriptionManagement();
 
-  // State clearing logic - type signature updated to Promise<void>
+  // State clearing logic
   const {
     clearAllState: clearAllStorageState,
     handleEditorRegisterReset,
@@ -174,7 +175,7 @@ export const useRadioContainerState = ({
     addFiles(newFiles);
   };
   
-  // Radio actions - with all required props
+  // Radio actions with all required props
   const radioActions = useRadioActions({
     files,
     currentFileIndex,
@@ -183,7 +184,10 @@ export const useRadioContainerState = ({
     handleFilesAddedOriginal,
     resetTranscription,
     setNewsSegments,
-    clearAllStorageState
+    clearAllStorageState,
+    transcriptionId,
+    persistKey,
+    onTextChange
   });
   
   // Extract properties from radioActions
@@ -209,7 +213,7 @@ export const useRadioContainerState = ({
     transcriptionResult,
     metadata,
     newsSegments,
-    // Player state from our new hook
+    // Player state from our hook
     ...playerState,
     // State tracking
     lastAction,
