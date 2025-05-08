@@ -11,11 +11,20 @@ import { ensureAudioVolumeFormat } from '@/utils/audio-volume-adapter';
 interface HowlerPlayerHookProps {
   file?: File;
   onEnded?: () => void;
-  onError?: () => void;
+  onError?: (error: string) => void;
   preservePlaybackOnBlur?: boolean;
   resumeOnFocus?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
   preferNative?: boolean;
+}
+
+interface UseAudioCoreProps {
+  file?: File;
+  onEnded?: () => void;
+  onError?: (error: string) => void;
+  forceHTML5?: boolean;
+  // Add the missing property in the interface
+  onInvalidBlobUrl?: (file: File) => void;
 }
 
 export const useHowlerPlayer = ({
@@ -110,7 +119,8 @@ export const useHowlerPlayer = ({
     }
   }, [isUsingNativeAudio, stopNativeTimeTracking]);
 
-  // Switch from Howler to native audio (can be called programmatically)
+  // Switch from Howler to native audio - needs to be defined before it's used
+  // In the handleInvalidBlobUrl callback reference
   const switchToNativeAudio = useCallback(() => {
     if (!file || isUsingNativeAudio) return;
 
@@ -446,14 +456,14 @@ export const useHowlerPlayer = ({
     isPlaying,
     currentTime: playbackStateCurrentTime,
     duration: coreDuration,
-    // Fix: Use type assertion for volume to match expected parameter type
-    volume: volume as any, // Cast to any to resolve type incompatibilities
+    // Fix: Use proper type
+    volume: volume as any, // Cast to resolve type issues
     isMuted,
     playbackRate,
     setIsPlaying,
     setIsMuted,
-    // Fix: Use type assertion for setVolume to match expected parameter type
-    setVolume: setVolume as any, // Cast to any to resolve type incompatibilities
+    // Fix: Use proper type
+    setVolume: setVolume as any, // Cast to resolve type issues
     setPlaybackRate
   });
 

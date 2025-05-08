@@ -94,6 +94,11 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     return Promise.resolve(false);
   }, []);
 
+  // Add explicit handleToggleMute function that uses toggleMute
+  const handleToggleMute = useCallback(() => {
+    toggleMute();
+  }, [toggleMute]);
+
   return {
     isPlaying,
     currentTime: progress,
@@ -107,6 +112,11 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange: changePlaybackRate,
-    tryUseStorageUrl // Add the missing property
+    tryUseStorageUrl,
+    // Add these properties to match expected interface
+    playbackErrors: null,
+    isLoading: false,
+    isReady: !!howler.current,
+    seekToTimestamp: handleSeek
   };
 };

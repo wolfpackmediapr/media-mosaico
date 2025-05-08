@@ -90,7 +90,7 @@ export const AudioPlayerProvider = ({
     return Array.isArray(volume) ? volume : [volume * 100];
   }, [volume]);
 
-  // Create the context value
+  // Create the context value with all required properties
   const contextValue = useMemo(() => ({
     isPlaying,
     currentTime,
@@ -101,6 +101,7 @@ export const AudioPlayerProvider = ({
     isLoading,
     isReady,
     errors: playbackErrors,
+    playbackErrors,
     metadata: null, // Can be extended when needed
     onPlayPause: handlePlayPause,
     onSeek: handleSeek,
