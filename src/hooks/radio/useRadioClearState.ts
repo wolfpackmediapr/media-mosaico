@@ -1,7 +1,6 @@
 
-import { useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { useClearRadioState } from '@/hooks/radio/useClearRadioState';
 import { RadioNewsSegment } from '@/components/radio/RadioNewsSegmentsContainer';
 import { UploadedFile } from '@/components/radio/types';
 
@@ -60,7 +59,7 @@ export const useRadioClearState = ({
         setTimeout(() => {
           // Revoke any object URLs to prevent memory leaks
           files.forEach(file => {
-            if (file.preview) {
+            if (file.preview && file.preview.startsWith('blob:')) {
               URL.revokeObjectURL(file.preview);
             }
           });
@@ -106,5 +105,3 @@ export const useRadioClearState = ({
     isClearingAll
   };
 };
-
-import { useState } from 'react';

@@ -18,31 +18,6 @@ export async function uploadAudioToSupabase(file: File): Promise<UploadResult> {
   try {
     const bucketName = 'radio_audio';
     
-    // Check if storage bucket exists first
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-    
-    if (listError) {
-      console.error("Error checking buckets:", listError);
-      // Continue anyway, we'll try to use the bucket
-    }
-    
-    const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
-    
-    // Only try to create the bucket if it doesn't exist, but don't fail if we can't create it
-    if (!bucketExists) {
-      console.log('[supabase-storage-helper] Creating radio_audio bucket');
-      try {
-        await supabase.storage.createBucket(bucketName, {
-          public: true,
-          fileSizeLimit: 52428800, // 50MB
-          allowedMimeTypes: ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/mp4', 'audio/webm', 'audio/ogg']
-        });
-      } catch (bucketError) {
-        // Log error but continue - the bucket might already exist but with different permissions
-        console.warn("Could not create bucket, trying to upload anyway:", bucketError);
-      }
-    }
-
     // Generate a unique file path to avoid collisions
     const fileExt = file.name.split('.').pop();
     const safeFileName = file.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();

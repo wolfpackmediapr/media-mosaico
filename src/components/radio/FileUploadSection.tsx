@@ -6,7 +6,7 @@ import { useAudioTranscription } from "@/hooks/useAudioTranscription";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useFileUploadHandlers } from "./useFileUploadHandlers";
 import { UploadedFile } from "./types";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface FileUploadSectionProps {
   files: UploadedFile[];
@@ -22,6 +22,9 @@ interface FileUploadSectionProps {
   setTranscriptionId?: (id?: string) => void;
   onTranscriptionComplete?: (result: TranscriptionResult) => void;
   onFilesAdded?: (newFiles: File[]) => void;
+  uploadProgress?: Record<string, number>;
+  isUploading?: Record<string, boolean>;
+  cancelUpload?: (fileName: string) => void;
 }
 
 const FileUploadSection = ({
@@ -37,10 +40,12 @@ const FileUploadSection = ({
   setTranscriptionText,
   setTranscriptionId,
   onTranscriptionComplete,
-  onFilesAdded
+  onFilesAdded,
+  uploadProgress = {},
+  isUploading = {},
+  cancelUpload
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
-  const { toast } = useToast();
 
   const { handleFilesAdded, handleRemoveFile } = useFileUploadHandlers({
     files,
@@ -88,11 +93,7 @@ const FileUploadSection = ({
       return transcriptionResult;
     } catch (error) {
       console.error("[FileUploadSection] Error processing file:", error);
-      toast({
-        title: "Error",
-        description: "Error al procesar el archivo",
-        variant: "destructive"
-      });
+      toast.error("Error al procesar el archivo");
       return null;
     } finally {
       setIsProcessing(false);
@@ -123,6 +124,9 @@ const FileUploadSection = ({
           setIsProcessing={setIsProcessing}
           setProgress={setProgress}
           setTranscriptionId={setTranscriptionId}
+          uploadProgress={uploadProgress}
+          isUploading={isUploading}
+          cancelUpload={cancelUpload}
         />
       )}
     </>

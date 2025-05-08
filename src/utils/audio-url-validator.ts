@@ -74,7 +74,8 @@ export const createNewBlobUrl = (file: File): string | null => {
   // Create a new blob URL with validation
   try {
     console.log('[audio-url-validator] Creating new blob URL for file:', file.name);
-    return URL.createObjectURL(file);
+    const url = URL.createObjectURL(file);
+    return url;
   } catch (error) {
     console.error('[audio-url-validator] Error creating object URL:', error);
     return null;
@@ -120,7 +121,7 @@ export const ensureValidBlobUrl = async (file: File): Promise<string> => {
   const isValid = await isValidBlobUrl(file.preview as string);
   
   if (!isValid) {
-    console.log('[AudioCore] Blob URL invalid, creating new one');
+    console.log('[audio-url-validator] Blob URL invalid, creating new one');
     const newBlobUrl = createNewBlobUrl(file);
     if (!newBlobUrl) {
       throw new Error('Failed to create blob URL');
@@ -130,4 +131,38 @@ export const ensureValidBlobUrl = async (file: File): Promise<string> => {
   
   // If valid, return it
   return file.preview as string;
+};
+
+/**
+ * Check if a URL is a Supabase Storage URL
+ */
+export const isSupabaseStorageUrl = (url: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  
+  // Check for common Supabase storage URL patterns
+  return url.includes('supabase.co/storage/v1/object/public/') || 
+         url.includes('supabase.co/storage/v1/object/sign/');
+};
+
+/**
+ * Try to convert a preview URL to an actual audio element-compatible URL
+ * This handles both blob URLs and Supabase storage URLs
+ */
+export const getPlayableAudioUrl = (file: any): string | null => {
+  // Check for Supabase storage URL first (most reliable)
+  if (file.storageUrl && typeof file.storageUrl === 'string') {
+    return file.storageUrl;
+  }
+  
+  // Fall back to preview URL if available
+  if (file.preview && typeof file.preview === 'string') {
+    return file.preview;
+  }
+  
+  // Last resort: create a new blob URL if it's a File object
+  if (file instanceof File) {
+    return URL.createObjectURL(file);
+  }
+  
+  return null;
 };

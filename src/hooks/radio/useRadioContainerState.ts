@@ -17,6 +17,7 @@ interface UseRadioContainerStateProps {
   isActiveMediaRoute?: boolean;
   isMediaPlaying?: boolean;
   setIsMediaPlaying?: (isPlaying: boolean) => void;
+  isAuthenticated?: boolean;
 }
 
 // Define the explicit return type for the hook
@@ -44,6 +45,9 @@ interface RadioContainerState {
   playbackErrors: string | null;
   // State tracking
   lastAction: string | null;
+  // Upload status
+  uploadProgress: Record<string, number>;
+  isUploading: Record<string, boolean>;
   // Handlers
   handleClearAll: () => Promise<void>;
   handleTrackSelect: (index: number) => void;
@@ -69,6 +73,7 @@ interface RadioContainerState {
   handleSeekToSegment: (segmentOrTime: RadioNewsSegment | number) => void;
   setNewsSegments: React.Dispatch<React.SetStateAction<RadioNewsSegment[]>>;
   handleTranscriptionProcessingError: (error: any) => void;
+  cancelUpload: (fileName: string) => void;
 }
 
 export const useRadioContainerState = ({
@@ -78,7 +83,8 @@ export const useRadioContainerState = ({
   storage = "sessionStorage",
   isActiveMediaRoute = true,
   isMediaPlaying = false,
-  setIsMediaPlaying = () => {}
+  setIsMediaPlaying = () => {},
+  isAuthenticated = false
 }: UseRadioContainerStateProps): RadioContainerState => {
   // Files state management
   const radioFiles = useRadioFiles({
@@ -94,7 +100,10 @@ export const useRadioContainerState = ({
     setCurrentFileIndex,
     addFiles,
     removeFile,
-    isRestoringFiles
+    isRestoringFiles,
+    uploadProgress,
+    isUploading,
+    cancelUpload
   } = radioFiles;
 
   // Function to set files correctly
@@ -217,6 +226,9 @@ export const useRadioContainerState = ({
     ...playerState,
     // State tracking
     lastAction,
+    // Upload status
+    uploadProgress,
+    isUploading,
     // Handlers
     handleClearAll,
     handleTrackSelect,
@@ -234,6 +246,7 @@ export const useRadioContainerState = ({
     handleEditorRegisterReset,
     setClearAnalysis,
     setNewsSegments,
-    handleTranscriptionProcessingError
+    handleTranscriptionProcessingError,
+    cancelUpload
   };
 };
