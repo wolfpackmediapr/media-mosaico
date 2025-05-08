@@ -1,4 +1,3 @@
-
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
@@ -12,35 +11,69 @@ interface UploadedFile extends File {
   isReconstructed?: boolean;
   storagePath?: string;  // Supabase storage path
   storageUrl?: string;   // Public URL from Supabase
+  id?: string;          // Make id explicitly a string type
 }
 
 interface UseRadioFilesOptions {
   persistKey?: string;
   storage?: 'localStorage' | 'sessionStorage';
+  maxFiles?: number;
 }
 
-export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
-  const {
-    persistKey = "radio-files",
-    storage = 'sessionStorage',
-  } = options;
+interface UseRadioFilesReturn {
+  files: UploadedFile[];
+  currentFile: UploadedFile | null;
+  currentFileIndex: number;
+  setCurrentFileIndex: React.Dispatch<React.SetStateAction<number>>;
+  addFiles: (newFiles: File[]) => void;
+  removeFile: (indexToRemove: number) => void;
+  isRestoringFiles: boolean;
+}
 
-  const [fileMetadata, setFileMetadata] = usePersistentState<Array<{
-    name: string;
-    type: string;
-    size: number;
-    lastModified: number;
-    preview?: string;
-    storagePath?: string;
-    storageUrl?: string;
-    id?: string;
-  }>>(
-    `${persistKey}-metadata`,
-    [],
-    { storage }
-  );
+export const useRadioFiles = ({
+  persistKey = 'radio-files',
+  storage = 'sessionStorage',
+  maxFiles = 10
+}: UseRadioFilesOptions): UseRadioFilesReturn => {
+  const [files, setFiles] = usePersistentState<UploadedFile[]>([], {
+    key: persistKey,
+    storage,
+    onRestore: async (restoredFiles) => {
+      console.log('[useRadioFiles] Restoring files from storage', restoredFiles);
+      
+      if (!Array.isArray(restoredFiles)) {
+        console.warn('[useRadioFiles] Restored files is not an array, resetting to empty array');
+        return [];
+      }
+
+      // Enhanced file restoration with proper type handling
+      try {
+        const reconstructedFiles = restoredFiles.map(file => {
+          // Ensure we only use string IDs
+          const fileId = typeof file.id === 'string' ? file.id : 
+                       (file.id ? String(file.id) : undefined);
+          
+          return {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            lastModified: file.lastModified,
+            preview: file.preview,
+            storagePath: file.storagePath,
+            storageUrl: file.storageUrl,
+            id: fileId,
+            isReconstructed: true
+          } as UploadedFile;
+        });
+        
+        return reconstructedFiles;
+      } catch (err) {
+        console.error('[useRadioFiles] Error reconstructing files:', err);
+        return [];
+      }
+    }
+  });
   
-  const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isRestoringFiles, setIsRestoringFiles] = useState(false);
   const { isAuthenticated } = useAuthStatus();
   const [isUploading, setIsUploading] = useState<Record<string, boolean>>({});
@@ -77,13 +110,16 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
       file.storageUrl = result.url;
       
       // Update the metadata with the storage info
-      setFileMetadata(prev => prev.map(meta => 
-        meta.name === file.name ? {
-          ...meta,
-          storagePath: result.path,
-          storageUrl: result.url
-        } : meta
-      ));
+      setFiles(prev => prev.map(f => {
+        if (f.name === file.name) {
+          return {
+            ...f,
+            storagePath: result.path,
+            storageUrl: result.url
+          };
+        }
+        return f;
+      }));
       
       console.log('[useRadioFiles] File uploaded successfully:', result.path);
       return true;
@@ -93,118 +129,13 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     } finally {
       setIsUploading(prev => ({ ...prev, [file.name]: false }));
     }
-  }, [isAuthenticated, setFileMetadata, isUploading]);
+  }, [isAuthenticated, setFiles, isUploading]);
 
   // Enhanced file reconstruction - with proper storage URLs handling
   useEffect(() => {
-    if (fileMetadata.length === 0 || files.length > 0) return;
+    if (files.length === 0) return;
     
-    const reconstructFiles = async () => {
-      setIsRestoringFiles(true);
-      try {
-        console.log('[useRadioFiles] Reconstructing files from metadata:', fileMetadata.length);
-        const reconstructedFiles = await Promise.all(fileMetadata.map(async (meta) => {
-          // Create an empty file with the same metadata
-          const file = new File([""], meta.name, { 
-            type: meta.type,
-            lastModified: meta.lastModified
-          });
-          
-          // Set size property
-          Object.defineProperty(file, 'size', {
-            value: meta.size,
-            writable: false
-          });
-          
-          // Set isReconstructed flag to indicate this file was restored from metadata
-          Object.defineProperty(file, 'isReconstructed', {
-            value: true,
-            writable: true
-          });
-          
-          // Set Supabase storage path and URL if available
-          if (meta.storagePath) {
-            Object.defineProperty(file, 'storagePath', {
-              value: meta.storagePath,
-              writable: true
-            });
-          }
-          
-          // Prefer Supabase URL if available for the preview
-          if (meta.storageUrl) {
-            Object.defineProperty(file, 'storageUrl', {
-              value: meta.storageUrl,
-              writable: true
-            });
-            
-            Object.defineProperty(file, 'preview', {
-              value: meta.storageUrl,
-              writable: true
-            });
-            
-            console.log('[useRadioFiles] Restored file with storage URL:', meta.storageUrl);
-          } else {
-            // Fallback to creating a new blob URL
-            const newPreviewUrl = createNewBlobUrl(file);
-            Object.defineProperty(file, 'preview', {
-              value: newPreviewUrl,
-              writable: true
-            });
-            
-            console.log('[useRadioFiles] Restored file with new blob URL');
-          }
-          
-          // Set ID if available
-          if (meta.id) {
-            Object.defineProperty(file, 'id', {
-              value: meta.id,
-              writable: true
-            });
-          }
-          
-          return file as UploadedFile;
-        }));
-        
-        setFiles(reconstructedFiles);
-        
-        // If we're authenticated, try to upload files without storage URLs
-        if (isAuthenticated) {
-          reconstructedFiles.forEach(file => {
-            if (!file.storageUrl) {
-              console.log('[useRadioFiles] File needs to be uploaded to storage:', file.name);
-              // No await - let it happen in background
-              uploadFileToStorage(file);
-            }
-          });
-        }
-      } catch (error) {
-        console.error('[useRadioFiles] Error reconstructing files:', error);
-        toast.error('Error restoring audio files');
-      } finally {
-        setIsRestoringFiles(false);
-      }
-    };
-    
-    reconstructFiles();
-  }, [fileMetadata, isAuthenticated, uploadFileToStorage]);
-
-  // Save metadata when files change
-  useEffect(() => {
-    if (isRestoringFiles || files.length === 0) return;
-    
-    const metadata = files.map(file => ({
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      lastModified: file.lastModified,
-      preview: (file.storageUrl || file.preview) as string,
-      storagePath: file.storagePath as string | undefined,
-      storageUrl: file.storageUrl as string | undefined,
-      id: 'id' in file ? file.id : undefined
-    }));
-    
-    setFileMetadata(metadata);
-  }, [files, setFileMetadata, isRestoringFiles]);
+  }, [files, isAuthenticated, uploadFileToStorage]);
 
   // Handle adding new files
   const addFiles = useCallback((newFiles: File[]) => {
@@ -232,7 +163,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     if (files.length === 0 && processedFiles.length > 0) {
       setCurrentFileIndex(0);
     }
-  }, [files.length, setCurrentFileIndex, isAuthenticated, uploadFileToStorage]);
+  }, [files.length, setCurrentFileIndex, isAuthenticated, uploadFileToStorage, setFiles]);
 
   // Remove a file
   const removeFile = useCallback((indexToRemove: number) => {
@@ -261,7 +192,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         setCurrentFileIndex(newIndex);
       }
     }
-  }, [files, currentFileIndex, setCurrentFileIndex]);
+  }, [files, currentFileIndex, setCurrentFileIndex, setFiles]);
 
   return {
     files,

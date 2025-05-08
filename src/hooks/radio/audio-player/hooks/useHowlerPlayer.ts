@@ -20,15 +20,6 @@ interface HowlerPlayerHookProps {
   preferNative?: boolean;
 }
 
-interface UseAudioCoreProps {
-  file?: File;
-  onEnded?: () => void;
-  onError?: (error: string) => void;
-  forceHTML5?: boolean;
-  onInvalidBlobUrl?: (file: File) => void;
-  storageUrl?: string | null;
-}
-
 export const useHowlerPlayer = ({
   file,
   onEnded,
@@ -124,7 +115,6 @@ export const useHowlerPlayer = ({
       // try switching to native player
       if (nativeAudioReadyRef.current && !isUsingNativeAudio && file) {
         console.log('[useHowlerPlayer] Auto-switching to native audio after Howler error');
-        // We'll call switchToNativeAudio once it's defined
         setTimeout(() => switchToNativeAudio(), 0);
       }
     },
@@ -180,8 +170,7 @@ export const useHowlerPlayer = ({
     }
   }, [isUsingNativeAudio, stopNativeTimeTracking]);
 
-  // Switch from Howler to native audio - needs to be defined before it's used
-  // In the handleInvalidBlobUrl callback reference
+  // Switch from Howler to native audio
   const switchToNativeAudio = useCallback(() => {
     if (!file || isUsingNativeAudio) return;
 
@@ -306,7 +295,7 @@ export const useHowlerPlayer = ({
 
   // Handle play errors with AudioContext resuming
   const handlePlayError = useCallback(async (id: number, error: any): Promise<boolean> => {
-    if (!coreState.howl) return false;
+    if (!howl) return false;
     
     try {
       const errObj = safelyHandleError(error);
@@ -316,11 +305,11 @@ export const useHowlerPlayer = ({
         await audioContext.resume();
         console.log('[HowlerPlayer] AudioContext resumed');
         
-        coreState.howl.play(id); // Try playing again after resuming
+        howl.play(id); // Try playing again after resuming
         return true;
       }
-    } catch (resumeError) { // Renamed error variable
-      const errObj = safelyHandleError(resumeError); // Use renamed variable
+    } catch (resumeError) {
+      const errObj = safelyHandleError(resumeError);
       
       if (errObj && errObj.name === 'AbortError') {
         console.log('[HowlerPlayer] AbortError detected - ignoring as this is expected with rapid interactions');
@@ -339,7 +328,7 @@ export const useHowlerPlayer = ({
     setPlaybackErrors(errorMessage);
     if (onError) onError(errorMessage);
     return false;
-  }, [coreState.howl, file, onError, isUsingNativeAudio, switchToNativeAudio]);
+  }, [howl, file, onError, isUsingNativeAudio, switchToNativeAudio]);
 
   // Switch from native to Howler (can be called programmatically)
   const switchToHowler = useCallback(() => {
@@ -522,10 +511,10 @@ export const useHowlerPlayer = ({
 
   // Use playback controls from core
   const controls = useCorePlaybackControls({
-    howl: !isUsingNativeAudio ? coreState.howl : null,
+    howl: !isUsingNativeAudio ? howl : null,
     isPlaying,
     currentTime: playbackStateCurrentTime,
-    duration: coreState.duration,
+    duration: coreDuration,
     volume: volume, // Pass volume (number[]) directly
     isMuted,
     playbackRate,
@@ -706,18 +695,18 @@ export const useHowlerPlayer = ({
       } catch (err) {
         console.warn('[HowlerPlayer] Error seeking native audio in seekToTimestamp:', err);
       }
-    } else if (coreState.howl && coreState.isReady) {
+    } else if (howl && isReady) {
         try {
-            const duration = coreState.howl.duration();
+            const duration = howl.duration();
             const newTime = duration ? Math.min(targetTime, duration) : targetTime;
-            coreState.howl.seek(newTime);
+            howl.seek(newTime);
         } catch (err) {
             console.warn('[HowlerPlayer] Error seeking Howler audio in seekToTimestamp:', err);
         }
     } else {
       console.warn('[useHowlerPlayer] Cannot seek to timestamp - no audio player available or ready');
     }
-  }, [isUsingNativeAudio, coreState.howl, coreState.isReady, setNativeCurrentTime]); // Added setNativeCurrentTime
+  }, [isUsingNativeAudio, howl, isReady, setNativeCurrentTime]);
 
   const handleVolumeUp = useCallback(() => {
     const currentVolumePercent = Array.isArray(volume) && volume.length > 0 && isFinite(volume[0]) 
@@ -819,13 +808,6 @@ export const useHowlerPlayer = ({
     ...activeControls, // Spread the appropriate controls based on mode
     setIsPlaying, // Expose setIsPlaying for external control if absolutely necessary
     seekToTimestamp,
-    // handleVolumeUp and handleVolumeDown are now part of activeControls if it's from core,
-    // or implemented here if we want to ensure they are always present on the returned object.
-    // Since useCorePlaybackControls now has its own handleVolumeUp/Down,
-    // we can rely on those being spread from activeControls when not using native.
-    // For native, nativeAudioControls() also includes these.
-    // So these explicit ones might be redundant if activeControls always provides them.
-    // Let's keep them for explicitness on the returned hook value.
     handleVolumeUp,
     handleVolumeDown
   };
