@@ -56,7 +56,12 @@ export const isValidBlobUrl = async (url: string): Promise<boolean> => {
 /**
  * Creates a new Blob URL from file data
  */
-export const createNewBlobUrl = (file: File): string => {
+export const createNewBlobUrl = (file: File): string | null => {
+  if (!file || !(file instanceof File) || !file.name) {
+    console.warn('[audio-url-validator] Invalid file object provided to createNewBlobUrl');
+    return null;
+  }
+
   // Release any previous URL that might be associated with this file
   if ('preview' in file && typeof file.preview === 'string' && file.preview.startsWith('blob:')) {
     try {
@@ -66,9 +71,14 @@ export const createNewBlobUrl = (file: File): string => {
     }
   }
   
-  // Create a new blob URL
-  console.log('[audio-url-validator] Creating new blob URL for file:', file.name);
-  return URL.createObjectURL(file);
+  // Create a new blob URL with validation
+  try {
+    console.log('[audio-url-validator] Creating new blob URL for file:', file.name);
+    return URL.createObjectURL(file);
+  } catch (error) {
+    console.error('[audio-url-validator] Error creating object URL:', error);
+    return null;
+  }
 };
 
 /**
@@ -76,8 +86,19 @@ export const createNewBlobUrl = (file: File): string => {
  * If the existing URL is invalid, creates a new one
  */
 export const ensureValidBlobUrl = async (file: File): Promise<string> => {
+  if (!file || !(file instanceof File)) {
+    console.error('[audio-url-validator] Invalid file object provided to ensureValidBlobUrl');
+    throw new Error('Invalid file object provided');
+  }
+
+  // Check if file has a valid name
+  if (!file.name) {
+    console.error('[audio-url-validator] File object has no name property');
+    throw new Error('File object has no name');
+  }
+  
   // First check if file has a storage URL (prioritize this over blob URLs)
-  if ('storageUrl' in file && typeof file.storageUrl === 'string') {
+  if ('storageUrl' in file && typeof file.storageUrl === 'string' && file.storageUrl) {
     console.log('[audio-url-validator] Using storage URL instead of blob URL');
     return file.storageUrl;
   }
@@ -88,7 +109,11 @@ export const ensureValidBlobUrl = async (file: File): Promise<string> => {
   // If no preview or not a blob URL, create one
   if (!hasPreview || !(file.preview as string).startsWith('blob:')) {
     console.log('[audio-url-validator] No valid preview, creating new blob URL');
-    return createNewBlobUrl(file);
+    const newBlobUrl = createNewBlobUrl(file);
+    if (!newBlobUrl) {
+      throw new Error('Failed to create blob URL');
+    }
+    return newBlobUrl;
   }
   
   // Check if the existing URL is valid
@@ -96,8 +121,13 @@ export const ensureValidBlobUrl = async (file: File): Promise<string> => {
   
   if (!isValid) {
     console.log('[AudioCore] Blob URL invalid, creating new one');
+    const newBlobUrl = createNewBlobUrl(file);
+    if (!newBlobUrl) {
+      throw new Error('Failed to create blob URL');
+    }
+    return newBlobUrl;
   }
   
-  // If valid, return it; otherwise create a new one
-  return isValid ? file.preview as string : createNewBlobUrl(file);
+  // If valid, return it
+  return file.preview as string;
 };

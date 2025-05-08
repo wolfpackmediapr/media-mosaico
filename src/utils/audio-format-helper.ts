@@ -1,3 +1,7 @@
+/**
+ * Audio format helper utilities
+ */
+import { createNewBlobUrl } from "./audio-url-validator";
 
 /**
  * Attempts to unlock audio on iOS and other platforms that require user interaction
@@ -79,25 +83,37 @@ export const canBrowserPlayFile = (file: File): boolean => {
 
 /**
  * Creates a native HTML5 audio element for the given file
+ * with proper error checking
  */
-export const createNativeAudioElement = (file: File): HTMLAudioElement => {
-  const audio = new Audio();
-  const url = URL.createObjectURL(file);
-  
-  audio.src = url;
-  audio.preload = 'auto';
-  
-  // Clean up object URL when done
-  audio.addEventListener('canplaythrough', () => {
-    console.log('[audio-format-helper] Native audio ready to play');
-  });
-  
-  audio.addEventListener('error', (e) => {
-    console.error('[audio-format-helper] Error loading native audio:', e);
-    URL.revokeObjectURL(url);
-  });
-  
-  return audio;
+export const createNativeAudioElement = (file: File): HTMLAudioElement | null => {
+  try {
+    // Validate file
+    if (!file || !(file instanceof File)) {
+      console.error('[audio-format-helper] Invalid file provided to createNativeAudioElement');
+      return null;
+    }
+
+    // Check for storage URL first
+    if ('storageUrl' in file && typeof file.storageUrl === 'string' && file.storageUrl) {
+      console.log('[HowlerPlayer] Using existing storage URL for file');
+      const audioElement = new Audio(file.storageUrl);
+      console.log('[HowlerPlayer] Using storage URL for native audio:', file.storageUrl);
+      return audioElement;
+    } 
+
+    // Otherwise use blob URL
+    const blobUrl = createNewBlobUrl(file);
+    if (!blobUrl) {
+      console.error('[audio-format-helper] Could not create blob URL for file');
+      return null;
+    }
+    
+    const audioElement = new Audio(blobUrl);
+    return audioElement;
+  } catch (error) {
+    console.error('[audio-format-helper] Error creating native audio element:', error);
+    return null;
+  }
 };
 
 /**
@@ -107,49 +123,67 @@ export const createNativeAudioElement = (file: File): HTMLAudioElement => {
 export const testAudioPlayback = async (file: File): Promise<{
   canPlay: boolean;
   needsAdvancedFeatures: boolean;
-  error: string | null;
+  error?: string;
 }> => {
   return new Promise((resolve) => {
     try {
-      const audio = document.createElement('audio');
-      const url = URL.createObjectURL(file);
-      
-      const timeout = setTimeout(() => {
-        URL.revokeObjectURL(url);
+      // Validate file
+      if (!file || !(file instanceof File)) {
+        console.error('[audio-format-helper] Invalid file provided to testAudioPlayback');
         resolve({
           canPlay: false,
           needsAdvancedFeatures: true,
-          error: 'Timeout while testing audio playback'
+          error: 'Invalid file object'
         });
-      }, 3000);
+        return;
+      }
       
-      audio.addEventListener('canplaythrough', () => {
+      const audioElement = createNativeAudioElement(file);
+      if (!audioElement) {
+        resolve({
+          canPlay: false,
+          needsAdvancedFeatures: true,
+          error: 'Could not create audio element'
+        });
+        return;
+      }
+      
+      // Set timeout to avoid hanging
+      const timeout = setTimeout(() => {
+        console.log('[audio-format-helper] Audio test timed out, assuming needs advanced features');
+        resolve({
+          canPlay: false,
+          needsAdvancedFeatures: true,
+          error: 'Test timed out'
+        });
+      }, 2000);
+      
+      audioElement.oncanplaythrough = () => {
         clearTimeout(timeout);
-        URL.revokeObjectURL(url);
+        console.log('[audio-format-helper] Audio can play through natively');
         resolve({
           canPlay: true,
-          needsAdvancedFeatures: false,
-          error: null
+          needsAdvancedFeatures: false
         });
-      }, { once: true });
+      };
       
-      audio.addEventListener('error', (e) => {
+      audioElement.onerror = (e) => {
         clearTimeout(timeout);
-        URL.revokeObjectURL(url);
+        console.error('[audio-format-helper] Error testing audio playback:', e);
         resolve({
           canPlay: false,
           needsAdvancedFeatures: true,
-          error: `Error testing audio: ${e}`
+          error: audioElement.error ? audioElement.error.message : 'Unknown playback error'
         });
-      }, { once: true });
+      };
       
-      audio.src = url;
-      audio.load();
+      audioElement.load();
     } catch (error) {
+      console.error('[audio-format-helper] Exception testing audio playback:', error);
       resolve({
         canPlay: false,
         needsAdvancedFeatures: true,
-        error: String(error)
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });

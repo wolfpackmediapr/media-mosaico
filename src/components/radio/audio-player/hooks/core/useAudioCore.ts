@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Howl } from "howler";
 import { ensureValidBlobUrl } from '@/utils/audio-url-validator';
@@ -35,6 +36,15 @@ export const useAudioCore = ({
 
       if (!file) {
         setIsLoading(false);
+        return null;
+      }
+
+      // Validate file object
+      if (!(file instanceof File)) {
+        console.error('[AudioCore] Invalid file object');
+        setIsLoading(false);
+        setPlaybackErrors('Invalid file object');
+        if (onError) onError('Invalid file object');
         return null;
       }
 
@@ -114,7 +124,7 @@ export const useAudioCore = ({
       return newHowl;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error creating audio player';
-      console.error('[AudioCore] Error creating Howl instance:', errorMsg);
+      console.error('[AudioCore] Error initializing audio:', error);
       setIsLoading(false);
       setPlaybackErrors(errorMsg);
       if (onError) onError(errorMsg);
@@ -131,6 +141,14 @@ export const useAudioCore = ({
     }
 
     if (!file && !storageUrl) {
+      return;
+    }
+
+    // Make sure we're dealing with a valid file object before proceeding
+    if (file && !(file instanceof File)) {
+      console.error('[AudioCore] Invalid file object provided');
+      setPlaybackErrors('Invalid file object');
+      if (onError) onError('Invalid file object');
       return;
     }
 
@@ -157,7 +175,7 @@ export const useAudioCore = ({
         }
       }
     };
-  }, [file, storageUrl, howl, createHowl]);
+  }, [file, storageUrl, howl, createHowl, onError]);
 
   return { 
     howl, 
