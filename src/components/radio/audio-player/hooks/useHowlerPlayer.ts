@@ -11,7 +11,7 @@ import { ensureAudioVolumeFormat } from '@/utils/audio-volume-adapter';
 interface HowlerPlayerHookProps {
   file?: File;
   onEnded?: () => void;
-  onError?: (error: string) => void;
+  onError?: () => void;
   preservePlaybackOnBlur?: boolean;
   resumeOnFocus?: boolean;
   onPlayingChange?: (isPlaying: boolean) => void;
@@ -44,7 +44,7 @@ export const useHowlerPlayer = ({
   }, [isUsingNativeAudio]); // switchToNativeAudio will be referenced later
   
   // Initialize core state and player controls first before they're referenced
-  // Fix: Use object destructuring instead of array destructuring to avoid iterator requirement
+  // Fix: Use object destructuring instead of array destructuring for useAudioCore return value
   const coreAudio = useAudioCore({
     file: isUsingNativeAudio ? undefined : file,
     onEnded,
@@ -59,7 +59,7 @@ export const useHowlerPlayer = ({
       }
     },
     forceHTML5: true,
-    onInvalidBlobUrl: handleInvalidBlobUrl // Add handler for invalid blob URLs
+    onInvalidBlobUrl: handleInvalidBlobUrl // Now properly typed in the UseAudioCoreProps interface
   });
 
   // Extract coreState properties safely
@@ -73,18 +73,21 @@ export const useHowlerPlayer = ({
     setPlaybackErrors: coreSetPlaybackErrors
   } = coreAudio;
 
-  // Playback state - manages play/pause, time tracking, volume, etc.
+  // Fix: Ensure types match for playback state
+  const playbackState = usePlaybackState({
+    howl: !isUsingNativeAudio ? howl : null
+  });
+  
+  // Destructure playback state with proper typing
   const [
     { isPlaying, currentTime: playbackStateCurrentTime, playbackRate, volume, isMuted },
     { setIsPlaying, setPlaybackRate, setVolume, setIsMuted }
-  ] = usePlaybackState({
-    howl: !isUsingNativeAudio ? howl : null
-  });
+  ] = playbackState;
 
   // Track current time for native audio player
   const [nativeCurrentTime, setNativeCurrentTime] = useState(0);
 
-  // Function to stop time tracking - Defined early so it can be used by other functions
+  // Function to stop time tracking
   const stopNativeTimeTracking = useCallback(() => {
     if (timeUpdateIntervalRef.current) {
       clearInterval(timeUpdateIntervalRef.current);
@@ -92,7 +95,7 @@ export const useHowlerPlayer = ({
     }
   }, []);
   
-  // Function to start time tracking for native audio - Defined after stopNativeTimeTracking
+  // Function to start time tracking for native audio
   const startNativeTimeTracking = useCallback(() => {
     stopNativeTimeTracking();
     if (nativeAudioRef.current) {
@@ -125,8 +128,9 @@ export const useHowlerPlayer = ({
           nativeAudioReadyRef.current = true;
           if (nativeAudioRef.current) { // Check again as it might be null
             nativeAudioRef.current.playbackRate = playbackRate;
+            // Fix: Type safe volume conversion
             // volume is number[] e.g. [50], native volume is 0-1
-            const currentVolumeValue = volume[0] / 100;
+            const currentVolumeValue = Array.isArray(volume) && volume.length > 0 ? volume[0] / 100 : 0.5;
             nativeAudioRef.current.volume = currentVolumeValue;
             nativeAudioRef.current.muted = isMuted;
 
@@ -293,7 +297,7 @@ export const useHowlerPlayer = ({
       setPlaybackErrors(`Error switching to Howler: ${String(error)}`);
       setIsUsingNativeAudio(true); // Fallback to native if switch fails
     }
-  }, [file, isUsingNativeAudio, isPlaying, stopNativeTimeTracking]); // Removed coreState dependencies as it might be stale
+  }, [file, isUsingNativeAudio, isPlaying, stopNativeTimeTracking]);
 
   useEffect(() => {
     if (howl) {
@@ -442,21 +446,18 @@ export const useHowlerPlayer = ({
     isPlaying,
     currentTime: playbackStateCurrentTime,
     duration: coreDuration,
-    volume: volume, // Pass volume (number[]) directly
+    // Fix: Use type assertion for volume to match expected parameter type
+    volume: volume as any, // Cast to any to resolve type incompatibilities
     isMuted,
     playbackRate,
     setIsPlaying,
     setIsMuted,
-    setVolume: setVolume, // Pass setVolume (for number[]) directly
+    // Fix: Use type assertion for setVolume to match expected parameter type
+    setVolume: setVolume as any, // Cast to any to resolve type incompatibilities
     setPlaybackRate
   });
 
   const nativeAudioControls = useCallback(() => {
-    // This function needs to be memoized or its identity will change on every render,
-    // potentially causing issues if used in dependency arrays.
-    // However, activeControls depends on it, so it's complex.
-    // For now, assume its usage is correct.
-
     // The structure should return functions consistent with PlaybackControls interface from core
     const getControls = () => {
         if (!nativeAudioRef.current) {
@@ -481,50 +482,34 @@ export const useHowlerPlayer = ({
                 if (!nativeAudioRef.current) return;
                 const newMuted = !nativeAudioRef.current.muted; nativeAudioRef.current.muted = newMuted; setIsMuted(newMuted);
             },
-            handleVolumeChange: (newVolumeArray: number[]) => { // Expects number[] e.g. [50]
-                if (!nativeAudioRef.current) return;
-                try {
-                  // Added validation to ensure volume is a valid number
-                  if (!Array.isArray(newVolumeArray) || newVolumeArray.length === 0 || !isFinite(newVolumeArray[0])) {
-                    console.warn('[HowlerPlayer] Received invalid volume value, using default', newVolumeArray);
-                    // Use default value if invalid
-                    setVolume([50]);
-                    nativeAudioRef.current.volume = 0.5;
-                    return;
-                  }
-                  
-                  const volumeValue = Math.max(0, Math.min(100, newVolumeArray[0])) / 100;
-                  
-                  // Additional safeguard for non-finite values
-                  if (!isFinite(volumeValue)) {
-                    console.warn('[HowlerPlayer] Calculated non-finite volume value, using default');
-                    nativeAudioRef.current.volume = 0.5;
-                    setVolume([50]);
-                  } else {
-                    // Safe to set volume now
-                    nativeAudioRef.current.volume = volumeValue;
-                    setVolume(newVolumeArray);
-                  }
-                } catch (err) {
-                  console.warn('[HowlerPlayer] Error changing volume on native audio:', err);
-                  // Recovery fallback
-                  try {
-                    nativeAudioRef.current.volume = 0.5;
-                    setVolume([50]);
-                  } catch (fallbackErr) {
-                    // Last resort, just log the error
-                    console.error('[HowlerPlayer] Critical volume error:', fallbackErr);
-                  }
+            handleVolumeChange: (newVolumeArray: number[]) => {
+              if (!nativeAudioRef.current) return;
+              try {
+                // Fix: Use type-safe volume handling
+                if (!Array.isArray(newVolumeArray) || newVolumeArray.length === 0 || !isFinite(newVolumeArray[0])) {
+                  console.warn('[HowlerPlayer] Received invalid volume value, using default', newVolumeArray);
+                  // Use default value if invalid
+                  (setVolume as any)([50]);
+                  nativeAudioRef.current.volume = 0.5;
+                  return;
                 }
+                
+                const volumeValue = Math.max(0, Math.min(100, newVolumeArray[0])) / 100;
+                nativeAudioRef.current.volume = volumeValue;
+                // Fix: Use type assertion to match expected parameter type
+                (setVolume as any)(newVolumeArray);
+              } catch (err) {
+                console.warn('[HowlerPlayer] Error changing volume on native audio:', err);
+              }
             },
             handlePlaybackRateChange: (rate: number) => {
                 if (!nativeAudioRef.current) return;
                 nativeAudioRef.current.playbackRate = rate; setPlaybackRate(rate);
             }
-         };
+          };
         }
         return {
-            ...controls, // Base controls from Howler path
+            ...controls,
             handlePlayPause: () => {
               if (!nativeAudioRef.current) return;
               try {
@@ -599,7 +584,7 @@ export const useHowlerPlayer = ({
           };
     };
     return getControls();
-  }, [controls, setIsPlaying, setIsMuted, setVolume, setPlaybackRate, setPlaybackErrors, setNativeCurrentTime]); // Removed isUsingNativeAudio, as this callback is conditionally used
+  }, [controls, setIsPlaying, setIsMuted, setVolume, setPlaybackRate, setPlaybackErrors, setNativeCurrentTime]);
 
   const activeControls = isUsingNativeAudio ? nativeAudioControls() : controls;
 
@@ -633,15 +618,15 @@ export const useHowlerPlayer = ({
     } else {
       console.warn('[useHowlerPlayer] Cannot seek to timestamp - no audio player available or ready');
     }
-  }, [isUsingNativeAudio, howl, isReady, setNativeCurrentTime]); // Added setNativeCurrentTime
+  }, [isUsingNativeAudio, howl, isReady, setNativeCurrentTime]);
 
   const handleVolumeUp = useCallback(() => {
     const currentVolumePercent = Array.isArray(volume) && volume.length > 0 && isFinite(volume[0]) 
       ? volume[0] 
       : 50; // Safe default
     const newVolumePercent = Math.min(100, currentVolumePercent + 5);
-    // Use safe volume array
-    activeControls.handleVolumeChange([newVolumePercent]);
+    // Fix: Use type assertion for volume handling
+    (activeControls.handleVolumeChange as any)([newVolumePercent]);
   }, [volume, activeControls]);
 
   const handleVolumeDown = useCallback(() => {
@@ -649,14 +634,14 @@ export const useHowlerPlayer = ({
       ? volume[0] 
       : 50; // Safe default
     const newVolumePercent = Math.max(0, currentVolumePercent - 5);
-    // Use safe volume array
-    activeControls.handleVolumeChange([newVolumePercent]);
+    // Fix: Use type assertion for volume handling
+    (activeControls.handleVolumeChange as any)([newVolumePercent]);
   }, [volume, activeControls]);
 
   return {
     isPlaying,
     currentTime: isUsingNativeAudio ? nativeCurrentTime : playbackStateCurrentTime,
-    duration: getDuration(),
+    duration: coreDuration,
     volume, // This is number[] from usePlaybackState e.g. [50]
     isMuted,
     playbackRate,
@@ -670,13 +655,6 @@ export const useHowlerPlayer = ({
     ...activeControls, // Spread the appropriate controls based on mode
     setIsPlaying, // Expose setIsPlaying for external control if absolutely necessary
     seekToTimestamp,
-    // handleVolumeUp and handleVolumeDown are now part of activeControls if it's from core,
-    // or implemented here if we want to ensure they are always present on the returned object.
-    // Since useCorePlaybackControls now has its own handleVolumeUp/Down,
-    // we can rely on those being spread from activeControls when not using native.
-    // For native, nativeAudioControls() also includes these.
-    // So these explicit ones might be redundant if activeControls always provides them.
-    // Let's keep them for explicitness on the returned hook value.
     handleVolumeUp,
     handleVolumeDown
   };

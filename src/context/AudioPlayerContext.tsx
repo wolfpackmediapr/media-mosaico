@@ -34,7 +34,9 @@ const defaultContext: AudioPlayerContextType = {
   onToggleMute: () => {},
   onVolumeChange: () => {},
   onPlaybackRateChange: () => {},
-  seekToTimestamp: () => {}
+  seekToTimestamp: () => {},
+  // Fix: Update default implementation to return a Promise
+  tryUseStorageUrl: () => Promise.resolve(false)
 };
 
 // Create the context

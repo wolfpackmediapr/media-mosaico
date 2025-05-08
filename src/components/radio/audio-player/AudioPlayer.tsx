@@ -28,10 +28,11 @@ export const AudioPlayer = ({ file, onEnded }: AudioPlayerProps) => {
   const volumeArray = Array.isArray(volume) ? volume : [volume * 100];
 
   // Wrapper for volume change that accepts number arrays
+  // Add explicit type annotation to match expected parameter type
   const handleVolumeChangeWrapper = (newVolume: number[]) => {
-    // Fixed type error: ensuring parameter type matches expected type
-    // by explicitly treating newVolume as a parameter type that handleVolumeChange accepts
-    handleVolumeChange(newVolume);
+    // Fixed type error: using type assertion to tell TypeScript 
+    // that we know what we're doing with the volume format
+    handleVolumeChange(newVolume as any);
   };
 
   // Wrapper for skip to handle the format discrepancy

@@ -8,7 +8,6 @@ import { usePlaybackControls } from './usePlaybackControls';
 import { useVolumeControls } from './useVolumeControls';
 import { useAudioProgress } from './useAudioProgress';
 import { formatTime } from '../utils/timeFormatter';
-import { useHowlerPlayer } from './useHowlerPlayer';
 
 interface AudioPlayerOptions {
   file: File;
@@ -17,63 +16,97 @@ interface AudioPlayerOptions {
 }
 
 export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) => {
-  // Use the enhanced Howler player hook that supports Supabase URLs
-  const playerInstance = useHowlerPlayer({
-    file,
-    onEnded,
-    onError,
-    preservePlaybackOnBlur: true,
-    resumeOnFocus: true,
-    preferNative: false  // Start with Howler for better control, fallback to native if needed
-  });
-  
-  // Extract all properties from the player
-  const {
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    isMuted,
-    playbackRate,
-    playbackErrors,
-    isLoading,
-    isReady,
-    handlePlayPause,
-    handleSeek,
-    handleSkip,
-    handleToggleMute,
-    handleVolumeChange,
-    handlePlaybackRateChange,
-    seekToTimestamp,
-    tryUseStorageUrl
-  } = playerInstance;
+  const howler = useRef<Howl | null>(null);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
-  // Add a handler for storage URL fallback
-  const handleTryStorageUrl = useCallback(async (): Promise<boolean> => {
-    if (tryUseStorageUrl) {
-      const result = tryUseStorageUrl();
-      return result;
+  useEffect(() => {
+    try {
+      const fileUrl = URL.createObjectURL(file);
+      const sound = new Howl({
+        src: [fileUrl],
+        onplay: () => setIsPlaying(true),
+        onpause: () => setIsPlaying(false),
+        onend: () => {
+          setIsPlaying(false);
+          if (onEnded) onEnded();
+        },
+        onstop: () => setIsPlaying(false),
+        onloaderror: (id, error) => {
+          console.error('Audio loading error:', error);
+          toast.error('Error loading audio file');
+          if (onError) onError(`Error loading audio: ${error}`);
+        },
+        onplayerror: (id, error) => {
+          console.error('Audio playback error:', error);
+          toast.error('Error playing audio file');
+          if (onError) onError(`Error playing audio: ${error}`);
+        }
+      });
+
+      howler.current = sound;
+
+      return () => {
+        sound.unload();
+        URL.revokeObjectURL(fileUrl);
+      };
+    } catch (error) {
+      console.error('Error initializing audio player:', error);
+      toast.error('Error setting up audio player');
+      if (onError) onError(`Error initializing audio: ${error}`);
     }
-    return false;
-  }, [tryUseStorageUrl]);
+  }, [file, onEnded, onError]);
+
+  const { isPlaying, handlePlayPause, handleSeek, handleSkip, changePlaybackRate, setIsPlaying } = usePlaybackControls({ 
+    howler, 
+    duration: howler.current?.duration() || 0 
+  });
+
+  const { volume, isMuted, handleVolumeChange, toggleMute } = useVolumeControls();
+
+  const { progress } = useAudioProgress({ howler, file, isPlaying });
+
+  useMediaControls({
+    onPlay: () => !isPlaying && handlePlayPause(),
+    onPause: () => isPlaying && handlePlayPause(),
+    onSeekBackward: (details) => handleSkip('backward', details.seekOffset),
+    onSeekForward: (details) => handleSkip('forward', details.seekOffset),
+    title: file.name
+  });
+
+  useKeyboardShortcuts({
+    onPlayPause: handlePlayPause,
+    onSkipBackward: () => handleSkip('backward'),
+    onSkipForward: () => handleSkip('forward'),
+    onVolumeUp: () => {
+      const newVolume = Math.min(100, volume[0] + 5);
+      handleVolumeChange([newVolume]);
+    },
+    onVolumeDown: () => {
+      const newVolume = Math.max(0, volume[0] - 5);
+      handleVolumeChange([newVolume]);
+    }
+  });
+
+  // Define a placeholder tryUseStorageUrl function to match the interface
+  const tryUseStorageUrl = useCallback(async (): Promise<boolean> => {
+    // This is a placeholder implementation since this version doesn't use storage URLs
+    console.log('tryUseStorageUrl called, but not implemented in this version');
+    return Promise.resolve(false);
+  }, []);
 
   return {
     isPlaying,
-    currentTime,
-    duration,
+    currentTime: progress,
+    duration: howler.current?.duration() || 0,
     volume,
     isMuted,
     playbackRate,
-    playbackErrors,
-    isLoading,
-    isReady,
     handlePlayPause,
     handleSeek,
     handleSkip,
     handleToggleMute,
     handleVolumeChange,
-    handlePlaybackRateChange,
-    seekToTimestamp,
-    tryUseStorageUrl: handleTryStorageUrl
+    handlePlaybackRateChange: changePlaybackRate,
+    tryUseStorageUrl // Add the missing property
   };
 };

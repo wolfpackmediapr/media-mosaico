@@ -7,7 +7,8 @@ interface UseAudioCoreProps {
   onError?: (error: string) => void;
   onReady?: () => void;
   forceHTML5?: boolean;
-  storageUrl?: string | null; // Add support for direct URLs
+  storageUrl?: string | null; 
+  onInvalidBlobUrl?: (file: File) => void; // Add this property to the interface
 }
 
 export const useAudioCore = ({
@@ -16,7 +17,8 @@ export const useAudioCore = ({
   onError,
   onReady,
   forceHTML5 = false,
-  storageUrl = null
+  storageUrl = null,
+  onInvalidBlobUrl // Allow this property to be used
 }: UseAudioCoreProps) => {
   const [howl, setHowl] = useState<Howl | null>(null);
   const [duration, setDuration] = useState(0);
@@ -48,6 +50,11 @@ export const useAudioCore = ({
           console.error('[AudioCore] Load error:', errorMsg);
           setPlaybackErrors(errorMsg);
           if (onError) onError(errorMsg);
+          
+          // Call onInvalidBlobUrl if provided and we have a file
+          if (onInvalidBlobUrl && file && errorMsg.includes('blob')) {
+            onInvalidBlobUrl(file);
+          }
         },
         onplayerror: (id, error) => {
           const errorMsg = typeof error === 'string' ? error : 'Playback error';
@@ -69,7 +76,7 @@ export const useAudioCore = ({
       if (onError) onError(errorMsg);
       return null;
     }
-  }, [forceHTML5, onEnded, onError, onReady]);
+  }, [forceHTML5, onEnded, onError, onReady, onInvalidBlobUrl, file]);
 
   // Initialize Howl when the file changes
   useEffect(() => {
