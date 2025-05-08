@@ -80,9 +80,9 @@ export const useRadioFiles = ({
   const { isAuthenticated } = useAuthStatus();
   const [isUploading, setIsUploading] = useState<Record<string, boolean>>({});
   
-  // Fix the type error by ensuring indexKey is always a string
-  // Use string concatenation with a non-null assertion to guarantee it's a string
-  const indexKey = `${persistKey}-current-index`;
+  // Fix: Ensure indexKey is always a string, even if persistKey is undefined
+  // By providing a default value 'radio-files' for the persistKey if it's undefined
+  const indexKey = `${persistKey || 'radio-files'}-current-index`;
   
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
     indexKey,
