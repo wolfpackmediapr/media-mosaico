@@ -1,4 +1,3 @@
-
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
@@ -37,7 +36,7 @@ export const useRadioFiles = ({
   maxFiles = 10
 }: UseRadioFilesOptions): UseRadioFilesReturn => {
   const [files, setFiles] = usePersistentState<UploadedFile[]>([], {
-    key: persistKey,
+    key: persistKey, // Now this is a string, not an array
     storage,
     onRestore: async (restoredFiles) => {
       console.log('[useRadioFiles] Restoring files from storage', restoredFiles);
@@ -80,7 +79,7 @@ export const useRadioFiles = ({
   const [isUploading, setIsUploading] = useState<Record<string, boolean>>({});
   
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
-    `${persistKey}-current-index`,
+    `${persistKey}-current-index`, // This is now correctly a string
     0,
     { storage }
   );
