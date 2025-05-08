@@ -188,7 +188,7 @@ export const useHowlerPlayer = ({
           URL.revokeObjectURL(nativeAudioRef.current.src); // Clean up old src if exists
         }
         
-        nativeAudioRef.current = createNativeAudioElement(file, url || undefined); // Use storage URL if available
+        nativeAudioRef.current = createNativeAudioElement(file);
         nativeAudioReadyRef.current = false; // Reset ready state
   
         nativeAudioRef.current.addEventListener('canplaythrough', () => {
@@ -806,9 +806,4 @@ export const useHowlerPlayer = ({
     switchToHowler,
     tryUseStorageUrl,
     ...activeControls, // Spread the appropriate controls based on mode
-    setIsPlaying, // Expose setIsPlaying for external control if absolutely necessary
-    seekToTimestamp,
-    handleVolumeUp,
-    handleVolumeDown
-  };
-};
+    setIsPlaying, // Expose setIsPlaying for external

@@ -106,11 +106,6 @@ export const useRadioContainerState = ({
     // This is a stub implementation
   };
 
-  // Handler for adding files that aligns with what useRadioActions expects
-  const handleFilesAdded = (newFiles: File[]) => {
-    addFiles(newFiles);
-  };
-
   // Transcription state management
   const {
     isProcessing,
@@ -172,20 +167,26 @@ export const useRadioContainerState = ({
   });
 
   // Radio actions
-  const {
-    lastAction,
-    handleClearAll,
-    handleTrackSelect
-  } = useRadioActions({
+  const radioActions = useRadioActions({
     files,
     currentFileIndex,
-    setFiles,
     setCurrentFileIndex,
-    handleFilesAdded, // Use our newly defined function
     resetTranscription,
     setNewsSegments,
     clearAllStorageState
   });
+  
+  // Extract properties from radioActions
+  const {
+    lastAction,
+    handleClearAll,
+    handleTrackSelect
+  } = radioActions;
+  
+  // Define handleFilesAdded function that uses addFiles from useRadioFiles
+  const handleFilesAdded = (newFiles: File[]) => {
+    addFiles(newFiles);
+  };
 
   // Return the complete state and handlers
   return {

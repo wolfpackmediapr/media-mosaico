@@ -51,7 +51,7 @@ export const useRadioFiles = ({
         const reconstructedFiles = restoredFiles.map(file => {
           // Ensure we only use string IDs
           const fileId = typeof file.id === 'string' ? file.id : 
-                       (file.id ? String(file.id) : undefined);
+                       (file.id ? String(file.id) : '');
           
           return {
             name: file.name,
