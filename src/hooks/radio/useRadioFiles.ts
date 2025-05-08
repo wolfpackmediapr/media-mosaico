@@ -81,10 +81,10 @@ export const useRadioFiles = ({
   const [isUploading, setIsUploading] = useState<Record<string, boolean>>({});
   
   // Fixed: Create a string key that's guaranteed to be a string by using string concatenation
-  const indexKey = (persistKey || 'radio-files') + '-current-index';
+  const indexKey = persistKey + '-current-index';
   
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
-    indexKey, // Now guaranteed to be a string
+    indexKey,
     0,
     { storage }
   );
