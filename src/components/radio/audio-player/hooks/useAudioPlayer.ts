@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
@@ -8,6 +7,9 @@ import { usePlaybackControls } from './usePlaybackControls';
 import { useVolumeControls } from './useVolumeControls';
 import { useAudioProgress } from './useAudioProgress';
 import { formatTime } from '../utils/timeFormatter';
+import { uploadAudioToSupabase } from '@/utils/supabase-storage-helper';
+import { ensureValidBlobUrl } from '@/utils/audio-url-validator';
+import { useAuthStatus } from '@/hooks/use-auth-status';
 
 interface AudioPlayerOptions {
   file: File;
@@ -18,12 +20,79 @@ interface AudioPlayerOptions {
 export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) => {
   const howler = useRef<Howl | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [storedUrl, setStoredUrl] = useState<string | null>(null);
+  const [isUploadingToStorage, setIsUploadingToStorage] = useState(false);
+  const { isAuthenticated } = useAuthStatus();
+
+  // Enhanced tryUseStorageUrl to actually upload to storage when authenticated
+  const tryUseStorageUrl = useCallback(async (): Promise<boolean> => {
+    // Don't try to upload if not authenticated
+    if (!isAuthenticated || isUploadingToStorage) {
+      return Promise.resolve(false);
+    }
+    
+    try {
+      setIsUploadingToStorage(true);
+      console.log('[useAudioPlayer] Uploading file to storage: ', file.name);
+      
+      // Use file's storage URL if it exists
+      if ('storageUrl' in file && typeof file.storageUrl === 'string') {
+        setStoredUrl(file.storageUrl);
+        console.log('[useAudioPlayer] Using existing storage URL');
+        setIsUploadingToStorage(false);
+        return Promise.resolve(true);
+      }
+      
+      // Otherwise upload to storage
+      const uploadResult = await uploadAudioToSupabase(file);
+      
+      if (uploadResult.error) {
+        console.error('[useAudioPlayer] Storage upload error:', uploadResult.error);
+        setIsUploadingToStorage(false);
+        return Promise.resolve(false);
+      }
+      
+      setStoredUrl(uploadResult.url);
+      
+      // Add storage properties to the file object
+      if (file) {
+        Object.defineProperty(file, 'storageUrl', {
+          value: uploadResult.url,
+          writable: true
+        });
+        
+        Object.defineProperty(file, 'storagePath', {
+          value: uploadResult.path,
+          writable: true
+        });
+      }
+      
+      console.log('[useAudioPlayer] File uploaded successfully, URL:', uploadResult.url);
+      setIsUploadingToStorage(false);
+      return Promise.resolve(true);
+    } catch (error) {
+      console.error('[useAudioPlayer] Error uploading to storage:', error);
+      setIsUploadingToStorage(false);
+      return Promise.resolve(false);
+    }
+  }, [file, isAuthenticated, isUploadingToStorage]);
 
   useEffect(() => {
     try {
-      const fileUrl = URL.createObjectURL(file);
+      // Use storage URL if available, otherwise create blob URL
+      let fileUrl: string;
+      
+      if (storedUrl) {
+        fileUrl = storedUrl;
+        console.log('[useAudioPlayer] Using storage URL for Howl:', fileUrl);
+      } else {
+        fileUrl = URL.createObjectURL(file);
+        console.log('[useAudioPlayer] Created blob URL for Howl:', fileUrl);
+      }
+      
       const sound = new Howl({
         src: [fileUrl],
+        html5: true, // Force HTML5 Audio to avoid streaming issues 
         onplay: () => setIsPlaying(true),
         onpause: () => setIsPlaying(false),
         onend: () => {
@@ -35,6 +104,18 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
           console.error('Audio loading error:', error);
           toast.error('Error loading audio file');
           if (onError) onError(`Error loading audio: ${error}`);
+          
+          // If blob URL fails and we're not already using storage, try using storage
+          if (!storedUrl && isAuthenticated) {
+            tryUseStorageUrl().then(success => {
+              if (success) {
+                // Recreate the Howl instance with the storage URL
+                if (howler.current) {
+                  howler.current.unload();
+                }
+              }
+            });
+          }
         },
         onplayerror: (id, error) => {
           console.error('Audio playback error:', error);
@@ -47,14 +128,17 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
 
       return () => {
         sound.unload();
-        URL.revokeObjectURL(fileUrl);
+        // Only revoke if it's a blob URL, not a storage URL
+        if (!storedUrl && fileUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(fileUrl);
+        }
       };
     } catch (error) {
       console.error('Error initializing audio player:', error);
       toast.error('Error setting up audio player');
-      if (onError) onError(`Error initializing audio: ${error}`);
+      if (onError) onError(`Error initializing audio: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [file, onEnded, onError]);
+  }, [file, onEnded, onError, storedUrl, isAuthenticated, tryUseStorageUrl]);
 
   const { isPlaying, handlePlayPause, handleSeek, handleSkip, changePlaybackRate, setIsPlaying } = usePlaybackControls({ 
     howler, 
@@ -87,13 +171,6 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     }
   });
 
-  // Define a placeholder tryUseStorageUrl function to match the interface
-  const tryUseStorageUrl = useCallback(async (): Promise<boolean> => {
-    // This is a placeholder implementation since this version doesn't use storage URLs
-    console.log('tryUseStorageUrl called, but not implemented in this version');
-    return Promise.resolve(false);
-  }, []);
-
   // Add explicit handleToggleMute function that uses toggleMute
   const handleToggleMute = useCallback(() => {
     toggleMute();
@@ -115,7 +192,7 @@ export const useAudioPlayer = ({ file, onEnded, onError }: AudioPlayerOptions) =
     tryUseStorageUrl,
     // Add these properties to match expected interface
     playbackErrors: null,
-    isLoading: false,
+    isLoading: isUploadingToStorage,
     isReady: !!howler.current,
     seekToTimestamp: handleSeek
   };

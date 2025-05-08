@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Howl } from "howler";
+import { ensureValidBlobUrl } from '@/utils/audio-url-validator';
 
 interface UseAudioCoreProps {
   file?: File;
@@ -8,7 +9,7 @@ interface UseAudioCoreProps {
   onReady?: () => void;
   forceHTML5?: boolean;
   storageUrl?: string | null; 
-  onInvalidBlobUrl?: (file: File) => void; // Add this property to the interface
+  onInvalidBlobUrl?: (file: File) => void;
 }
 
 export const useAudioCore = ({
@@ -18,7 +19,7 @@ export const useAudioCore = ({
   onReady,
   forceHTML5 = false,
   storageUrl = null,
-  onInvalidBlobUrl // Allow this property to be used
+  onInvalidBlobUrl
 }: UseAudioCoreProps) => {
   const [howl, setHowl] = useState<Howl | null>(null);
   const [duration, setDuration] = useState(0);
@@ -26,17 +27,53 @@ export const useAudioCore = ({
   const [isReady, setIsReady] = useState(false);
   const [playbackErrors, setPlaybackErrors] = useState<string | null>(null);
 
-  const createHowl = useCallback((sourceUrl: string) => {
+  const createHowl = useCallback(async (file: File | undefined, preferStorageUrl: string | null) => {
     try {
       setIsLoading(true);
       setIsReady(false);
       setPlaybackErrors(null);
 
+      if (!file) {
+        setIsLoading(false);
+        return null;
+      }
+
+      // Determine which URL to use - storage has priority
+      let sourceUrl: string;
+      let isUsingStorageUrl = false;
+      
+      if (preferStorageUrl) {
+        // If we have a storage URL, use it directly
+        sourceUrl = preferStorageUrl;
+        isUsingStorageUrl = true;
+        console.log('[AudioCore] Using provided storage URL:', sourceUrl);
+      } else {
+        // Otherwise try to get a valid blob URL
+        try {
+          sourceUrl = await ensureValidBlobUrl(file);
+          console.log('[AudioCore] Using blob URL for file:', file.name);
+        } catch (error) {
+          console.error('[AudioCore] Error creating blob URL:', error);
+          
+          // If we have onInvalidBlobUrl handler, call it
+          if (onInvalidBlobUrl && file) {
+            console.log('[AudioCore] Notifying about invalid blob URL');
+            onInvalidBlobUrl(file);
+          }
+          
+          // We can't continue without a valid URL
+          setIsLoading(false);
+          setPlaybackErrors('Failed to create a valid URL for audio playback');
+          if (onError) onError('Failed to create a valid URL for audio playback');
+          return null;
+        }
+      }
+      
       console.log(`[AudioCore] Creating Howl instance with ${forceHTML5 ? 'forced HTML5' : 'default'} mode`);
       
       const newHowl = new Howl({
         src: [sourceUrl],
-        html5: forceHTML5, // Force HTML5 Audio to avoid streaming issues
+        html5: forceHTML5 || isUsingStorageUrl, // Force HTML5 Audio for storage URLs to avoid CORS issues
         onload: () => {
           setIsLoading(false);
           setIsReady(true);
@@ -51,8 +88,9 @@ export const useAudioCore = ({
           setPlaybackErrors(errorMsg);
           if (onError) onError(errorMsg);
           
-          // Call onInvalidBlobUrl if provided and we have a file
-          if (onInvalidBlobUrl && file && errorMsg.includes('blob')) {
+          // If blob URL is invalid and we have a handler
+          if (!isUsingStorageUrl && onInvalidBlobUrl && file) {
+            console.log('[AudioCore] Notifying about invalid blob URL from onloaderror');
             onInvalidBlobUrl(file);
           }
         },
@@ -61,6 +99,12 @@ export const useAudioCore = ({
           console.error('[AudioCore] Play error:', errorMsg);
           setPlaybackErrors(errorMsg);
           if (onError) onError(errorMsg);
+          
+          // Consider switching to storage if a playback error occurs with a blob URL
+          if (!isUsingStorageUrl && onInvalidBlobUrl && file) {
+            console.log('[AudioCore] Notifying about playback error with blob URL');
+            onInvalidBlobUrl(file);
+          }
         },
         onend: () => {
           if (onEnded) onEnded();
@@ -76,9 +120,9 @@ export const useAudioCore = ({
       if (onError) onError(errorMsg);
       return null;
     }
-  }, [forceHTML5, onEnded, onError, onReady, onInvalidBlobUrl, file]);
+  }, [forceHTML5, onEnded, onError, onReady, onInvalidBlobUrl]);
 
-  // Initialize Howl when the file changes
+  // Initialize Howl when the file or storageUrl changes
   useEffect(() => {
     // Clean up previous instance
     if (howl) {
@@ -90,36 +134,30 @@ export const useAudioCore = ({
       return;
     }
 
-    try {
-      let sourceUrl;
-      
-      // If we have a storage URL, use it directly
-      if (storageUrl) {
-        sourceUrl = storageUrl;
-        console.log('[AudioCore] Using provided storage URL:', sourceUrl);
-      } else {
-        // Otherwise create a blob URL from the file
-        sourceUrl = URL.createObjectURL(file!);
-        console.log('[AudioCore] Created blob URL for file:', file!.name);
+    // Create a new Howl instance with the appropriate URL
+    createHowl(file, storageUrl).then(newHowl => {
+      if (newHowl) setHowl(newHowl);
+    });
+    
+    // Cleanup function
+    return () => {
+      if (howl) {
+        howl.unload();
       }
       
-      const newHowl = createHowl(sourceUrl);
-      if (newHowl) setHowl(newHowl);
-
-      // Clean up the blob URL when the component unmounts or when the file changes
-      return () => {
-        if (sourceUrl && !storageUrl) {
-          URL.revokeObjectURL(sourceUrl);
+      // Only revoke blob URLs, not storage URLs
+      if (!storageUrl && file && 'preview' in file && 
+          typeof file.preview === 'string' && 
+          file.preview.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(file.preview as string);
           console.log('[AudioCore] Revoked blob URL');
+        } catch (error) {
+          console.warn('[AudioCore] Error revoking blob URL:', error);
         }
-      };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Error initializing audio';
-      console.error('[AudioCore] Error during initialization:', errorMsg);
-      setPlaybackErrors(errorMsg);
-      if (onError) onError(errorMsg);
-    }
-  }, [file, createHowl, onError, storageUrl]);
+      }
+    };
+  }, [file, storageUrl, howl, createHowl]);
 
   return { 
     howl, 

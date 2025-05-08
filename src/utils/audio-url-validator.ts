@@ -16,16 +16,37 @@ export const isValidBlobUrl = async (url: string): Promise<boolean> => {
 
   // Try to fetch the blob URL with a HEAD request to check if it's valid
   try {
+    // Use a shorter timeout to improve user experience
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
 
-    const response = await fetch(url, {
-      method: 'HEAD',
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-    return response.ok;
+    try {
+      // First try the fetch method
+      const response = await fetch(url, {
+        method: 'HEAD',
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      return response.ok;
+    } catch (fetchError) {
+      // If HEAD method failed, try with a regular fetch (GET)
+      // Some browsers don't support HEAD for blob URLs
+      try {
+        const controller2 = new AbortController();
+        const timeoutId2 = setTimeout(() => controller2.abort(), 1000);
+        
+        const response = await fetch(url, {
+          signal: controller2.signal,
+        });
+        
+        clearTimeout(timeoutId2);
+        return response.ok;
+      } catch (error) {
+        console.log('[audio-url-validator] Blob URL validation failed with both methods');
+        return false;
+      }
+    }
   } catch (error) {
     console.log('[audio-url-validator] URL validation failed:', error);
     return false;
@@ -46,6 +67,7 @@ export const createNewBlobUrl = (file: File): string => {
   }
   
   // Create a new blob URL
+  console.log('[audio-url-validator] Creating new blob URL for file:', file.name);
   return URL.createObjectURL(file);
 };
 
@@ -54,16 +76,27 @@ export const createNewBlobUrl = (file: File): string => {
  * If the existing URL is invalid, creates a new one
  */
 export const ensureValidBlobUrl = async (file: File): Promise<string> => {
+  // First check if file has a storage URL (prioritize this over blob URLs)
+  if ('storageUrl' in file && typeof file.storageUrl === 'string') {
+    console.log('[audio-url-validator] Using storage URL instead of blob URL');
+    return file.storageUrl;
+  }
+  
   // Check if file has a preview URL
   const hasPreview = 'preview' in file && typeof file.preview === 'string';
   
   // If no preview or not a blob URL, create one
   if (!hasPreview || !(file.preview as string).startsWith('blob:')) {
+    console.log('[audio-url-validator] No valid preview, creating new blob URL');
     return createNewBlobUrl(file);
   }
   
   // Check if the existing URL is valid
   const isValid = await isValidBlobUrl(file.preview as string);
+  
+  if (!isValid) {
+    console.log('[AudioCore] Blob URL invalid, creating new one');
+  }
   
   // If valid, return it; otherwise create a new one
   return isValid ? file.preview as string : createNewBlobUrl(file);

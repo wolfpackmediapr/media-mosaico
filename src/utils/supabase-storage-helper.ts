@@ -16,9 +16,32 @@ export interface UploadResult {
  */
 export async function uploadAudioToSupabase(file: File): Promise<UploadResult> {
   try {
+    // Check if storage bucket exists first, create it if it doesn't
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(bucket => bucket.name === 'radio_audio');
+    
+    if (!bucketExists) {
+      console.log('[supabase-storage-helper] Creating radio_audio bucket');
+      const { error: createError } = await supabase.storage.createBucket('radio_audio', {
+        public: true,
+        fileSizeLimit: 52428800, // 50MB
+        allowedMimeTypes: ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/mp4', 'audio/webm', 'audio/ogg']
+      });
+      
+      if (createError) {
+        console.error("Error creating storage bucket:", createError);
+        return { 
+          path: "", 
+          url: "", 
+          error: createError.message 
+        };
+      }
+    }
+
     // Generate a unique file path to avoid collisions
     const fileExt = file.name.split('.').pop();
-    const fileName = `${uuidv4()}-${Date.now()}.${fileExt}`;
+    const safeFileName = file.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const fileName = `${safeFileName.substring(0, 20)}_${uuidv4().substring(0, 8)}.${fileExt}`;
     const filePath = `${fileName}`;
 
     // Upload the file to Supabase storage
@@ -27,7 +50,7 @@ export async function uploadAudioToSupabase(file: File): Promise<UploadResult> {
       .from('radio_audio')
       .upload(filePath, file, {
         cacheControl: '3600',
-        upsert: false
+        upsert: true
       });
 
     if (error) {
