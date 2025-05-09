@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import RadioTimestampedTranscription from '../RadioTimestampedTranscription';
 import TranscriptionTextArea from './TranscriptionTextArea';
 import { TranscriptionResult } from '@/services/audio/transcriptionService';
@@ -17,7 +17,8 @@ interface EditorContentProps {
   onTextAreaClick?: () => void;
 }
 
-const EditorContent = ({
+// Memoize the component to prevent unnecessary re-renders
+const EditorContent = memo(({
   showTimestamps,
   hasTimestampData,
   isEditing,
@@ -29,6 +30,8 @@ const EditorContent = ({
   onTimestampClick,
   onTextAreaClick,
 }: EditorContentProps) => {
+  console.log('[EditorContent] Rendering with text length:', text?.length);
+  
   if (showTimestamps && hasTimestampData) {
     return (
       <RadioTimestampedTranscription 
@@ -49,6 +52,8 @@ const EditorContent = ({
       onClick={onTextAreaClick}
     />
   );
-};
+});
+
+EditorContent.displayName = 'EditorContent';
 
 export default EditorContent;

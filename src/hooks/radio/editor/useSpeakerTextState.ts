@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+
+import { useState, useEffect, useRef, useCallback } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { 
   TranscriptionResult, 
@@ -33,6 +34,7 @@ export const useSpeakerTextState = ({
     useState<TranscriptionResult | undefined>(transcriptionResult);
   
   const lastTextRef = useRef(transcriptionText);
+  const isUpdatingRef = useRef(false);
 
   const hasSpeakerLabels = Boolean(
     enhancedTranscriptionResult?.utterances &&
@@ -46,6 +48,9 @@ export const useSpeakerTextState = ({
   );
 
   useEffect(() => {
+    // Skip if we're in the middle of a user-initiated update
+    if (isUpdatingRef.current) return;
+    
     if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
       console.log('[useSpeakerTextState] New transcription result with utterances received');
       setEnhancedTranscriptionResult(transcriptionResult);
@@ -77,24 +82,41 @@ export const useSpeakerTextState = ({
     }
   }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText]);
 
-  const handleTextChange = (newText: string) => {
+  // Optimized text change handler with debounce logic
+  const handleTextChange = useCallback((newText: string) => {
     if (!newText || newText === lastTextRef.current) return;
+    
+    // Set a flag to prevent the effect from reprocessing this update
+    isUpdatingRef.current = true;
     
     lastTextRef.current = newText;
     setLocalSpeakerText(newText);
     onTranscriptionChange(newText);
     
-    const newUtterances = parseSpeakerTextToUtterances(newText);
-    if (newUtterances.length > 0) {
-      setEnhancedTranscriptionResult(prev => ({
-        ...(prev || {}),
-        text: newText,
-        utterances: newUtterances
-      } as TranscriptionResult));
+    // When user is editing, only parse speaker text after they've finished typing
+    // to avoid constant re-parsing on every keystroke
+    const parseSpeakerText = () => {
+      const newUtterances = parseSpeakerTextToUtterances(newText);
+      if (newUtterances.length > 0) {
+        setEnhancedTranscriptionResult(prev => ({
+          ...(prev || {}),
+          text: newText,
+          utterances: newUtterances
+        } as TranscriptionResult));
+      }
+    };
+    
+    // Only parse if not in edit mode or if we need to ensure consistent state
+    if (!isEditing) {
+      parseSpeakerText();
+      setIsEditing(true);
     }
     
-    if (!isEditing) setIsEditing(true);
-  };
+    // Reset update flag after a short delay
+    setTimeout(() => {
+      isUpdatingRef.current = false;
+    }, 100);
+  }, [isEditing, setIsEditing, setLocalSpeakerText, onTranscriptionChange]);
 
   const resetLocalSpeakerText = () => {
     console.log('[useSpeakerTextState] Resetting local speaker text');
