@@ -71,6 +71,7 @@ interface RadioContainerState {
   handleTranscriptionProcessingError: (error: any) => void;
   // Add the missing properties
   switchToNativeAudio: () => void;
+  switchToHowler: () => void; // Add this missing property
   validateCurrentFileUrl: () => Promise<boolean>;
 }
 
@@ -147,7 +148,7 @@ export const useRadioContainerState = ({
     handlePlaybackRateChange,
     seekToSegment: handleSeekToSegment,
     switchToNativeAudio,
-    switchToHowler
+    switchToHowler // Make sure to destructure this from useAudioPlaybackManager
   } = useAudioPlaybackManager({
     currentFile,
     isActiveMediaRoute,
@@ -228,6 +229,7 @@ export const useRadioContainerState = ({
     handleTranscriptionProcessingError,
     // Add the missing properties to the return object
     switchToNativeAudio,
+    switchToHowler, // Add this to the return object
     validateCurrentFileUrl
   };
 };

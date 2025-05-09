@@ -44,6 +44,7 @@ export const useAudioPlaybackManager = ({
     handlePlaybackRateChange,
     handleSeekToSegment,
     switchToNativeAudio, // Add this from the Radio Player
+    switchToHowler, // Make sure this is added from useRadioPlayer
   } = useRadioPlayer({
     currentFile,
     isActiveMediaRoute,
@@ -154,5 +155,6 @@ export const useAudioPlaybackManager = ({
     handleVolumeDown,
     seekToSegment, // Renamed for clarity
     switchToNativeAudio, // Add the ability to switch to native audio
+    switchToHowler, // Make sure to return switchToHowler from the hook
   };
 };
