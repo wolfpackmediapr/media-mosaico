@@ -4,6 +4,7 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 import { toast } from "sonner";
 import { ensureValidBlobUrl, createNewBlobUrl } from "@/utils/audio-url-validator";
 import { UploadedFile } from "@/components/radio/types";
+import { useResourceManager } from "@/utils/resourceCleanup";
 
 interface UsePersistentFileStorageOptions {
   persistKey?: string;
@@ -36,6 +37,7 @@ export const usePersistentFileStorage = ({
   });
   
   const [isRestoringFiles, setIsRestoringFiles] = useState(false);
+  const resourceManager = useResourceManager();
   
   // Create a proper string for the index key
   const indexKey = `${persistKey || 'radio-files'}-current-index`;
@@ -55,24 +57,42 @@ export const usePersistentFileStorage = ({
         console.log('[usePersistentFileStorage] Restoring files from storage', files);
         
         try {
-          // Reconstruct files if needed
-          const reconstructedFiles = await Promise.all(files.map(async (file) => {
-            // Ensure we only use string IDs
-            const fileId = typeof file.id === 'string' ? file.id : 
-                        (file.id ? String(file.id) : '');
+          // Process files in small batches to prevent UI freeze
+          const reconstructedFiles = [];
+          const batchSize = 2;
+          
+          for (let i = 0; i < files.length; i += batchSize) {
+            const batch = files.slice(i, i + batchSize);
+            const batchResults = await Promise.all(batch.map(async (file) => {
+              // Ensure we only use string IDs
+              const fileId = typeof file.id === 'string' ? file.id : 
+                          (file.id ? String(file.id) : '');
+              
+              // Track any blob URLs in the resource manager
+              if (file.preview && file.preview.startsWith('blob:')) {
+                resourceManager.trackUrl(file.preview);
+              }
+              
+              return {
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                lastModified: file.lastModified,
+                preview: file.preview,
+                storagePath: file.storagePath,
+                storageUrl: file.storageUrl,
+                id: fileId, // Now ensured to be string or empty string
+                isReconstructed: true
+              } as UploadedFile;
+            }));
             
-            return {
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              lastModified: file.lastModified,
-              preview: file.preview,
-              storagePath: file.storagePath,
-              storageUrl: file.storageUrl,
-              id: fileId, // Now ensured to be string or empty string
-              isReconstructed: true
-            } as UploadedFile;
-          }));
+            reconstructedFiles.push(...batchResults);
+            
+            // Small yield to prevent UI freezing
+            if (i + batchSize < files.length) {
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+          }
           
           // Only update if we need to
           if (JSON.stringify(reconstructedFiles) !== JSON.stringify(files)) {
@@ -89,7 +109,7 @@ export const usePersistentFileStorage = ({
     restoreFiles();
   }, []);
 
-  // Handle adding new files
+  // Handle adding new files with resource tracking
   const addFiles = useCallback((newFiles: File[]) => {
     const processedFiles = newFiles.map(file => {
       const uploadedFile = file as UploadedFile;
@@ -97,6 +117,8 @@ export const usePersistentFileStorage = ({
       // Create a preview URL if not already present
       if (!uploadedFile.preview) {
         uploadedFile.preview = URL.createObjectURL(file);
+        // Track the URL for later cleanup
+        resourceManager.trackUrl(uploadedFile.preview);
       }
       
       return uploadedFile;
@@ -108,9 +130,9 @@ export const usePersistentFileStorage = ({
     if (files.length === 0 && processedFiles.length > 0) {
       setCurrentFileIndex(0);
     }
-  }, [files.length, setCurrentFileIndex, setFiles]);
+  }, [files.length, setCurrentFileIndex, setFiles, resourceManager]);
 
-  // Remove a file
+  // Remove a file and cleanup resources
   const removeFile = useCallback((indexToRemove: number) => {
     if (indexToRemove < 0 || indexToRemove >= files.length) return;
     
@@ -121,7 +143,7 @@ export const usePersistentFileStorage = ({
     if (fileToRemove.preview && !fileToRemove.storageUrl && 
         fileToRemove.preview.startsWith('blob:')) {
       try {
-        URL.revokeObjectURL(fileToRemove.preview);
+        resourceManager.revokeUrl(fileToRemove.preview);
       } catch (error) {
         console.warn('[usePersistentFileStorage] Error revoking blob URL:', error);
       }
@@ -137,22 +159,15 @@ export const usePersistentFileStorage = ({
         setCurrentFileIndex(newIndex);
       }
     }
-  }, [files, currentFileIndex, setCurrentFileIndex, setFiles]);
+  }, [files, currentFileIndex, setCurrentFileIndex, setFiles, resourceManager]);
 
-  // Cleanup blob URLs when component unmounts
+  // Cleanup blob URLs when component unmounts - let the resource manager handle this
   useEffect(() => {
+    // No need to do explicit cleanup here, the resourceManager will handle it
     return () => {
-      files.forEach(file => {
-        if (file.preview && file.preview.startsWith('blob:')) {
-          try {
-            URL.revokeObjectURL(file.preview);
-          } catch (error) {
-            console.warn('[usePersistentFileStorage] Error revoking blob URL:', error);
-          }
-        }
-      });
+      // This empty return is intentional - cleanup is handled by resourceManager
     };
-  }, [files]);
+  }, []);
 
   return {
     files,

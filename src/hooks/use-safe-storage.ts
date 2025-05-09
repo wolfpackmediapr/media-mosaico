@@ -5,11 +5,20 @@ import { toast } from "sonner";
 interface SafeStorageOptions {
   onError?: (error: Error) => void;
   storage?: 'localStorage' | 'sessionStorage';
+  batchSize?: number;
+  batchDelay?: number;
 }
 
 export function useSafeStorage(options: SafeStorageOptions = {}) {
-  const { storage = 'sessionStorage', onError } = options;
+  const { 
+    storage = 'sessionStorage', 
+    onError,
+    batchSize = 2, // Reduced from 5 to 2
+    batchDelay = 50 // Increased from 0/10ms to 50ms
+  } = options;
+  
   const [isClearing, setIsClearing] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const storageObject = window[storage];
 
@@ -17,7 +26,9 @@ export function useSafeStorage(options: SafeStorageOptions = {}) {
     if (isClearing) return; // Prevent concurrent clearing operations
     
     setIsClearing(true);
+    setProgress(0);
     const failedKeys: string[] = [];
+    const totalKeys = keys.length;
 
     try {
       // Check available space
@@ -29,21 +40,29 @@ export function useSafeStorage(options: SafeStorageOptions = {}) {
         throw new Error('Storage is not available');
       }
 
-      // Process keys in smaller batches to prevent UI freeze
-      for (const key of keys) {
-        try {
-          storageObject.removeItem(key);
-          // Short yield to let browser process other events
-          await new Promise(resolve => setTimeout(resolve, 0));
-        } catch (error) {
-          console.error(`Error clearing key ${key}:`, error);
-          failedKeys.push(key);
+      // Process keys in smaller batches with longer delays between batches
+      for (let i = 0; i < keys.length; i += batchSize) {
+        // Update progress
+        setProgress(Math.round((i / totalKeys) * 100));
+        
+        const batch = keys.slice(i, i + batchSize);
+        
+        for (const key of batch) {
+          try {
+            storageObject.removeItem(key);
+          } catch (error) {
+            console.error(`Error clearing key ${key}:`, error);
+            failedKeys.push(key);
+          }
         }
+        
+        // Use longer yield to give browser more time to process UI events
+        await new Promise(resolve => setTimeout(resolve, batchDelay));
       }
 
-      // Retry failed keys once after a short delay
+      // Retry failed keys once after a longer delay
       if (failedKeys.length > 0) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 150)); // Increased delay before retry
         
         const stillFailedKeys: string[] = [];
         for (const key of failedKeys) {
@@ -53,6 +72,9 @@ export function useSafeStorage(options: SafeStorageOptions = {}) {
             console.error(`Retry failed for key ${key}:`, error);
             stillFailedKeys.push(key);
           }
+          
+          // Small yield after each failed key retry
+          await new Promise(microtask => setTimeout(microtask, 20));
         }
         
         // Update failed keys list after retries
@@ -60,25 +82,27 @@ export function useSafeStorage(options: SafeStorageOptions = {}) {
         failedKeys.push(...stillFailedKeys);
       }
 
+      setProgress(100);
+      
       if (failedKeys.length > 0) {
         console.warn(`Could not clear ${failedKeys.length} storage keys: ${failedKeys.join(', ')}`);
       }
-      
-      // Return type changed from boolean to void
     } catch (error) {
       console.error('Storage operation failed:', error);
       onError?.(error as Error);
       toast.error('Error al limpiar el almacenamiento');
     } finally {
-      // Small delay before releasing the clearing flag to prevent rapid reruns
+      // Longer delay before releasing the clearing flag to ensure UI has time to update
       setTimeout(() => {
         setIsClearing(false);
-      }, 50);
+        setProgress(0);
+      }, 200);
     }
-  }, [storage, onError, storageObject, isClearing]);
+  }, [storage, onError, storageObject, isClearing, batchSize, batchDelay]);
 
   return {
     clearStorageKeys,
-    isClearing
+    isClearing,
+    progress
   };
 }

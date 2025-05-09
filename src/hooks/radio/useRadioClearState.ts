@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { RadioNewsSegment } from '@/components/radio/RadioNewsSegmentsContainer';
 import { UploadedFile } from '@/components/radio/types';
+import { useResourceManager } from '@/utils/resourceCleanup';
 
 interface UseRadioClearStateProps {
   files: UploadedFile[];
@@ -28,67 +29,96 @@ export const useRadioClearState = ({
   onTextChange,
 }: UseRadioClearStateProps) => {
   const [isClearingAll, setIsClearingAll] = useState<boolean>(false);
-
-  // Enhanced clear all state handler that returns Promise<void>
+  const [clearProgress, setClearProgress] = useState<number>(0);
+  const resourceManager = useResourceManager();
+  
+  // Enhanced clear all state handler with progress tracking
   const handleClearAll = useCallback(async (): Promise<void> => {
     if (isClearingAll) return Promise.resolve(); // Prevent multiple clicks
     
     setIsClearingAll(true);
+    setClearProgress(0);
     console.log('[RadioClearState] handleClearAll: Starting clear sequence');
     
     try {
       // Show toast first so user knows action is processing
       toast.loading('Borrando datos...', { id: 'clear-all-toast' });
       
-      // First reset state that doesn't depend on storage
+      // First reset state that doesn't depend on storage - with proper yielding
+      setClearProgress(10);
       setNewsSegments([]);
       console.log('[RadioClearState] News segments cleared');
       
-      // Reset transcription (may involve UI updates)
-      await new Promise<void>(resolve => {
-        setTimeout(() => {
-          resetTranscription();
-          console.log('[RadioClearState] Transcription reset');
-          resolve();
-        }, 0);
-      });
+      await new Promise(resolve => setTimeout(resolve, 50));
+      setClearProgress(20);
       
-      // Clear files and reset index before storage to avoid rehydration issues
-      // Use separate microtasks to avoid UI freeze
+      // Reset transcription (may involve UI updates)
+      resetTranscription();
+      console.log('[RadioClearState] Transcription reset');
+      
+      // Give browser time to process UI updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+      setClearProgress(40);
+      
+      // Clean up file resources and reset files state
       await new Promise<void>(resolve => {
         setTimeout(() => {
-          // Revoke any object URLs to prevent memory leaks
-          files.forEach(file => {
-            if (file.preview && file.preview.startsWith('blob:')) {
-              URL.revokeObjectURL(file.preview);
+          // Revoke any object URLs to prevent memory leaks - in batches
+          const urlBatchSize = 2;
+          for (let i = 0; i < files.length; i += urlBatchSize) {
+            const batch = files.slice(i, i + urlBatchSize);
+            batch.forEach(file => {
+              if (file.preview && file.preview.startsWith('blob:')) {
+                try {
+                  URL.revokeObjectURL(file.preview);
+                } catch (error) {
+                  console.error('[RadioClearState] Error revoking URL:', error);
+                }
+              }
+            });
+            
+            // Small delay between batches to prevent UI freeze
+            if (i + urlBatchSize < files.length) {
+              setTimeout(() => {}, 10);
             }
-          });
+          }
+          
           setFiles([]);
           setCurrentFileIndex(0);
           console.log('[RadioClearState] Files cleared');
           resolve();
-        }, 0);
+        }, 50);
       });
       
-      // Finally clear storage state with another microtask
-      await new Promise<void>(resolve => {
-        setTimeout(async () => {
-          await clearAllStorageState();
-          console.log('[RadioClearState] Storage state cleared');
-          resolve();
-        }, 0);
-      });
+      setClearProgress(60);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Finally clear storage state with another yield
+      try {
+        await clearAllStorageState();
+        console.log('[RadioClearState] Storage state cleared');
+      } catch (error) {
+        console.error('[RadioClearState] Error clearing storage state:', error);
+        toast.error('Error al borrar datos almacenados', { id: 'clear-all-toast' });
+        return Promise.reject(error);
+      }
+      
+      setClearProgress(100);
       
       // Update toast on success
       toast.success('Todos los datos han sido borrados', { id: 'clear-all-toast' });
       
-      return Promise.resolve(); // Explicitly return a resolved promise
+      return Promise.resolve();
     } catch (error) {
       console.error('[RadioClearState] Error during clear all:', error);
       toast.error('Error al borrar los datos almacenados.', { id: 'clear-all-toast' });
-      return Promise.reject(error); // Explicitly return a rejected promise on error
+      return Promise.reject(error);
     } finally {
-      setIsClearingAll(false);
+      // Use longer timeout to ensure UI has time to recover before allowing another clear
+      setTimeout(() => {
+        setIsClearingAll(false);
+        setClearProgress(0);
+      }, 500);
     }
   }, [
     isClearingAll,
@@ -97,11 +127,13 @@ export const useRadioClearState = ({
     setFiles, 
     setCurrentFileIndex, 
     clearAllStorageState,
-    files
+    files,
+    resourceManager
   ]);
 
   return {
     handleClearAll,
-    isClearingAll
+    isClearingAll,
+    clearProgress
   };
 };

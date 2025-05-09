@@ -34,7 +34,7 @@ export const useRadioActions = ({
   const [lastAction, setLastAction] = useState<string | null>(null);
 
   // Use our extracted clear state hook
-  const { handleClearAll, isClearingAll } = useRadioClearState({
+  const { handleClearAll, isClearingAll, clearProgress } = useRadioClearState({
     files,
     resetTranscription,
     setNewsSegments,
@@ -83,6 +83,7 @@ export const useRadioActions = ({
     handleClearAll: handleClearAllWithTracking,
     handleTrackSelect,
     handleFilesAdded, // Export the enhanced version
-    isClearingAll
+    isClearingAll,
+    clearProgress
   };
 };

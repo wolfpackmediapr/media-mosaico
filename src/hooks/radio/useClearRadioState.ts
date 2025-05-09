@@ -16,9 +16,12 @@ export const useClearRadioState = ({
   const clearAnalysisRef = useRef<(() => void) | null>(null);
   const editorResetRef = useRef<null | (() => void)>(null);
   const mountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
-  const { clearStorageKeys, isClearing } = useSafeStorage({
+  const { clearStorageKeys, isClearing, progress } = useSafeStorage({
     storage: 'sessionStorage',
+    batchSize: 2,  // Only clear 2 items at a time
+    batchDelay: 50, // Wait 50ms between batches
     onError: (error) => {
       console.error('[useClearRadioState] Storage error:', error);
     }
@@ -32,61 +35,78 @@ export const useClearRadioState = ({
     clearAnalysisRef.current = fn;
   }, []);
 
-  // Improved state clearing implementation to avoid UI freezing
-  // Modified to return Promise<void> instead of Promise<boolean>
+  // Improved state clearing implementation that can be cancelled
   const clearAllState = useCallback(async (): Promise<void> => {
     if (!mountedRef.current) return;
+    
+    // Create a new abort controller for this operation
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
     
     console.log('[useClearRadioState] Starting clear all state operation');
     
     // Define keys to delete
-    const keysToDelete = [
-      `${persistKey}-metadata`,
-      `${persistKey}-current-index`,
-      "radio-transcription",
-      "radio-transcription-draft",
-      "radio-content-analysis-draft",
-      "radio-content-analysis",
-      "radio-transcription-speaker-draft",
-      "transcription-timestamp-view-draft",
-      "transcription-editor-mode-draft",
-      "transcription-view-mode-draft",
-      `${persistKey}-text-content`,
-      "radio-transcription-text-content"
-    ];
+    // Group keys by category for better batch processing
+    const keysToDelete = {
+      files: [
+        `${persistKey}-metadata`,
+        `${persistKey}-current-index`,
+        `${persistKey}-text-content`,
+      ],
+      transcription: [
+        "radio-transcription",
+        "radio-transcription-draft",
+        "radio-transcription-text-content",
+        "radio-transcription-speaker-draft",
+        "transcription-timestamp-view-draft",
+        "transcription-editor-mode-draft",
+        "transcription-view-mode-draft"
+      ],
+      analysis: [
+        "radio-content-analysis-draft",
+        "radio-content-analysis"
+      ]
+    };
 
     // Add transcription-specific keys if ID is available
     if (transcriptionId) {
-      keysToDelete.push(
+      keysToDelete.transcription.push(
         `radio-transcription-${transcriptionId}`,
         `radio-transcription-speaker-${transcriptionId}`,
         `transcription-timestamp-view-${transcriptionId}`,
         `transcription-editor-mode-${transcriptionId}`,
-        `radio-content-analysis-${transcriptionId}`,
-        `radio-transcription-text-content-${transcriptionId}`,
-        `transcription-view-mode-${transcriptionId}`
+        `transcription-view-mode-${transcriptionId}`,
+        `radio-transcription-text-content-${transcriptionId}`
+      );
+      
+      keysToDelete.analysis.push(
+        `radio-content-analysis-${transcriptionId}`
       );
     }
 
-    // Use Promise to handle storage clearing
     try {
-      // Use microtask to avoid UI freezing
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // Break clearing into separate operations by category
+      // Start with files (smaller impact)
+      if (signal.aborted) return;
+      await new Promise(resolve => setTimeout(resolve, 10));
+      await clearStorageKeys(keysToDelete.files);
       
-      // Clear storage in batches to avoid blocking UI
-      const batchSize = 5;
-      for (let i = 0; i < keysToDelete.length; i += batchSize) {
-        const batch = keysToDelete.slice(i, i + batchSize);
-        await clearStorageKeys(batch);
-        
-        // Small delay between batches to let UI breathe
-        if (i + batchSize < keysToDelete.length) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
-      }
+      // Clear transcription data
+      if (signal.aborted) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await clearStorageKeys(keysToDelete.transcription);
       
-      // Handle UI-related operations with delays to prevent freeze
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // Clear analysis data
+      if (signal.aborted) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await clearStorageKeys(keysToDelete.analysis);
+      
+      // Handle UI state clearing with proper yielding
+      if (signal.aborted) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
       
       // Clear analysis state if available
       if (clearAnalysisRef.current) {
@@ -97,7 +117,9 @@ export const useClearRadioState = ({
         }
       }
 
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // Reset editor after more yielding
+      if (signal.aborted) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
       
       // Reset editor if available
       if (editorResetRef.current) {
@@ -108,22 +130,34 @@ export const useClearRadioState = ({
         }
       }
 
+      // Wait a bit more before clearing text to ensure UI has updated
+      if (signal.aborted) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
       // Clear text if callback is available
       if (onTextChange) {
         onTextChange("");
       }
       
       console.log('[useClearRadioState] Successfully cleared all state');
-      // No return value needed anymore
     } catch (error) {
-      console.error('[useClearRadioState] Error clearing state:', error);
-      // No return value needed anymore
+      if (signal.aborted) {
+        console.log('[useClearRadioState] Clear operation was cancelled');
+      } else {
+        console.error('[useClearRadioState] Error clearing state:', error);
+      }
+    } finally {
+      abortControllerRef.current = null;
     }
   }, [persistKey, transcriptionId, onTextChange, clearStorageKeys]);
 
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
     };
   }, []);
 
@@ -131,6 +165,7 @@ export const useClearRadioState = ({
     clearAllState,
     handleEditorRegisterReset,
     setClearAnalysis,
-    isClearing
+    isClearing,
+    clearProgress: progress
   };
 };
