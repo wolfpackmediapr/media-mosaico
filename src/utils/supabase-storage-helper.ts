@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 
@@ -16,6 +15,26 @@ export interface UploadResult {
  */
 export async function uploadAudioToSupabase(file: File): Promise<UploadResult> {
   try {
+    // Add safety check - if file is not valid, return early
+    if (!file || typeof file !== 'object') {
+      console.error('[supabase-storage-helper] Invalid file provided for upload');
+      return {
+        path: "",
+        url: "",
+        error: "Invalid file object provided" 
+      };
+    }
+    
+    // Add safety check for file name
+    if (!file.name) {
+      console.error('[supabase-storage-helper] File missing name property');
+      return { 
+        path: "", 
+        url: "", 
+        error: "File object missing name property" 
+      };
+    }
+    
     const bucketName = 'radio_audio';
     
     // Generate a unique file path to avoid collisions
@@ -34,7 +53,7 @@ export async function uploadAudioToSupabase(file: File): Promise<UploadResult> {
       });
 
     if (error) {
-      console.error("Error uploading file to Supabase:", error);
+      console.error("[supabase-storage-helper] Error uploading file to Supabase:", error);
       return { 
         path: "", 
         url: "", 
@@ -53,7 +72,7 @@ export async function uploadAudioToSupabase(file: File): Promise<UploadResult> {
       url: publicUrl
     };
   } catch (err) {
-    console.error("Unexpected error during file upload:", err);
+    console.error("[supabase-storage-helper] Unexpected error during file upload:", err);
     return {
       path: "",
       url: "",

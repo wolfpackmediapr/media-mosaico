@@ -1,3 +1,4 @@
+
 import { useCallback, useState, useEffect } from "react";
 import { uploadAudioToSupabase } from "@/utils/supabase-storage-helper";
 import { useAuthStatus } from "@/hooks/use-auth-status";
@@ -33,7 +34,7 @@ export const useSupabaseFileStorage = ({
 
   // Reset cancelled status for new files
   useEffect(() => {
-    const fileNames = files.map(f => f.name);
+    const fileNames = files.filter(f => f?.name).map(f => f.name);
     setUploadCancelled(prev => {
       const newState = { ...prev };
       // Only keep entries for current files
@@ -61,9 +62,21 @@ export const useSupabaseFileStorage = ({
 
   // Upload a file to Supabase storage with progress simulation
   const uploadFileToStorage = useCallback(async (file: UploadedFile): Promise<boolean> => {
+    // Add safety check - if not authenticated, don't try to upload
     if (!isAuthenticated) {
-      // Handle gracefully - not authenticated
       console.log('[useSupabaseFileStorage] User not authenticated, skipping upload');
+      return false;
+    }
+    
+    // Add safety check - validate file object
+    if (!file || typeof file !== 'object') {
+      console.error('[useSupabaseFileStorage] Invalid file object provided for upload');
+      return false;
+    }
+    
+    // Add safety check - ensure file has a name
+    if (!file.name) {
+      console.error('[useSupabaseFileStorage] File missing name property');
       return false;
     }
     
@@ -86,6 +99,10 @@ export const useSupabaseFileStorage = ({
       setUploadCancelled(prev => ({ ...prev, [fileName]: false }));
     }
     
+    // Set maximum retries
+    const MAX_RETRIES = 2;
+    const currentRetries = uploadRetries[fileName] || 0;
+    
     try {
       setIsUploading(prev => ({ ...prev, [fileName]: true }));
       setUploadProgress(prev => ({ ...prev, [fileName]: 0 }));
@@ -105,7 +122,14 @@ export const useSupabaseFileStorage = ({
         });
       }, 800);
       
-      const result = await uploadAudioToSupabase(file);
+      // Ensure file is a valid File object before uploading
+      if (!(file instanceof File)) {
+        if (!file.size || !file.type) {
+          throw new Error('Invalid file object: missing required properties');
+        }
+      }
+      
+      const result = await uploadAudioToSupabase(file as File);
       
       // Clear the progress updater if still running
       clearInterval(progressUpdater);
@@ -120,11 +144,10 @@ export const useSupabaseFileStorage = ({
       if (result.error) {
         console.error('[useSupabaseFileStorage] Upload error:', result.error);
         
-        // Handle retriable errors
-        const currentRetries = uploadRetries[fileName] || 0;
-        if (currentRetries < 2 && !result.error.includes('permission denied')) {
+        // Handle retriable errors with limited retries
+        if (currentRetries < MAX_RETRIES && !result.error.includes('permission denied')) {
           setUploadRetries(prev => ({ ...prev, [fileName]: currentRetries + 1 }));
-          toast.error(`Error al subir el archivo. Reintentando... (${currentRetries + 1}/3)`, {
+          toast.error(`Error al subir el archivo. Reintentando... (${currentRetries + 1}/${MAX_RETRIES + 1})`, {
             duration: 3000,
             id: `upload-retry-${fileName}`
           });
@@ -160,7 +183,7 @@ export const useSupabaseFileStorage = ({
       
       // Update the metadata with the storage info
       setFiles(prev => prev.map(f => {
-        if (f.name === fileName) {
+        if (f && f.name === fileName) {
           return {
             ...f,
             storagePath: result.path,
@@ -195,8 +218,15 @@ export const useSupabaseFileStorage = ({
 
   // Synchronize all files with Supabase storage with better error handling
   const syncFilesToSupabase = useCallback(() => {
+    // Add safety check - if not authenticated, don't try to upload
     if (!isAuthenticated) {
       console.log('[useSupabaseFileStorage] User not authenticated, skipping sync');
+      return;
+    }
+    
+    // Add safety check - validate files array
+    if (!Array.isArray(files) || files.length === 0) {
+      console.log('[useSupabaseFileStorage] No files to sync');
       return;
     }
     
@@ -205,6 +235,13 @@ export const useSupabaseFileStorage = ({
       if (index >= files.length) return;
       
       const file = files[index];
+      
+      // Skip invalid files
+      if (!file || typeof file !== 'object' || !file.name) {
+        console.log('[useSupabaseFileStorage] Skipping invalid file at index', index);
+        processNextFile(index + 1);
+        return;
+      }
       
       // Skip already uploaded files
       if (file.storagePath && file.storageUrl) {

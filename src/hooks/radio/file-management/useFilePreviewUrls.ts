@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useRef } from "react";
 import { ensureValidBlobUrl } from "@/utils/audio-url-validator";
 import { UploadedFile } from "@/components/radio/types";
@@ -20,7 +21,7 @@ export const useFilePreviewUrls = ({
   
   // Validate and refresh blob URLs if needed
   const validateFileUrls = useCallback(async () => {
-    if (files.length === 0) return;
+    if (!Array.isArray(files) || files.length === 0) return;
     
     let hasChanges = false;
     
@@ -29,6 +30,13 @@ export const useFilePreviewUrls = ({
     
     for (const file of files) {
       try {
+        // Skip invalid file objects
+        if (!file || typeof file !== 'object') {
+          console.warn('[useFilePreviewUrls] Invalid file object in files array');
+          updatedFiles.push(file);
+          continue;
+        }
+        
         // Prioritize storage URLs as they're more reliable
         if (file.storageUrl) {
           // If we have both preview blob and storage URL, prefer storage URL
@@ -73,10 +81,14 @@ export const useFilePreviewUrls = ({
             }
           } catch (err) {
             console.error('[useFilePreviewUrls] Error validating blob URL:', err);
+            
             // Create a new blob URL as fallback
-            // Fix: Check if file has necessary properties before using as File
-            if ((file instanceof File) || 
-                (typeof file === 'object' && file !== null && 'type' in file && 'name' in file)) {
+            // Add robust type checking before using as File
+            if (file && 
+                (file instanceof File || 
+                (typeof file === 'object' && file !== null && 
+                 'type' in file && typeof file.type === 'string' && 
+                 'name' in file && typeof file.name === 'string'))) {
               try {
                 // Revoke old URL if it exists
                 if (file.preview) {
@@ -88,7 +100,7 @@ export const useFilePreviewUrls = ({
                   }
                 }
                 
-                const newPreview = URL.createObjectURL(file);
+                const newPreview = URL.createObjectURL(file as File);
                 // Track new URL
                 createdUrls.current.push(newPreview);
                 hasChanges = true;
@@ -99,6 +111,7 @@ export const useFilePreviewUrls = ({
                 updatedFiles.push(file); // Keep original to avoid losing the file
               }
             } else {
+              console.warn('[useFilePreviewUrls] Invalid file object for URL creation');
               updatedFiles.push(file); // Keep original to avoid losing the file
             }
           }
@@ -144,7 +157,7 @@ export const useFilePreviewUrls = ({
     return () => {
       // First, try to clean up by checking the current files
       files.forEach(file => {
-        if (file.preview && file.preview.startsWith('blob:') && !file.storageUrl) {
+        if (file && file.preview && file.preview.startsWith('blob:') && !file.storageUrl) {
           try {
             URL.revokeObjectURL(file.preview);
           } catch (err) {
