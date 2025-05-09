@@ -1,7 +1,9 @@
+
 import { useCallback, useEffect, useRef } from "react";
 import { ensureValidBlobUrl } from "@/utils/audio-url-validator";
 import { UploadedFile } from "@/components/radio/types";
 import { toast } from "sonner";
+import { isUploadedFile } from "@/utils/file-type-guards";
 
 interface UseFilePreviewUrlsProps {
   files: UploadedFile[];
@@ -30,7 +32,7 @@ export const useFilePreviewUrls = ({
     for (const file of files) {
       try {
         // Skip invalid file objects
-        if (!file || typeof file !== 'object') {
+        if (!isUploadedFile(file)) {
           console.warn('[useFilePreviewUrls] Invalid file object in files array');
           updatedFiles.push(file);
           continue;
@@ -103,7 +105,7 @@ export const useFilePreviewUrls = ({
                 console.error('[useFilePreviewUrls] Failed to create replacement URL from File instance:', file.name, e);
                 updatedFiles.push(file); // Keep original to avoid losing the file
               }
-            } else if (file) {
+            } else if (isUploadedFile(file)) {
               // If `file` is an UploadedFile descriptor but not a File instance, we can't create a new blob URL.
               console.warn('[useFilePreviewUrls] Cannot create new blob URL: file is a descriptor, not a File instance.', file.name);
               updatedFiles.push(file); // Keep original
@@ -155,7 +157,7 @@ export const useFilePreviewUrls = ({
     return () => {
       // First, try to clean up by checking the current files
       files.forEach(file => {
-        if (file && file.preview && file.preview.startsWith('blob:') && !file.storageUrl) {
+        if (isUploadedFile(file) && file.preview && file.preview.startsWith('blob:') && !file.storageUrl) {
           try {
             URL.revokeObjectURL(file.preview);
           } catch (err) {

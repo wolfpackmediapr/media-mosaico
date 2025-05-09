@@ -1,8 +1,10 @@
+
 import { useCallback, useState, useEffect } from "react";
 import { uploadAudioToSupabase, blobUrlToFile } from "@/utils/supabase-storage-helper";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { UploadedFile } from "@/components/radio/types";
 import { toast } from "sonner";
+import { isUploadedFile, hasPreviewProperties } from "@/utils/file-type-guards";
 
 interface UseSupabaseFileStorageProps {
   files: UploadedFile[];
@@ -33,7 +35,10 @@ export const useSupabaseFileStorage = ({
 
   // Reset cancelled status for new files
   useEffect(() => {
-    const fileNames = files.filter(f => f?.name).map(f => f.name);
+    const fileNames = files
+      .filter(f => isUploadedFile(f))
+      .map(f => f.name);
+      
     setUploadCancelled(prev => {
       const newState = { ...prev };
       // Only keep entries for current files
@@ -68,17 +73,12 @@ export const useSupabaseFileStorage = ({
     }
     
     // Add safety check - validate file object
-    if (!file || typeof file !== 'object') {
+    if (!isUploadedFile(file)) {
       console.error('[useSupabaseFileStorage] Invalid file object provided for upload');
       return false;
     }
     
     // Add safety check - ensure file has a name
-    if (!file.name) {
-      console.error('[useSupabaseFileStorage] File missing name property');
-      return false;
-    }
-    
     const fileName = file.name;
     
     // Skip if the file already has a storage URL
@@ -128,7 +128,7 @@ export const useSupabaseFileStorage = ({
       } else {
         // File is an UploadedFile descriptor, not a File instance.
         // Try to reconstruct it from its blob preview URL.
-        if (file.preview && file.preview.startsWith('blob:') && file.name && file.type) {
+        if (hasPreviewProperties(file)) {
           console.log(`[useSupabaseFileStorage] Attempting to reconstruct File from blob URL for: ${fileName}`);
           const reconstructedFile = await blobUrlToFile(file.preview, file.name, file.type);
           if (reconstructedFile) {
@@ -206,7 +206,7 @@ export const useSupabaseFileStorage = ({
       
       // Update the metadata with the storage info
       setFiles(prev => prev.map(f => {
-        if (f && f.name === fileName) {
+        if (isUploadedFile(f) && f.name === fileName) {
           return {
             ...f,
             storagePath: result.path,
@@ -260,7 +260,7 @@ export const useSupabaseFileStorage = ({
       const file = files[index];
       
       // Skip invalid files
-      if (!file || typeof file !== 'object' || !file.name) {
+      if (!isUploadedFile(file)) {
         console.log('[useSupabaseFileStorage] Skipping invalid file at index', index);
         processNextFile(index + 1);
         return;
