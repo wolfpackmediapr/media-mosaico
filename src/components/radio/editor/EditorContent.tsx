@@ -1,5 +1,5 @@
 
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import RadioTimestampedTranscription from '../RadioTimestampedTranscription';
 import TranscriptionTextArea from './TranscriptionTextArea';
 import { TranscriptionResult } from '@/services/audio/transcriptionService';
@@ -17,6 +17,20 @@ interface EditorContentProps {
   onTextAreaClick?: () => void;
 }
 
+// Enhanced memo comparison function to prevent unnecessary re-renders
+const arePropsEqual = (prevProps: EditorContentProps, nextProps: EditorContentProps) => {
+  // Only re-render when these props change
+  return (
+    prevProps.showTimestamps === nextProps.showTimestamps &&
+    prevProps.hasTimestampData === nextProps.hasTimestampData &&
+    prevProps.isEditing === nextProps.isEditing &&
+    prevProps.isProcessing === nextProps.isProcessing &&
+    prevProps.isLoadingUtterances === nextProps.isLoadingUtterances &&
+    prevProps.text === nextProps.text &&
+    prevProps.transcriptionResult === nextProps.transcriptionResult
+  );
+};
+
 // Memoize the component to prevent unnecessary re-renders
 const EditorContent = memo(({
   showTimestamps,
@@ -31,6 +45,11 @@ const EditorContent = memo(({
   onTextAreaClick,
 }: EditorContentProps) => {
   console.log('[EditorContent] Rendering with text length:', text?.length);
+  
+  // Memoize text change handler
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    onTextChange(e);
+  }, [onTextChange]);
   
   if (showTimestamps && hasTimestampData) {
     return (
@@ -48,11 +67,11 @@ const EditorContent = memo(({
       text={text}
       isProcessing={isProcessing}
       isEditing={isEditing}
-      onChange={onTextChange}
+      onChange={handleTextChange}
       onClick={onTextAreaClick}
     />
   );
-});
+}, arePropsEqual);
 
 EditorContent.displayName = 'EditorContent';
 

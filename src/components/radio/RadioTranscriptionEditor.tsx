@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, memo } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
 import { TranscriptionEditorWrapper } from "./editor/TranscriptionEditorWrapper";
@@ -15,7 +15,8 @@ interface RadioTranscriptionEditorProps {
   currentTime?: number;
 }
 
-const RadioTranscriptionEditor = ({
+// Use memo to prevent unnecessary re-renders
+const RadioTranscriptionEditor = memo(({
   transcriptionText,
   isProcessing,
   onTranscriptionChange,
@@ -66,17 +67,8 @@ const RadioTranscriptionEditor = ({
 
   // Calculate the final processing state with more granular logging
   const finalIsProcessing = isProcessing || isLoadingUtterances;
-  console.log('[RadioTranscriptionEditor] Processing state details:', {
-    isProcessing,
-    isLoadingUtterances,
-    finalIsProcessing,
-    hasTranscriptionText: !!transcriptionText,
-    hasTranscriptionResult: !!transcriptionResult,
-    hasEnhancedResult: !!enhancedTranscriptionResult,
-    currentTime: currentTime?.toFixed(2) || 'none'
-  });
-
-  // Log when the processing state changes
+  
+  // Log less frequently to reduce console spam
   useEffect(() => {
     console.log('[RadioTranscriptionEditor] Processing state changed:', finalIsProcessing);
   }, [finalIsProcessing]);
@@ -96,6 +88,8 @@ const RadioTranscriptionEditor = ({
       isEditing={isEditing}
     />
   );
-};
+});
+
+RadioTranscriptionEditor.displayName = 'RadioTranscriptionEditor';
 
 export default RadioTranscriptionEditor;
