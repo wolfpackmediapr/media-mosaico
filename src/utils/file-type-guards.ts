@@ -34,5 +34,13 @@ export function hasPreviewProperties(file: any): file is { preview: string; name
  * but also has the necessary properties for blob URL reconstruction
  */
 export function isReconstructableFile(file: any): file is (UploadedFile & { preview: string; name: string; type: string }) {
-  return isUploadedFile(file) && hasPreviewProperties(file);
+  return (
+    isUploadedFile(file) && 
+    'preview' in file && 
+    typeof file.preview === 'string' &&
+    'name' in file &&
+    typeof file.name === 'string' &&
+    'type' in file &&
+    typeof file.type === 'string'
+  );
 }

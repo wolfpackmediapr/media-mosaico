@@ -1,3 +1,4 @@
+
 import { useCallback, useState, useEffect } from "react";
 import { uploadAudioToSupabase, blobUrlToFile } from "@/utils/supabase-storage-helper";
 import { useAuthStatus } from "@/hooks/use-auth-status";
@@ -128,12 +129,20 @@ export const useSupabaseFileStorage = ({
         // File is an UploadedFile descriptor, not a File instance.
         // Try to reconstruct it from its blob preview URL.
         
-        // Check if file has all required properties
+        // We need to handle this differently to fix TypeScript error
+        // First check if it's reconstructable
         if (isReconstructableFile(file)) {
-          // Extract properties needed for reconstruction
-          const filePreview = file.preview;
-          const fileName = file.name;
-          const fileType = file.type;
+          // Create typed variables that TypeScript can verify
+          const reconstructableFile = file as UploadedFile & { 
+            preview: string; 
+            name: string; 
+            type: string 
+          };
+          
+          // Now use these safe variables
+          const filePreview = reconstructableFile.preview;
+          const fileName = reconstructableFile.name;
+          const fileType = reconstructableFile.type;
           
           console.log(`[useSupabaseFileStorage] Attempting to reconstruct File from blob URL for: ${fileName}`);
           
