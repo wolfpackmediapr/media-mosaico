@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { 
   TranscriptionResult, 
@@ -10,7 +9,6 @@ import {
   parseSpeakerTextToUtterances,
   formatPlainTextAsSpeaker 
 } from "@/components/radio/utils/speakerTextUtils";
-import { useDebounce } from "@/hooks/useDebounce";
 
 interface UseSpeakerTextStateProps {
   transcriptionText: string;
@@ -31,18 +29,10 @@ export const useSpeakerTextState = ({
     { storage: 'sessionStorage' }
   );
 
-  // Local state to manage temporary edits before propagating to parent
-  const [localEditText, setLocalEditText] = useState("");
-  
-  // Debounced text that will be sent to parent
-  const debouncedText = useDebounce(localEditText, 300);
-
   const [enhancedTranscriptionResult, setEnhancedTranscriptionResult] =
     useState<TranscriptionResult | undefined>(transcriptionResult);
   
   const lastTextRef = useRef(transcriptionText);
-  const isUpdatingRef = useRef(false);
-  const skipNextUpdateRef = useRef(false);
 
   const hasSpeakerLabels = Boolean(
     enhancedTranscriptionResult?.utterances &&
@@ -55,23 +45,7 @@ export const useSpeakerTextState = ({
     { storage: 'sessionStorage' }
   );
 
-  // Initialize local edit text when transcription changes
   useEffect(() => {
-    if (localSpeakerText && !localEditText) {
-      setLocalEditText(localSpeakerText);
-    } else if (transcriptionText && !localEditText && !localSpeakerText) {
-      setLocalEditText(transcriptionText);
-    }
-  }, [transcriptionText, localSpeakerText, localEditText]);
-
-  // Process incoming transcription data
-  useEffect(() => {
-    // Skip if we're in the middle of a user-initiated update
-    if (isUpdatingRef.current || skipNextUpdateRef.current) {
-      skipNextUpdateRef.current = false;
-      return;
-    }
-    
     if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
       console.log('[useSpeakerTextState] New transcription result with utterances received');
       setEnhancedTranscriptionResult(transcriptionResult);
@@ -79,7 +53,6 @@ export const useSpeakerTextState = ({
       if (formattedText && localSpeakerText !== formattedText) {
         console.log('[useSpeakerTextState] Setting formatted speaker text from utterances');
         setLocalSpeakerText(formattedText);
-        setLocalEditText(formattedText);
         if (formattedText !== lastTextRef.current) {
           lastTextRef.current = formattedText;
           onTranscriptionChange(formattedText);
@@ -90,7 +63,6 @@ export const useSpeakerTextState = ({
       console.log('[useSpeakerTextState] Processing plain transcription text');
       const formattedText = formatPlainTextAsSpeaker(transcriptionText);
       setLocalSpeakerText(formattedText);
-      setLocalEditText(formattedText);
       lastTextRef.current = formattedText;
       onTranscriptionChange(formattedText);
       
@@ -105,53 +77,38 @@ export const useSpeakerTextState = ({
     }
   }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText]);
 
-  // Effect to propagate debounced changes to parent
-  useEffect(() => {
-    if (debouncedText && debouncedText !== lastTextRef.current) {
-      lastTextRef.current = debouncedText;
-      setLocalSpeakerText(debouncedText);
-      onTranscriptionChange(debouncedText);
-    }
-  }, [debouncedText, onTranscriptionChange, setLocalSpeakerText]);
-
-  // Modified text change handler to accept string input directly
-  const handleTextChange = useCallback((text: string) => {
-    if (!text || text === lastTextRef.current) return;
+  const handleTextChange = (newText: string) => {
+    if (!newText || newText === lastTextRef.current) return;
     
-    // Set local state immediately for UI feedback
-    setLocalEditText(text);
+    lastTextRef.current = newText;
+    setLocalSpeakerText(newText);
+    onTranscriptionChange(newText);
     
-    // Mark that we're in a user-initiated update to prevent
-    // the effect from reprocessing this update
-    isUpdatingRef.current = true;
-    
-    // When user is editing, only parse speaker text after they've finished typing
-    // to avoid constant re-parsing on every keystroke
-    if (isEditing) {
-      skipNextUpdateRef.current = true;
+    const newUtterances = parseSpeakerTextToUtterances(newText);
+    if (newUtterances.length > 0) {
+      setEnhancedTranscriptionResult(prev => ({
+        ...(prev || {}),
+        text: newText,
+        utterances: newUtterances
+      } as TranscriptionResult));
     }
     
-    // Reset update flag after a short delay
-    setTimeout(() => {
-      isUpdatingRef.current = false;
-    }, 300);
-  }, [isEditing]);
+    if (!isEditing) setIsEditing(true);
+  };
 
-  const resetLocalSpeakerText = useCallback(() => {
+  const resetLocalSpeakerText = () => {
     console.log('[useSpeakerTextState] Resetting local speaker text');
     removeLocalSpeakerText();
     setLocalSpeakerText("");
-    setLocalEditText("");
     setIsEditing(false);
-    lastTextRef.current = "";
-  }, [removeLocalSpeakerText, setLocalSpeakerText, setIsEditing]);
+  };
 
-  const toggleEditMode = useCallback(() => {
+  const toggleEditMode = () => {
     setIsEditing(!isEditing);
-  }, [isEditing, setIsEditing]);
+  };
 
   return {
-    localText: localEditText || localSpeakerText || transcriptionText,
+    localText: localSpeakerText,
     isEditing,
     handleTextChange,
     toggleEditMode,

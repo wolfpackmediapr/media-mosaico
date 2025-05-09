@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
@@ -22,8 +23,7 @@ export interface UseAudioCoreOptions {
   onEnded?: () => void;
   onError?: (error: string) => void;
   forceHTML5?: boolean;
-  onInvalidBlobUrl?: (file: File) => void;
-  storageUrl?: string | null;
+  onInvalidBlobUrl?: (file: File) => void; // New callback for invalid blob URLs
 }
 
 /**
@@ -34,9 +34,12 @@ export const useAudioCore = ({
   onEnded,
   onError,
   forceHTML5 = false,
-  onInvalidBlobUrl,
-  storageUrl = null
-}: UseAudioCoreOptions) => {
+  onInvalidBlobUrl
+}: UseAudioCoreOptions): [
+  AudioCoreState,
+  React.Dispatch<React.SetStateAction<Howl | null>>,
+  React.Dispatch<React.SetStateAction<PlaybackErrors>>
+] => {
   const [howl, setHowl] = useState<Howl | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -77,12 +80,6 @@ export const useAudioCore = ({
 
   // Validate and potentially recreate Blob URL for a file
   const validateAndUpdateBlobUrl = useCallback(async (file: File): Promise<string> => {
-    // If we have a storage URL, prioritize it
-    if (storageUrl) {
-      console.log('[AudioCore] Using provided storage URL instead of blob URL');
-      return storageUrl;
-    }
-    
     // Check if file has a preview property with a blob URL
     if (!('preview' in file) || 
         typeof file.preview !== 'string' || 
@@ -118,7 +115,7 @@ export const useAudioCore = ({
     // URL is valid, use it
     blobUrlValidRef.current = true;
     return file.preview;
-  }, [onInvalidBlobUrl, storageUrl]);
+  }, [onInvalidBlobUrl]);
 
   // Preload check using HTML5 audio
   const preloadCheck = async (url: string): Promise<boolean> => {
@@ -185,7 +182,7 @@ export const useAudioCore = ({
     
     const initializeAudio = async () => {
       try {
-        // Validate or create blob URL, or use storage URL if provided
+        // Validate or create blob URL
         const currentUrl = await validateAndUpdateBlobUrl(file);
         
         // Check if the file is the same
@@ -196,7 +193,7 @@ export const useAudioCore = ({
         }
         
         // Revoke the previous URL to prevent memory leaks
-        if (currentFileUrlRef.current && currentFileUrlRef.current.startsWith('blob:')) {
+        if (currentFileUrlRef.current) {
           URL.revokeObjectURL(currentFileUrlRef.current);
         }
         
@@ -220,6 +217,26 @@ export const useAudioCore = ({
         // Check if we can play this with native first
         const canPlayWithNative = await preloadCheck(currentUrl);
         console.log(`[AudioCore] Pre-check result: ${canPlayWithNative ? 'Can play' : 'Cannot play'} with native audio`);
+        
+        // If native can't play and we detected an invalid blob URL, try recreating it
+        if (!canPlayWithNative && !blobUrlValidRef.current) {
+          // Clear URL ref since it's invalid
+          currentFileUrlRef.current = null;
+          
+          // Try to recreate Blob URL one more time
+          const newUrl = createNewBlobUrl(file);
+          (file as any).preview = newUrl;
+          currentFileUrlRef.current = newUrl;
+          
+          // Let the next effect run handle this updated URL
+          setIsLoading(false);
+          
+          if (onInvalidBlobUrl) {
+            onInvalidBlobUrl(file);
+          }
+          
+          return;
+        }
         
         // If native still can't play it, there's no point trying with Howler
         if (!canPlayWithNative) {
@@ -317,14 +334,15 @@ export const useAudioCore = ({
     };
   }, [file, howl, onEnded, onError, onInvalidBlobUrl, validateAndUpdateBlobUrl]);
 
-  return {
-    howl, 
-    setHowl, 
-    duration, 
-    isLoading, 
-    isReady, 
-    playbackErrors, 
-    setPlaybackErrors,
-    currentUrl: currentFileUrlRef.current
-  };
+  return [
+    { 
+      howl, 
+      isLoading, 
+      isReady, 
+      duration,
+      currentUrl: currentFileUrlRef.current
+    },
+    setHowl,
+    setPlaybackErrors
+  ];
 };

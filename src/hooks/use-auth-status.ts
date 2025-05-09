@@ -5,7 +5,6 @@ export const useAuthStatus = () => {
   const { user, isLoading } = useAuth();
   
   return {
-    isAuthenticated: isLoading ? null : !!user,
-    isLoading
+    isAuthenticated: isLoading ? null : !!user
   };
 };

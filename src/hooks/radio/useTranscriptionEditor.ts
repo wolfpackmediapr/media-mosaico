@@ -3,7 +3,6 @@ import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useSpeakerTextState } from "./editor/useSpeakerTextState";
 import { useFetchUtterances } from "./editor/useFetchUtterances";
 import { useTranscriptionSave } from "./editor/useTranscriptionSave";
-import { useCallback } from "react";
 
 interface UseTranscriptionEditorProps {
   transcriptionText: string;
@@ -22,7 +21,7 @@ export const useTranscriptionEditor = ({
   const {
     localText,
     isEditing,
-    handleTextChange: handleSpeakerTextChange,
+    handleTextChange,
     toggleEditMode,
     hasSpeakerLabels,
     resetLocalSpeakerText,
@@ -35,24 +34,13 @@ export const useTranscriptionEditor = ({
     onTranscriptionChange
   });
 
-  // Create a compatible handler that can accept either string or event
-  const handleTextChange = useCallback((textOrEvent: string | React.ChangeEvent<HTMLTextAreaElement>) => {
-    // If it's an event, extract the value
-    if (typeof textOrEvent !== 'string' && textOrEvent.target) {
-      handleSpeakerTextChange(textOrEvent.target.value);
-    } else if (typeof textOrEvent === 'string') {
-      // If it's already a string, pass it directly
-      handleSpeakerTextChange(textOrEvent);
-    }
-  }, [handleSpeakerTextChange]);
-
   // Fetch utterances if needed
   const { isLoadingUtterances } = useFetchUtterances({
     transcriptionId,
     transcriptionText,
     enhancedTranscriptionResult,
     setEnhancedTranscriptionResult,
-    setLocalSpeakerText: handleSpeakerTextChange,
+    setLocalSpeakerText: handleTextChange,
     onTranscriptionChange
   });
 

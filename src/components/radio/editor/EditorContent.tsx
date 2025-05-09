@@ -1,5 +1,5 @@
 
-import React, { memo, useCallback } from 'react';
+import React from 'react';
 import RadioTimestampedTranscription from '../RadioTimestampedTranscription';
 import TranscriptionTextArea from './TranscriptionTextArea';
 import { TranscriptionResult } from '@/services/audio/transcriptionService';
@@ -12,27 +12,12 @@ interface EditorContentProps {
   isLoadingUtterances: boolean;
   text: string;
   transcriptionResult?: TranscriptionResult;
-  onTextChange: (text: string) => void;
+  onTextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onTimestampClick?: (timestamp: number) => void;
   onTextAreaClick?: () => void;
 }
 
-// Enhanced memo comparison function to prevent unnecessary re-renders
-const arePropsEqual = (prevProps: EditorContentProps, nextProps: EditorContentProps) => {
-  // Only re-render when these props change
-  return (
-    prevProps.showTimestamps === nextProps.showTimestamps &&
-    prevProps.hasTimestampData === nextProps.hasTimestampData &&
-    prevProps.isEditing === nextProps.isEditing &&
-    prevProps.isProcessing === nextProps.isProcessing &&
-    prevProps.isLoadingUtterances === nextProps.isLoadingUtterances &&
-    prevProps.text === nextProps.text &&
-    prevProps.transcriptionResult === nextProps.transcriptionResult
-  );
-};
-
-// Memoize the component to prevent unnecessary re-renders
-const EditorContent = memo(({
+const EditorContent = ({
   showTimestamps,
   hasTimestampData,
   isEditing,
@@ -44,13 +29,6 @@ const EditorContent = memo(({
   onTimestampClick,
   onTextAreaClick,
 }: EditorContentProps) => {
-  console.log('[EditorContent] Rendering with text length:', text?.length);
-  
-  // Adapter for text change handler to ensure it expects a string
-  const handleTextChange = useCallback((newText: string) => {
-    onTextChange(newText);
-  }, [onTextChange]);
-  
   if (showTimestamps && hasTimestampData) {
     return (
       <RadioTimestampedTranscription 
@@ -67,12 +45,10 @@ const EditorContent = memo(({
       text={text}
       isProcessing={isProcessing}
       isEditing={isEditing}
-      onChange={handleTextChange}
+      onChange={onTextChange}
       onClick={onTextAreaClick}
     />
   );
-}, arePropsEqual);
-
-EditorContent.displayName = 'EditorContent';
+};
 
 export default EditorContent;

@@ -11,8 +11,6 @@ interface AudioPlayerContextType extends AudioPlayerState, AudioControls {
   metadata: any;
   playbackErrors?: string | null;
   seekToTimestamp: (time: number) => void;
-  // Fix: Update type to match actual implementation (Promise<boolean> instead of boolean)
-  tryUseStorageUrl?: () => Promise<boolean>;
 }
 
 // Default values for the context
@@ -34,9 +32,7 @@ const defaultContext: AudioPlayerContextType = {
   onToggleMute: () => {},
   onVolumeChange: () => {},
   onPlaybackRateChange: () => {},
-  seekToTimestamp: () => {},
-  // Fix: Update default implementation to return a Promise
-  tryUseStorageUrl: () => Promise.resolve(false)
+  seekToTimestamp: () => {}
 };
 
 // Create the context
@@ -76,8 +72,7 @@ export const AudioPlayerProvider = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp,
-    tryUseStorageUrl
+    seekToTimestamp
   } = useAudioPlayer({
     file: file || new File([], "placeholder"),
     onEnded,
@@ -90,7 +85,7 @@ export const AudioPlayerProvider = ({
     return Array.isArray(volume) ? volume : [volume * 100];
   }, [volume]);
 
-  // Create the context value with all required properties
+  // Create the context value
   const contextValue = useMemo(() => ({
     isPlaying,
     currentTime,
@@ -101,7 +96,6 @@ export const AudioPlayerProvider = ({
     isLoading,
     isReady,
     errors: playbackErrors,
-    playbackErrors,
     metadata: null, // Can be extended when needed
     onPlayPause: handlePlayPause,
     onSeek: handleSeek,
@@ -109,8 +103,7 @@ export const AudioPlayerProvider = ({
     onToggleMute: handleToggleMute,
     onVolumeChange: handleVolumeChange,
     onPlaybackRateChange: handlePlaybackRateChange,
-    seekToTimestamp,
-    tryUseStorageUrl
+    seekToTimestamp
   }), [
     isPlaying,
     currentTime,
@@ -127,8 +120,7 @@ export const AudioPlayerProvider = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToTimestamp,
-    tryUseStorageUrl
+    seekToTimestamp
   ]);
 
   return (

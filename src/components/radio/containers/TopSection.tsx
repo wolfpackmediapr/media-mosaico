@@ -4,27 +4,19 @@ import ClearAllButton from "../ClearAllButton";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 interface TopSectionProps {
-  handleClearAll: () => Promise<void>;
+  handleClearAll: () => void;
   files: File[];
   transcriptionText: string;
-  isClearingAll?: boolean;
-  clearProgress?: number;
 }
 
 const TopSection = ({
   handleClearAll,
   files,
-  transcriptionText,
-  isClearingAll = false,
-  clearProgress = 0
+  transcriptionText
 }: TopSectionProps) => (
   <ErrorBoundary>
     <div className="flex justify-end mb-2">
-      <ClearAllButton 
-        onClearAll={handleClearAll}
-        isClearing={isClearingAll}
-        progress={clearProgress} 
-      />
+      <ClearAllButton onClearAll={handleClearAll} />
     </div>
   </ErrorBoundary>
 );

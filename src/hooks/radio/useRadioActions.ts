@@ -2,20 +2,17 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { UploadedFile } from '@/components/radio/types';
-import { useRadioClearState } from './useRadioClearState';
 
 interface UseRadioActionsProps {
   files: UploadedFile[];
   currentFileIndex: number;
-  setFiles: (files: UploadedFile[] | ((prev: UploadedFile[]) => UploadedFile[])) => void;
+  setFiles: (files: UploadedFile[]) => void;
   setCurrentFileIndex: (index: number) => void;
-  handleFilesAddedOriginal: (newFiles: File[]) => void;
+  handleFilesAddedOriginal: (newFiles: File[]) => void; // Renamed to avoid conflict
   resetTranscription: () => void;
-  setNewsSegments: React.Dispatch<React.SetStateAction<any[]>>;
-  clearAllStorageState: () => Promise<void>;
-  transcriptionId?: string;
-  persistKey?: string;
-  onTextChange?: (text: string) => void;
+  setNewsSegments: React.Dispatch<React.SetStateAction<any[]>>; // Use specific type if available
+  clearAllStorageState: () => Promise<void>; // Update return type to Promise<void>
+  // Add resetPlaybackErrors if needed from useRadioPlayer
 }
 
 export const useRadioActions = ({
@@ -27,35 +24,40 @@ export const useRadioActions = ({
   resetTranscription,
   setNewsSegments,
   clearAllStorageState,
-  transcriptionId,
-  persistKey = "radio-files",
-  onTextChange
 }: UseRadioActionsProps) => {
   const [lastAction, setLastAction] = useState<string | null>(null);
 
-  // Use our extracted clear state hook
-  const { handleClearAll, isClearingAll, clearProgress } = useRadioClearState({
-    files,
-    resetTranscription,
-    setNewsSegments,
-    setFiles,
-    setCurrentFileIndex,
-    clearAllStorageState,
-    transcriptionId,
-    persistKey,
-    onTextChange
-  });
-
-  // Mark the last action as clear after clear operation completes
-  const handleClearAllWithTracking = useCallback(async (): Promise<void> => {
+  const handleClearAll = useCallback(async () => {
+    console.log('[RadioActions] handleClearAll: Starting clear sequence');
     try {
-      await handleClearAll();
-      setLastAction('clear');
+      // Reset state in this specific order for best results
+      resetTranscription();
+      console.log('[RadioActions] Transcription reset');
+      
+      setNewsSegments([]);
+      console.log('[RadioActions] News segments cleared');
+      
+      // Clear files and reset index before storage to avoid rehydration issues
+      setFiles([]);
+      setCurrentFileIndex(0);
+      console.log('[RadioActions] Files cleared');
+      
+      // Await storage clearing to make sure it completes
+      await clearAllStorageState();
+      console.log('[RadioActions] Storage state cleared');
+      
+      // Set a timeout to ensure UI has time to update
+      setTimeout(() => {
+        toast.success('Todos los datos han sido borrados');
+      }, 100);
     } catch (error) {
-      console.error('[RadioActions] Error during clear tracking:', error);
+      console.error('[RadioActions] Error during clear all:', error);
+      toast.error('Error al borrar los datos almacenados.');
+    } finally {
+      // Mark last action as clear for any components that need to respond
+      setLastAction('clear');
     }
-    return Promise.resolve();
-  }, [handleClearAll]);
+  }, [resetTranscription, setNewsSegments, setFiles, setCurrentFileIndex, clearAllStorageState]);
 
   const handleTrackSelect = useCallback((index: number) => {
     if (index !== currentFileIndex) {
@@ -80,10 +82,8 @@ export const useRadioActions = ({
 
   return {
     lastAction,
-    handleClearAll: handleClearAllWithTracking,
+    handleClearAll,
     handleTrackSelect,
     handleFilesAdded, // Export the enhanced version
-    isClearingAll,
-    clearProgress
   };
 };

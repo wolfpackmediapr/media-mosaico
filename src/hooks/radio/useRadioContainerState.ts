@@ -4,7 +4,7 @@ import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
 import { useTranscriptionManagement } from "@/hooks/radio/useTranscriptionManagement";
 import { useRadioActions } from "@/hooks/radio/useRadioActions";
-import { useRadioPlayerState } from "@/hooks/radio/useRadioPlayerState";
+import { useAudioPlaybackManager } from "@/hooks/radio/useAudioPlaybackManager";
 import { UploadedFile } from "@/components/radio/types";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
@@ -17,7 +17,6 @@ interface UseRadioContainerStateProps {
   isActiveMediaRoute?: boolean;
   isMediaPlaying?: boolean;
   setIsMediaPlaying?: (isPlaying: boolean) => void;
-  isAuthenticated?: boolean;
 }
 
 // Define the explicit return type for the hook
@@ -45,14 +44,11 @@ interface RadioContainerState {
   playbackErrors: string | null;
   // State tracking
   lastAction: string | null;
-  // Upload status
-  uploadProgress: Record<string, number>;
-  isUploading: Record<string, boolean>;
   // Handlers
-  handleClearAll: () => Promise<void>;
+  handleClearAll: () => void;
   handleTrackSelect: (index: number) => void;
   handleFilesAdded: (newFiles: File[]) => void;
-  setFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
+  setFiles: (files: UploadedFile[]) => void;
   setCurrentFileIndex: (index: number) => void;
   setIsProcessing: (isProcessing: boolean) => void;
   setProgress: React.Dispatch<React.SetStateAction<number>>;
@@ -73,7 +69,6 @@ interface RadioContainerState {
   handleSeekToSegment: (segmentOrTime: RadioNewsSegment | number) => void;
   setNewsSegments: React.Dispatch<React.SetStateAction<RadioNewsSegment[]>>;
   handleTranscriptionProcessingError: (error: any) => void;
-  cancelUpload: (fileName: string) => void;
 }
 
 export const useRadioContainerState = ({
@@ -83,56 +78,20 @@ export const useRadioContainerState = ({
   storage = "sessionStorage",
   isActiveMediaRoute = true,
   isMediaPlaying = false,
-  setIsMediaPlaying = () => {},
-  isAuthenticated = false
+  setIsMediaPlaying = () => {}
 }: UseRadioContainerStateProps): RadioContainerState => {
   // Files state management
-  const radioFiles = useRadioFiles({
+  const {
+    files,
+    setFiles,
+    currentFileIndex,
+    setCurrentFileIndex,
+    currentFile,
+    handleFilesAdded: handleFilesAddedOriginal
+  } = useRadioFiles({
     persistKey,
     storage
   });
-
-  // Destructure radioFiles props
-  const {
-    files,
-    currentFile,
-    currentFileIndex,
-    setCurrentFileIndex,
-    addFiles,
-    removeFile,
-    isRestoringFiles,
-    uploadProgress,
-    isUploading,
-    cancelUpload
-  } = radioFiles;
-
-  // Function to set files correctly
-  const setFiles = (filesOrFn: React.SetStateAction<UploadedFile[]>) => {
-    if (typeof filesOrFn === 'function') {
-      // Create a new array with the function result
-      const newFiles = filesOrFn(files);
-      
-      // Clear existing files
-      while (files.length > 0) {
-        removeFile(0);
-      }
-      
-      // Add new files
-      if (Array.isArray(newFiles) && newFiles.length > 0) {
-        addFiles(newFiles as File[]);
-      }
-    } else if (Array.isArray(filesOrFn)) {
-      // Clear existing files
-      while (files.length > 0) {
-        removeFile(0);
-      }
-      
-      // Add new files
-      if (filesOrFn.length > 0) {
-        addFiles(filesOrFn as File[]);
-      }
-    }
-  };
 
   // Transcription state management
   const {
@@ -167,8 +126,23 @@ export const useRadioContainerState = ({
     onTextChange
   });
 
-  // Use our newly extracted player state hook
-  const playerState = useRadioPlayerState({
+  // Audio playback management
+  const {
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    isMuted,
+    playbackRate,
+    playbackErrors,
+    handlePlayPause,
+    handleSeek,
+    handleSkip,
+    handleToggleMute,
+    handleVolumeChange,
+    handlePlaybackRateChange,
+    seekToSegment: handleSeekToSegment
+  } = useAudioPlaybackManager({
     currentFile,
     isActiveMediaRoute,
     isMediaPlaying,
@@ -179,13 +153,13 @@ export const useRadioContainerState = ({
     onTextChange
   });
 
-  // Define the handler for adding files before using it in radioActions
-  const handleFilesAddedOriginal = (newFiles: File[]) => {
-    addFiles(newFiles);
-  };
-  
-  // Radio actions with all required props
-  const radioActions = useRadioActions({
+  // Radio actions
+  const {
+    lastAction,
+    handleClearAll,
+    handleTrackSelect,
+    handleFilesAdded
+  } = useRadioActions({
     files,
     currentFileIndex,
     setFiles,
@@ -193,19 +167,8 @@ export const useRadioContainerState = ({
     handleFilesAddedOriginal,
     resetTranscription,
     setNewsSegments,
-    clearAllStorageState,
-    transcriptionId,
-    persistKey,
-    onTextChange
+    clearAllStorageState
   });
-  
-  // Extract properties from radioActions
-  const {
-    lastAction,
-    handleClearAll,
-    handleTrackSelect,
-    handleFilesAdded
-  } = radioActions;
 
   // Return the complete state and handlers
   return {
@@ -222,13 +185,16 @@ export const useRadioContainerState = ({
     transcriptionResult,
     metadata,
     newsSegments,
-    // Player state from our hook
-    ...playerState,
+    // Player
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    isMuted,
+    playbackRate,
+    playbackErrors,
     // State tracking
     lastAction,
-    // Upload status
-    uploadProgress,
-    isUploading,
     // Handlers
     handleClearAll,
     handleTrackSelect,
@@ -245,8 +211,14 @@ export const useRadioContainerState = ({
     handleMetadataChange,
     handleEditorRegisterReset,
     setClearAnalysis,
+    handlePlayPause,
+    handleSeek,
+    handleSkip,
+    handleToggleMute,
+    handleVolumeChange,
+    handlePlaybackRateChange,
+    handleSeekToSegment,
     setNewsSegments,
-    handleTranscriptionProcessingError,
-    cancelUpload
+    handleTranscriptionProcessingError
   };
 };

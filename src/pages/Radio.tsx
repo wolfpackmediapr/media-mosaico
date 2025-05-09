@@ -6,24 +6,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from "react";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 import { useAuthStatus } from "@/hooks/use-auth-status";
-import { toast } from "sonner";
 
 const Radio = () => {
   // Centralize authentication check here
-  const { isAuthenticated, isLoading } = useAuthStatus();
-  
-  // Show authentication toast when needed
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      toast.info(
-        "Para guardar los archivos en la nube, inicie sesión", 
-        { 
-          id: "auth-reminder",
-          duration: 5000,
-        }
-      );
-    }
-  }, [isAuthenticated, isLoading]);
+  const { isAuthenticated } = useAuthStatus();
   
   // Use radio tab state for persisting transcription text
   const { textContent, setTextContent } = useRadioTabState({
