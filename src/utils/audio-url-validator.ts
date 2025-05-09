@@ -10,7 +10,7 @@
  * @returns Promise that resolves to true if the URL is valid, false otherwise
  */
 export const isValidBlobUrl = async (url: string): Promise<boolean> => {
-  if (!url || !url.startsWith('blob:')) {
+  if (!url || typeof url !== 'string' || !url.startsWith('blob:')) {
     return false;
   }
 
@@ -56,24 +56,22 @@ export const isValidBlobUrl = async (url: string): Promise<boolean> => {
 /**
  * Creates a new Blob URL from file data
  */
-export const createNewBlobUrl = (file: File): string | null => {
-  if (!file || !(file instanceof File) || !file.name) {
-    console.warn('[audio-url-validator] Invalid file object provided to createNewBlobUrl');
+export const createNewBlobUrl = (file: File | Blob | null): string | null => {
+  // Add safety checks
+  if (!file) {
+    console.warn('[audio-url-validator] No file provided to createNewBlobUrl');
     return null;
   }
 
-  // Release any previous URL that might be associated with this file
-  if ('preview' in file && typeof file.preview === 'string' && file.preview.startsWith('blob:')) {
-    try {
-      URL.revokeObjectURL(file.preview);
-    } catch (e) {
-      console.warn('[audio-url-validator] Failed to revoke URL:', e);
-    }
+  // Ensure it's a valid File or Blob object
+  if (!(file instanceof File) && !(file instanceof Blob)) {
+    console.warn('[audio-url-validator] Invalid file object provided to createNewBlobUrl');
+    return null;
   }
   
   // Create a new blob URL with validation
   try {
-    console.log('[audio-url-validator] Creating new blob URL for file:', file.name);
+    console.log('[audio-url-validator] Creating new blob URL');
     const url = URL.createObjectURL(file);
     return url;
   } catch (error) {
@@ -86,35 +84,37 @@ export const createNewBlobUrl = (file: File): string | null => {
  * Safely retrieve a valid blob URL for a file
  * If the existing URL is invalid, creates a new one
  */
-export const ensureValidBlobUrl = async (file: File): Promise<string> => {
-  if (!file || !(file instanceof File)) {
-    console.error('[audio-url-validator] Invalid file object provided to ensureValidBlobUrl');
-    throw new Error('Invalid file object provided');
+export const ensureValidBlobUrl = async (file: any): Promise<string> => {
+  // Add robust type checking
+  if (!file) {
+    console.error('[audio-url-validator] No file provided to ensureValidBlobUrl');
+    throw new Error('No file object provided');
   }
 
-  // Check if file has a valid name
-  if (!file.name) {
-    console.error('[audio-url-validator] File object has no name property');
-    throw new Error('File object has no name');
-  }
-  
   // First check if file has a storage URL (prioritize this over blob URLs)
-  if ('storageUrl' in file && typeof file.storageUrl === 'string' && file.storageUrl) {
+  if (file && typeof file === 'object' && 'storageUrl' in file && 
+      typeof file.storageUrl === 'string' && file.storageUrl) {
     console.log('[audio-url-validator] Using storage URL instead of blob URL');
     return file.storageUrl;
   }
   
   // Check if file has a preview URL
-  const hasPreview = 'preview' in file && typeof file.preview === 'string';
+  const hasPreview = file && typeof file === 'object' && 'preview' in file && 
+                     typeof file.preview === 'string' && file.preview;
   
-  // If no preview or not a blob URL, create one
+  // If not a blob URL or no preview, create new blob URL if possible
   if (!hasPreview || !(file.preview as string).startsWith('blob:')) {
-    console.log('[audio-url-validator] No valid preview, creating new blob URL');
-    const newBlobUrl = createNewBlobUrl(file);
-    if (!newBlobUrl) {
-      throw new Error('Failed to create blob URL');
+    // Check if file is a valid File/Blob for creating URL
+    if (file instanceof File || file instanceof Blob) {
+      console.log('[audio-url-validator] No valid preview, creating new blob URL');
+      const newBlobUrl = createNewBlobUrl(file);
+      if (!newBlobUrl) {
+        throw new Error('Failed to create blob URL');
+      }
+      return newBlobUrl;
+    } else {
+      throw new Error('Invalid file object, cannot create blob URL');
     }
-    return newBlobUrl;
   }
   
   // Check if the existing URL is valid
@@ -122,11 +122,16 @@ export const ensureValidBlobUrl = async (file: File): Promise<string> => {
   
   if (!isValid) {
     console.log('[audio-url-validator] Blob URL invalid, creating new one');
-    const newBlobUrl = createNewBlobUrl(file);
-    if (!newBlobUrl) {
-      throw new Error('Failed to create blob URL');
+    // Check if file is a valid File/Blob for creating URL
+    if (file instanceof File || file instanceof Blob) {
+      const newBlobUrl = createNewBlobUrl(file);
+      if (!newBlobUrl) {
+        throw new Error('Failed to create blob URL');
+      }
+      return newBlobUrl;
+    } else {
+      throw new Error('Invalid file object, cannot create blob URL');
     }
-    return newBlobUrl;
   }
   
   // If valid, return it
@@ -136,7 +141,7 @@ export const ensureValidBlobUrl = async (file: File): Promise<string> => {
 /**
  * Check if a URL is a Supabase Storage URL
  */
-export const isSupabaseStorageUrl = (url: string): boolean => {
+export const isSupabaseStorageUrl = (url: string | null | undefined): boolean => {
   if (!url || typeof url !== 'string') return false;
   
   // Check for common Supabase storage URL patterns
@@ -149,19 +154,29 @@ export const isSupabaseStorageUrl = (url: string): boolean => {
  * This handles both blob URLs and Supabase storage URLs
  */
 export const getPlayableAudioUrl = (file: any): string | null => {
+  // Add more robust null/undefined checking
+  if (!file || typeof file !== 'object') {
+    return null;
+  }
+
   // Check for Supabase storage URL first (most reliable)
-  if (file.storageUrl && typeof file.storageUrl === 'string') {
+  if ('storageUrl' in file && typeof file.storageUrl === 'string' && file.storageUrl) {
     return file.storageUrl;
   }
   
   // Fall back to preview URL if available
-  if (file.preview && typeof file.preview === 'string') {
+  if ('preview' in file && typeof file.preview === 'string' && file.preview) {
     return file.preview;
   }
   
   // Last resort: create a new blob URL if it's a File object
-  if (file instanceof File) {
-    return URL.createObjectURL(file);
+  if (file instanceof File || file instanceof Blob) {
+    try {
+      return URL.createObjectURL(file);
+    } catch (err) {
+      console.error('[audio-url-validator] Error creating blob URL:', err);
+      return null;
+    }
   }
   
   return null;
