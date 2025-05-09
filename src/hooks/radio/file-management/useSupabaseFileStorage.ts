@@ -1,6 +1,5 @@
-
 import { useCallback, useState, useEffect } from "react";
-import { uploadAudioToSupabase } from "@/utils/supabase-storage-helper";
+import { uploadAudioToSupabase, blobUrlToFile } from "@/utils/supabase-storage-helper";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { UploadedFile } from "@/components/radio/types";
 import { toast } from "sonner";
@@ -122,16 +121,38 @@ export const useSupabaseFileStorage = ({
         });
       }, 800);
       
-      // Ensure file is a valid File object before uploading
-      if (!(file instanceof File)) {
-        // TypeScript safe check for File-like object
-        if (!('size' in file) || !('type' in file) || 
-            typeof file.size !== 'number' || typeof file.type !== 'string') {
-          throw new Error('Invalid file object: missing required properties');
+      let fileToUpload: File;
+
+      if (file instanceof File) {
+        fileToUpload = file;
+      } else {
+        // File is an UploadedFile descriptor, not a File instance.
+        // Try to reconstruct it from its blob preview URL.
+        if (file.preview && file.preview.startsWith('blob:') && file.name && file.type) {
+          console.log(`[useSupabaseFileStorage] Attempting to reconstruct File from blob URL for: ${fileName}`);
+          const reconstructedFile = await blobUrlToFile(file.preview, file.name, file.type);
+          if (reconstructedFile) {
+            fileToUpload = reconstructedFile;
+            console.log(`[useSupabaseFileStorage] Successfully reconstructed ${fileName} for upload.`);
+          } else {
+            clearInterval(progressUpdater); // Stop progress simulation
+            console.error(`[useSupabaseFileStorage] Failed to reconstruct ${fileName} from blob URL.`);
+            toast.error(`No se pudo preparar el archivo ${fileName} para la subida.`);
+            setIsUploading(prev => ({ ...prev, [fileName]: false }));
+            setUploadProgress(prev => ({ ...prev, [fileName]: 0 }));
+            return false;
+          }
+        } else {
+          clearInterval(progressUpdater); // Stop progress simulation
+          console.error(`[useSupabaseFileStorage] Cannot upload ${fileName}: Not a File instance and no valid blob URL to reconstruct from.`);
+          toast.error(`El archivo ${fileName} no está en un formato válido para subir.`);
+          setIsUploading(prev => ({ ...prev, [fileName]: false }));
+          setUploadProgress(prev => ({ ...prev, [fileName]: 0 }));
+          return false;
         }
       }
       
-      const result = await uploadAudioToSupabase(file as File);
+      const result = await uploadAudioToSupabase(fileToUpload);
       
       // Clear the progress updater if still running
       clearInterval(progressUpdater);

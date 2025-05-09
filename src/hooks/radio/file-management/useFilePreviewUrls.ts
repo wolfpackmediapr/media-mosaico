@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useRef } from "react";
 import { ensureValidBlobUrl } from "@/utils/audio-url-validator";
 import { UploadedFile } from "@/components/radio/types";
@@ -80,42 +79,38 @@ export const useFilePreviewUrls = ({
               updatedFiles.push(file);
             }
           } catch (err) {
-            console.error('[useFilePreviewUrls] Error validating blob URL:', err);
+            console.error('[useFilePreviewUrls] Error validating blob URL:', err, file.name);
             
-            // Create a new blob URL as fallback
-            // Improved type checking before using as File
-            if (file && 
-                (file instanceof File || 
-                (typeof file === 'object' && file !== null && 
-                 'type' in file && typeof file.type === 'string' && 
-                 'name' in file && typeof file.name === 'string'))) {
-                 
+            // Fallback: Attempt to create a new blob URL ONLY if 'file' is a File instance.
+            if (file instanceof File) {
               try {
-                // Revoke old URL if it exists
-                if (file.preview) {
-                  try {
-                    URL.revokeObjectURL(file.preview);
-                    createdUrls.current = createdUrls.current.filter(url => url !== file.preview);
-                  } catch (e) {
-                    // Ignore revoke errors
-                  }
+                // Revoke old URL if it exists and was tracked
+                if (file.preview && createdUrls.current.includes(file.preview)) {
+                  URL.revokeObjectURL(file.preview);
+                  createdUrls.current = createdUrls.current.filter(url => url !== file.preview);
+                } else if (file.preview && file.preview.startsWith('blob:')) {
+                  // Attempt to revoke even if not tracked, in case it's an old one
+                  try { URL.revokeObjectURL(file.preview); } catch (e) { /* ignore */ }
                 }
                 
-                // TypeScript safety: we've verified this is a File-like object with the right properties
-                const fileWithType = file as File;
-                const newPreview = URL.createObjectURL(fileWithType);
-                // Track new URL
-                createdUrls.current.push(newPreview);
+                const newPreview = URL.createObjectURL(file); // `file` is a File instance here
+                createdUrls.current.push(newPreview); // Track new URL
                 hasChanges = true;
-                console.log('[useFilePreviewUrls] Created new blob URL as fallback');
-                updatedFiles.push({ ...file, preview: newPreview });
+                console.log('[useFilePreviewUrls] Created new blob URL as fallback for File instance:', file.name);
+                // Spread `file` to retain its UploadedFile properties, then override preview
+                updatedFiles.push({ ...(file as UploadedFile), preview: newPreview });
               } catch (e) {
-                console.error('[useFilePreviewUrls] Failed to create replacement URL:', e);
+                console.error('[useFilePreviewUrls] Failed to create replacement URL from File instance:', file.name, e);
                 updatedFiles.push(file); // Keep original to avoid losing the file
               }
+            } else if (file) {
+              // If `file` is an UploadedFile descriptor but not a File instance, we can't create a new blob URL.
+              console.warn('[useFilePreviewUrls] Cannot create new blob URL: file is a descriptor, not a File instance.', file.name);
+              updatedFiles.push(file); // Keep original
             } else {
-              console.warn('[useFilePreviewUrls] Invalid file object for URL creation');
-              updatedFiles.push(file); // Keep original to avoid losing the file
+              // file is null or undefined, should have been caught by earlier check
+              console.warn('[useFilePreviewUrls] Encountered null/undefined file object during fallback URL creation.');
+              // No push needed if file is null/undefined
             }
           }
         } else if (!file.preview && file instanceof File) {
