@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { ensureValidBlobUrl } from "@/utils/audio-url-validator";
 import { UploadedFile } from "@/components/radio/types";
 import { toast } from "sonner";
-import { isUploadedFile } from "@/utils/file-type-guards";
+import { isUploadedFile, hasPreviewProperties } from "@/utils/file-type-guards";
 
 interface UseFilePreviewUrlsProps {
   files: UploadedFile[];
@@ -131,6 +131,12 @@ export const useFilePreviewUrls = ({
         }
       } catch (err) {
         console.error('[useFilePreviewUrls] Unexpected error processing file:', err);
+        
+        // Safely log file name if available, otherwise skip name
+        if (isUploadedFile(file)) {
+          console.error('[useFilePreviewUrls] Error occurred for file:', file.name);
+        }
+        
         updatedFiles.push(file); // Keep original to avoid losing the file
       }
     }

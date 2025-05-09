@@ -28,3 +28,11 @@ export function hasPreviewProperties(file: any): file is { preview: string; name
     typeof file.type === 'string'
   );
 }
+
+/**
+ * Additional type guard to ensure file is not only a valid UploadedFile 
+ * but also has the necessary properties for blob URL reconstruction
+ */
+export function isReconstructableFile(file: any): file is (UploadedFile & { preview: string; name: string; type: string }) {
+  return isUploadedFile(file) && hasPreviewProperties(file);
+}
