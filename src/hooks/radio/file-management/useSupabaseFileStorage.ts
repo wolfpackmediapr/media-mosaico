@@ -124,7 +124,9 @@ export const useSupabaseFileStorage = ({
       
       // Ensure file is a valid File object before uploading
       if (!(file instanceof File)) {
-        if (!file.size || !file.type) {
+        // TypeScript safe check for File-like object
+        if (!('size' in file) || !('type' in file) || 
+            typeof file.size !== 'number' || typeof file.type !== 'string') {
           throw new Error('Invalid file object: missing required properties');
         }
       }

@@ -83,12 +83,13 @@ export const useFilePreviewUrls = ({
             console.error('[useFilePreviewUrls] Error validating blob URL:', err);
             
             // Create a new blob URL as fallback
-            // Add robust type checking before using as File
+            // Improved type checking before using as File
             if (file && 
                 (file instanceof File || 
                 (typeof file === 'object' && file !== null && 
                  'type' in file && typeof file.type === 'string' && 
                  'name' in file && typeof file.name === 'string'))) {
+                 
               try {
                 // Revoke old URL if it exists
                 if (file.preview) {
@@ -100,7 +101,9 @@ export const useFilePreviewUrls = ({
                   }
                 }
                 
-                const newPreview = URL.createObjectURL(file as File);
+                // TypeScript safety: we've verified this is a File-like object with the right properties
+                const fileWithType = file as File;
+                const newPreview = URL.createObjectURL(fileWithType);
                 // Track new URL
                 createdUrls.current.push(newPreview);
                 hasChanges = true;
