@@ -10,6 +10,7 @@ import {
   AnalysisSection,
   NewsSegmentsSection
 } from "./containers";
+import { useRadioClearState } from "@/hooks/radio/useRadioClearState";
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -42,6 +43,23 @@ const RadioContainer = ({
     setIsMediaPlaying
   });
 
+  // Use our enhanced clear state hook
+  const {
+    handleClearAll,
+    handleEditorRegisterReset,
+    setClearAnalysis,
+    clearingProgress,
+    clearingStage
+  } = useRadioClearState({
+    transcriptionId: state.transcriptionId,
+    persistKey,
+    onTextChange,
+    files: state.files,
+    setFiles: state.setFiles,
+    setNewsSegments: state.setNewsSegments,
+    setTranscriptionText: state.setTranscriptionText
+  });
+
   // Create wrapper functions to handle type mismatches between components
   const handleVolumeChangeWrapper = (value: number[]) => {
     // Pass the array directly to the volume handler
@@ -62,9 +80,11 @@ const RadioContainer = ({
   return (
     <>
       <TopSection
-        handleClearAll={state.handleClearAll}
+        handleClearAll={handleClearAll}
         files={state.files}
         transcriptionText={state.transcriptionText}
+        clearingProgress={clearingProgress}
+        clearingStage={clearingStage}
       />
       <RadioLayout
         isAuthenticated={isAuthenticated}
@@ -105,6 +125,8 @@ const RadioContainer = ({
             onVolumeChange={handleVolumeChangeWrapper}
             onPlaybackRateChange={handlePlaybackRateChangeWrapper}
             handleTrackSelect={state.handleTrackSelect}
+            onSwitchToNative={state.switchToNativeAudio}
+            onValidateFileUrl={state.validateCurrentFileUrl}
           />
         }
         transcriptionSection={
@@ -118,7 +140,7 @@ const RadioContainer = ({
             handleSegmentsReceived={state.handleSegmentsReceived}
             handleMetadataChange={state.handleMetadataChange}
             handleSeekToSegment={state.handleSeekToSegment}
-            registerEditorReset={state.handleEditorRegisterReset}
+            registerEditorReset={handleEditorRegisterReset}
             isPlaying={state.isPlaying}
             currentTime={state.currentTime}
             onPlayPause={state.handlePlayPause}
@@ -130,7 +152,7 @@ const RadioContainer = ({
             transcriptionId={state.transcriptionId}
             transcriptionResult={state.transcriptionResult}
             handleSegmentsReceived={state.handleSegmentsReceived}
-            onClearAnalysis={state.setClearAnalysis}
+            onClearAnalysis={setClearAnalysis}
           />
         }
         newsSegmentsSection={

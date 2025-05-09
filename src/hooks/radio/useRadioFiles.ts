@@ -1,8 +1,8 @@
 
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { ensureValidBlobUrl, createNewBlobUrl } from "@/utils/audio-url-validator";
+import { ensureValidBlobUrl, createNewBlobUrl, isValidFileForBlobUrl, safelyRevokeBlobUrl } from "@/utils/audio-url-validator";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -34,6 +34,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isRestoringFiles, setIsRestoringFiles] = useState(false);
+  const [hasInvalidFiles, setHasInvalidFiles] = useState(false);
   
   const [currentFileIndex, setCurrentFileIndex] = usePersistentState<number>(
     `${persistKey}-current-index`,
@@ -41,24 +42,38 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     { storage }
   );
 
-  // Enhanced file reconstruction - now with proper blob URL handling
+  const urlsToRevoke = useRef<Set<string>>(new Set());
+  
+  // Function to safely clean up a file's resources
+  const cleanupFile = useCallback((file: UploadedFile | null) => {
+    if (!file) return;
+    
+    // Revoke blob URL if it exists
+    if (file.preview) {
+      safelyRevokeBlobUrl(file.preview);
+    }
+  }, []);
+  
+  // Enhanced file reconstruction with better error handling
   useEffect(() => {
     if (fileMetadata.length === 0 || files.length > 0) return;
     
     const reconstructFiles = async () => {
       setIsRestoringFiles(true);
+      let hasAnyInvalidFile = false;
+      
       try {
         console.log('[useRadioFiles] Reconstructing files from metadata:', fileMetadata.length);
         const reconstructedFiles = await Promise.all(fileMetadata.map(async (meta) => {
           // Create an empty file with the same metadata
-          const file = new File([""], meta.name, { 
-            type: meta.type,
-            lastModified: meta.lastModified
+          const file = new File([""], meta.name || "unnamed-file", { 
+            type: meta.type || "audio/mpeg",
+            lastModified: meta.lastModified || Date.now()
           });
           
           // Set size property
           Object.defineProperty(file, 'size', {
-            value: meta.size,
+            value: meta.size || 0,
             writable: false
           });
           
@@ -68,23 +83,42 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
             writable: true
           });
           
-          // Always create a new blob URL instead of trying to reuse the old one
-          // Since blob URLs don't survive page reloads
-          const newPreviewUrl = createNewBlobUrl(file);
+          // Mark this file as invalid if it doesn't have proper properties
+          const isInvalid = !isValidFileForBlobUrl(file);
+          if (isInvalid) {
+            hasAnyInvalidFile = true;
+            console.warn('[useRadioFiles] Created invalid reconstructed file:', file.name);
+          }
+          
+          // Always create a new empty preview URL for consistency
+          // Don't attempt to reuse old URLs as they don't survive page reloads
+          let previewUrl = '';
+          if (!isInvalid) {
+            previewUrl = createNewBlobUrl(file);
+          }
+          
           Object.defineProperty(file, 'preview', {
-            value: newPreviewUrl,
+            value: previewUrl,
             writable: true
           });
           
           return file as UploadedFile;
         }));
         
-        console.log('[useRadioFiles] Successfully reconstructed files:', reconstructedFiles.map(f => f.name));
+        setHasInvalidFiles(hasAnyInvalidFile);
+        
+        if (hasAnyInvalidFile) {
+          console.log('[useRadioFiles] Some files were invalid after reconstruction');
+        } else {
+          console.log('[useRadioFiles] Successfully reconstructed files:', reconstructedFiles.map(f => f.name));
+        }
+        
         setFiles(reconstructedFiles);
       } catch (error) {
         console.error("[useRadioFiles] Error reconstructing files from metadata:", error);
         toast.error("Error al cargar archivos guardados");
         setFileMetadata([]);
+        setHasInvalidFiles(true);
       } finally {
         setIsRestoringFiles(false);
       }
@@ -113,20 +147,28 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     }
   }, [files, setFileMetadata, fileMetadata.length]);
 
-  // Validate blob URLs for current file - useful to check before playback
+  // Validate blob URLs for current file - with enhanced error handling
   const validateCurrentFileUrl = useCallback(async () => {
     if (files.length === 0 || currentFileIndex >= files.length) return false;
     
     const currentFile = files[currentFileIndex];
-    if (!currentFile || !currentFile.preview) return false;
+    if (!currentFile) return false;
+    
+    // If the file is invalid or reconstructed with size <= 1, don't attempt validation
+    if (!isValidFileForBlobUrl(currentFile)) {
+      console.warn('[useRadioFiles] Current file is invalid, cannot validate URL');
+      return false;
+    }
+    
+    if (!currentFile.preview) return false;
     
     // Ensure the current file has a valid URL
     try {
       const validUrl = await ensureValidBlobUrl(currentFile);
       
-      // If URL changed, update the file object
+      // If URL changed or is empty, update the file object
       if (validUrl !== currentFile.preview) {
-        console.log('[useRadioFiles] Updating invalid blob URL for current file');
+        console.log('[useRadioFiles] Updating blob URL for current file');
         const updatedFiles = [...files];
         
         // Update the preview URL for the current file
@@ -138,26 +180,37 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         setFiles(updatedFiles);
       }
       
-      return true;
+      return validUrl !== '';
     } catch (error) {
       console.error('[useRadioFiles] Error validating current file URL:', error);
       return false;
     }
   }, [files, currentFileIndex]);
 
-  // Cleanup URL objects on unmount
+  // Track and cleanup URL objects throughout component lifecycle
   useEffect(() => {
     return () => {
-      files.forEach(file => {
-        if (file.preview) {
-          URL.revokeObjectURL(file.preview);
+      // Clean up all tracked URLs on unmount
+      urlsToRevoke.current.forEach(url => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          // Ignore errors on cleanup
         }
       });
+      
+      // Also clean up any preview URLs in current files
+      files.forEach(file => {
+        if (file.preview) {
+          safelyRevokeBlobUrl(file.preview);
+        }
+      });
+      
       console.log('[useRadioFiles] Cleaned up file object URLs on unmount');
     };
   }, []);
 
-  const currentFile = files.length > 0 && currentFileIndex < files.length 
+  const currentFile = files.length > 0 && currentFileIndex < files.length && isValidFileForBlobUrl(files[currentFileIndex])
     ? files[currentFileIndex] 
     : null;
 
@@ -192,8 +245,15 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         });
       }
       
-      // Create and store preview URL
-      const previewUrl = URL.createObjectURL(file);
+      // Only create preview URL for valid files
+      let previewUrl = '';
+      if (isValidFileForBlobUrl(uploadedFile)) {
+        previewUrl = createNewBlobUrl(file);
+        if (previewUrl) {
+          urlsToRevoke.current.add(previewUrl);
+        }
+      }
+      
       Object.defineProperty(uploadedFile, 'preview', {
         value: previewUrl,
         writable: true
@@ -205,19 +265,34 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     setFiles(prevFiles => {
       const updatedFiles = [...prevFiles, ...uploadedFiles];
       console.log('[useRadioFiles] Files after adding:', updatedFiles.length);
+      
+      // Reset the invalid files flag if we're adding new valid files
+      if (hasInvalidFiles && uploadedFiles.length > 0 && uploadedFiles.some(f => isValidFileForBlobUrl(f))) {
+        setHasInvalidFiles(false);
+      }
+      
       return updatedFiles;
     });
-  }, []);
+  }, [hasInvalidFiles]);
 
   const handleRemoveFile = useCallback((index: number) => {
     setFiles(prevFiles => {
       const newFiles = [...prevFiles];
-      // Revoke object URL before removing
-      if (newFiles[index]?.preview) {
-        URL.revokeObjectURL(newFiles[index].preview!);
+      
+      // Get the file to remove
+      const fileToRemove = newFiles[index];
+      
+      // Clean up resources for the file being removed
+      cleanupFile(fileToRemove);
+      
+      // Remove from tracked URLs
+      if (fileToRemove?.preview) {
+        urlsToRevoke.current.delete(fileToRemove.preview);
       }
       
+      // Remove the file from array
       newFiles.splice(index, 1);
+      
       console.log('[useRadioFiles] handleRemoveFile: files after removal =', newFiles.length);
       
       // Update current file index if needed
@@ -226,9 +301,13 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
         console.log('[useRadioFiles] Updated currentFileIndex:', newFiles.length - 1);
       }
       
+      // Check if we still have any invalid files
+      const stillHasInvalid = newFiles.some(f => !isValidFileForBlobUrl(f));
+      setHasInvalidFiles(stillHasInvalid);
+      
       return newFiles;
     });
-  }, [currentFileIndex, setCurrentFileIndex]);
+  }, [currentFileIndex, setCurrentFileIndex, cleanupFile]);
 
   return {
     files,
@@ -237,6 +316,7 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     setCurrentFileIndex,
     currentFile,
     isRestoringFiles,
+    hasInvalidFiles,
     handleFilesAdded,
     handleRemoveFile,
     validateCurrentFileUrl

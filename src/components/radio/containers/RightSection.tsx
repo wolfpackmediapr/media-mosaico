@@ -4,6 +4,9 @@ import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
 import { AudioErrorDisplay } from "../audio-player/errors/AudioErrorDisplay";
+import { isValidFileForBlobUrl } from "@/utils/audio-url-validator";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { FileWarning } from "lucide-react";
 
 interface RightSectionProps {
   currentFile: File | null;
@@ -32,7 +35,7 @@ interface RightSectionProps {
   onPlaybackRateChange: () => void;
   handleTrackSelect: (index: number) => void;
   onSwitchToNative?: () => void;
-  onValidateFileUrl?: () => Promise<boolean>; // New prop to validate file URL before playback
+  onValidateFileUrl?: () => Promise<boolean>;
 }
 
 // Use memo to prevent unnecessary re-renders
@@ -60,12 +63,27 @@ const RightSection = memo(({
 }: RightSectionProps) => {
   const { lastPlaybackPosition, setLastPlaybackPosition } = useMediaPersistence();
   const previousTimeRef = useRef<number>(currentTime);
+  const [fileInvalid, setFileInvalid] = React.useState(false);
+
+  // Check if current file is valid
+  useEffect(() => {
+    if (currentFile) {
+      const isInvalid = !isValidFileForBlobUrl(currentFile);
+      setFileInvalid(isInvalid);
+      
+      if (isInvalid) {
+        console.warn('[RightSection] Current file is invalid or reconstructed:', currentFile.name);
+      }
+    } else {
+      setFileInvalid(false);
+    }
+  }, [currentFile]);
 
   // Handle document visibility changes to maintain audio playback across tabs
   useEffect(() => {
     const handleVisibilityChange = () => {
       // When tab becomes visible again, ensure audio state is correctly synced and validate Blob URLs
-      if (!document.hidden && currentFile) {
+      if (!document.hidden && currentFile && !fileInvalid) {
         console.log("[RightSection] Tab became visible, ensuring audio state is synced");
         
         // Validate current file's blob URL if available
@@ -82,20 +100,20 @@ const RightSection = memo(({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [currentFile, onValidateFileUrl]);
+  }, [currentFile, onValidateFileUrl, fileInvalid]);
 
   // When a file is first loaded, validate its URL
   useEffect(() => {
-    if (currentFile && onValidateFileUrl) {
+    if (currentFile && !fileInvalid && onValidateFileUrl) {
       onValidateFileUrl().catch(error => {
         console.error('[RightSection] Error validating initial file URL:', error);
       });
     }
-  }, [currentFile, onValidateFileUrl]);
+  }, [currentFile, onValidateFileUrl, fileInvalid]);
 
   // Save playback position when it changes significantly
   useEffect(() => {
-    if (currentFile && Math.abs(currentTime - previousTimeRef.current) > 1) {
+    if (currentFile && !fileInvalid && Math.abs(currentTime - previousTimeRef.current) > 1) {
       previousTimeRef.current = currentTime;
       
       // Only update if we have a valid position
@@ -107,11 +125,11 @@ const RightSection = memo(({
         });
       }
     }
-  }, [currentTime, currentFile, lastPlaybackPosition, setLastPlaybackPosition]);
+  }, [currentTime, currentFile, lastPlaybackPosition, setLastPlaybackPosition, fileInvalid]);
 
   // Register for Media Session API when available
   useEffect(() => {
-    if ('mediaSession' in navigator && currentFile) {
+    if ('mediaSession' in navigator && currentFile && !fileInvalid) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: currentFile.name,
         artist: metadata?.emisora || 'Radio',
@@ -135,12 +153,24 @@ const RightSection = memo(({
         navigator.mediaSession.setActionHandler('seekforward', null);
       };
     }
-  }, [currentFile, metadata, isPlaying, onPlayPause, onSkip]);
+  }, [currentFile, metadata, isPlaying, onPlayPause, onSkip, fileInvalid]);
 
   return (
     <div className="space-y-4">
-      {/* Use our enhanced error display component */}
-      {playbackErrors && currentFile && (
+      {/* Show file invalid warning */}
+      {fileInvalid && currentFile && (
+        <Alert variant="destructive" className="mb-4">
+          <FileWarning className="h-4 w-4 mr-2" />
+          <AlertTitle>Archivo no reproducible</AlertTitle>
+          <AlertDescription>
+            Este archivo no se puede reproducir porque fue reconstruido después de refrescar la página.
+            Por favor, suba el archivo de nuevo o elimínelo.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {/* Enhanced error display component */}
+      {playbackErrors && currentFile && !fileInvalid && (
         <AudioErrorDisplay 
           error={playbackErrors} 
           file={currentFile}
@@ -149,7 +179,7 @@ const RightSection = memo(({
         />
       )}
       
-      {currentFile && (
+      {currentFile && !fileInvalid && (
         <MediaControls
           currentFile={currentFile}
           metadata={metadata}
@@ -167,21 +197,17 @@ const RightSection = memo(({
           onPlaybackRateChange={onPlaybackRateChange}
         />
       )}
+      
       {files.length > 0 && (
         <TrackList
           files={files}
-          currentFileIndex={currentFileIndex}
-          onSelectTrack={handleTrackSelect}
-          isPlaying={isPlaying}
-          currentTime={currentTime}
-          duration={duration}
+          currentIndex={currentFileIndex}
+          onSelect={handleTrackSelect}
+          showInvalidWarning={true}
         />
       )}
     </div>
   );
 });
-
-// Add display name for debugging
-RightSection.displayName = "RightSection";
 
 export default RightSection;
