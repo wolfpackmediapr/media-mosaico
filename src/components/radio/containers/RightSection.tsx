@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, memo } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
@@ -201,9 +200,11 @@ const RightSection = memo(({
       {files.length > 0 && (
         <TrackList
           files={files}
-          currentIndex={currentFileIndex}
-          onSelect={handleTrackSelect}
-          showInvalidWarning={true}
+          currentFileIndex={currentFileIndex}
+          onSelectTrack={handleTrackSelect}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
         />
       )}
     </div>

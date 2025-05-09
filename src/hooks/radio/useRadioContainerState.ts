@@ -69,6 +69,9 @@ interface RadioContainerState {
   handleSeekToSegment: (segmentOrTime: RadioNewsSegment | number) => void;
   setNewsSegments: React.Dispatch<React.SetStateAction<RadioNewsSegment[]>>;
   handleTranscriptionProcessingError: (error: any) => void;
+  // Add the missing properties
+  switchToNativeAudio: () => void;
+  validateCurrentFileUrl: () => Promise<boolean>;
 }
 
 export const useRadioContainerState = ({
@@ -87,7 +90,8 @@ export const useRadioContainerState = ({
     currentFileIndex,
     setCurrentFileIndex,
     currentFile,
-    handleFilesAdded: handleFilesAddedOriginal
+    handleFilesAdded: handleFilesAddedOriginal,
+    validateCurrentFileUrl
   } = useRadioFiles({
     persistKey,
     storage
@@ -141,7 +145,9 @@ export const useRadioContainerState = ({
     handleToggleMute,
     handleVolumeChange,
     handlePlaybackRateChange,
-    seekToSegment: handleSeekToSegment
+    seekToSegment: handleSeekToSegment,
+    switchToNativeAudio,
+    switchToHowler
   } = useAudioPlaybackManager({
     currentFile,
     isActiveMediaRoute,
@@ -219,6 +225,9 @@ export const useRadioContainerState = ({
     handlePlaybackRateChange,
     handleSeekToSegment,
     setNewsSegments,
-    handleTranscriptionProcessingError
+    handleTranscriptionProcessingError,
+    // Add the missing properties to the return object
+    switchToNativeAudio,
+    validateCurrentFileUrl
   };
 };
