@@ -12,7 +12,7 @@ interface EditorContentProps {
   isLoadingUtterances: boolean;
   text: string;
   transcriptionResult?: TranscriptionResult;
-  onTextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onTextChange: (text: string) => void;
   onTimestampClick?: (timestamp: number) => void;
   onTextAreaClick?: () => void;
 }
@@ -46,9 +46,9 @@ const EditorContent = memo(({
 }: EditorContentProps) => {
   console.log('[EditorContent] Rendering with text length:', text?.length);
   
-  // Memoize text change handler
-  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onTextChange(e);
+  // Adapter for text change handler to ensure it expects a string
+  const handleTextChange = useCallback((newText: string) => {
+    onTextChange(newText);
   }, [onTextChange]);
   
   if (showTimestamps && hasTimestampData) {

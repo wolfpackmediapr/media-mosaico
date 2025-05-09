@@ -114,13 +114,12 @@ export const useSpeakerTextState = ({
     }
   }, [debouncedText, onTranscriptionChange, setLocalSpeakerText]);
 
-  // Optimized text change handler with debounce logic
-  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = e.target.value;
-    if (!newText || newText === lastTextRef.current) return;
+  // Modified text change handler to accept string input directly
+  const handleTextChange = useCallback((text: string) => {
+    if (!text || text === lastTextRef.current) return;
     
     // Set local state immediately for UI feedback
-    setLocalEditText(newText);
+    setLocalEditText(text);
     
     // Mark that we're in a user-initiated update to prevent
     // the effect from reprocessing this update

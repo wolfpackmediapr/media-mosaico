@@ -7,7 +7,7 @@ interface TranscriptionTextAreaProps {
   text: string;
   isProcessing: boolean;
   isEditing: boolean;
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onChange: (text: string) => void;
   onClick?: () => void;
 }
 
@@ -24,7 +24,7 @@ const TranscriptionTextArea = ({
   // Track if we're in the middle of a user-initiated edit
   const isUserEditingRef = useRef(false);
 
-  // Save cursor position before re-render
+  // Save cursor position before re-render and pass the value to parent
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (textareaRef.current) {
       isUserEditingRef.current = true;
@@ -33,7 +33,8 @@ const TranscriptionTextArea = ({
         end: textareaRef.current.selectionEnd
       };
     }
-    onChange(e);
+    // Extract string value and pass to the parent
+    onChange(e.target.value);
   }, [onChange]);
 
   // Restore cursor position after text value is updated, using requestAnimationFrame for better timing
