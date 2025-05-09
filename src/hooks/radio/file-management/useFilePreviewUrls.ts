@@ -53,7 +53,9 @@ export const useFilePreviewUrls = ({
           } catch (err) {
             console.error('[useFilePreviewUrls] Error validating blob URL:', err);
             // Create a new blob URL as fallback
-            if (file instanceof File || (file.type && file.name)) {
+            // Fix: Check if file has necessary properties before using as File
+            if ((file instanceof File) || 
+                (typeof file === 'object' && file !== null && 'type' in file && 'name' in file)) {
               try {
                 const newPreview = URL.createObjectURL(file);
                 hasChanges = true;
