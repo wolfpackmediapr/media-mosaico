@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useRef } from "react";
 import { ensureValidBlobUrl } from "@/utils/audio-url-validator";
 import { UploadedFile } from "@/components/radio/types";
@@ -102,12 +101,12 @@ export const useFilePreviewUrls = ({
                 // Spread `file` to retain its UploadedFile properties, then override preview
                 updatedFiles.push({ ...(file as UploadedFile), preview: newPreview });
               } catch (e) {
-                console.error('[useFilePreviewUrls] Failed to create replacement URL from File instance:', file.name, e);
+                console.error('[useFilePreviewUrls] Failed to create replacement URL from File instance:', e);
                 updatedFiles.push(file); // Keep original to avoid losing the file
               }
             } else if (isUploadedFile(file)) {
               // If `file` is an UploadedFile descriptor but not a File instance, we can't create a new blob URL.
-              console.warn('[useFilePreviewUrls] Cannot create new blob URL: file is a descriptor, not a File instance.', file.name);
+              console.warn('[useFilePreviewUrls] Cannot create new blob URL: file is a descriptor, not a File instance.');
               updatedFiles.push(file); // Keep original
             } else {
               // file is null or undefined, should have been caught by earlier check

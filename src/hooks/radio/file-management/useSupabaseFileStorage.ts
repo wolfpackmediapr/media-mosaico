@@ -129,15 +129,15 @@ export const useSupabaseFileStorage = ({
         // File is an UploadedFile descriptor, not a File instance.
         // Try to reconstruct it from its blob preview URL.
         if (hasPreviewProperties(file)) {
-          console.log(`[useSupabaseFileStorage] Attempting to reconstruct File from blob URL for: ${fileName}`);
+          console.log(`[useSupabaseFileStorage] Attempting to reconstruct File from blob URL for: ${file.name}`);
           const reconstructedFile = await blobUrlToFile(file.preview, file.name, file.type);
           if (reconstructedFile) {
             fileToUpload = reconstructedFile;
-            console.log(`[useSupabaseFileStorage] Successfully reconstructed ${fileName} for upload.`);
+            console.log(`[useSupabaseFileStorage] Successfully reconstructed ${file.name} for upload.`);
           } else {
             clearInterval(progressUpdater); // Stop progress simulation
-            console.error(`[useSupabaseFileStorage] Failed to reconstruct ${fileName} from blob URL.`);
-            toast.error(`No se pudo preparar el archivo ${fileName} para la subida.`);
+            console.error(`[useSupabaseFileStorage] Failed to reconstruct ${file.name} from blob URL.`);
+            toast.error(`No se pudo preparar el archivo ${file.name} para la subida.`);
             setIsUploading(prev => ({ ...prev, [fileName]: false }));
             setUploadProgress(prev => ({ ...prev, [fileName]: 0 }));
             return false;
