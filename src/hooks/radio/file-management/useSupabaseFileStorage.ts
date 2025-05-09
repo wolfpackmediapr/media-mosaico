@@ -127,9 +127,10 @@ export const useSupabaseFileStorage = ({
       } else {
         // File is an UploadedFile descriptor, not a File instance.
         // Try to reconstruct it from its blob preview URL.
-        // Use our enhanced type guard for safer property access
+        
+        // Check if file has all required properties
         if (isReconstructableFile(file)) {
-          // Now TypeScript knows file has these properties
+          // Extract properties needed for reconstruction
           const filePreview = file.preview;
           const fileName = file.name;
           const fileType = file.type;

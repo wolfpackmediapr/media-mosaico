@@ -38,6 +38,9 @@ export const useFilePreviewUrls = ({
           continue;
         }
         
+        // Safe access to file name for logging
+        const fileName = file.name;
+        
         // Prioritize storage URLs as they're more reliable
         if (file.storageUrl) {
           // If we have both preview blob and storage URL, prefer storage URL
