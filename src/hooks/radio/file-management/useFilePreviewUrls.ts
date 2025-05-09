@@ -1,8 +1,9 @@
+
 import { useCallback, useEffect, useRef } from "react";
 import { ensureValidBlobUrl } from "@/utils/audio-url-validator";
 import { UploadedFile } from "@/components/radio/types";
 import { toast } from "sonner";
-import { isUploadedFile, hasPreviewProperties } from "@/utils/file-type-guards";
+import { isUploadedFile, hasPreviewProperties, isReconstructableFile } from "@/utils/file-type-guards";
 
 interface UseFilePreviewUrlsProps {
   files: UploadedFile[];
