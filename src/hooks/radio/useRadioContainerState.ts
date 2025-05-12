@@ -148,7 +148,7 @@ export const useRadioContainerState = ({
     handlePlaybackRateChange,
     seekToSegment: handleSeekToSegment,
     switchToNativeAudio,
-    switchToHowler // Make sure to destructure this from useAudioPlaybackManager
+    switchToHowler
   } = useAudioPlaybackManager({
     currentFile,
     isActiveMediaRoute,
@@ -176,6 +176,28 @@ export const useRadioContainerState = ({
     setNewsSegments,
     clearAllStorageState
   });
+
+  // Add effect to handle clearing all state
+  useEffect(() => {
+    if (lastAction === 'clear') {
+      // Ensure transcription text is cleared
+      if (transcriptionText) {
+        console.log('[useRadioContainerState] Clearing transcription text after clear action');
+        setTranscriptionText('');
+        
+        // If there's a callback for text changes, call it
+        if (onTextChange) {
+          onTextChange('');
+        }
+      }
+      
+      // Ensure news segments are cleared
+      if (newsSegments.length > 0) {
+        console.log('[useRadioContainerState] Clearing news segments after clear action');
+        setNewsSegments([]);
+      }
+    }
+  }, [lastAction, transcriptionText, setTranscriptionText, onTextChange, newsSegments, setNewsSegments]);
 
   // Return the complete state and handlers
   return {
@@ -229,7 +251,9 @@ export const useRadioContainerState = ({
     handleTranscriptionProcessingError,
     // Add the missing properties to the return object
     switchToNativeAudio,
-    switchToHowler, // Add this to the return object
-    validateCurrentFileUrl
+    switchToHowler,
+    validateCurrentFileUrl,
+    // Add resetTranscription to make it available to RadioContainer
+    resetTranscription
   };
 };

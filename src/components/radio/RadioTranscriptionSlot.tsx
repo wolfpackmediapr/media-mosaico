@@ -62,9 +62,10 @@ const RadioTranscriptionSlot = ({
   onSeek = () => {},
 }: RadioTranscriptionSlotProps) => {
   const { checkAndGenerateSegments } = useRadioSegmentGenerator(onSegmentsReceived);
+  const componentMountedRef = useRef(true);
   
   // Store view mode with proper key including transcription ID
-  const [viewMode, setViewMode] = usePersistentState<'interactive' | 'edit'>(
+  const [viewMode, setViewMode, removeViewMode] = usePersistentState<'interactive' | 'edit'>(
     `transcription-view-mode-${transcriptionId || "draft"}`,
     'edit',
     { storage: 'sessionStorage' }
@@ -73,32 +74,49 @@ const RadioTranscriptionSlot = ({
   const hasUtterances = !!transcriptionResult?.utterances && 
                         transcriptionResult.utterances.length > 0;
 
-  // Check for segment generation when transcription changes
-  useEffect(() => {
-    if (transcriptionResult) {
-      checkAndGenerateSegments(transcriptionResult);
-    } else {
-      checkAndGenerateSegments(transcriptionText);
-    }
-  }, [transcriptionText, transcriptionResult, checkAndGenerateSegments]);
-
   // Reset view mode to edit when transcription text is cleared
   useEffect(() => {
-    if (!transcriptionText) {
+    if (!transcriptionText && viewMode !== 'edit') {
+      console.log('[RadioTranscriptionSlot] Empty transcription text, resetting view mode to edit');
       setViewMode('edit');
     }
-  }, [transcriptionText, setViewMode]);
+  }, [transcriptionText, viewMode, setViewMode]);
 
   // Local state to store the reset method
-  const resetFnRef = useRef<() => void>(() => {});
+  const resetFnRef = useRef<() => void>(() => {
+    console.log('[RadioTranscriptionSlot] Execute fallback reset function');
+    
+    // Fallback reset logic - clear view mode
+    if (componentMountedRef.current) {
+      removeViewMode();
+      setViewMode('edit');
+    }
+  });
   
   // Pass a callback down to RadioTranscriptionEditor that lets it "register" its reset function
   const handleRegisterReset = (fn: () => void) => {
-    resetFnRef.current = fn;
+    resetFnRef.current = () => {
+      console.log('[RadioTranscriptionSlot] Executing editor reset function');
+      fn();
+      
+      // Also reset view mode
+      if (componentMountedRef.current) {
+        removeViewMode();
+        setViewMode('edit');
+      }
+    };
+    
     if (registerEditorReset) {
-      registerEditorReset(fn);
+      registerEditorReset(resetFnRef.current);
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      componentMountedRef.current = false;
+    };
+  }, []);
 
   // Handle view mode change
   const handleViewModeChange = (mode: 'interactive' | 'edit') => {

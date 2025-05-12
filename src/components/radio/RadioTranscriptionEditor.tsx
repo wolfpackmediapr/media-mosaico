@@ -29,13 +29,15 @@ const RadioTranscriptionEditor = ({
     localText,
     isEditing,
     isLoadingUtterances,
+    showTimestamps,
+    hasTimestampData,
     isSaving,
-    handleTextChange,
-    hasSpeakerLabels,
-    resetLocalSpeakerText,
     saveError,
     saveSuccess,
-    enhancedTranscriptionResult
+    handleTextChange,
+    toggleEditMode,
+    hasSpeakerLabels,
+    resetLocalSpeakerText
   } = useTranscriptionEditor({
     transcriptionText,
     transcriptionId,
@@ -43,56 +45,37 @@ const RadioTranscriptionEditor = ({
     onTranscriptionChange,
   });
 
-  // Track if component is mounted to avoid state updates after unmount
-  const isMountedRef = useRef<boolean>(true);
-  
+  // Register reset function with parent
   useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Register the reset function if the prop is provided
-  useEffect(() => {
-    if (registerReset && resetLocalSpeakerText) {
-      registerReset(resetLocalSpeakerText);
-      return () => {
-        if (isMountedRef.current && registerReset) {
-          registerReset(() => {});
-        }
-      };
+    if (registerReset) {
+      console.log('[RadioTranscriptionEditor] Registering reset function with parent');
+      registerReset(() => {
+        console.log('[RadioTranscriptionEditor] Reset triggered by parent');
+        resetLocalSpeakerText();
+      });
     }
   }, [registerReset, resetLocalSpeakerText]);
 
-  // Calculate the final processing state with more granular logging
-  const finalIsProcessing = isProcessing || isLoadingUtterances;
-  console.log('[RadioTranscriptionEditor] Processing state details:', {
-    isProcessing,
-    isLoadingUtterances,
-    finalIsProcessing,
-    hasTranscriptionText: !!transcriptionText,
-    hasTranscriptionResult: !!transcriptionResult,
-    hasEnhancedResult: !!enhancedTranscriptionResult,
-    currentTime: currentTime?.toFixed(2) || 'none'
-  });
-
-  // Log when the processing state changes
+  // Also monitor transcriptionText - if it's cleared, reset editor
   useEffect(() => {
-    console.log('[RadioTranscriptionEditor] Processing state changed:', finalIsProcessing);
-  }, [finalIsProcessing]);
+    if (transcriptionText === '') {
+      console.log('[RadioTranscriptionEditor] Empty transcription text detected, resetting');
+      resetLocalSpeakerText();
+    }
+  }, [transcriptionText, resetLocalSpeakerText]);
 
   return (
     <TranscriptionEditorWrapper
-      transcriptionResult={enhancedTranscriptionResult || transcriptionResult}
-      transcriptionText={localText || transcriptionText}
-      isProcessing={finalIsProcessing}
+      transcriptionResult={transcriptionResult}
+      transcriptionText={localText}
+      isProcessing={isProcessing}
       onTranscriptionChange={handleTextChange}
       onTimestampClick={onTimestampClick}
       currentTime={currentTime}
       isSaving={isSaving}
-      hasSpeakerLabels={hasSpeakerLabels}
       saveError={saveError}
       saveSuccess={saveSuccess}
+      hasSpeakerLabels={hasSpeakerLabels}
       isEditing={isEditing}
     />
   );

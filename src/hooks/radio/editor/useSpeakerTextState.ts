@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { 
@@ -23,7 +24,10 @@ export const useSpeakerTextState = ({
   transcriptionResult,
   onTranscriptionChange,
 }: UseSpeakerTextStateProps) => {
-  const [isEditing, setIsEditing] = usePersistentState(
+  const mountedRef = useRef(true);
+  const persistKey = `radio-transcription-speaker-${transcriptionId || "draft"}`;
+
+  const [isEditing, setIsEditing, removeEditorMode] = usePersistentState(
     `transcription-editor-mode-${transcriptionId || "draft"}`,
     false,
     { storage: 'sessionStorage' }
@@ -40,12 +44,25 @@ export const useSpeakerTextState = ({
   );
 
   const [localSpeakerText, setLocalSpeakerText, removeLocalSpeakerText] = usePersistentState(
-    `radio-transcription-speaker-${transcriptionId || "draft"}`,
+    persistKey,
     "",
     { storage: 'sessionStorage' }
   );
 
+  // Check if transcription text has been cleared
   useEffect(() => {
+    if (!transcriptionText && localSpeakerText) {
+      console.log('[useSpeakerTextState] Transcription text was cleared. Clearing speaker text.');
+      removeLocalSpeakerText();
+      setLocalSpeakerText("");
+      lastTextRef.current = "";
+    }
+  }, [transcriptionText, localSpeakerText, setLocalSpeakerText, removeLocalSpeakerText]);
+
+  // Process transcription result and text
+  useEffect(() => {
+    if (!mountedRef.current) return;
+
     if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
       console.log('[useSpeakerTextState] New transcription result with utterances received');
       setEnhancedTranscriptionResult(transcriptionResult);
@@ -77,8 +94,33 @@ export const useSpeakerTextState = ({
     }
   }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText]);
 
+  // More robust reset function that clears all associated state
+  const resetLocalSpeakerText = () => {
+    if (!mountedRef.current) return;
+    
+    console.log('[useSpeakerTextState] Performing full reset of local speaker text');
+    
+    // Remove from session storage
+    removeLocalSpeakerText();
+    removeEditorMode();
+    
+    // Clear state
+    setLocalSpeakerText("");
+    setIsEditing(false);
+    lastTextRef.current = "";
+    
+    // Also try direct removal from session storage as a backup
+    try {
+      sessionStorage.removeItem(persistKey);
+      sessionStorage.removeItem(`transcription-editor-mode-${transcriptionId || "draft"}`);
+    } catch (e) {
+      console.error('[useSpeakerTextState] Error directly clearing storage:', e);
+    }
+  };
+
+  // Handle text change
   const handleTextChange = (newText: string) => {
-    if (!newText || newText === lastTextRef.current) return;
+    if (!mountedRef.current || (!newText && !localSpeakerText)) return;
     
     lastTextRef.current = newText;
     setLocalSpeakerText(newText);
@@ -96,16 +138,16 @@ export const useSpeakerTextState = ({
     if (!isEditing) setIsEditing(true);
   };
 
-  const resetLocalSpeakerText = () => {
-    console.log('[useSpeakerTextState] Resetting local speaker text');
-    removeLocalSpeakerText();
-    setLocalSpeakerText("");
-    setIsEditing(false);
-  };
-
   const toggleEditMode = () => {
     setIsEditing(!isEditing);
   };
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   return {
     localText: localSpeakerText,

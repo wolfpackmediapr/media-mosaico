@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useRadioContainerState } from "@/hooks/radio/useRadioContainerState";
 import RadioLayout from "./RadioLayout";
 import {
@@ -43,7 +43,7 @@ const RadioContainer = ({
     setIsMediaPlaying
   });
 
-  // Use our enhanced clear state hook
+  // Use our enhanced clear state hook with resetTranscription
   const {
     handleClearAll,
     handleEditorRegisterReset,
@@ -57,7 +57,8 @@ const RadioContainer = ({
     files: state.files,
     setFiles: state.setFiles,
     setNewsSegments: state.setNewsSegments,
-    setTranscriptionText: state.setTranscriptionText
+    setTranscriptionText: state.setTranscriptionText,
+    resetTranscription: state.resetTranscription, // Add reset function
   });
 
   // Create wrapper functions to handle type mismatches between components
@@ -73,6 +74,24 @@ const RadioContainer = ({
     const nextIndex = (currentIndex + 1) % rates.length;
     state.handlePlaybackRateChange(rates[nextIndex]);
   };
+
+  // Force UI refresh when state is cleared
+  useEffect(() => {
+    if (state.lastAction === 'clear') {
+      console.log('[RadioContainer] Detected clear action, ensuring UI is refreshed');
+      
+      // Ensure transcription text is cleared
+      state.setTranscriptionText('');
+      
+      // Ensure news segments are cleared
+      state.setNewsSegments([]);
+      
+      // Call any additional clear functions
+      if (state.resetTranscription) {
+        state.resetTranscription();
+      }
+    }
+  }, [state.lastAction]);
 
   // Ensure volume is always in array format for components that expect it
   const volumeArray = Array.isArray(state.volume) ? state.volume : [state.volume * 100];
@@ -153,6 +172,7 @@ const RadioContainer = ({
             transcriptionResult={state.transcriptionResult}
             handleSegmentsReceived={state.handleSegmentsReceived}
             onClearAnalysis={setClearAnalysis}
+            lastAction={state.lastAction} // Pass lastAction to help components detect clears
           />
         }
         newsSegmentsSection={
@@ -161,6 +181,7 @@ const RadioContainer = ({
             setNewsSegments={state.setNewsSegments}
             handleSeekToSegment={state.handleSeekToSegment}
             isProcessing={state.isProcessing}
+            lastAction={state.lastAction} // Pass lastAction to help components detect clears
           />
         }
       />

@@ -1,6 +1,5 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
@@ -18,7 +17,8 @@ interface RadioAnalysisProps {
   transcriptionId?: string;
   transcriptionResult?: TranscriptionResult;
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
-  onClearAnalysis?: (clearFn: () => void) => void; // expects a function to set the clear handler
+  onClearAnalysis?: (clearFn: () => void) => void;
+  forceReset?: boolean; // Add forceReset prop
 }
 
 const ANALYSIS_PERSIST_KEY = "radio-content-analysis";
@@ -28,27 +28,73 @@ const RadioAnalysis = ({
   transcriptionId,
   transcriptionResult,
   onSegmentsGenerated,
-  onClearAnalysis
+  onClearAnalysis,
+  forceReset
 }: RadioAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis, removeAnalysis] = usePersistentState<string>(
     `${ANALYSIS_PERSIST_KEY}-${transcriptionId || "draft"}`,
     ""
   );
+  
   const { generateRadioSegments } = useRadioSegmentGenerator(onSegmentsGenerated);
   const { categories } = useCategories();
   const { clients } = useClientData();
+  const mountedRef = useRef(true);
+
+  // Function to clear analysis state
+  const clearAnalysisState = useRef(() => {
+    console.log('[RadioAnalysis] Clearing analysis state');
+    if (mountedRef.current) {
+      setAnalysis("");
+      removeAnalysis();
+    }
+  });
 
   // Register a clear handler via onClearAnalysis ref
   useEffect(() => {
     if (typeof onClearAnalysis === "function") {
-      onClearAnalysis(() => {
-        setAnalysis("");
-        removeAnalysis();
-      });
+      onClearAnalysis(clearAnalysisState.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onClearAnalysis, setAnalysis, removeAnalysis, transcriptionId]);
+  }, [onClearAnalysis]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  
+  // Handle force reset from parent
+  useEffect(() => {
+    if (forceReset) {
+      console.log('[RadioAnalysis] Force reset triggered');
+      clearAnalysisState.current();
+      
+      // Force delete any persistent storage keys related to analysis
+      try {
+        // Find and delete any session storage keys related to analysis
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (key.includes(ANALYSIS_PERSIST_KEY) || key.includes('radio-content-analysis'))) {
+            console.log(`[RadioAnalysis] Removing session storage key: ${key}`);
+            sessionStorage.removeItem(key);
+          }
+        }
+      } catch (e) {
+        console.error('[RadioAnalysis] Error cleaning session storage:', e);
+      }
+    }
+  }, [forceReset]);
+
+  // When transcriptionId changes or text is cleared, reset analysis
+  useEffect(() => {
+    if (!transcriptionText) {
+      console.log('[RadioAnalysis] No transcription text, clearing analysis');
+      setAnalysis("");
+    }
+  }, [transcriptionId, transcriptionText, setAnalysis]);
 
   const analyzeContent = async () => {
     if (!transcriptionText) {
