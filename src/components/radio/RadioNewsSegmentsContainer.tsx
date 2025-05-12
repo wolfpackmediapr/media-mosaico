@@ -1,5 +1,6 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import RadioNewsSegmentCard from "./RadioNewsSegmentCard";
@@ -17,15 +18,25 @@ interface RadioNewsSegmentsContainerProps {
   onSegmentsChange: (segments: RadioNewsSegment[]) => void;
   onSeek?: (segment: RadioNewsSegment) => void;
   isProcessing: boolean;
+  forceReset?: boolean; // Add this prop to fix type error
 }
 
 const RadioNewsSegmentsContainer = ({
   segments,
   onSegmentsChange,
   onSeek,
-  isProcessing
+  isProcessing,
+  forceReset
 }: RadioNewsSegmentsContainerProps) => {
   const [expandedView, setExpandedView] = useState(false);
+
+  // Add an effect to handle force reset
+  useEffect(() => {
+    if (forceReset && segments.length > 0) {
+      console.log('[RadioNewsSegmentsContainer] Force reset detected, clearing segments');
+      onSegmentsChange([]);
+    }
+  }, [forceReset, segments.length, onSegmentsChange]);
 
   const handleSegmentEdit = (index: number, text: string) => {
     const updatedSegments = [...segments];

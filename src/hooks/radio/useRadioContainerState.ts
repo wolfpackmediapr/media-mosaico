@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
@@ -69,10 +68,10 @@ interface RadioContainerState {
   handleSeekToSegment: (segmentOrTime: RadioNewsSegment | number) => void;
   setNewsSegments: React.Dispatch<React.SetStateAction<RadioNewsSegment[]>>;
   handleTranscriptionProcessingError: (error: any) => void;
-  // Add the missing properties
   switchToNativeAudio: () => void;
-  switchToHowler: () => void; // Add this missing property
+  switchToHowler: () => void; 
   validateCurrentFileUrl: () => Promise<boolean>;
+  resetTranscription: () => void; // Add this missing property to the interface
 }
 
 export const useRadioContainerState = ({
@@ -253,7 +252,6 @@ export const useRadioContainerState = ({
     switchToNativeAudio,
     switchToHowler,
     validateCurrentFileUrl,
-    // Add resetTranscription to make it available to RadioContainer
     resetTranscription
   };
 };

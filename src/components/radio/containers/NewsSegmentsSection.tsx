@@ -7,7 +7,7 @@ interface NewsSegmentsSectionProps {
   setNewsSegments: (segments: RadioNewsSegment[]) => void;
   handleSeekToSegment: (segment: RadioNewsSegment) => void;
   isProcessing: boolean;
-  lastAction?: string | null; // Add lastAction prop
+  lastAction?: string | null;
 }
 
 const NewsSegmentsSection = ({
@@ -34,7 +34,7 @@ const NewsSegmentsSection = ({
       onSegmentsChange={setNewsSegments}
       onSeek={handleSeekToSegment}
       isProcessing={isProcessing}
-      forceReset={lastAction === 'clear'} // Pass flag to force reset
+      forceReset={lastAction === 'clear'} // This is now properly typed
     />
   ) : null;
 };

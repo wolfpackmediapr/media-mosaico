@@ -50,10 +50,16 @@ export const useTranscriptionEditor = ({
     localText
   });
 
+  // Add these properties to fix the errors in RadioTranscriptionEditor.tsx
+  const showTimestamps = hasSpeakerLabels;
+  const hasTimestampData = hasSpeakerLabels;
+
   return {
     localText,
     isEditing,
     isLoadingUtterances,
+    showTimestamps,
+    hasTimestampData,
     isSaving,
     saveError,
     saveSuccess,
