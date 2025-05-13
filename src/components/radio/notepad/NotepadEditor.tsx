@@ -43,12 +43,10 @@ const NotepadEditor = ({
         <div
           ref={editorRef}
           contentEditable="true"
-          className="outline-none p-4 prose prose-sm max-w-none w-full min-h-[200px] focus:ring-0"
+          className="outline-none p-4 notepad-editor prose prose-sm max-w-none w-full min-h-[200px] focus:ring-0"
           onInput={handleInput}
           style={{ minHeight }}
           dangerouslySetInnerHTML={{ __html: content }}
-          // Remove the placeholder attribute as it's not valid on divs
-          // Instead, we can use data-placeholder and style it with CSS
           data-placeholder={placeholder}
         />
       </CardContent>

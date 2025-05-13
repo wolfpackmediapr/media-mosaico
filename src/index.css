@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -85,6 +86,7 @@
   @apply pl-4 border-l-2 border-gray-300 my-2;
 }
 
+/* Prose styles - adding proper dark mode support */
 .prose-sm {
   font-size: 0.875rem;
   line-height: 1.5;
@@ -113,9 +115,27 @@
   overflow: hidden;
 }
 
+/* Add proper dark mode support for prose classes */
+.prose {
+  @apply text-foreground;
+}
+
+.dark .prose {
+  @apply text-foreground;
+}
+
 /* Add CSS for contenteditable placeholder */
 [contenteditable=true]:empty:before {
   content: attr(data-placeholder);
-  color: #9ca3af;
+  @apply text-muted-foreground;
   font-style: italic;
+}
+
+/* Add styles for the notepad editor to ensure proper theme support */
+.notepad-editor {
+  @apply text-foreground bg-background;
+}
+
+.dark .notepad-editor {
+  @apply text-foreground bg-background;
 }
