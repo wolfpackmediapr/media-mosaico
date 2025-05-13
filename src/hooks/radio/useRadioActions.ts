@@ -1,18 +1,16 @@
-
-import { useState, useCallback } from 'react';
-import { toast } from 'sonner';
+import { useCallback, useState } from 'react';
 import { UploadedFile } from '@/components/radio/types';
+import { RadioNewsSegment } from '@/components/radio/RadioNewsSegmentsContainer';
 
 interface UseRadioActionsProps {
   files: UploadedFile[];
   currentFileIndex: number;
   setFiles: (files: UploadedFile[]) => void;
   setCurrentFileIndex: (index: number) => void;
-  handleFilesAddedOriginal: (newFiles: File[]) => void; // Renamed to avoid conflict
-  resetTranscription: () => void;
-  setNewsSegments: React.Dispatch<React.SetStateAction<any[]>>; // Use specific type if available
-  clearAllStorageState: () => Promise<void>; // Update return type to Promise<void>
-  // Add resetPlaybackErrors if needed from useRadioPlayer
+  handleFilesAddedOriginal: (newFiles: File[]) => void;
+  resetTranscription?: () => void;
+  setNewsSegments?: React.Dispatch<React.SetStateAction<RadioNewsSegment[]>>;
+  clearAllStorageState?: () => Promise<boolean>;
 }
 
 export const useRadioActions = ({
@@ -23,67 +21,71 @@ export const useRadioActions = ({
   handleFilesAddedOriginal,
   resetTranscription,
   setNewsSegments,
-  clearAllStorageState,
+  clearAllStorageState
 }: UseRadioActionsProps) => {
   const [lastAction, setLastAction] = useState<string | null>(null);
 
-  const handleClearAll = useCallback(async () => {
-    console.log('[RadioActions] handleClearAll: Starting clear sequence');
-    try {
-      // Reset state in this specific order for best results
-      resetTranscription();
-      console.log('[RadioActions] Transcription reset');
-      
-      setNewsSegments([]);
-      console.log('[RadioActions] News segments cleared');
-      
-      // Clear files and reset index before storage to avoid rehydration issues
-      setFiles([]);
-      setCurrentFileIndex(0);
-      console.log('[RadioActions] Files cleared');
-      
-      // Await storage clearing to make sure it completes
-      await clearAllStorageState();
-      console.log('[RadioActions] Storage state cleared');
-      
-      // Set a timeout to ensure UI has time to update
-      setTimeout(() => {
-        toast.success('Todos los datos han sido borrados');
-      }, 100);
-    } catch (error) {
-      console.error('[RadioActions] Error during clear all:', error);
-      toast.error('Error al borrar los datos almacenados.');
-    } finally {
-      // Mark last action as clear for any components that need to respond
-      setLastAction('clear');
+  // Update the return type to match what's expected by the RadioContainerState interface
+  const handleClearAll = useCallback(async (): Promise<void> => {
+    console.log('[useRadioActions] Handling clear all request');
+    setLastAction('clear');
+
+    // Clear storage first
+    if (clearAllStorageState) {
+      try {
+        await clearAllStorageState();
+      } catch (error) {
+        console.error('[useRadioActions] Error clearing storage state:', error);
+      }
     }
-  }, [resetTranscription, setNewsSegments, setFiles, setCurrentFileIndex, clearAllStorageState]);
+
+    // Reset transcription state if available
+    if (resetTranscription) {
+      try {
+        resetTranscription();
+      } catch (error) {
+        console.error('[useRadioActions] Error resetting transcription:', error);
+      }
+    }
+
+    // Clear news segments if available
+    if (setNewsSegments) {
+      try {
+        setNewsSegments([]);
+      } catch (error) {
+        console.error('[useRadioActions] Error clearing news segments:', error);
+      }
+    }
+
+    // Reset files and current index
+    try {
+      setCurrentFileIndex(-1);
+      setFiles([]);
+    } catch (error) {
+      console.error('[useRadioActions] Error clearing files state:', error);
+    }
+
+    // No return value (void)
+  }, [clearAllStorageState, resetTranscription, setNewsSegments, setFiles, setCurrentFileIndex]);
 
   const handleTrackSelect = useCallback((index: number) => {
-    if (index !== currentFileIndex) {
-      console.log(`[RadioActions] Selecting track at index ${index}`);
+    if (index >= 0 && index < files.length && index !== currentFileIndex) {
+      console.log(`[useRadioActions] Selecting track at index: ${index}`);
+      setLastAction('select');
       setCurrentFileIndex(index);
-      setLastAction('track-select');
     }
-  }, [currentFileIndex, setCurrentFileIndex]);
+  }, [files, currentFileIndex, setCurrentFileIndex]);
 
   const handleFilesAdded = useCallback((newFiles: File[]) => {
-    if (newFiles.length === 0) return;
-    
-    console.log(`[RadioActions] Adding ${newFiles.length} files`);
-    
-    handleFilesAddedOriginal(newFiles); // Call the original function from useRadioFiles
-
-    if (newFiles.length > 0) {
-      toast.success(`${newFiles.length} archivos añadidos correctamente`);
-      setLastAction('files-added');
-    }
+    console.log(`[useRadioActions] Adding ${newFiles.length} new files`);
+    setLastAction('add');
+    handleFilesAddedOriginal(newFiles);
   }, [handleFilesAddedOriginal]);
 
   return {
     lastAction,
     handleClearAll,
     handleTrackSelect,
-    handleFilesAdded, // Export the enhanced version
+    handleFilesAdded
   };
 };

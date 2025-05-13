@@ -162,7 +162,8 @@ export const useRadioContainerState = ({
   // Radio actions
   const {
     lastAction,
-    handleClearAll,
+    // Here we need to update this function to return void instead of boolean
+    handleClearAll: originalHandleClearAll,
     handleTrackSelect,
     handleFilesAdded
   } = useRadioActions({
@@ -175,6 +176,13 @@ export const useRadioContainerState = ({
     setNewsSegments,
     clearAllStorageState
   });
+
+  // Create a wrapper for handleClearAll that conforms to the expected type
+  const handleClearAll = async (): Promise<void> => {
+    // Call the original function but ignore its return value
+    await originalHandleClearAll();
+    // Return void implicitly
+  };
 
   // Add effect to handle clearing all state
   useEffect(() => {
@@ -197,6 +205,9 @@ export const useRadioContainerState = ({
       }
     }
   }, [lastAction, transcriptionText, setTranscriptionText, onTextChange, newsSegments, setNewsSegments]);
+
+  // Ensure volume is always in array format for components that expect it
+  const volumeArray = Array.isArray(state.volume) ? state.volume : [state.volume * 100];
 
   // Return the complete state and handlers
   return {
@@ -224,7 +235,7 @@ export const useRadioContainerState = ({
     // State tracking
     lastAction,
     // Handlers
-    handleClearAll,
+    handleClearAll, // Use our wrapped version that returns void
     handleTrackSelect,
     handleFilesAdded,
     setFiles,
