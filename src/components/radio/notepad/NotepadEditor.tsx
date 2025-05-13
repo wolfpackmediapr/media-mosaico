@@ -43,7 +43,7 @@ const NotepadEditor = ({
         <div
           ref={editorRef}
           contentEditable="true"
-          className="outline-none p-4 notepad-editor prose prose-sm max-w-none w-full min-h-[200px] focus:ring-0"
+          className="outline-none p-4 notepad-editor prose prose-sm max-w-none w-full focus:ring-0"
           onInput={handleInput}
           style={{ minHeight }}
           dangerouslySetInnerHTML={{ __html: content }}

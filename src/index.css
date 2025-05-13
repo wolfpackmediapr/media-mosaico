@@ -36,39 +36,6 @@
 
     --radius: 0.5rem;
   }
-
-  .dark {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
-
-    --muted: 223 47% 11%;
-    --muted-foreground: 215.4 16.3% 56.9%;
-
-    --accent: 216 34% 17%;
-    --accent-foreground: 210 40% 98%;
-
-    --popover: 224 71% 4%;
-    --popover-foreground: 215 20.2% 65.1%;
-
-    --border: 216 34% 17%;
-    --input: 216 34% 17%;
-
-    --card: 224 71% 4%;
-    --card-foreground: 213 31% 91%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 1.2%;
-
-    --secondary: 222.2 47.4% 11.2%;
-    --secondary-foreground: 210 40% 98%;
-
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-
-    --ring: 216 34% 17%;
-
-    --radius: 0.5rem;
-  }
 }
 
 @layer base {
@@ -86,7 +53,7 @@
   @apply pl-4 border-l-2 border-gray-300 my-2;
 }
 
-/* Prose styles - adding proper dark mode support */
+/* Prose styles */
 .prose-sm {
   font-size: 0.875rem;
   line-height: 1.5;
@@ -115,12 +82,8 @@
   overflow: hidden;
 }
 
-/* Add proper dark mode support for prose classes */
+/* Add proper styling for prose classes */
 .prose {
-  @apply text-foreground;
-}
-
-.dark .prose {
   @apply text-foreground;
 }
 
@@ -131,11 +94,58 @@
   font-style: italic;
 }
 
-/* Add styles for the notepad editor to ensure proper theme support */
+/* Add styles for the notepad editor */
 .notepad-editor {
   @apply text-foreground bg-background;
 }
 
-.dark .notepad-editor {
-  @apply text-foreground bg-background;
+/* Custom animations for notifications */
+@keyframes fade-in-scale {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fade-out-scale {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.custom-sonner-toast {
+  animation: fade-in-scale 0.35s ease forwards !important;
+}
+
+.custom-sonner-toast[data-dismissing="true"] {
+  animation: fade-out-scale 0.15s ease forwards !important;
+}
+
+/* Animation for notification dot pulse */
+@keyframes pulse-dot {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+.notification-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
 }

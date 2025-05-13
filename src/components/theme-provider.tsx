@@ -3,24 +3,17 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "dark" | "light" | "system";
-
 type ThemeProviderProps = {
   children: React.ReactNode;
-  defaultTheme?: Theme;
-  storageKey?: string;
-  attribute?: string;
-  enableSystem?: boolean;
-  disableTransitionOnChange?: boolean;
 };
 
 type ThemeProviderState = {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
+  theme: "light";
+  setTheme: (theme: "light") => void;
 };
 
 const initialState: ThemeProviderState = {
-  theme: "system",
+  theme: "light",
   setTheme: () => null,
 };
 
@@ -28,59 +21,25 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
-  storageKey = "vite-ui-theme",
-  attribute = "data-theme",
-  enableSystem = true,
-  disableTransitionOnChange = false,
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-  );
+  const [theme] = useState<"light">("light");
 
   useEffect(() => {
     const root = window.document.documentElement;
-
-    if (disableTransitionOnChange) {
-      root.classList.add("disable-transitions");
-      const timeout = setTimeout(() => {
-        root.classList.remove("disable-transitions");
-      }, 0);
-      return () => clearTimeout(timeout);
-    }
-  }, [theme, disableTransitionOnChange]);
-
-  useEffect(() => {
-    const root = window.document.documentElement;
+    root.classList.remove("dark");
+    root.classList.add("light");
     
-    if (attribute === "class") {
-      root.classList.remove("light", "dark");
-      if (theme === "system") {
-        const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light";
-        root.classList.add(systemTheme);
-      } else {
-        root.classList.add(theme);
-      }
-    } else {
-      if (theme === "system") {
-        const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light";
-        root.setAttribute(attribute, systemTheme);
-      } else {
-        root.setAttribute(attribute, theme);
-      }
+    if (root.hasAttribute("data-theme")) {
+      root.setAttribute("data-theme", "light");
     }
-  }, [theme, attribute]);
+  }, []);
 
   const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
+    theme: "light",
+    setTheme: () => {
+      // Do nothing - we only support light mode now
+      console.log("Light mode is the only supported theme.");
     },
   };
 
