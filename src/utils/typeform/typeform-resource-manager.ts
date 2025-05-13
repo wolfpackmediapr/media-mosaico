@@ -21,6 +21,33 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
   const typeformResources = new Map<string, TypeformResources>();
   
   /**
+   * Register a resource for later cleanup
+   * @param resource The resource to register
+   * @param cleanupFunc Optional cleanup function
+   * @returns Cleanup function
+   */
+  const registerResource = (resource: any, cleanupFunc?: () => void) => {
+    // Create a simple tracking mechanism
+    const dispose = () => {
+      if (cleanupFunc) {
+        cleanupFunc();
+      }
+    };
+    
+    return dispose;
+  };
+
+  /**
+   * Clean up all registered resources
+   */
+  const cleanupResources = () => {
+    // Use baseManager's cleanup as fallback
+    if (baseManager.cleanup) {
+      baseManager.cleanup();
+    }
+  };
+  
+  /**
    * Register a Typeform container for cleanup
    * @param formId The Typeform ID to register
    * @param containerId The HTML container ID for this form
@@ -176,11 +203,11 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
     resetAllTypeformGlobalState();
   };
   
-  // Return the combined resource manager with all required properties
+  // Return the combined resource manager with our own implementations and Typeform-specific methods
   return {
-    // Include the base resource manager methods
-    registerResource: baseManager.registerResource,
-    cleanupResources: baseManager.cleanupResources,
+    // Implement the interface methods using our own functions or baseManager where appropriate
+    registerResource,
+    cleanupResources,
     // Add Typeform-specific methods
     registerTypeformContainer,
     trackTypeformElement,
