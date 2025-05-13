@@ -2,7 +2,14 @@
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { ensureValidBlobUrl, createNewBlobUrl, isValidFileForBlobUrl, safelyRevokeBlobUrl } from "@/utils/audio-url-validator";
+import { 
+  ensureValidBlobUrl, 
+  createNewBlobUrl, 
+  isValidFileForBlobUrl, 
+  safelyRevokeBlobUrl,
+  isBlobUrlFormat,
+  getSafeFileUrl
+} from "@/utils/audio-url-validator";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -43,6 +50,8 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
   );
 
   const urlsToRevoke = useRef<Set<string>>(new Set());
+  const lastValidationAttemptRef = useRef<number>(0);
+  const validationInProgressRef = useRef<boolean>(false);
   
   // Function to safely clean up a file's resources
   const cleanupFile = useCallback((file: UploadedFile | null) => {
@@ -147,45 +156,103 @@ export const useRadioFiles = (options: UseRadioFilesOptions = {}) => {
     }
   }, [files, setFileMetadata, fileMetadata.length]);
 
+  // Throttled validation to prevent excessive validation attempts
+  const throttledValidation = useCallback(async () => {
+    // Prevent validation if another validation is in progress
+    if (validationInProgressRef.current) {
+      return false;
+    }
+    
+    // Implement throttling - only validate once every 5 seconds
+    const now = Date.now();
+    if (now - lastValidationAttemptRef.current < 5000) {
+      console.log('[useRadioFiles] Throttling validation, last attempt was too recent');
+      return false;
+    }
+    
+    lastValidationAttemptRef.current = now;
+    
+    return true;
+  }, []);
+
   // Validate blob URLs for current file - with enhanced error handling
   const validateCurrentFileUrl = useCallback(async () => {
+    // Check if validation should proceed
+    if (!await throttledValidation()) {
+      return false;
+    }
+    
     if (files.length === 0 || currentFileIndex >= files.length) return false;
     
     const currentFile = files[currentFileIndex];
     if (!currentFile) return false;
     
-    // If the file is invalid or reconstructed with size <= 1, don't attempt validation
-    if (!isValidFileForBlobUrl(currentFile)) {
-      console.warn('[useRadioFiles] Current file is invalid, cannot validate URL');
-      return false;
-    }
+    validationInProgressRef.current = true;
     
-    if (!currentFile.preview) return false;
-    
-    // Ensure the current file has a valid URL
     try {
-      const validUrl = await ensureValidBlobUrl(currentFile);
-      
-      // If URL changed or is empty, update the file object
-      if (validUrl !== currentFile.preview) {
-        console.log('[useRadioFiles] Updating blob URL for current file');
-        const updatedFiles = [...files];
-        
-        // Update the preview URL for the current file
-        Object.defineProperty(updatedFiles[currentFileIndex], 'preview', {
-          value: validUrl,
-          writable: true
-        });
-        
-        setFiles(updatedFiles);
+      // If the file is invalid or reconstructed with size <= 1, don't attempt validation
+      if (!isValidFileForBlobUrl(currentFile)) {
+        console.warn('[useRadioFiles] Current file is invalid, cannot validate URL');
+        return false;
       }
       
-      return validUrl !== '';
+      if (!currentFile.preview) return false;
+      
+      // Simple format check first
+      if (!isBlobUrlFormat(currentFile.preview)) {
+        console.log('[useRadioFiles] Current file URL is not a blob URL');
+        const newUrl = createNewBlobUrl(currentFile);
+        
+        // Update the preview URL
+        const updatedFiles = [...files];
+        Object.defineProperty(updatedFiles[currentFileIndex], 'preview', {
+          value: newUrl,
+          writable: true
+        });
+        setFiles(updatedFiles);
+        return newUrl !== '';
+      }
+      
+      // Ensure the current file has a valid URL, with error handling
+      try {
+        const validUrl = await ensureValidBlobUrl(currentFile);
+        
+        // If URL changed or is empty, update the file object
+        if (validUrl !== currentFile.preview) {
+          console.log('[useRadioFiles] Updating blob URL for current file');
+          const updatedFiles = [...files];
+          
+          // Update the preview URL for the current file
+          Object.defineProperty(updatedFiles[currentFileIndex], 'preview', {
+            value: validUrl,
+            writable: true
+          });
+          
+          setFiles(updatedFiles);
+        }
+        
+        return validUrl !== '';
+      } catch (error) {
+        // If validation throws an error, create a new URL without validation
+        console.error('[useRadioFiles] Error validating URL, creating new URL without validation:', error);
+        const newUrl = createNewBlobUrl(currentFile);
+        
+        const updatedFiles = [...files];
+        Object.defineProperty(updatedFiles[currentFileIndex], 'preview', {
+          value: newUrl,
+          writable: true
+        });
+        setFiles(updatedFiles);
+        
+        return newUrl !== '';
+      }
     } catch (error) {
-      console.error('[useRadioFiles] Error validating current file URL:', error);
+      console.error('[useRadioFiles] Error in validateCurrentFileUrl:', error);
       return false;
+    } finally {
+      validationInProgressRef.current = false;
     }
-  }, [files, currentFileIndex]);
+  }, [files, currentFileIndex, throttledValidation]);
 
   // Track and cleanup URL objects throughout component lifecycle
   useEffect(() => {

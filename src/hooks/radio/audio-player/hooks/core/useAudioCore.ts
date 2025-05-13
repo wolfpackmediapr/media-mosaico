@@ -2,8 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Howl } from 'howler';
 import { toast } from 'sonner';
-import { getMimeTypeFromFile, canBrowserPlayFile } from '@/utils/audio-format-helper';
-import { isValidBlobUrl, createNewBlobUrl } from '@/utils/audio-url-validator';
+import { isBlobUrlFormat, safelyRevokeBlobUrl, createNewBlobUrl, isValidFileForBlobUrl } from '@/utils/audio-url-validator';
 
 interface AudioCoreState {
   howl: Howl | null;
@@ -25,6 +24,31 @@ export interface UseAudioCoreOptions {
   forceHTML5?: boolean;
   onInvalidBlobUrl?: (file: File) => void; // New callback for invalid blob URLs
 }
+
+// Helper to get MIME type from file
+const getMimeTypeFromFile = (file: File): string => {
+  if (file.type) return file.type;
+  
+  // Try to infer type from extension
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'mp3': return 'audio/mpeg';
+    case 'wav': return 'audio/wav';
+    case 'ogg': return 'audio/ogg';
+    case 'm4a': return 'audio/mp4';
+    case 'aac': return 'audio/aac';
+    default: return 'audio/mpeg'; // Default to mp3 if unknown
+  }
+};
+
+// Check if browser can play this audio type
+const canBrowserPlayFile = (file: File): boolean => {
+  const audio = document.createElement('audio');
+  const mimeType = getMimeTypeFromFile(file);
+  
+  // Check MIME type support
+  return audio.canPlayType(mimeType) !== '';
+};
 
 /**
  * Core hook for managing the Howl instance and basic audio state
@@ -79,11 +103,11 @@ export const useAudioCore = ({
   }, []);
 
   // Validate and potentially recreate Blob URL for a file
-  const validateAndUpdateBlobUrl = useCallback(async (file: File): Promise<string> => {
+  const validateAndUpdateBlobUrl = useCallback((file: File): string => {
     // Check if file has a preview property with a blob URL
     if (!('preview' in file) || 
-        typeof file.preview !== 'string' || 
-        !file.preview.startsWith('blob:')) {
+        typeof (file as any).preview !== 'string' || 
+        !(file as any).preview.startsWith('blob:')) {
       // No preview or not a blob URL, create a new one
       console.log('[AudioCore] Creating new blob URL for file');
       const newUrl = createNewBlobUrl(file);
@@ -93,32 +117,32 @@ export const useAudioCore = ({
       return newUrl;
     }
     
-    // Check if the existing URL is valid
-    const isValid = await isValidBlobUrl(file.preview);
-    
-    if (!isValid) {
-      console.log('[AudioCore] Blob URL invalid, creating new one');
-      blobUrlValidRef.current = false;
-      
-      // Create a new blob URL
-      const newUrl = createNewBlobUrl(file);
-      (file as any).preview = newUrl;
-      
-      // Notify caller about invalid blob URL
-      if (onInvalidBlobUrl) {
-        onInvalidBlobUrl(file);
-      }
-      
-      return newUrl;
+    // Simple check to avoid unnecessarily recreating the URL
+    if (blobUrlValidRef.current && isBlobUrlFormat((file as any).preview)) {
+      return (file as any).preview;
     }
     
-    // URL is valid, use it
+    // If we've flagged the URL as invalid, create a new one
+    console.log('[AudioCore] Blob URL marked invalid, creating new one');
     blobUrlValidRef.current = true;
-    return file.preview;
+    
+    // Revoke the old URL
+    safelyRevokeBlobUrl((file as any).preview);
+    
+    // Create a new blob URL
+    const newUrl = createNewBlobUrl(file);
+    (file as any).preview = newUrl;
+    
+    // Notify caller about invalid blob URL
+    if (onInvalidBlobUrl) {
+      onInvalidBlobUrl(file);
+    }
+    
+    return newUrl;
   }, [onInvalidBlobUrl]);
 
   // Preload check using HTML5 audio
-  const preloadCheck = async (url: string): Promise<boolean> => {
+  const preloadCheck = (url: string): Promise<boolean> => {
     return new Promise((resolve) => {
       if (!nativeAudioRef.current) {
         nativeAudioRef.current = new Audio();
@@ -146,8 +170,9 @@ export const useAudioCore = ({
         
         console.warn('[AudioCore] Preload check failed:', errorText);
         
-        if (errorText.includes('ERR_REQUEST_RANGE_NOT_SATISFIABLE') || 
-            errorText.includes('range not satisfiable')) {
+        if (errorText.includes('range not satisfiable') || 
+            errorText.includes('ERR_REQUEST_RANGE_NOT_SATISFIABLE') ||
+            errorText.includes('net::ERR_METHOD_NOT_SUPPORTED')) {
           blobUrlValidRef.current = false;
         }
         
@@ -157,8 +182,14 @@ export const useAudioCore = ({
       audio.addEventListener('canplay', handleCanPlay, { once: true });
       audio.addEventListener('error', handleError as EventListener, { once: true });
       
-      audio.src = url;
-      audio.load();
+      try {
+        audio.src = url;
+        audio.load();
+      } catch (e) {
+        console.error('[AudioCore] Error during audio.load():', e);
+        clearTimeout(timeoutId);
+        resolve(false);
+      }
     });
   };
 
@@ -182,18 +213,11 @@ export const useAudioCore = ({
     
     const initializeAudio = async () => {
       try {
-        // Validate or create blob URL
-        const currentUrl = await validateAndUpdateBlobUrl(file);
-        
-        // Check if the file is the same
-        if (currentUrl === currentFileUrlRef.current) {
-          console.log('[AudioCore] File is the same and URL is valid, skipping load');
-          setIsLoading(false);
-          return;
-        }
+        // Create or validate blob URL
+        const currentUrl = validateAndUpdateBlobUrl(file);
         
         // Revoke the previous URL to prevent memory leaks
-        if (currentFileUrlRef.current) {
+        if (currentFileUrlRef.current && currentFileUrlRef.current !== currentUrl) {
           URL.revokeObjectURL(currentFileUrlRef.current);
         }
         
@@ -206,56 +230,54 @@ export const useAudioCore = ({
           howl.unload();
         }
         
-        // Get MIME type for better format support
-        const mimeType = getMimeTypeFromFile(file);
-        const canPlay = canBrowserPlayFile(file);
-        
-        if (!canPlay) {
-          console.warn(`[AudioCore] Format may not be supported: ${file.name}`);
-        }
-        
-        // Check if we can play this with native first
+        // Check if we can play this with native first - no fetch calls
         const canPlayWithNative = await preloadCheck(currentUrl);
         console.log(`[AudioCore] Pre-check result: ${canPlayWithNative ? 'Can play' : 'Cannot play'} with native audio`);
         
-        // If native can't play and we detected an invalid blob URL, try recreating it
-        if (!canPlayWithNative && !blobUrlValidRef.current) {
-          // Clear URL ref since it's invalid
-          currentFileUrlRef.current = null;
-          
-          // Try to recreate Blob URL one more time
-          const newUrl = createNewBlobUrl(file);
-          (file as any).preview = newUrl;
-          currentFileUrlRef.current = newUrl;
-          
-          // Let the next effect run handle this updated URL
-          setIsLoading(false);
-          
-          if (onInvalidBlobUrl) {
-            onInvalidBlobUrl(file);
-          }
-          
-          return;
-        }
-        
-        // If native still can't play it, there's no point trying with Howler
+        // If native can't play it, there may be an issue with the URL
         if (!canPlayWithNative) {
-          console.error('[AudioCore] Native audio can\'t play this file, Howler will likely fail too');
-          setPlaybackErrors(prev => ({ 
-            ...prev, 
-            howlerError: `Browser cannot play this audio format: ${file.name.split('.').pop()?.toUpperCase()}` 
-          }));
-          setIsLoading(false);
-          
-          if (onError) onError(`Format not supported: ${file.name.split('.').pop()?.toUpperCase()}`);
-          return;
+          // If we suspect the blob URL is invalid, try creating a new one
+          if (!blobUrlValidRef.current) {
+            safelyRevokeBlobUrl(currentUrl);
+            const newUrl = createNewBlobUrl(file);
+            currentFileUrlRef.current = newUrl;
+            
+            // Notify about the issue
+            if (onInvalidBlobUrl) {
+              onInvalidBlobUrl(file);
+            }
+            
+            // Try again with new URL
+            const retrySuccess = await preloadCheck(newUrl);
+            if (!retrySuccess) {
+              // If still fails, report the issue
+              setPlaybackErrors(prev => ({ 
+                ...prev, 
+                howlerError: `Browser cannot play this audio file: ${file.name}` 
+              }));
+              setIsLoading(false);
+              
+              if (onError) onError(`Format not supported: ${file.name.split('.').pop()?.toUpperCase()}`);
+              return;
+            }
+          } else {
+            // File format might not be supported
+            setPlaybackErrors(prev => ({ 
+              ...prev, 
+              howlerError: `Browser cannot play this audio format: ${file.name.split('.').pop()?.toUpperCase()}` 
+            }));
+            setIsLoading(false);
+            
+            if (onError) onError(`Format not supported: ${file.name.split('.').pop()?.toUpperCase()}`);
+            return;
+          }
         }
         
         // Prepare format configuration
         const format = file.name.split('.').pop()?.toLowerCase();
         
         const howlConfig: Howl.Options = {
-          src: [currentUrl],
+          src: [currentFileUrlRef.current],
           html5: true, // Always use HTML5 Audio for large files and better format support
           format: format ? [format] : undefined, // Explicitly tell Howler the format
           preload: true,
@@ -278,7 +300,8 @@ export const useAudioCore = ({
             // Check if the error indicates an invalid blob URL
             if (typeof error === 'string' && 
                 (error.includes('ERR_REQUEST_RANGE_NOT_SATISFIABLE') || 
-                 error.includes('range not satisfiable'))) {
+                 error.includes('range not satisfiable') ||
+                 error.includes('net::ERR_METHOD_NOT_SUPPORTED'))) {
               
               // Mark as invalid for the next attempt
               blobUrlValidRef.current = false;

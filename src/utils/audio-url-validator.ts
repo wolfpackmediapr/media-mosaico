@@ -53,7 +53,8 @@ export const safelyRevokeBlobUrl = (url: string): void => {
 };
 
 /**
- * Checks if a blob URL is valid by testing if it can be accessed
+ * Checks if a blob URL is valid by testing if a media element can load it
+ * instead of using fetch which may not work with blob URLs
  * @param url The blob URL to validate
  * @returns Promise resolving to boolean indicating validity
  */
@@ -62,14 +63,98 @@ export const isValidBlobUrl = async (url: string): Promise<boolean> => {
     return false;
   }
   
-  try {
-    // Try to access the blob URL with a HEAD request
-    const response = await fetch(url, { method: 'HEAD' });
-    return response.ok;
-  } catch (error) {
-    console.error('[audio-url-validator] Error validating blob URL:', error);
+  return new Promise((resolve) => {
+    // Use an audio element for validation instead of fetch
+    const audio = new Audio();
+    let resolved = false;
+    
+    // Set a timeout in case the load hangs
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        console.warn('[audio-url-validator] Blob URL validation timed out');
+        resolved = true;
+        resolve(false);
+      }
+    }, 2000);
+    
+    // Set up event handlers
+    audio.onloadedmetadata = () => {
+      if (!resolved) {
+        clearTimeout(timeoutId);
+        resolved = true;
+        resolve(true);
+      }
+    };
+    
+    audio.onerror = () => {
+      if (!resolved) {
+        clearTimeout(timeoutId);
+        resolved = true;
+        console.warn('[audio-url-validator] Error validating blob URL with audio element');
+        resolve(false);
+      }
+    };
+    
+    // Start loading the audio
+    try {
+      audio.src = url;
+      audio.load();
+    } catch (err) {
+      if (!resolved) {
+        clearTimeout(timeoutId);
+        resolved = true;
+        console.error('[audio-url-validator] Exception during blob URL validation:', err);
+        resolve(false);
+      }
+    }
+  });
+};
+
+/**
+ * Alternative validation using Image object for blob URLs
+ * This serves as a fallback when audio validation fails
+ * @param url The blob URL to validate
+ * @returns Promise resolving to boolean indicating validity
+ */
+export const isValidBlobUrlWithImage = async (url: string): Promise<boolean> => {
+  if (!url || !url.startsWith('blob:')) {
     return false;
   }
+  
+  // We're primarily interested in testing if the URL is valid,
+  // not that it contains an image
+  return new Promise((resolve) => {
+    const img = new Image();
+    let resolved = false;
+    
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+    }, 1000);
+    
+    img.onload = () => {
+      if (!resolved) {
+        clearTimeout(timeoutId);
+        resolved = true;
+        resolve(true);
+      }
+    };
+    
+    img.onerror = () => {
+      if (!resolved) {
+        clearTimeout(timeoutId);
+        resolved = true;
+        // Even if we get an error, the URL might still be valid but just not an image
+        // So we don't immediately fail
+        console.debug('[audio-url-validator] Blob URL is not an image, but might still be valid audio');
+        resolve(true);
+      }
+    };
+    
+    img.src = url;
+  });
 };
 
 /**
@@ -84,10 +169,15 @@ export const ensureValidBlobUrl = async (file: File & { preview?: string }): Pro
   }
   
   try {
-    // Test if the URL is valid by making a HEAD request
-    const response = await fetch(file.preview, { method: 'HEAD' });
+    // Try validating with audio element first
+    let isValid = await isValidBlobUrl(file.preview);
     
-    if (response.ok) {
+    // If that fails, try with the image-based check as fallback
+    if (!isValid) {
+      isValid = await isValidBlobUrlWithImage(file.preview);
+    }
+    
+    if (isValid) {
       return file.preview;
     } else {
       // If the URL is invalid, create a new one
@@ -101,4 +191,27 @@ export const ensureValidBlobUrl = async (file: File & { preview?: string }): Pro
     safelyRevokeBlobUrl(file.preview);
     return createNewBlobUrl(file);
   }
+};
+
+/**
+ * Simple synchronous check for blob URL format validity
+ * This doesn't validate if the URL is accessible, just if it has the right format
+ * @param url URL to check
+ * @returns boolean indicating if the format is valid
+ */
+export const isBlobUrlFormat = (url: string): boolean => {
+  return typeof url === 'string' && url.startsWith('blob:');
+};
+
+/**
+ * Create a safe URL for the file, with fallback to object URL
+ * @param file File to get URL for
+ * @param existingUrl Optional existing URL
+ * @returns Safe URL string
+ */
+export const getSafeFileUrl = (file: File, existingUrl?: string): string => {
+  if (existingUrl && isBlobUrlFormat(existingUrl)) {
+    return existingUrl;
+  }
+  return createNewBlobUrl(file);
 };

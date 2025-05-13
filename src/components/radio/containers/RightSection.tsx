@@ -1,9 +1,10 @@
+
 import React, { useEffect, useRef, memo } from "react";
 import MediaControls from "../MediaControls";
 import TrackList from "../TrackList";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
 import { AudioErrorDisplay } from "../audio-player/errors/AudioErrorDisplay";
-import { isValidFileForBlobUrl } from "@/utils/audio-url-validator";
+import { isValidFileForBlobUrl, isBlobUrlFormat } from "@/utils/audio-url-validator";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FileWarning } from "lucide-react";
 
@@ -63,6 +64,8 @@ const RightSection = memo(({
   const { lastPlaybackPosition, setLastPlaybackPosition } = useMediaPersistence();
   const previousTimeRef = useRef<number>(currentTime);
   const [fileInvalid, setFileInvalid] = React.useState(false);
+  const lastValidationRef = useRef<number>(0);
+  const validationInProgressRef = useRef<boolean>(false);
 
   // Check if current file is valid
   useEffect(() => {
@@ -78,6 +81,33 @@ const RightSection = memo(({
     }
   }, [currentFile]);
 
+  // Throttled validation function to prevent excessive validation attempts
+  const throttledValidateUrl = React.useCallback(async () => {
+    // Skip if no validation function provided
+    if (!onValidateFileUrl) return false;
+    
+    // Skip if another validation is in progress
+    if (validationInProgressRef.current) return false;
+    
+    // Throttle validation attempts (once every 5 seconds)
+    const now = Date.now();
+    if (now - lastValidationRef.current < 5000) {
+      return false;
+    }
+    
+    try {
+      validationInProgressRef.current = true;
+      lastValidationRef.current = now;
+      
+      return await onValidateFileUrl();
+    } catch (error) {
+      console.error('[RightSection] Error during throttled URL validation:', error);
+      return false;
+    } finally {
+      validationInProgressRef.current = false;
+    }
+  }, [onValidateFileUrl]);
+
   // Handle document visibility changes to maintain audio playback across tabs
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -86,11 +116,9 @@ const RightSection = memo(({
         console.log("[RightSection] Tab became visible, ensuring audio state is synced");
         
         // Validate current file's blob URL if available
-        if (onValidateFileUrl) {
-          onValidateFileUrl().catch(error => {
-            console.error('[RightSection] Error validating file URL:', error);
-          });
-        }
+        throttledValidateUrl().catch(error => {
+          console.error('[RightSection] Error validating file URL:', error);
+        });
       }
     };
 
@@ -99,16 +127,18 @@ const RightSection = memo(({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [currentFile, onValidateFileUrl, fileInvalid]);
+  }, [currentFile, throttledValidateUrl, fileInvalid]);
 
   // When a file is first loaded, validate its URL
   useEffect(() => {
-    if (currentFile && !fileInvalid && onValidateFileUrl) {
-      onValidateFileUrl().catch(error => {
+    if (currentFile && !fileInvalid && 
+        'preview' in currentFile && 
+        isBlobUrlFormat(currentFile.preview as string)) {
+      throttledValidateUrl().catch(error => {
         console.error('[RightSection] Error validating initial file URL:', error);
       });
     }
-  }, [currentFile, onValidateFileUrl, fileInvalid]);
+  }, [currentFile, throttledValidateUrl, fileInvalid]);
 
   // Save playback position when it changes significantly
   useEffect(() => {
@@ -174,7 +204,7 @@ const RightSection = memo(({
           error={playbackErrors} 
           file={currentFile}
           onSwitchToNative={onSwitchToNative}
-          onRetryUrl={onValidateFileUrl}
+          onRetryUrl={throttledValidateUrl}
         />
       )}
       
