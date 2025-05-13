@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
@@ -71,7 +72,7 @@ interface RadioContainerState {
   switchToNativeAudio: () => void;
   switchToHowler: () => void; 
   validateCurrentFileUrl: () => Promise<boolean>;
-  resetTranscription: () => void; // Add this missing property to the interface
+  resetTranscription: () => void;
 }
 
 export const useRadioContainerState = ({
@@ -207,7 +208,7 @@ export const useRadioContainerState = ({
   }, [lastAction, transcriptionText, setTranscriptionText, onTextChange, newsSegments, setNewsSegments]);
 
   // Ensure volume is always in array format for components that expect it
-  const volumeArray = Array.isArray(state.volume) ? state.volume : [state.volume * 100];
+  const volumeArray = Array.isArray(volume) ? volume : [volume * 100];
 
   // Return the complete state and handlers
   return {
@@ -228,7 +229,7 @@ export const useRadioContainerState = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
+    volume: volumeArray,
     isMuted,
     playbackRate,
     playbackErrors,
