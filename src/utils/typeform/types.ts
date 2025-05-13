@@ -1,19 +1,66 @@
 
 /**
- * Type definitions for Typeform resource management
+ * TypeScript type definitions for Typeform resource management
  */
+import { TypeformResources } from './typeform-resource-manager';
+export { TypeformOptions, TypeformHookReturn, ScriptLoaderReturn } from '@/hooks/typeform/types';
+
+export interface TypeformResourceManager {
+  /**
+   * Register a resource for later cleanup
+   */
+  registerResource: (resource: any, cleanupFunc?: () => void) => () => void;
+  
+  /**
+   * Clean up all registered resources
+   */
+  cleanupResources: () => void;
+  
+  /**
+   * Register a Typeform container for cleanup
+   */
+  registerTypeformContainer: (formId: string, containerId: string) => () => void;
+  
+  /**
+   * Track a Typeform-related DOM element for cleanup
+   */
+  trackTypeformElement: (formId: string, element: HTMLElement) => void;
+  
+  /**
+   * Track a Typeform-related script for cleanup
+   */
+  trackTypeformScript: (formId: string, script: HTMLScriptElement) => void;
+  
+  /**
+   * Clean up Typeform resources for a specific form
+   */
+  cleanupTypeformResources: (formId: string) => void;
+  
+  /**
+   * Clean up all Typeform resources
+   */
+  cleanupAllTypeformResources: () => void;
+  
+  /**
+   * Fix Typeform domain for proper initialization
+   */
+  fixTypeformDomain: () => boolean;
+}
 
 export interface TypeformResources {
+  /**
+   * The ID of the container element
+   */
   containerId: string;
+  
+  /**
+   * DOM elements to clean up
+   */
   elements: HTMLElement[];
+  
+  /**
+   * Script elements to clean up
+   */
   scripts: HTMLScriptElement[];
 }
 
-export interface TypeformResourceManager {
-  registerTypeformContainer: (formId: string, containerId: string) => () => void;
-  trackTypeformElement: (formId: string, element: HTMLElement) => void;
-  trackTypeformScript: (formId: string, script: HTMLScriptElement) => void;
-  cleanupTypeformResources: (formId: string) => void;
-  cleanupAllTypeformResources: () => void;
-  fixTypeformDomain: () => boolean;
-}

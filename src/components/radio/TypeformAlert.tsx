@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from "react";
-import TypeformEmbed from "@/components/common/TypeformEmbed";
+import TypeformEmbed from "@/components/typeform/TypeformEmbed";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 
 interface TypeformAlertProps {
