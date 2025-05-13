@@ -1,57 +1,41 @@
 
-import { useEffect, useRef, useCallback } from 'react';
-import { debounce } from 'lodash';
+import { useEffect } from "react";
+import { debounce } from "lodash";
 
 interface AudioStateSyncOptions {
   persistedText?: string;
-  transcriptionText: string;
-  setTranscriptionText: (text: string) => void;
+  transcriptionText?: string;
+  setTranscriptionText?: (text: string) => void;
   onTextChange?: (text: string) => void;
 }
 
 export const useAudioStateSync = ({
   persistedText = "",
-  transcriptionText,
-  setTranscriptionText,
-  onTextChange,
+  transcriptionText = "",
+  setTranscriptionText = () => {},
+  onTextChange
 }: AudioStateSyncOptions) => {
-  const prevPersistedTextRef = useRef(persistedText);
-  const prevTranscriptionTextRef = useRef(transcriptionText);
-  
-  // Debounced text change handler to reduce unnecessary updates
-  const debouncedTextChange = useCallback(
-    debounce((text: string) => {
-      if (onTextChange) {
-        onTextChange(text);
-      }
-    }, 500),
-    [onTextChange]
-  );
-  
-  // Sync with persisted text when it changes
+  // Sync transcription text with persisted text when component mounts
   useEffect(() => {
-    if (persistedText && 
-        persistedText !== transcriptionText && 
-        persistedText !== prevPersistedTextRef.current) {
+    if (persistedText && !transcriptionText && setTranscriptionText) {
+      console.log('[useAudioStateSync] Syncing persisted text to transcription');
       setTranscriptionText(persistedText);
-      prevPersistedTextRef.current = persistedText;
     }
   }, [persistedText, transcriptionText, setTranscriptionText]);
 
-  // Handle text changes with debouncing
+  // Debounced text syncing to avoid excessive storage operations
   useEffect(() => {
-    if (transcriptionText && 
-        transcriptionText !== persistedText && 
-        transcriptionText !== prevTranscriptionTextRef.current) {
-      debouncedTextChange(transcriptionText);
-      prevTranscriptionTextRef.current = transcriptionText;
-    }
-  }, [transcriptionText, persistedText, debouncedTextChange]);
+    if (!onTextChange || !transcriptionText) return;
 
-  // Cleanup
-  useEffect(() => {
+    const debouncedSync = debounce(() => {
+      console.log('[useAudioStateSync] Syncing transcription to persisted storage');
+      onTextChange(transcriptionText);
+    }, 1000);
+
+    debouncedSync();
+    
     return () => {
-      debouncedTextChange.cancel();
+      debouncedSync.cancel();
     };
-  }, [debouncedTextChange]);
+  }, [transcriptionText, onTextChange]);
 };

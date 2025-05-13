@@ -1,16 +1,15 @@
 
 import React from "react";
-import NotepadEditor from "../notepad/NotepadEditor";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ChevronDown, ChevronUp, Save } from "lucide-react";
 
 interface NotePadSectionProps {
   notepadContent: string;
   onNotepadContentChange: (content: string) => void;
   isExpanded: boolean;
-  onExpandToggle: (isExpanded: boolean) => void;
+  onExpandToggle: (expanded: boolean) => void;
 }
 
 const NotePadSection: React.FC<NotePadSectionProps> = ({
@@ -19,41 +18,50 @@ const NotePadSection: React.FC<NotePadSectionProps> = ({
   isExpanded,
   onExpandToggle
 }) => {
-  const handleExpandClick = () => {
-    onExpandToggle(!isExpanded);
-  };
+  if (!isExpanded) {
+    return (
+      <div className="flex justify-between items-center p-2 bg-muted rounded-md mb-4">
+        <span className="text-sm font-medium">Bloc de notas</span>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => onExpandToggle(true)}
+          className="h-8 px-2"
+        >
+          <ChevronDown className="h-4 w-4" />
+          <span className="ml-1">Expandir</span>
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <Card className="w-full">
-      <Collapsible open={isExpanded} onOpenChange={onExpandToggle}>
-        <CardHeader className="px-6 py-4 flex flex-row items-center justify-between">
-          <CardTitle className="text-xl">Bloc de Notas</CardTitle>
-          <CollapsibleTrigger asChild>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="w-9 p-0"
-              onClick={handleExpandClick}
-              aria-label={isExpanded ? "Colapsar bloc de notas" : "Expandir bloc de notas"}
-            >
-              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-          </CollapsibleTrigger>
-        </CardHeader>
-        
-        <CollapsibleContent>
-          <CardContent className="px-6 pb-4 pt-0">
-            <NotepadEditor 
-              content={notepadContent}
-              onContentChange={onNotepadContentChange}
-              placeholder="Escribe tus notas aquí..."
-              minHeight="200px"
-            />
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
+    <Card className="mb-4">
+      <div className="flex justify-between items-center p-2 bg-muted border-b">
+        <span className="text-sm font-medium px-2">Bloc de notas</span>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => onExpandToggle(false)}
+          className="h-8 px-2"
+        >
+          <ChevronUp className="h-4 w-4" />
+          <span className="ml-1">Contraer</span>
+        </Button>
+      </div>
+      <CardContent className="p-4">
+        <Textarea
+          placeholder="Escribe tus notas aquí..."
+          className="min-h-[120px] w-full"
+          value={notepadContent}
+          onChange={(e) => onNotepadContentChange(e.target.value)}
+        />
+        <div className="mt-2 text-xs text-gray-500">
+          Las notas se guardan automáticamente en este navegador
+        </div>
+      </CardContent>
     </Card>
   );
 };
 
-export default React.memo(NotePadSection);
+export default NotePadSection;

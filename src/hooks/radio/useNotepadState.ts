@@ -1,55 +1,46 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 
-interface UseNotepadStateProps {
+interface UseNotepadStateOptions {
   persistKey?: string;
   storage?: 'localStorage' | 'sessionStorage';
-  initialContent?: string;
 }
 
 export const useNotepadState = ({
-  persistKey = "radio-notepad-content",
-  storage = "sessionStorage",
-  initialContent = ""
-}: UseNotepadStateProps = {}) => {
-  // Use persistent state to store content
+  persistKey = "radio-notepad",
+  storage = 'sessionStorage'
+}: UseNotepadStateOptions = {}) => {
   const [content, setContent, removeContent] = usePersistentState<string>(
     persistKey,
-    initialContent,
+    "",
     { storage }
   );
 
-  // Track if the notepad is expanded or collapsed
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded, removeIsExpanded] = usePersistentState<boolean>(
+    `${persistKey}-expanded`,
+    false,
+    { storage }
+  );
 
-  // Reset function for clearing content
-  const resetContent = useCallback(() => {
+  // Reset content function
+  const resetContent = () => {
+    removeContent();
     setContent("");
-    // Also try to manually remove from storage as a safeguard
-    try {
-      if (storage === 'localStorage') {
-        localStorage.removeItem(persistKey);
-      } else {
-        sessionStorage.removeItem(persistKey);
-      }
-    } catch (err) {
-      console.error("Error removing notepad content from storage:", err);
-    }
-  }, [persistKey, setContent, storage]);
+  };
 
-  // Toggle expanded state with callback
-  const toggleExpanded = useCallback(() => {
-    setIsExpanded(prev => !prev);
-  }, []);
+  // Initialize on mount with default empty state if needed
+  useEffect(() => {
+    if (content === undefined) {
+      setContent("");
+    }
+  }, [content, setContent]);
 
   return {
     content,
     setContent,
     isExpanded,
     setIsExpanded,
-    toggleExpanded,
-    resetContent,
-    removeContent
+    resetContent
   };
 };

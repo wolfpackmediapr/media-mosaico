@@ -1,14 +1,10 @@
 
-import { useRadioTranscription } from './useRadioTranscription';
-import { RadioNewsSegment } from '@/components/radio/RadioNewsSegmentsContainer';
-import { TranscriptionResult } from '@/services/audio/transcriptionService';
-import { useEffect, useRef, useCallback } from 'react';
-import { toast } from 'sonner';
+import { useCallback } from "react";
+import { useRadioTranscription } from "./useRadioTranscription";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 
 export const useTranscriptionManagement = () => {
-  const isMountedRef = useRef(true);
-  const cleanupFnsRef = useRef<Array<() => void>>([]);
-  
   const {
     isProcessing,
     setIsProcessing,
@@ -19,6 +15,7 @@ export const useTranscriptionManagement = () => {
     transcriptionId,
     setTranscriptionId,
     transcriptionResult,
+    setTranscriptionResult,
     metadata,
     newsSegments,
     setNewsSegments,
@@ -29,41 +26,22 @@ export const useTranscriptionManagement = () => {
     resetTranscription
   } = useRadioTranscription();
 
-  // Enhanced cleanup when component unmounts
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      // Execute all cleanup functions
-      cleanupFnsRef.current.forEach(cleanup => {
-        try {
-          cleanup();
-        } catch (error) {
-          console.error('Error during cleanup:', error);
-        }
-      });
-      cleanupFnsRef.current = [];
-    };
-  }, []);
-
-  // Register a cleanup function
-  const registerCleanup = useCallback((cleanupFn: () => void) => {
-    cleanupFnsRef.current.push(cleanupFn);
-  }, []);
-
-  const handleTranscriptionTextChange = useCallback((text: string) => {
-    if (isMountedRef.current) {
-      handleTranscriptionChange(text);
-    }
-  }, [handleTranscriptionChange]);
-
   // Enhanced error handling for transcription processing
-  const handleTranscriptionProcessingError = useCallback((error: Error) => {
-    if (isMountedRef.current) {
-      setIsProcessing(false);
-      console.error('Transcription processing error:', error);
-      toast.error('Error al procesar la transcripción');
-    }
-  }, [setIsProcessing]);
+  const handleTranscriptionProcessingError = useCallback((error: any) => {
+    console.error("[useTranscriptionManagement] Processing error:", error);
+    
+    // Clear processing state
+    setIsProcessing(false);
+    setProgress(0);
+    
+    // Return the error for upper layers to handle
+    return error;
+  }, [setIsProcessing, setProgress]);
+
+  // Enhanced transcription text change handler
+  const handleTranscriptionTextChange = useCallback((text: string) => {
+    handleTranscriptionChange(text);
+  }, [handleTranscriptionChange]);
 
   return {
     isProcessing,
@@ -83,7 +61,6 @@ export const useTranscriptionManagement = () => {
     handleMetadataChange,
     handleTranscriptionReceived,
     resetTranscription,
-    registerCleanup,
     handleTranscriptionProcessingError
   };
 };
