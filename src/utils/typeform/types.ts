@@ -20,7 +20,8 @@ export interface TypeformResources {
   scripts: HTMLScriptElement[];
 }
 
-export { type TypeformOptions, type TypeformHookReturn, type ScriptLoaderReturn } from '@/hooks/typeform/types';
+// Use export type for re-exports to fix the isolatedModules issue
+export type { TypeformOptions, TypeformHookReturn, ScriptLoaderReturn } from '@/hooks/typeform/types';
 
 export interface TypeformResourceManager {
   /**
