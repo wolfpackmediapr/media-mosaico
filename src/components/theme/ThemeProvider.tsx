@@ -1,8 +1,9 @@
+
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "dark" | "light";
+type Theme = "light";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -28,21 +29,20 @@ export function ThemeProvider({
   storageKey = "vite-ui-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-  );
+  // Since we only support light theme, we don't need to check localStorage anymore
+  const [theme] = useState<Theme>("light");
 
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.remove("light", "dark");
-    root.classList.add(theme);
-  }, [theme]);
+    root.classList.remove("dark");
+    root.classList.add("light");
+  }, []);
 
   const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
+    theme: "light" as Theme, // Use type assertion to ensure it's the correct type
+    setTheme: () => {
+      // Do nothing - we only support light mode now
+      console.log("Light mode is the only supported theme.");
     },
   };
 
