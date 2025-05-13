@@ -39,6 +39,8 @@ const Radio = () => {
     };
   }, []);
 
+  console.log("[Radio] Authentication status:", isAuthenticated);
+
   return (
     <ErrorBoundary>
       <TooltipProvider>

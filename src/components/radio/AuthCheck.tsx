@@ -18,7 +18,7 @@ const AuthCheck = ({ isAuthenticated }: AuthCheckProps) => {
       <div className="w-full h-[calc(100vh-200px)] flex flex-col items-center justify-center text-center p-8">
         <h2 className="text-2xl font-bold mb-4">Iniciar sesión requerido</h2>
         <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md">
-          Para acceder a la funcionalidad de transcripción de radio, por favor inicia sesión o crea una cuenta.
+          Para acceder a la funcionalidad completa de transcripción de radio, por favor inicia sesión o crea una cuenta.
         </p>
         <Button 
           onClick={() => navigate('/auth')}

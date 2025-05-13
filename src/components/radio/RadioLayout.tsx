@@ -18,12 +18,12 @@ const RadioLayout = ({
   leftSection,
   rightSection,
   transcriptionSection,
-  notepadSection,              // New prop
+  notepadSection,              
   analysisSection,
   newsSegmentsSection
 }: RadioLayoutProps) => {
-  // Show auth check screen if not authenticated, but don't perform auth check itself
-  if (isAuthenticated === false || isAuthenticated === null) {
+  // Show auth check screen if not authenticated at all (null means loading)
+  if (isAuthenticated === false) {
     return <AuthCheck isAuthenticated={isAuthenticated} />;
   }
 
