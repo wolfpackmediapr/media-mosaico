@@ -9,10 +9,10 @@
  */
 export const resetTypeformGlobalState = (formId: string): void => {
   try {
-    if (window.tf && window.tf._instances) {
+    if (window.tf && (window.tf as any)._instances) {
       // Reset any instances for this specific form
-      if (window.tf._instances[formId]) {
-        delete window.tf._instances[formId];
+      if ((window.tf as any)._instances[formId]) {
+        delete (window.tf as any)._instances[formId];
         console.log(`[TypeformResourceManager] Cleared instance for form ${formId}`);
       }
     }
@@ -26,8 +26,8 @@ export const resetTypeformGlobalState = (formId: string): void => {
  */
 export const resetAllTypeformGlobalState = (): void => {
   try {
-    if (window.tf && window.tf._instances) {
-      window.tf._instances = {};
+    if (window.tf && (window.tf as any)._instances) {
+      (window.tf as any)._instances = {};
       console.log("[TypeformResourceManager] Reset all Typeform instances");
     }
   } catch (err) {

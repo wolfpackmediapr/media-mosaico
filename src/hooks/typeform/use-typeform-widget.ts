@@ -5,7 +5,7 @@ import { fixTypeformDomain, safeCreateWidget } from '@/utils/typeform/core-utils
 import { ensureTfObject } from '@/utils/typeform/utils';
 
 // Configuration interface for the Typeform widget
-interface TypeformWidgetConfig {
+export interface TypeformWidgetConfig {
   formId: string;
   container: string | HTMLElement;
   enableSandbox?: boolean;
@@ -43,7 +43,8 @@ export const useTypeformWidget = (config: TypeformWidgetConfig) => {
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const widgetRef = useRef<any>(null);
-
+  const initializedRef = useRef<boolean>(false);
+  
   // Safely initialize the widget with domain checks
   const initializeWidget = useCallback(() => {
     try {
@@ -62,6 +63,7 @@ export const useTypeformWidget = (config: TypeformWidgetConfig) => {
         onReady: () => {
           setIsReady(true);
           if (config.onReady) config.onReady();
+          initializedRef.current = true;
         }
       };
 
@@ -81,6 +83,22 @@ export const useTypeformWidget = (config: TypeformWidgetConfig) => {
       return false;
     }
   }, [config]);
+
+  const cleanupWidget = useCallback(() => {
+    if (widgetRef.current) {
+      try {
+        console.log('[useTypeformWidget] Cleaning up Typeform widget');
+        // If the widget has an unmount method, use it
+        if (widgetRef.current.unmount && typeof widgetRef.current.unmount === 'function') {
+          widgetRef.current.unmount();
+        }
+        widgetRef.current = null;
+        initializedRef.current = false;
+      } catch (error) {
+        console.error('[useTypeformWidget] Error cleaning up Typeform widget:', error);
+      }
+    }
+  }, []);
 
   // Load the Typeform script and initialize the widget
   useEffect(() => {
@@ -113,21 +131,17 @@ export const useTypeformWidget = (config: TypeformWidgetConfig) => {
 
     // Cleanup function to remove the widget
     return () => {
-      if (widgetRef.current) {
-        try {
-          console.log('[useTypeformWidget] Cleaning up Typeform widget');
-          widgetRef.current = null;
-        } catch (error) {
-          console.error('[useTypeformWidget] Error cleaning up Typeform widget:', error);
-        }
-      }
+      cleanupWidget();
     };
-  }, [config.formId, config.container, initializeWidget]);
+  }, [config.formId, config.container, initializeWidget, cleanupWidget]);
 
   return {
     isLoaded,
     isReady,
     error,
-    widget: widgetRef.current
+    widget: widgetRef.current,
+    isInitialized: initializedRef.current,
+    initializeWidget,
+    cleanupWidget
   };
 };

@@ -2,7 +2,7 @@
 import { useState, useId, useCallback } from "react";
 import { toast } from "sonner";
 import { useTypeformResourceManager } from "@/utils/typeform/typeform-resource-manager";
-import { TypeformContainer } from "./TypeformContainer";
+import TypeformContainer from "./TypeformContainer";
 import { TypeformControls } from "./TypeformControls";
 import { TypeformPrompt } from "./TypeformPrompt";
 import { useTypeformInitializer } from "./TypeformInitializer";
@@ -125,7 +125,6 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
           <TypeformContainer
             formId={formId}
             containerId={containerId}
-            onRefresh={handleRefresh}
           />
         </>
       )}
@@ -134,4 +133,3 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
 };
 
 export default TypeformEmbed;
-

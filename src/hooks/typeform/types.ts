@@ -4,6 +4,10 @@
  */
 
 export interface TypeformOptions {
+  /** Form ID to display */
+  formId?: string;
+  /** Container element ID or reference */
+  container?: string | HTMLElement;
   /** Disable microphone access (defaults to true for privacy) */
   disableMicrophone?: boolean;
   /** Enable keyboard shortcuts for navigation (defaults to true) */

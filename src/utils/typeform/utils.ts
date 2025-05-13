@@ -32,3 +32,31 @@ export const ensureTfObject = (): boolean => {
     return false;
   }
 };
+
+/**
+ * Check if the Typeform script is ready
+ */
+export const isTypeformScriptReady = (): boolean => {
+  return !!(window.tf && typeof window.tf.createWidget === 'function');
+};
+
+/**
+ * Ensure Typeform environment is set up correctly
+ */
+export const ensureTypeformEnvironment = (): boolean => {
+  try {
+    ensureTfObject();
+    
+    if (!window.tf.domain) {
+      window.tf.domain = {
+        currentDomain: getSafeDomain(),
+        primaryDomain: getSafeDomain()
+      };
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("[TypeformResourceManager] Error ensuring Typeform environment:", error);
+    return false;
+  }
+};

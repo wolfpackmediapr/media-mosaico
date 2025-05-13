@@ -14,7 +14,6 @@ export {
 
 // Export additional Typeform utilities
 export { 
-  isTypeformScriptReady, 
-  ensureTypeformEnvironment,
-  getSafeDomain
+  getSafeDomain,
+  ensureTfObject
 } from './typeform/utils';

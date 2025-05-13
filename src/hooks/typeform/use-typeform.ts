@@ -3,12 +3,11 @@
  * Main hook for Typeform integration
  * Provides a complete interface for initializing and managing Typeform widgets
  */
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { TypeformOptions, TypeformHookReturn } from "./types";
-import { useTypeformScriptLoader } from "./use-script-loader";
-import { useTypeformWidget } from "./use-typeform-widget";
+import { useTypeformScript } from "./use-typeform-script";
+import { useTypeformWidget, TypeformWidgetConfig } from "./use-typeform-widget";
 import { INITIAL_TIMEOUT } from "./constants";
-import { isTypeformScriptReady } from "./utils";
 
 /**
  * Main hook for Typeform integration
@@ -18,19 +17,36 @@ import { isTypeformScriptReady } from "./utils";
  */
 export const useTypeform = (enabled: boolean, options: TypeformOptions = {}): TypeformHookReturn => {
   // Load the Typeform script
-  const { isScriptLoading, isScriptLoaded, loadScript } = useTypeformScriptLoader();
+  const { isScriptLoading, isScriptLoaded, loadScript } = useTypeformScript();
   
-  // Initialize the widget with options
-  const { 
-    initializeWidget, 
-    cleanupWidget, 
-    safeInitialize, 
-    typeformInitializedRef, 
-    lastError, 
-    setRetryAttempts 
-  } = useTypeformWidget(options);
+  // Track initialization state
+  const typeformInitializedRef = useRef<boolean>(false);
+  const [lastError, setLastError] = useRef<Error | null>(null);
+  const [retryAttempts, setRetryAttempts] = useRef<number>(0);
   
   const { lazy = false } = options;
+  
+  // Convert options to widget config
+  const widgetConfig: TypeformWidgetConfig = {
+    formId: options.formId || '',
+    container: options.container || '',
+    // Add other options as needed
+  };
+
+  // Initialize the widget with options
+  const { 
+    initializeWidget,
+    cleanupWidget,
+    isInitialized,
+    error
+  } = useTypeformWidget(widgetConfig);
+  
+  // Update error state
+  useEffect(() => {
+    if (error) {
+      setLastError(new Error(error));
+    }
+  }, [error]);
 
   // Load and initialize on mount if enabled
   useEffect(() => {
@@ -41,21 +57,23 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}): Ty
     loadScript();
     
     // If script exists but typeform not initialized yet, initialize it
-    if (isScriptLoaded && !typeformInitializedRef.current && !isScriptLoading && !lazy) {
+    if (isScriptLoaded && !isInitialized && !isScriptLoading && !lazy) {
       setTimeout(() => {
         initializeWidget();
+        typeformInitializedRef.current = true;
       }, INITIAL_TIMEOUT);
     }
 
     return () => {
       // We don't remove the script on cleanup because we want to reuse it
       // Just note that we've disabled the widget
-      if (typeformInitializedRef.current) {
+      if (isInitialized) {
         console.log("[useTypeform] Disabling Typeform widget on unmount");
         cleanupWidget();
+        typeformInitializedRef.current = false;
       }
     };
-  }, [enabled, isScriptLoaded, isScriptLoading, lazy, loadScript, initializeWidget, cleanupWidget]);
+  }, [enabled, isScriptLoaded, isScriptLoading, lazy, loadScript, initializeWidget, cleanupWidget, isInitialized]);
 
   /**
    * Explicitly initialize the Typeform widget
@@ -65,7 +83,7 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}): Ty
     // Reset retry count when manually initializing
     setRetryAttempts(0);
     
-    if (!isTypeformScriptReady()) {
+    if (!isScriptLoaded) {
       console.warn("[useTypeform] Typeform script not ready yet. Waiting for script to load before initializing.");
       
       // If script isn't loaded yet, try to load it
@@ -75,16 +93,14 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}): Ty
       
       // Wait a moment and check again
       setTimeout(() => {
-        if (isTypeformScriptReady()) {
-          safeInitialize();
-        } else {
-          console.error("[useTypeform] Typeform script still not ready after waiting. Please try refreshing the page.");
-        }
+        initializeWidget();
+        typeformInitializedRef.current = true;
       }, INITIAL_TIMEOUT * 2);
     } else {
-      safeInitialize();
+      initializeWidget();
+      typeformInitializedRef.current = true;
     }
-  }, [isScriptLoaded, isScriptLoading, loadScript, safeInitialize, setRetryAttempts]);
+  }, [isScriptLoaded, isScriptLoading, loadScript, initializeWidget]);
 
   // Return functions and state for controlling the Typeform widget
   return {
@@ -98,7 +114,5 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}): Ty
 
 // Re-export all Typeform related functions
 export * from "./types";
-export * from "./utils";
-export * from "./constants";
-export * from "./use-script-loader";
+export * from "./use-typeform-script";
 export * from "./use-typeform-widget";
