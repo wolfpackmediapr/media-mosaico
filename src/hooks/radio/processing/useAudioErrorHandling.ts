@@ -1,6 +1,6 @@
 
 import { useEffect, useState, useRef } from 'react';
-import { getAudioFormatDetails, canBrowserPlayFile } from '@/utils/audio-format-helper';
+import { getAudioFormatDetails, canBrowserPlayFile } from '@/utils/audio';
 import { toast } from 'sonner';
 import { UploadedFile } from '@/components/radio/types';
 

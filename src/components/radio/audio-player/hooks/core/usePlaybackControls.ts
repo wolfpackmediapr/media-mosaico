@@ -1,7 +1,6 @@
-
 import { useCallback, useRef } from 'react';
 import { Howl } from 'howler';
-import { unmuteAudio } from '@/utils/audio-format-helper';
+import { unmuteAudio } from '@/utils/audio';
 
 export interface PlaybackControls {
   handlePlayPause: () => void;
