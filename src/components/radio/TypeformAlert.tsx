@@ -1,39 +1,91 @@
 
-import { useState, useEffect } from "react";
-import TypeformEmbed from "@/components/typeform/TypeformEmbed";
-import { useAuthStatus } from "@/hooks/use-auth-status";
+import { useState } from "react";
+import { useTypeform } from "@/hooks/use-typeform";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 interface TypeformAlertProps {
-  isAuthenticated?: boolean | null;
+  isAuthenticated: boolean | null;
 }
 
-const TypeformAlert = ({ isAuthenticated: propIsAuthenticated }: TypeformAlertProps) => {
-  // Use the auth hook directly to ensure we have the most current auth state
-  const { isAuthenticated: hookIsAuthenticated } = useAuthStatus();
+const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
+  const [showTypeform, setShowTypeform] = useState(false);
   
-  // Use prop if provided, otherwise use the hook value (ensures backward compatibility)
-  const [actualAuthState, setActualAuthState] = useState<boolean | null>(propIsAuthenticated ?? hookIsAuthenticated);
+  // Only initialize Typeform when authenticated AND user has chosen to show it
+  // Pass options to disable microphone access by default
+  const typeform = useTypeform(isAuthenticated === true && showTypeform, {
+    disableMicrophone: true, // Prevent microphone access
+    keyboardShortcuts: true,
+    lazy: true // Use lazy loading to prevent immediate initialization
+  });
   
-  // Keep auth state in sync with both sources
-  useEffect(() => {
-    setActualAuthState(propIsAuthenticated ?? hookIsAuthenticated);
-  }, [propIsAuthenticated, hookIsAuthenticated]);
+  const handleShowTypeform = () => {
+    setShowTypeform(true);
+    // Wait a moment for the DOM to update before initializing
+    setTimeout(() => {
+      typeform.initialize();
+    }, 100);
+  };
   
-  // Add debugging to track component lifecycle
-  useEffect(() => {
-    console.log("[TypeformAlert] Component mounted, auth state:", actualAuthState);
-    return () => {
-      console.log("[TypeformAlert] Component unmounting");
-    };
-  }, []);
-
+  const handleHideTypeform = () => {
+    // Clean up typeform before hiding it
+    typeform.cleanup();
+    setShowTypeform(false);
+  };
+  
+  const handleRefresh = () => {
+    // Clean up typeform
+    typeform.cleanup();
+    
+    // Wait a moment for the DOM to update before re-initializing
+    setTimeout(() => {
+      typeform.initialize();
+      console.log("Typeform refreshed");
+    }, 100);
+  };
+  
   return (
-    <TypeformEmbed
-      formId="01JEWES3GA7PPQN2SPRNHSVHPG"
-      title="Alerta Radio"
-      description="Haga clic en el botón a continuación para cargar el formulario de alerta de radio."
-      isAuthenticated={actualAuthState}
-    />
+    <div className="mt-8 p-6 bg-muted rounded-lg w-full">
+      <h2 className="text-2xl font-bold mb-4">Alerta Radio</h2>
+      
+      {!showTypeform ? (
+        <div className="text-center py-8">
+          <p className="mb-4 text-muted-foreground">
+            Haga clic en el botón a continuación para cargar el formulario de alerta de radio.
+            <br />
+            <span className="text-sm font-medium flex items-center justify-center mt-2 gap-1">
+              <AlertCircle className="h-4 w-4" />
+              Nota: El formulario puede solicitar acceso al micrófono para funcionalidad de voz.
+            </span>
+          </p>
+          <Button onClick={handleShowTypeform} className="mt-2">
+            Cargar formulario
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-end mb-2 gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleRefresh}
+              aria-label="Reiniciar formulario"
+              title="Reiniciar formulario"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleHideTypeform}
+            >
+              Ocultar formulario
+            </Button>
+          </div>
+          <div data-tf-live="01JEWES3GA7PPQN2SPRNHSVHPG" className="h-[500px] md:h-[600px]"></div>
+        </>
+      )}
+    </div>
   );
 };
 

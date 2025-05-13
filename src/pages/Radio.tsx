@@ -11,8 +11,6 @@ const Radio = () => {
   // Centralize authentication check here
   const { isAuthenticated } = useAuthStatus();
   
-  console.log("[Radio] Initial authentication status:", isAuthenticated);
-  
   // Use radio tab state for persisting transcription text
   const { textContent, setTextContent } = useRadioTabState({
     persistKey: "radio-transcription",
@@ -41,10 +39,7 @@ const Radio = () => {
     };
   }, []);
 
-  // Track when authentication status changes
-  useEffect(() => {
-    console.log("[Radio] Authentication status changed:", isAuthenticated);
-  }, [isAuthenticated]);
+  console.log("[Radio] Authentication status:", isAuthenticated);
 
   return (
     <ErrorBoundary>
