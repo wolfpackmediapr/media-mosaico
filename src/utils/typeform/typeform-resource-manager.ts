@@ -4,25 +4,16 @@
  * Handles proper cleanup and reset of Typeform resources
  */
 import { useResourceManager } from '../audio/resource-manager';
-import { 
-  cleanTypeformDOMElements, 
-  cleanGenericTypeformResources,
-  resetTypeformGlobalState,
-  resetAllTypeformGlobalState,
-  fixTypeformDomain
-} from './typeform-resource-manager-utils';
-
-interface TypeformResources {
-  containerId: string;
-  elements: HTMLElement[];
-  scripts: HTMLScriptElement[];
-}
+import { TypeformResources, TypeformResourceManager } from './types';
+import { cleanTypeformDOMElements, cleanGenericTypeformResources } from './resource-cleanup';
+import { resetTypeformGlobalState, resetAllTypeformGlobalState } from './global-state';
+import { fixTypeformDomain } from './core-utils';
 
 /**
  * Hook for managing Typeform-specific resources
  * Extends the base resource manager with Typeform-specific functionality
  */
-export const useTypeformResourceManager = () => {
+export const useTypeformResourceManager = (): TypeformResourceManager => {
   // Use the base resource manager for general cleanup
   const baseManager = useResourceManager();
   
@@ -196,11 +187,17 @@ export const useTypeformResourceManager = () => {
   };
 };
 
-// Export utility functions for direct use
+// Re-export utility functions for direct use
 export {
   cleanTypeformDOMElements,
-  cleanGenericTypeformResources,
+  cleanGenericTypeformResources
+} from './resource-cleanup';
+
+export {
   resetTypeformGlobalState,
-  resetAllTypeformGlobalState,
+  resetAllTypeformGlobalState
+} from './global-state';
+
+export {
   fixTypeformDomain
-} from './typeform-resource-manager-utils';
+} from './core-utils';

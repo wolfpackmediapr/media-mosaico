@@ -8,5 +8,13 @@ export {
   cleanTypeformDOMElements,
   cleanGenericTypeformResources,
   resetTypeformGlobalState,
+  resetAllTypeformGlobalState,
   fixTypeformDomain
 } from './typeform/typeform-resource-manager';
+
+// Export additional Typeform utilities
+export { 
+  isTypeformScriptReady, 
+  ensureTypeformEnvironment,
+  getSafeDomain
+} from './typeform/utils';
