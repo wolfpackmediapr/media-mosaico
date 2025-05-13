@@ -3,7 +3,7 @@
  * Main hook for Typeform integration
  * Provides a complete interface for initializing and managing Typeform widgets
  */
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { TypeformOptions, TypeformHookReturn } from "./types";
 import { useTypeformScript } from "./use-typeform-script";
 import { useTypeformWidget, TypeformWidgetConfig } from "./use-typeform-widget";
@@ -21,8 +21,8 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}): Ty
   
   // Track initialization state
   const typeformInitializedRef = useRef<boolean>(false);
-  const [lastError, setLastError] = useRef<Error | null>(null);
-  const [retryAttempts, setRetryAttempts] = useRef<number>(0);
+  const [lastError, setLastError] = useState<Error | null>(null);
+  const [retryAttempts, setRetryAttempts] = useState<number>(0);
   
   const { lazy = false } = options;
   

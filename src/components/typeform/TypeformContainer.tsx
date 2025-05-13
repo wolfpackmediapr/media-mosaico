@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { useTypeformResourceManager } from '@/utils/typeform/typeform-resource-manager';
+import { useTypeformResourceManager } from '@/hooks/typeform/use-typeform-resource-manager';
 import { fixTypeformDomain } from '@/utils/typeform/core-utils';
 
 interface TypeformContainerProps {

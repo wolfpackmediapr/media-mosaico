@@ -1,27 +1,16 @@
 
 /**
- * Constants used for Typeform integration
+ * Constants for Typeform integration
  */
 
-/** Maximum number of retry attempts when initializing Typeform */
-export const MAX_RETRIES = 3;
-
-/** Initial timeout before first initialization attempt (ms) */
+// Delay before initializing Typeform after script load (ms)
 export const INITIAL_TIMEOUT = 300;
 
-/** URL for the Typeform embed script */
-export const SCRIPT_SRC = "//embed.typeform.com/next/embed.js";
+// Maximum number of retries for initialization
+export const MAX_RETRIES = 3;
 
-/** Global state tracking for script loading */
-export let isGlobalScriptLoading = false;
-export let isGlobalScriptLoaded = false;
+// Delay between retries (ms)
+export const RETRY_DELAY = 500;
 
-/** Set global script loading state */
-export const setGlobalScriptLoading = (isLoading: boolean) => {
-  isGlobalScriptLoading = isLoading;
-};
-
-/** Set global script loaded state */
-export const setGlobalScriptLoaded = (isLoaded: boolean) => {
-  isGlobalScriptLoaded = isLoaded;
-};
+// URL for the Typeform embed script
+export const TYPEFORM_SCRIPT_URL = 'https://embed.typeform.com/next/embed.js';

@@ -1,94 +1,107 @@
 
 /**
- * Hook for loading the Typeform script
+ * Hook for loading the Typeform script dynamically
  */
-import { useState, useCallback } from 'react';
-import { SCRIPT_SRC, isGlobalScriptLoading, isGlobalScriptLoaded, setGlobalScriptLoading, setGlobalScriptLoaded } from './constants';
+import { useState, useCallback, useEffect } from 'react';
+import { ScriptLoaderReturn } from './types';
+
+// Script URL for Typeform embed
+const TYPEFORM_SCRIPT_URL = 'https://embed.typeform.com/next/embed.js';
+
+// Function to check if script is already loaded
+const isTypeformScriptLoaded = (): boolean => {
+  return typeof window !== 'undefined' &&
+    typeof window.tf !== 'undefined' &&
+    typeof window.tf.createWidget === 'function';
+};
 
 /**
- * Load the Typeform script
- * @returns Promise that resolves when script is loaded
+ * Load the Typeform script programmatically
+ * Returns a promise that resolves when the script is loaded
  */
 export const loadTypeformScript = (): Promise<void> => {
   return new Promise((resolve, reject) => {
-    if (isGlobalScriptLoaded) {
+    // Skip if script is already loaded
+    if (isTypeformScriptLoaded()) {
       console.log('[Typeform] Script already loaded');
-      resolve();
-      return;
+      return resolve();
     }
 
-    if (isGlobalScriptLoading) {
-      console.log('[Typeform] Script is already loading');
+    try {
+      const existingScript = document.querySelector(`script[src="${TYPEFORM_SCRIPT_URL}"]`);
       
-      // Check every 100ms if script has loaded
-      const checkInterval = setInterval(() => {
-        if (isGlobalScriptLoaded) {
-          clearInterval(checkInterval);
+      if (existingScript) {
+        console.log('[Typeform] Script already exists in DOM, waiting for it to load');
+        // Script exists but may not be loaded yet
+        existingScript.addEventListener('load', () => {
+          console.log('[Typeform] Existing script loaded');
           resolve();
-        }
-      }, 100);
+        });
+        
+        existingScript.addEventListener('error', (e) => {
+          reject(new Error(`Typeform script load error: ${e}`));
+        });
+        
+        return;
+      }
       
-      // Set timeout to prevent infinite waiting
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        if (!isGlobalScriptLoaded) {
-          reject(new Error('Typeform script loading timeout'));
-        }
-      }, 10000);
+      console.log('[Typeform] Creating new script element');
+      const script = document.createElement('script');
+      script.src = TYPEFORM_SCRIPT_URL;
+      script.async = true;
       
-      return;
+      script.addEventListener('load', () => {
+        console.log('[Typeform] Script loaded successfully');
+        resolve();
+      });
+      
+      script.addEventListener('error', (e) => {
+        reject(new Error(`Typeform script load error: ${e}`));
+      });
+      
+      document.head.appendChild(script);
+    } catch (err) {
+      reject(new Error(`Error loading Typeform script: ${err}`));
     }
-    
-    // Start loading the script
-    setGlobalScriptLoading(true);
-    console.log('[Typeform] Loading script:', SCRIPT_SRC);
-    
-    const script = document.createElement('script');
-    script.src = SCRIPT_SRC;
-    script.async = true;
-    
-    script.onload = () => {
-      setGlobalScriptLoaded(true);
-      setGlobalScriptLoading(false);
-      console.log('[Typeform] Script loaded successfully');
-      resolve();
-    };
-    
-    script.onerror = (error) => {
-      setGlobalScriptLoading(false);
-      console.error('[Typeform] Failed to load script:', error);
-      reject(new Error('Failed to load Typeform script'));
-    };
-    
-    document.body.appendChild(script);
   });
 };
 
 /**
- * Hook for loading and managing the Typeform script
- * @returns Script loading state and functions
+ * React hook for loading the Typeform script
  */
-export const useTypeformScript = () => {
-  const [isScriptLoading, setIsScriptLoading] = useState<boolean>(isGlobalScriptLoading);
-  const [isScriptLoaded, setIsScriptLoaded] = useState<boolean>(isGlobalScriptLoaded);
-  
-  /**
-   * Load the script if it doesn't exist yet
-   */
-  const loadScript = useCallback(() => {
-    loadTypeformScript()
-      .then(() => {
-        setIsScriptLoaded(true);
-        setIsScriptLoading(false);
-      })
-      .catch(() => {
-        setIsScriptLoading(false);
-      });
+export const useTypeformScript = (): ScriptLoaderReturn => {
+  const [isScriptLoaded, setIsScriptLoaded] = useState<boolean>(isTypeformScriptLoaded());
+  const [isScriptLoading, setIsScriptLoading] = useState<boolean>(false);
+
+  const loadScript = useCallback(async () => {
+    // Skip if already loaded or loading
+    if (isScriptLoaded || isScriptLoading) return;
+
+    try {
+      setIsScriptLoading(true);
+      await loadTypeformScript();
+      setIsScriptLoaded(true);
+    } catch (error) {
+      console.error('[useTypeformScript] Error:', error);
+    } finally {
+      setIsScriptLoading(false);
+    }
+  }, [isScriptLoaded, isScriptLoading]);
+
+  // Check for script on mount
+  useEffect(() => {
+    // Only set state if not already loaded
+    if (!isScriptLoaded && isTypeformScriptLoaded()) {
+      setIsScriptLoaded(true);
+    }
   }, []);
-  
+
   return {
     isScriptLoading,
     isScriptLoaded,
-    loadScript
+    loadScript,
   };
 };
+
+// Export the hook as default
+export default useTypeformScript;

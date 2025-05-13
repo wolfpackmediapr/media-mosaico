@@ -124,7 +124,7 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
           />
           <TypeformContainer
             formId={formId}
-            containerId={containerId}
+            className={`typeform-container-${containerId}`}
           />
         </>
       )}

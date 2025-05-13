@@ -53,7 +53,7 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
    * @param containerId The HTML container ID for this form
    * @returns Cleanup function
    */
-  const registerTypeformContainer = (formId: string, containerId: string) => {
+  const registerContainer = (formId: string, containerId: string) => {
     console.log(`[TypeformResourceManager] Registering container for form ${formId}: ${containerId}`);
     
     if (!typeformResources.has(formId)) {
@@ -74,6 +74,16 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
       // Cleanup function that can be called manually
       cleanupTypeformResources(formId);
     };
+  };
+
+  /**
+   * Unregister a Typeform container
+   * @param formId The Typeform ID to unregister
+   */
+  const unregisterContainer = (formId: string) => {
+    console.log(`[TypeformResourceManager] Unregistering container for form ${formId}`);
+    cleanupTypeformResources(formId);
+    typeformResources.delete(formId);
   };
   
   /**
@@ -209,7 +219,8 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
     registerResource,
     cleanupResources,
     // Add Typeform-specific methods
-    registerTypeformContainer,
+    registerContainer,
+    unregisterContainer,
     trackTypeformElement,
     trackTypeformScript,
     cleanupTypeformResources,

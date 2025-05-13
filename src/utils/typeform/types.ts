@@ -37,7 +37,12 @@ export interface TypeformResourceManager {
   /**
    * Register a Typeform container for cleanup
    */
-  registerTypeformContainer: (formId: string, containerId: string) => () => void;
+  registerContainer: (formId: string, containerId: string) => () => void;
+  
+  /**
+   * Unregister a Typeform container
+   */
+  unregisterContainer: (formId: string) => void;
   
   /**
    * Track a Typeform-related DOM element for cleanup

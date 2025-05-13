@@ -35,3 +35,4 @@ export const TypeformControls = ({ isRefreshing, onRefresh, onHide }: TypeformCo
   );
 };
 
+export default TypeformControls;

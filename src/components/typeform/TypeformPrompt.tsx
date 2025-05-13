@@ -45,3 +45,4 @@ export const TypeformPrompt = ({
   );
 };
 
+export default TypeformPrompt;
