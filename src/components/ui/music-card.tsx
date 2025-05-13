@@ -9,7 +9,7 @@ import {
   VolumeX 
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
-import { ensureUiVolumeFormat, ensureAudioVolumeFormat } from "@/utils/audio-volume-adapter";
+import { ensureUiVolumeFormat } from '@/utils/audio-volume-adapter';
 
 interface MusicCardProps {
   src?: string;

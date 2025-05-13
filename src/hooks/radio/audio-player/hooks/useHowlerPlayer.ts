@@ -6,7 +6,7 @@ import { usePlaybackState } from './core/usePlaybackState';
 import { usePlaybackControls as useCorePlaybackControls } from './core/usePlaybackControls';
 import { createNativeAudioElement, testAudioPlayback } from '@/utils/audio-format-helper';
 import { toast } from 'sonner';
-import { ensureAudioVolumeFormat } from '@/utils/audio-volume-adapter';
+import { ensureUiVolumeFormat } from '@/utils/audio-volume-adapter'; // Fixed from ensureAudioVolumeFormat to ensureUiVolumeFormat
 
 interface HowlerPlayerHookProps {
   file?: File;

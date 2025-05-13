@@ -53,6 +53,26 @@ export const safelyRevokeBlobUrl = (url: string): void => {
 };
 
 /**
+ * Checks if a blob URL is valid by testing if it can be accessed
+ * @param url The blob URL to validate
+ * @returns Promise resolving to boolean indicating validity
+ */
+export const isValidBlobUrl = async (url: string): Promise<boolean> => {
+  if (!url || !url.startsWith('blob:')) {
+    return false;
+  }
+  
+  try {
+    // Try to access the blob URL with a HEAD request
+    const response = await fetch(url, { method: 'HEAD' });
+    return response.ok;
+  } catch (error) {
+    console.error('[audio-url-validator] Error validating blob URL:', error);
+    return false;
+  }
+};
+
+/**
  * Ensures a blob URL is valid and accessible
  * @param file File with preview URL to check/fix
  * @returns A valid URL or empty string if failed

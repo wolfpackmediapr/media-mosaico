@@ -94,3 +94,159 @@ export const canBrowserPlayFile = (file: File): boolean => {
       return false;
   }
 };
+
+/**
+ * Gets the MIME type from a file, with better detection than just relying on file.type
+ * @param file The file to inspect
+ * @returns A more accurate MIME type
+ */
+export const getMimeTypeFromFile = (file: File): string => {
+  // First, try to use the file's reported MIME type
+  if (file.type && file.type.includes('audio/')) {
+    return file.type;
+  }
+  
+  // If file.type is empty or not audio, infer from extension
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  switch(extension) {
+    case 'mp3':
+      return 'audio/mpeg';
+    case 'wav':
+      return 'audio/wav';
+    case 'ogg':
+      return 'audio/ogg';
+    case 'aac':
+      return 'audio/aac';
+    case 'flac':
+      return 'audio/flac';
+    case 'm4a':
+      return 'audio/mp4';
+    default:
+      // Generic audio type if we can't determine specific format
+      return 'audio/mpeg'; // Default to MP3 as the most compatible format
+  }
+};
+
+/**
+ * Creates a native HTML5 audio element for a file
+ * @param file Audio file to create element for
+ * @returns HTML5 Audio element with the file loaded
+ */
+export const createNativeAudioElement = (file: File): HTMLAudioElement => {
+  const audio = new Audio();
+  
+  // Create blob URL for the file
+  const blobUrl = URL.createObjectURL(file);
+  
+  // Configure the audio element
+  audio.src = blobUrl;
+  audio.preload = 'metadata';
+  
+  // Return the configured audio element
+  return audio;
+};
+
+/**
+ * Attempt to unmute audio context for autoplay
+ * @returns Promise that resolves when unmute attempt is complete
+ */
+export const unmuteAudio = (): void => {
+  try {
+    // Try to access and resume the AudioContext for the page
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    
+    if (AudioContext) {
+      const context = new AudioContext();
+      if (context.state === 'suspended') {
+        context.resume().catch(err => {
+          console.warn('Error resuming AudioContext:', err);
+        });
+      }
+    }
+    
+    // Additional technique: create and play a silent audio element
+    const silentAudio = document.createElement('audio');
+    silentAudio.volume = 0;
+    silentAudio.play().catch(() => {
+      // This might fail due to autoplay restrictions, which is fine
+      // The attempt itself can help unlock audio on some browsers
+    });
+  } catch (err) {
+    console.warn('Error during audio unmute attempt:', err);
+  }
+};
+
+/**
+ * Test if audio can be played back
+ * @param file Audio file to test
+ * @returns Object with test results
+ */
+export const testAudioPlayback = async (file: File): Promise<{
+  canPlay: boolean;
+  needsAdvancedFeatures: boolean;
+  error: string | null;
+}> => {
+  return new Promise(resolve => {
+    try {
+      // Create a test audio element
+      const audio = new Audio();
+      const url = URL.createObjectURL(file);
+      
+      // Set up success handler
+      const onCanPlay = () => {
+        URL.revokeObjectURL(url);
+        resolve({
+          canPlay: true,
+          // Assume advanced features not needed for files under 10MB
+          needsAdvancedFeatures: file.size > 10 * 1024 * 1024,
+          error: null
+        });
+      };
+      
+      // Set up error handler
+      const onError = () => {
+        URL.revokeObjectURL(url);
+        resolve({
+          canPlay: false,
+          needsAdvancedFeatures: true, // If native can't play, we need Howler
+          error: 'File cannot be played with native audio'
+        });
+      };
+      
+      // Set up a timeout in case loading takes too long
+      const timeout = setTimeout(() => {
+        URL.revokeObjectURL(url);
+        audio.removeEventListener('canplay', onCanPlay);
+        audio.removeEventListener('error', onError as EventListener);
+        
+        resolve({
+          canPlay: false,
+          needsAdvancedFeatures: true,
+          error: 'Timeout while testing audio playback'
+        });
+      }, 5000); // 5 second timeout
+      
+      // Set up event listeners
+      audio.addEventListener('canplay', () => {
+        clearTimeout(timeout);
+        onCanPlay();
+      }, { once: true });
+      
+      audio.addEventListener('error', () => {
+        clearTimeout(timeout);
+        onError();
+      }, { once: true });
+      
+      // Try to load and play the audio
+      audio.src = url;
+      audio.load();
+      
+    } catch (error) {
+      resolve({
+        canPlay: false,
+        needsAdvancedFeatures: true,
+        error: `Error testing playback: ${error}`
+      });
+    }
+  });
+};
