@@ -2,7 +2,7 @@
 /**
  * Hook for using Typeform resource manager throughout the app
  */
-import { useTypeformResourceManager } from '@/utils/typeform/typeform-resource-manager';
+import { useTypeformResourceManager as useTypeformResourceManagerUtil } from '@/utils/typeform/typeform-resource-manager';
 import type { TypeformResourceManager } from '@/utils/typeform/types';
 
 /**
@@ -11,7 +11,7 @@ import type { TypeformResourceManager } from '@/utils/typeform/types';
  */
 export const useTypeformResourceManager = (): TypeformResourceManager => {
   // Use the resource manager from utils
-  return useTypeformResourceManager();
+  return useTypeformResourceManagerUtil();
 };
 
 // Re-export types
