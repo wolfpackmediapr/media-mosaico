@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useRadioContainerState } from "@/hooks/radio/useRadioContainerState";
 import RadioLayout from "./RadioLayout";
@@ -7,7 +8,7 @@ import { RightSection } from "./containers/RightSection";
 import { TranscriptionSection } from "./containers/TranscriptionSection";
 import { AnalysisSection } from "./containers/AnalysisSection";
 import { NewsSegmentsSection } from "./containers/NewsSegmentsSection";
-import { NotePadSection } from "./containers/NotePadSection";
+import NotePadSection from "./containers/NotePadSection.tsx";
 import { useRadioClearState } from "@/hooks/radio/useRadioClearState";
 import { useNotepadState } from "@/hooks/radio/useNotepadState";
 
