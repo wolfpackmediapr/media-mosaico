@@ -1,118 +1,100 @@
 
-import { useCallback, useState, useEffect } from "react";
-import { useTypeform } from "@/hooks/use-typeform";
-import { useTypeformResourceManager } from "@/utils/typeform/typeform-resource-manager";
-import { fixTypeformDomain } from "@/utils/typeform/core-utils";
-import { toast } from "sonner";
+import React, { useEffect, useState, useRef } from 'react';
+import { useTypeformWidget } from '@/hooks/typeform/use-typeform-widget';
+import { fixTypeformDomain, ensureTypeformInitialized } from '@/utils/typeform/core-utils';
 
 interface TypeformInitializerProps {
   formId: string;
-  enabled: boolean;
-  onInitialized?: () => void;
-  onError?: (error: Error) => void;
+  containerId?: string;
+  onSubmit?: (responseId: string) => void;
+  onReady?: () => void;
+  hidden?: Record<string, any>;
 }
 
-/**
- * Component that handles Typeform initialization logic
- */
-export const useTypeformInitializer = ({ 
-  formId, 
-  enabled, 
-  onInitialized, 
-  onError 
-}: TypeformInitializerProps) => {
-  const [initAttempts, setInitAttempts] = useState(0);
-  const resourceManager = useTypeformResourceManager();
-  
-  // Pass options to disable microphone access by default
-  const typeform = useTypeform(enabled, {
-    disableMicrophone: true,
-    keyboardShortcuts: true,
-    lazy: true,
-    sandboxMode: true
-  });
-  
-  // Ensure domain is properly set before initialization
-  const ensureDomainAndInitialize = useCallback(() => {
-    // Set the domain properly
-    fixTypeformDomain(true);
-    
-    setTimeout(() => {
-      typeform.initialize();
-    }, 100);
-  }, [typeform]);
-  
-  // Initialize typeform with retry logic
-  const initializeTypeform = useCallback(() => {
-    if (!enabled) return;
-    
-    console.log(`[TypeformInitializer] Initializing form ${formId}, attempt ${initAttempts + 1}`);
-    
-    try {
-      // Make sure domain is set
-      fixTypeformDomain(true);
-      
-      // Initialize with slight delay
-      setTimeout(() => {
-        try {
-          // Ensure domain is set right before initialization
-          fixTypeformDomain(true);
-          
-          // Initialize typeform
-          ensureDomainAndInitialize();
-          console.log(`[TypeformInitializer] Form ${formId} initialized`);
-          if (onInitialized) onInitialized();
-        } catch (err) {
-          console.error(`[TypeformInitializer] Error initializing form ${formId}:`, err);
-          
-          // Retry logic - attempt up to 3 times with increasing delay
-          if (initAttempts < 3) {
-            const nextAttempt = initAttempts + 1;
-            setInitAttempts(nextAttempt);
-            
-            const delay = 500 * Math.pow(2, nextAttempt);
-            console.log(`[TypeformInitializer] Retrying in ${delay}ms, attempt ${nextAttempt}/3`);
-            
-            setTimeout(() => {
-              // Set domain again before retry
-              fixTypeformDomain(true);
-              initializeTypeform();
-            }, delay);
-          } else {
-            toast.error("Error al cargar el formulario. Por favor, inténtelo de nuevo.");
-            if (onError && err instanceof Error) {
-              onError(err);
-            }
-          }
-        }
-      }, 500);
-    } catch (err) {
-      console.error(`[TypeformInitializer] Error in initialization setup for form ${formId}:`, err);
-      toast.error("Error al mostrar el formulario");
-      if (onError && err instanceof Error) {
-        onError(err);
-      }
-    }
-  }, [typeform, formId, enabled, resourceManager, initAttempts, onInitialized, onError, ensureDomainAndInitialize]);
+const TypeformInitializer: React.FC<TypeformInitializerProps> = ({
+  formId,
+  containerId = `typeform-${formId}`,
+  onSubmit,
+  onReady,
+  hidden = {}
+}) => {
+  const [initialized, setInitialized] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const maxAttempts = 3;
+  const attemptTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize when enabled changes to true
+  // Pre-initialization domain fix
   useEffect(() => {
-    if (enabled) {
-      setInitAttempts(0); // Reset attempt counter when enabled changes
-      
-      // Set domain early
-      fixTypeformDomain(true);
-      
-      // Short delay to ensure component is mounted
-      setTimeout(() => {
-        initializeTypeform();
-      }, 100);
-    }
-  }, [enabled, initializeTypeform]);
+    fixTypeformDomain(true);
+  }, []);
 
-  return {
-    typeform,
-    initializeTypeform,
-    resetAttempts: () => setInitAttempts(0)
+  // Handle form initialization with retry logic
+  const initializeForm = () => {
+    if (attempts >= maxAttempts) {
+      console.error(`[TypeformInitializer] Failed to initialize form ${formId} after ${maxAttempts} attempts`);
+      return;
+    }
+
+    const newAttemptCount = attempts + 1;
+    setAttempts(newAttemptCount);
+    
+    console.log(`[TypeformInitializer] Initializing form ${formId}, attempt ${newAttemptCount}`);
+    
+    // Ensure Typeform is ready before initialization
+    const isTypeformReady = ensureTypeformInitialized();
+    
+    if (!isTypeformReady) {
+      console.log(`[TypeformInitializer] Typeform not ready, will retry in 300ms`);
+      attemptTimerRef.current = setTimeout(initializeForm, 300);
+      return;
+    }
+    
+    setInitialized(true);
   };
+
+  // Start initialization process after a short delay
+  useEffect(() => {
+    attemptTimerRef.current = setTimeout(initializeForm, 100);
+    
+    return () => {
+      if (attemptTimerRef.current) {
+        clearTimeout(attemptTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Configure and initialize the Typeform widget once we've verified library is ready
+  const { isReady, error } = useTypeformWidget(
+    initialized
+      ? {
+          formId,
+          container: containerId,
+          hideFooter: true,
+          hideHeaders: false,
+          opacity: 100,
+          buttonText: 'Start',
+          onSubmit: (event) => {
+            if (onSubmit) onSubmit(event.response_id);
+          },
+          onReady: () => {
+            console.log(`[TypeformInitializer] Form ${formId} initialized`);
+            if (onReady) onReady();
+          },
+          hidden
+        }
+      : { 
+          formId: '', 
+          container: '' 
+        }
+  );
+
+  useEffect(() => {
+    if (error) {
+      console.error(`[TypeformInitializer] Error initializing form ${formId}:`, error);
+    }
+  }, [error, formId]);
+
+  return null;
 };
+
+export default TypeformInitializer;

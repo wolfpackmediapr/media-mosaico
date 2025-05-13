@@ -17,7 +17,7 @@ export const fixTypeformDomain = (forceUpdate = false): boolean => {
       return false;
     }
     
-    const hostname = window.location.hostname || "localhost";
+    const hostname = getSafeDomain();
     
     // If window.tf exists but domain doesn't, or we're forcing an update
     if (!window.tf.domain || forceUpdate) {
@@ -37,37 +37,29 @@ export const fixTypeformDomain = (forceUpdate = false): boolean => {
       if (!domain.currentDomain || !domain.primaryDomain || forceUpdate) {
         domain.currentDomain = hostname;
         domain.primaryDomain = hostname;
-        console.log("[TypeformResourceManager] Updated incomplete Typeform domain:", hostname);
-        return true;
+        console.log("[TypeformResourceManager] Domain updated:", domain);
       }
+      return true;
     }
-    
-    return true; // Domain was already set correctly
-  } catch (err) {
-    console.error("[TypeformResourceManager] Error fixing Typeform domain:", err);
+  } catch (error) {
+    console.error("[TypeformResourceManager] Error setting domain:", error);
     return false;
   }
 };
 
 /**
- * Create a safety wrapper around widget creation
- * This ensures the domain is set before creating a widget
+ * Safely create a Typeform widget with domain validation
+ * @param params Widget creation parameters
  * @returns Created widget or null if creation failed
  */
-export const safeCreateWidget = (): any => {
+export const safeCreateWidget = (params: any): any => {
   try {
-    // First ensure domain is properly set
+    // Ensure domain is set before creating widget
     fixTypeformDomain();
     
-    // Double check that tf exists and has createWidget
-    if (!window.tf || typeof window.tf.createWidget !== 'function') {
-      console.error("[TypeformResourceManager] window.tf or createWidget not available");
-      return null;
-    }
-    
-    // Double check domain exists before proceeding
+    // Double-check that domain exists, if not create it as a fallback
     if (!window.tf.domain) {
-      console.warn("[TypeformResourceManager] Domain still not set, creating default domain");
+      console.warn("[TypeformResourceManager] Domain still not available, applying emergency fix");
       window.tf.domain = {
         currentDomain: getSafeDomain(),
         primaryDomain: getSafeDomain()
@@ -75,11 +67,42 @@ export const safeCreateWidget = (): any => {
     }
     
     // Now it's safe to create the widget
-    const widget = window.tf.createWidget();
+    console.log("[TypeformResourceManager] Creating widget with params:", 
+      { formId: params.formId, container: params.container });
     
-    return widget;
-  } catch (err) {
-    console.error("[TypeformResourceManager] Error creating widget safely:", err);
+    return window.tf.createWidget(params);
+  } catch (error) {
+    console.error("[TypeformResourceManager] Error creating widget:", error);
     return null;
+  }
+};
+
+/**
+ * Ensure the Typeform library is properly initialized
+ * Call this before any Typeform operations
+ */
+export const ensureTypeformInitialized = (): boolean => {
+  try {
+    // Check if the library is loaded
+    if (typeof window.tf === 'undefined') {
+      console.warn("[TypeformResourceManager] Typeform library not loaded");
+      return false;
+    }
+    
+    // Fix domain and ensure it's properly set
+    const domainFixed = fixTypeformDomain();
+    
+    // Verify the critical methods exist
+    const hasCreateWidget = typeof window.tf.createWidget === 'function';
+    
+    if (!hasCreateWidget) {
+      console.warn("[TypeformResourceManager] Typeform createWidget method not available");
+      return false;
+    }
+    
+    return domainFixed && hasCreateWidget;
+  } catch (error) {
+    console.error("[TypeformResourceManager] Error during initialization check:", error);
+    return false;
   }
 };
