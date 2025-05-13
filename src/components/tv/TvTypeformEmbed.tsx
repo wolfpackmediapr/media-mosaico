@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useRef, useId } from "react";
 import { useTypeform } from "@/hooks/use-typeform";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
@@ -7,6 +7,9 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 const TvTypeformEmbed = () => {
   const [showTypeform, setShowTypeform] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Generate unique ID for each reload to force remounting
+  const [containerId, setContainerId] = useState<string>(useId());
   
   // Only initialize Typeform when user has chosen to show it
   // Pass options to disable microphone access by default
@@ -21,7 +24,7 @@ const TvTypeformEmbed = () => {
     // Wait a moment for the DOM to update before initializing
     setTimeout(() => {
       typeform.initialize();
-    }, 300); // Increased timeout
+    }, 300);
   };
   
   const handleHideTypeform = () => {
@@ -36,23 +39,48 @@ const TvTypeformEmbed = () => {
     
     setIsRefreshing(true);
     
-    // Clean up typeform
-    typeform.cleanup();
-    
-    // Wait a moment for the DOM to update before re-initializing
-    setTimeout(() => {
-      try {
-        typeform.initialize();
-        console.log("TV Typeform refreshed successfully");
-      } catch (err) {
-        console.error("Error refreshing TV Typeform:", err);
-      } finally {
-        // Always reset refreshing state
-        setTimeout(() => {
-          setIsRefreshing(false);
-        }, 500);
-      }
-    }, 500); // Increased timeout to 500ms to give DOM more time to update
+    try {
+      // First, clean up the current typeform instance
+      typeform.cleanup();
+      
+      // Find and remove all typeform-related elements
+      const typeformElements = document.querySelectorAll('[data-tf-live]');
+      typeformElements.forEach(element => {
+        if (element.parentNode) {
+          element.parentNode.removeChild(element);
+        }
+      });
+      
+      // Also remove any Typeform-generated iframes or scripts that might be leftover
+      const iframes = document.querySelectorAll('iframe[src*="typeform"]');
+      iframes.forEach(iframe => {
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+      });
+      
+      // Change container ID to force React to completely remount the component
+      setContainerId(useId());
+      
+      // Wait a moment for DOM changes to take effect
+      setTimeout(() => {
+        try {
+          // Reinitialize after DOM changes
+          typeform.initialize();
+          console.log("TV Typeform refreshed successfully with complete DOM reload");
+        } catch (err) {
+          console.error("Error reinitializing TV Typeform after DOM reload:", err);
+        } finally {
+          // Always reset refresh state
+          setTimeout(() => {
+            setIsRefreshing(false);
+          }, 500);
+        }
+      }, 500);
+    } catch (err) {
+      console.error("Error during TV Typeform DOM refresh:", err);
+      setIsRefreshing(false);
+    }
   };
   
   return (
@@ -94,7 +122,7 @@ const TvTypeformEmbed = () => {
               Ocultar formulario
             </Button>
           </div>
-          <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK" className="h-[500px] md:h-[600px]"></div>
+          <div ref={containerRef} key={containerId} data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK" className="h-[500px] md:h-[600px]"></div>
         </>
       )}
     </div>
