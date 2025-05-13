@@ -1,6 +1,7 @@
 
-import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import { RefreshCw, X } from 'lucide-react';
 
 interface TypeformControlsProps {
   isRefreshing: boolean;
@@ -8,27 +9,31 @@ interface TypeformControlsProps {
   onHide: () => void;
 }
 
-/**
- * Controls for the Typeform embed
- */
-export const TypeformControls = ({ isRefreshing, onRefresh, onHide }: TypeformControlsProps) => {
+export const TypeformControls: React.FC<TypeformControlsProps> = ({ 
+  isRefreshing,
+  onRefresh,
+  onHide
+}) => {
   return (
-    <div className="flex justify-end mb-2 gap-2">
+    <div className="flex justify-between items-center mb-4">
       <Button 
-        variant="outline" 
+        variant="outline"
         size="sm"
         onClick={onRefresh}
         disabled={isRefreshing}
-        aria-label="Reiniciar formulario"
-        title="Reiniciar formulario"
       >
-        <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+        <RefreshCw 
+          className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+        />
+        {isRefreshing ? 'Actualizando...' : 'Actualizar'}
       </Button>
+      
       <Button 
-        variant="outline" 
+        variant="ghost"
         size="sm"
         onClick={onHide}
       >
+        <X className="h-4 w-4 mr-2" />
         Ocultar formulario
       </Button>
     </div>

@@ -1,44 +1,37 @@
 
-import { AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import { FormInput } from 'lucide-react';
 
 interface TypeformPromptProps {
   title: string;
   description: string;
-  isAuthenticated: boolean | null;
+  isAuthenticated?: boolean | null;
   onShow: () => void;
 }
 
-/**
- * Component that displays the initial prompt to show Typeform
- */
-export const TypeformPrompt = ({ 
-  title, 
-  description, 
-  isAuthenticated, 
-  onShow 
-}: TypeformPromptProps) => {
+export const TypeformPrompt: React.FC<TypeformPromptProps> = ({
+  title,
+  description,
+  isAuthenticated = true,
+  onShow
+}) => {
   return (
-    <div className="text-center py-8">
-      <h2 className="text-2xl font-bold mb-4">{title}</h2>
-      <p className="mb-4 text-muted-foreground">
-        {description}
-        <br />
-        <span className="text-sm font-medium flex items-center justify-center mt-2 gap-1">
-          <AlertCircle className="h-4 w-4" />
-          Nota: El formulario puede solicitar acceso al micrófono para funcionalidad de voz.
-        </span>
-      </p>
-      <Button 
-        onClick={onShow} 
-        className="mt-2"
+    <div className="flex flex-col items-center justify-center py-6 text-center">
+      <h3 className="text-lg font-medium mb-2">{title}</h3>
+      <p className="text-sm text-muted-foreground mb-6">{description}</p>
+      
+      <Button
+        onClick={onShow}
         disabled={isAuthenticated !== true}
       >
-        Cargar formulario
+        <FormInput className="w-4 h-4 mr-2" />
+        {isAuthenticated === true ? 'Cargar formulario' : 'Inicie sesión para ver el formulario'}
       </Button>
-      {isAuthenticated === false && (
-        <p className="mt-2 text-sm text-destructive">
-          Debe iniciar sesión para usar esta funcionalidad.
+      
+      {isAuthenticated !== true && (
+        <p className="text-xs text-muted-foreground mt-4">
+          Debe iniciar sesión para acceder a este formulario.
         </p>
       )}
     </div>

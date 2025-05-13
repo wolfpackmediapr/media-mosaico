@@ -17,15 +17,44 @@ const TypeformContainer: React.FC<TypeformContainerProps> = ({
 
   // Apply domain fix on component mount
   useEffect(() => {
-    fixTypeformDomain();
+    try {
+      fixTypeformDomain();
+    } catch (err) {
+      console.error(`[TypeformContainer] Error applying domain fix:`, err);
+    }
   }, []);
   
   // Register the container with the resource manager
   useEffect(() => {
-    registerContainer(formId, containerId);
+    let cleanup: (() => void) | undefined;
+    
+    try {
+      cleanup = registerContainer(formId, containerId);
+    } catch (err) {
+      console.error(`[TypeformContainer] Error registering container:`, err);
+    }
     
     return () => {
-      unregisterContainer(formId);
+      try {
+        if (cleanup) {
+          cleanup();
+        } else {
+          // Fallback if cleanup function wasn't set
+          unregisterContainer(formId);
+        }
+      } catch (err) {
+        console.error(`[TypeformContainer] Error cleaning up container:`, err);
+        
+        // Last resort attempt to remove from DOM directly
+        try {
+          const container = document.getElementById(containerId);
+          if (container && container.parentNode) {
+            container.parentNode.removeChild(container);
+          }
+        } catch (innerErr) {
+          console.error(`[TypeformContainer] Final cleanup attempt failed:`, innerErr);
+        }
+      }
     };
   }, [formId, containerId, registerContainer, unregisterContainer]);
 

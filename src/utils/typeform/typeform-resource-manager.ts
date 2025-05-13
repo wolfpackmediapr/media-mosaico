@@ -30,7 +30,11 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
     // Create a simple tracking mechanism
     const dispose = () => {
       if (cleanupFunc) {
-        cleanupFunc();
+        try {
+          cleanupFunc();
+        } catch (err) {
+          console.error(`[TypeformResourceManager] Error in cleanup function:`, err);
+        }
       }
     };
     
@@ -43,7 +47,11 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
   const cleanupResources = () => {
     // Use baseManager's cleanup as fallback
     if (baseManager.cleanup) {
-      baseManager.cleanup();
+      try {
+        baseManager.cleanup();
+      } catch (err) {
+        console.error(`[TypeformResourceManager] Error in baseManager cleanup:`, err);
+      }
     }
   };
   
@@ -129,6 +137,22 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
   };
   
   /**
+   * Safely remove an element from the DOM if it's valid
+   * @param element The element to remove
+   * @param errorPrefix Prefix for error messages
+   */
+  const safelyRemoveElement = (element: HTMLElement, errorPrefix: string = 'Element') => {
+    try {
+      // Check if the element exists and has a valid parent before removal
+      if (element && element.parentNode && document.body.contains(element.parentNode)) {
+        element.parentNode.removeChild(element);
+      }
+    } catch (err) {
+      console.error(`[TypeformResourceManager] Error removing ${errorPrefix}:`, err);
+    }
+  };
+  
+  /**
    * Clean up Typeform resources for a specific form
    * @param formId The Typeform ID to clean up
    */
@@ -138,36 +162,36 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
     const resources = typeformResources.get(formId);
     if (!resources) return;
     
-    // Remove all tracked elements
-    resources.elements.forEach(element => {
+    // Remove all tracked elements with safer checks
+    resources.elements.forEach((element, index) => {
       try {
-        if (element && element.parentNode) {
-          element.parentNode.removeChild(element);
-        }
+        safelyRemoveElement(element, `element ${index}`);
       } catch (err) {
-        console.error(`[TypeformResourceManager] Error removing element:`, err);
+        console.error(`[TypeformResourceManager] Error removing element ${index}:`, err);
       }
     });
     
-    // Remove all tracked scripts
-    resources.scripts.forEach(script => {
+    // Remove all tracked scripts with safer checks
+    resources.scripts.forEach((script, index) => {
       try {
-        if (script && script.parentNode) {
-          script.parentNode.removeChild(script);
-        }
+        safelyRemoveElement(script, `script ${index}`);
       } catch (err) {
-        console.error(`[TypeformResourceManager] Error removing script:`, err);
+        console.error(`[TypeformResourceManager] Error removing script ${index}:`, err);
       }
     });
     
-    // Clean up Typeform DOM elements
+    // Clean up Typeform DOM elements with improved error handling
     cleanTypeformDOMElements(formId);
     
     // Clean generic resources
     cleanGenericTypeformResources();
     
     // Reset global state
-    resetTypeformGlobalState(formId);
+    try {
+      resetTypeformGlobalState(formId);
+    } catch (err) {
+      console.error(`[TypeformResourceManager] Error resetting global state:`, err);
+    }
     
     // Clear resources tracking
     resources.elements = [];
@@ -180,37 +204,54 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
   const cleanupAllTypeformResources = () => {
     console.log("[TypeformResourceManager] Cleaning up all resources");
     
+    // First clean up each form's specific resources
     typeformResources.forEach((_, formId) => {
-      cleanupTypeformResources(formId);
+      try {
+        cleanupTypeformResources(formId);
+      } catch (err) {
+        console.error(`[TypeformResourceManager] Error cleaning up form ${formId}:`, err);
+      }
     });
     typeformResources.clear();
 
-    // Additionally, remove any generic Typeform elements
-    const typeformElements = document.querySelectorAll('[data-tf-live], [data-tf-widget], [id^="typeform-"], [class^="typeform-"]');
-    typeformElements.forEach(element => {
-      try {
-        if (element && element.parentNode) {
-          element.parentNode.removeChild(element);
+    // Additionally, remove any generic Typeform elements that might have been missed
+    try {
+      const typeformElements = document.querySelectorAll('[data-tf-live], [data-tf-widget], [id^="typeform-"], [class^="typeform-"]');
+      typeformElements.forEach((element, index) => {
+        try {
+          if (element && element.parentNode && document.body.contains(element.parentNode)) {
+            element.parentNode.removeChild(element);
+          }
+        } catch (err) {
+          console.error(`[TypeformResourceManager] Error removing generic element ${index}:`, err);
         }
-      } catch (err) {
-        console.error(`[TypeformResourceManager] Error removing generic typeform element:`, err);
-      }
-    });
+      });
+    } catch (err) {
+      console.error(`[TypeformResourceManager] Error cleaning up generic elements:`, err);
+    }
 
-    // Clean up global iframes
-    const iframes = document.querySelectorAll('iframe[src*="typeform"]');
-    iframes.forEach(iframe => {
-      try {
-        if (iframe.parentNode) {
-          iframe.parentNode.removeChild(iframe);
+    // Clean up global iframes with safer checks
+    try {
+      const iframes = document.querySelectorAll('iframe[src*="typeform"]');
+      iframes.forEach((iframe, index) => {
+        try {
+          if (iframe && iframe.parentNode && document.body.contains(iframe.parentNode)) {
+            iframe.parentNode.removeChild(iframe);
+          }
+        } catch (err) {
+          console.error(`[TypeformResourceManager] Error removing iframe ${index}:`, err);
         }
-      } catch (err) {
-        console.error(`[TypeformResourceManager] Error removing iframe:`, err);
-      }
-    });
+      });
+    } catch (err) {
+      console.error(`[TypeformResourceManager] Error cleaning up iframes:`, err);
+    }
     
-    // Reset all global state
-    resetAllTypeformGlobalState();
+    // Reset all global state with error handling
+    try {
+      resetAllTypeformGlobalState();
+    } catch (err) {
+      console.error(`[TypeformResourceManager] Error resetting global state:`, err);
+    }
   };
   
   // Return the combined resource manager with our own implementations and Typeform-specific methods

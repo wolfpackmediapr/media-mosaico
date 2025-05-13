@@ -53,8 +53,17 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
   const handleHideTypeform = useCallback(() => {
     try {
       // Clean up typeform before hiding it
-      typeform.cleanup();
-      resourceManager.cleanupTypeformResources(formId);
+      if (typeform && typeof typeform.cleanup === 'function') {
+        typeform.cleanup();
+      }
+      
+      // Use resource manager to clean up, with error handling
+      try {
+        resourceManager.cleanupTypeformResources(formId);
+      } catch (err) {
+        console.error(`[TypeformEmbed] Error during resource cleanup:`, err);
+      }
+      
       setShowTypeform(false);
     } catch (err) {
       console.error(`[TypeformEmbed] Error hiding form ${formId}:`, err);
@@ -72,10 +81,17 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
     
     try {
       // First, clean up the current typeform instance
-      typeform.cleanup();
+      if (typeform && typeof typeform.cleanup === 'function') {
+        typeform.cleanup();
+      }
       
       // Clean up Typeform resources using our specialized resource manager
-      resourceManager.cleanupTypeformResources(formId);
+      try {
+        resourceManager.cleanupTypeformResources(formId);
+      } catch (err) {
+        console.error(`[TypeformEmbed] Error during resource cleanup on refresh:`, err);
+        // Continue with refresh even if cleanup fails
+      }
       
       // Generate a completely new ID to force React to fully remount the component
       const newContainerId = initialId + "-" + Date.now().toString();
