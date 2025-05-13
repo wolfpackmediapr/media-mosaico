@@ -2,8 +2,25 @@
 /**
  * TypeScript type definitions for Typeform resource management
  */
-import { TypeformResources } from './typeform-resource-manager';
-export { TypeformOptions, TypeformHookReturn, ScriptLoaderReturn } from '@/hooks/typeform/types';
+// Export TypeformResources interface
+export interface TypeformResources {
+  /**
+   * The ID of the container element
+   */
+  containerId: string;
+  
+  /**
+   * DOM elements to clean up
+   */
+  elements: HTMLElement[];
+  
+  /**
+   * Script elements to clean up
+   */
+  scripts: HTMLScriptElement[];
+}
+
+export { type TypeformOptions, type TypeformHookReturn, type ScriptLoaderReturn } from '@/hooks/typeform/types';
 
 export interface TypeformResourceManager {
   /**
@@ -46,21 +63,3 @@ export interface TypeformResourceManager {
    */
   fixTypeformDomain: () => boolean;
 }
-
-export interface TypeformResources {
-  /**
-   * The ID of the container element
-   */
-  containerId: string;
-  
-  /**
-   * DOM elements to clean up
-   */
-  elements: HTMLElement[];
-  
-  /**
-   * Script elements to clean up
-   */
-  scripts: HTMLScriptElement[];
-}
-

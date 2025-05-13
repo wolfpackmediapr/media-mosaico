@@ -176,8 +176,12 @@ export const useTypeformResourceManager = (): TypeformResourceManager => {
     resetAllTypeformGlobalState();
   };
   
+  // Return the combined resource manager with all required properties
   return {
-    ...baseManager,
+    // Include the base resource manager methods
+    registerResource: baseManager.registerResource,
+    cleanupResources: baseManager.cleanupResources,
+    // Add Typeform-specific methods
     registerTypeformContainer,
     trackTypeformElement,
     trackTypeformScript,
@@ -201,3 +205,6 @@ export {
 export {
   fixTypeformDomain
 } from './core-utils';
+
+// Export TypeformResources type for consumption by other modules
+export type { TypeformResources } from './types';
