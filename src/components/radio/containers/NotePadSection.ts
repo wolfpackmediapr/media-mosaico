@@ -1,4 +1,3 @@
 
-// Re-export NotePadSection component with default import/named export pattern
-import NotePadSection from "./NotePadSection.tsx";
-export { NotePadSection };
+// Re-export NotePadSection component
+export { default as NotePadSection } from "./NotePadSection.tsx";

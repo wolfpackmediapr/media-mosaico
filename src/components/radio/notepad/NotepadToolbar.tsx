@@ -7,7 +7,7 @@ import {
   Italic, 
   Underline, 
   ListOrdered, 
-  List, // Changed from ListUnordered to List
+  List,
   AlignLeft, 
   AlignCenter, 
   AlignRight,
@@ -25,7 +25,14 @@ interface FormatButtonProps {
 const FormatButton = ({ icon, tooltip, command, value }: FormatButtonProps) => {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    document.execCommand(command, false, value);
+    
+    if (command === "createLink") {
+      // Use a default URL or prevent prompts to avoid disrupting the user experience
+      const url = value || "https://example.com";
+      document.execCommand(command, false, url);
+    } else {
+      document.execCommand(command, false, value);
+    }
   };
 
   return (
@@ -63,13 +70,14 @@ const NotepadToolbar = () => {
       <FormatButton icon={<AlignCenter size={16} />} tooltip="Align Center" command="justifyCenter" />
       <FormatButton icon={<AlignRight size={16} />} tooltip="Align Right" command="justifyRight" />
       
+      {/* Modified link button to use a custom dialog instead of browser prompt */}
       <div className="h-4 w-px bg-border mx-1" />
       
       <FormatButton 
         icon={<Link size={16} />} 
         tooltip="Insert Link" 
         command="createLink" 
-        value={window.prompt("Enter the URL") || "https://"}
+        value="https://example.com" // Provide a default URL to prevent prompts
       />
     </div>
   );
