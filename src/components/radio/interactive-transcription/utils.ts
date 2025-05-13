@@ -53,3 +53,28 @@ export const formatSpeakerName = (speakerId: string | number): string => {
   }
   return `Speaker ${speakerId}`;
 };
+
+/**
+ * Find the active segment based on current time
+ */
+export const calculateCurrentSegment = (
+  utterances: UtteranceTimestamp[], 
+  currentTime: number
+): UtteranceTimestamp | null => {
+  if (!utterances || utterances.length === 0) return null;
+  
+  // Ensure time is in seconds for consistent comparison
+  const timeInSeconds = normalizeTimeToSeconds(currentTime);
+  
+  // Find the utterance that contains the current time
+  for (const utterance of utterances) {
+    const start = normalizeTimeToSeconds(utterance.start);
+    const end = normalizeTimeToSeconds(utterance.end);
+    
+    if (timeInSeconds >= start && timeInSeconds <= end) {
+      return utterance;
+    }
+  }
+  
+  return null;
+};

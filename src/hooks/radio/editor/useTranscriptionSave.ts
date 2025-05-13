@@ -28,7 +28,7 @@ export const useTranscriptionSave = ({
   }, []);
 
   // Function to save content to Supabase
-  const saveContent = useCallback(async (data: { text: string, id?: string }) => {
+  const saveContent = useCallback(async (data: { text: string, id?: string }): Promise<void> => {
     if (!data.id) return;
     
     // Skip save if content hasn't changed
@@ -56,7 +56,6 @@ export const useTranscriptionSave = ({
       // Update last saved content only after successful save
       lastSavedContentRef.current = data.text;
       toast.success("Transcripción guardada correctamente");
-      return true;
     } catch (error) {
       console.error('[useTranscriptionSave] Error in save operation:', error);
       const errorMessage = error instanceof Error ? error.message : "Error desconocido";
@@ -79,10 +78,11 @@ export const useTranscriptionSave = ({
     if (!transcriptionId) return false;
     
     try {
-      return await saveContent({
+      await saveContent({
         text: localText,
         id: transcriptionId
       });
+      return true;
     } catch (error) {
       console.error('[useTranscriptionSave] Force save error:', error);
       return false;
