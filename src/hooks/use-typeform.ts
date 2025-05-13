@@ -84,13 +84,16 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
     // This addresses the "Cannot read properties of undefined (reading 'domain')" error
     function ensureTypeformEnvironment() {
       try {
-        if (window.tf && !window.tf.domain) {
-          console.log("Adding domain fallback for Typeform");
-          // @ts-ignore - Adding custom property
-          window.tf.domain = {
-            currentDomain: getSafeDomain(),
-            primaryDomain: getSafeDomain()
-          };
+        if (window.tf) {
+          // Check if domain exists on window.tf safely
+          if (!window.tf.domain) {
+            console.log("Adding domain fallback for Typeform");
+            // Add domain property to window.tf - use type assertion since we've updated the type definition
+            (window.tf as any).domain = {
+              currentDomain: getSafeDomain(),
+              primaryDomain: getSafeDomain()
+            };
+          }
         }
       } catch (err) {
         console.warn("Could not set Typeform domain fallback:", err);
@@ -125,7 +128,7 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
               
               // Create widget with options
               try {
-                typeformWidgetRef.current = window.tf.createWidget();
+                typeformWidgetRef.current = window.tf?.createWidget();
                 
                 // Configure widget with options if needed
                 if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
@@ -216,12 +219,15 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
       
       // Ensure environment is set up
       try {
-        if (window.tf && !window.tf.domain) {
-          // @ts-ignore - Adding custom property
-          window.tf.domain = {
-            currentDomain: getSafeDomain(),
-            primaryDomain: getSafeDomain()
-          };
+        if (window.tf) {
+          // Check if domain exists on window.tf safely
+          if (!window.tf.domain) {
+            // Use type assertion since we know we've updated the type definition
+            (window.tf as any).domain = {
+              currentDomain: getSafeDomain(),
+              primaryDomain: getSafeDomain()
+            };
+          }
         }
       } catch (err) {
         console.warn("Could not set Typeform domain:", err);
@@ -255,7 +261,7 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
           
           // Create widget first
           if (isTypeformScriptReady()) {
-            typeformWidgetRef.current = window.tf.createWidget();
+            typeformWidgetRef.current = window.tf?.createWidget();
             
             // Then configure it with options
             if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
