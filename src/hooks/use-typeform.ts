@@ -5,6 +5,7 @@ interface TypeformOptions {
   disableMicrophone?: boolean;
   keyboardShortcuts?: boolean;
   lazy?: boolean; // Allow lazy loading to prevent immediate initialization
+  sandboxMode?: boolean; // Add sandbox mode option
 }
 
 // Maximum number of retry attempts when initializing Typeform
@@ -22,12 +23,23 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
   const {
     disableMicrophone = true, // Disable microphone access by default
     keyboardShortcuts = true,
-    lazy = false
+    lazy = false,
+    sandboxMode = true // Enable sandbox mode by default for security
   } = options;
 
   // Helper function to check if Typeform script is ready
   const isTypeformScriptReady = (): boolean => {
     return !!(window.tf && typeof window.tf.createWidget === 'function');
+  };
+
+  // Helper to get the current domain in a safe way
+  const getSafeDomain = (): string => {
+    try {
+      return window.location.hostname || "localhost";
+    } catch (err) {
+      console.warn("Could not access window.location.hostname, using default");
+      return "localhost";
+    }
   };
 
   useEffect(() => {
@@ -68,7 +80,27 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
       }, INITIAL_TIMEOUT);
     }
 
+    // Define a global fallback for Typeform's domain object
+    // This addresses the "Cannot read properties of undefined (reading 'domain')" error
+    function ensureTypeformEnvironment() {
+      try {
+        if (window.tf && !window.tf.domain) {
+          console.log("Adding domain fallback for Typeform");
+          // @ts-ignore - Adding custom property
+          window.tf.domain = {
+            currentDomain: getSafeDomain(),
+            primaryDomain: getSafeDomain()
+          };
+        }
+      } catch (err) {
+        console.warn("Could not set Typeform domain fallback:", err);
+      }
+    }
+
     function initializeTypeform() {
+      // Set up environment fallbacks first
+      ensureTypeformEnvironment();
+      
       // Check if the typeform API is available
       if (isTypeformScriptReady()) {
         console.log("Creating Typeform widget");
@@ -88,6 +120,9 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
                 }
               }
               
+              // Additional safety check for tf.domain
+              ensureTypeformEnvironment();
+              
               // Create widget with options
               try {
                 typeformWidgetRef.current = window.tf.createWidget();
@@ -97,16 +132,17 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
                   typeformWidgetRef.current.options({
                     disableKeyboardShortcuts: !keyboardShortcuts,
                     disableAutoFocus: false, // Allow auto-focus for better accessibility
-                    enableSandbox: true, // Use sandbox mode for added security
+                    enableSandbox: sandboxMode, // Use sandboxMode option
                     disableMicrophone: disableMicrophone, // Use option to control microphone access
                     disableTracking: true, // Disable tracking for privacy
                   });
                 }
                 
                 typeformInitializedRef.current = true;
-                console.log("Typeform widget initialized with options:", { 
+                console.log("Typeform widget initialized successfully with options:", { 
                   disableMicrophone, 
-                  keyboardShortcuts 
+                  keyboardShortcuts,
+                  sandboxMode
                 });
               } catch (err) {
                 console.error("Error creating Typeform widget:", err);
@@ -170,13 +206,26 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
         typeformInitializedRef.current = false;
       }
     };
-  }, [enabled, disableMicrophone, keyboardShortcuts, lazy, retryAttempts, isScriptLoading]);
+  }, [enabled, disableMicrophone, keyboardShortcuts, lazy, retryAttempts, isScriptLoading, sandboxMode]);
 
   // Return functions to explicitly initialize or cleanup
   return {
     initialize: () => {
       // Reset retry count when manually initializing
       setRetryAttempts(0);
+      
+      // Ensure environment is set up
+      try {
+        if (window.tf && !window.tf.domain) {
+          // @ts-ignore - Adding custom property
+          window.tf.domain = {
+            currentDomain: getSafeDomain(),
+            primaryDomain: getSafeDomain()
+          };
+        }
+      } catch (err) {
+        console.warn("Could not set Typeform domain:", err);
+      }
       
       if (!isTypeformScriptReady()) {
         console.warn("Typeform script not ready yet. Waiting for script to load before initializing.");
@@ -214,7 +263,7 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
                 disableKeyboardShortcuts: !keyboardShortcuts,
                 disableMicrophone: disableMicrophone,
                 disableTracking: true,
-                enableSandbox: true
+                enableSandbox: sandboxMode
               });
             }
             

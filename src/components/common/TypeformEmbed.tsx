@@ -4,6 +4,7 @@ import { useTypeform } from "@/hooks/use-typeform";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useTypeformResourceManager } from "@/utils/typeform/typeform-resource-manager";
+import { toast } from "sonner";
 
 interface TypeformEmbedProps {
   formId: string;
@@ -17,7 +18,8 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
   const [isRefreshing, setIsRefreshing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   // Generate unique ID for each reload to force remounting
-  const [containerId, setContainerId] = useState<string>(useId());
+  const initialId = useId();
+  const [containerId, setContainerId] = useState<string>(initialId);
   
   // Get the resource manager for Typeform
   const resourceManager = useTypeformResourceManager();
@@ -29,7 +31,8 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
   const typeform = useTypeform(shouldInitialize, {
     disableMicrophone: true,
     keyboardShortcuts: true,
-    lazy: true // Use lazy loading to prevent immediate initialization
+    lazy: true, // Use lazy loading to prevent immediate initialization
+    sandboxMode: true // Enable sandbox mode for security
   });
   
   // Register the container for cleanup when component unmounts or refreshes
@@ -44,18 +47,37 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
   }, [resourceManager, formId, containerId, shouldInitialize]);
   
   const handleShowTypeform = useCallback(() => {
-    setShowTypeform(true);
-    // Wait a moment for the DOM to update before initializing
-    setTimeout(() => {
-      typeform.initialize();
-    }, 300);
-  }, [typeform]);
+    try {
+      setShowTypeform(true);
+      // Wait a moment for the DOM to update before initializing
+      setTimeout(() => {
+        try {
+          typeform.initialize();
+          console.log(`[TypeformEmbed] Form ${formId} initialized`);
+        } catch (err) {
+          console.error(`[TypeformEmbed] Error initializing form ${formId}:`, err);
+          toast.error("Error al cargar el formulario. Por favor, inténtelo de nuevo.");
+        }
+      }, 500);
+    } catch (err) {
+      console.error(`[TypeformEmbed] Error showing form ${formId}:`, err);
+      toast.error("Error al mostrar el formulario");
+      setShowTypeform(false);
+    }
+  }, [typeform, formId]);
   
   const handleHideTypeform = useCallback(() => {
-    // Clean up typeform before hiding it
-    typeform.cleanup();
-    setShowTypeform(false);
-  }, [typeform]);
+    try {
+      // Clean up typeform before hiding it
+      typeform.cleanup();
+      resourceManager.cleanupTypeformResources(formId);
+      setShowTypeform(false);
+    } catch (err) {
+      console.error(`[TypeformEmbed] Error hiding form ${formId}:`, err);
+      // Force hiding even if there was an error
+      setShowTypeform(false);
+    }
+  }, [typeform, resourceManager, formId]);
   
   const handleRefresh = useCallback(() => {
     // Prevent multiple refreshes
@@ -71,30 +93,49 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
       // Clean up Typeform resources using our specialized resource manager
       resourceManager.cleanupTypeformResources(formId);
       
-      // Generate a new container ID to force React to completely remount the component
-      const newContainerId = useId();
+      // Clean up global DOM elements related to Typeform
+      const typeformElements = document.querySelectorAll('[data-tf-live], [data-tf-widget], [id^="typeform-"], [class^="typeform-"]');
+      typeformElements.forEach(element => {
+        if (element.parentNode) {
+          element.parentNode.removeChild(element);
+        }
+      });
+      
+      // Find and remove Typeform iframes
+      const iframes = document.querySelectorAll('iframe[src*="typeform"]');
+      iframes.forEach(iframe => {
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+      });
+      
+      // Generate a completely new ID to force React to fully remount the component
+      const newContainerId = initialId + "-" + Date.now().toString();
       setContainerId(newContainerId);
       
       // Wait for DOM changes to take effect
       setTimeout(() => {
         try {
-          // Reinitialize after DOM changes
+          // Re-initialize the Typeform
           typeform.initialize();
           console.log(`[TypeformEmbed] Form ${formId} refreshed successfully`);
+          toast.success("Formulario actualizado correctamente");
         } catch (err) {
           console.error(`[TypeformEmbed] Error reinitializing form ${formId}:`, err);
+          toast.error("Error al reinicializar el formulario");
         } finally {
           // Always reset refresh state after a delay
           setTimeout(() => {
             setIsRefreshing(false);
           }, 500);
         }
-      }, 500);
+      }, 800); // Extended delay to ensure DOM is fully updated
     } catch (err) {
       console.error(`[TypeformEmbed] Error during form ${formId} DOM refresh:`, err);
+      toast.error("Error al actualizar el formulario");
       setIsRefreshing(false);
     }
-  }, [typeform, resourceManager, formId, isRefreshing]);
+  }, [typeform, resourceManager, formId, isRefreshing, initialId]);
   
   // Add effect to handle component unmounting
   useEffect(() => {
@@ -125,9 +166,18 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
               Nota: El formulario puede solicitar acceso al micrófono para funcionalidad de voz.
             </span>
           </p>
-          <Button onClick={handleShowTypeform} className="mt-2">
+          <Button 
+            onClick={handleShowTypeform} 
+            className="mt-2"
+            disabled={isAuthenticated !== true}
+          >
             Cargar formulario
           </Button>
+          {isAuthenticated === false && (
+            <p className="mt-2 text-sm text-destructive">
+              Debe iniciar sesión para usar esta funcionalidad.
+            </p>
+          )}
         </div>
       ) : (
         <>
@@ -154,7 +204,8 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
             ref={containerRef} 
             key={containerId} 
             data-tf-live={formId} 
-            className="h-[500px] md:h-[600px]"
+            className="h-[500px] md:h-[600px] bg-background border border-border rounded-md"
+            id={`typeform-container-${containerId}`}
           ></div>
         </>
       )}
