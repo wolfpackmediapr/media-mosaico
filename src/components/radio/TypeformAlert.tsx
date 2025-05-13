@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useTypeform } from "@/hooks/use-typeform";
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 interface TypeformAlertProps {
   isAuthenticated: boolean | null;
@@ -33,6 +33,17 @@ const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
     setShowTypeform(false);
   };
   
+  const handleRefresh = () => {
+    // Clean up typeform
+    typeform.cleanup();
+    
+    // Wait a moment for the DOM to update before re-initializing
+    setTimeout(() => {
+      typeform.initialize();
+      console.log("Typeform refreshed");
+    }, 100);
+  };
+  
   return (
     <div className="mt-8 p-6 bg-muted rounded-lg w-full">
       <h2 className="text-2xl font-bold mb-4">Alerta Radio</h2>
@@ -53,7 +64,16 @@ const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
         </div>
       ) : (
         <>
-          <div className="flex justify-end mb-2">
+          <div className="flex justify-end mb-2 gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleRefresh}
+              aria-label="Reiniciar formulario"
+              title="Reiniciar formulario"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
             <Button 
               variant="outline" 
               size="sm"

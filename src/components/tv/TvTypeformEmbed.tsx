@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useTypeform } from "@/hooks/use-typeform";
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 const TvTypeformEmbed = () => {
   const [showTypeform, setShowTypeform] = useState(false);
@@ -29,6 +29,17 @@ const TvTypeformEmbed = () => {
     setShowTypeform(false);
   };
   
+  const handleRefresh = () => {
+    // Clean up typeform
+    typeform.cleanup();
+    
+    // Wait a moment for the DOM to update before re-initializing
+    setTimeout(() => {
+      typeform.initialize();
+      console.log("TV Typeform refreshed");
+    }, 100);
+  };
+  
   return (
     <div className="mt-8 p-6 bg-muted rounded-lg w-full">
       <h2 className="text-2xl font-bold mb-4">Alerta TV</h2>
@@ -49,7 +60,16 @@ const TvTypeformEmbed = () => {
         </div>
       ) : (
         <>
-          <div className="flex justify-end mb-2">
+          <div className="flex justify-end mb-2 gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleRefresh}
+              aria-label="Reiniciar formulario"
+              title="Reiniciar formulario"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
             <Button 
               variant="outline" 
               size="sm"
