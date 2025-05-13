@@ -10,6 +10,7 @@ interface TypeformAlertProps {
 
 const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
   const [showTypeform, setShowTypeform] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Only initialize Typeform when authenticated AND user has chosen to show it
   // Pass options to disable microphone access by default
@@ -24,7 +25,7 @@ const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
     // Wait a moment for the DOM to update before initializing
     setTimeout(() => {
       typeform.initialize();
-    }, 100);
+    }, 300); // Increased timeout
   };
   
   const handleHideTypeform = () => {
@@ -34,14 +35,28 @@ const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
   };
   
   const handleRefresh = () => {
+    // Prevent multiple refreshes
+    if (isRefreshing) return;
+    
+    setIsRefreshing(true);
+    
     // Clean up typeform
     typeform.cleanup();
     
     // Wait a moment for the DOM to update before re-initializing
     setTimeout(() => {
-      typeform.initialize();
-      console.log("Typeform refreshed");
-    }, 100);
+      try {
+        typeform.initialize();
+        console.log("Typeform refreshed successfully");
+      } catch (err) {
+        console.error("Error refreshing Typeform:", err);
+      } finally {
+        // Always reset refreshing state
+        setTimeout(() => {
+          setIsRefreshing(false);
+        }, 500);
+      }
+    }, 500); // Increased timeout to 500ms to give DOM more time to update
   };
   
   return (
@@ -69,10 +84,11 @@ const TypeformAlert = ({ isAuthenticated }: TypeformAlertProps) => {
               variant="outline" 
               size="sm"
               onClick={handleRefresh}
+              disabled={isRefreshing}
               aria-label="Reiniciar formulario"
               title="Reiniciar formulario"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
             <Button 
               variant="outline" 

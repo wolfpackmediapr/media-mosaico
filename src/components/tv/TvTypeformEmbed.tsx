@@ -6,6 +6,7 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 
 const TvTypeformEmbed = () => {
   const [showTypeform, setShowTypeform] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Only initialize Typeform when user has chosen to show it
   // Pass options to disable microphone access by default
@@ -20,7 +21,7 @@ const TvTypeformEmbed = () => {
     // Wait a moment for the DOM to update before initializing
     setTimeout(() => {
       typeform.initialize();
-    }, 100);
+    }, 300); // Increased timeout
   };
   
   const handleHideTypeform = () => {
@@ -30,14 +31,28 @@ const TvTypeformEmbed = () => {
   };
   
   const handleRefresh = () => {
+    // Prevent multiple refreshes
+    if (isRefreshing) return;
+    
+    setIsRefreshing(true);
+    
     // Clean up typeform
     typeform.cleanup();
     
     // Wait a moment for the DOM to update before re-initializing
     setTimeout(() => {
-      typeform.initialize();
-      console.log("TV Typeform refreshed");
-    }, 100);
+      try {
+        typeform.initialize();
+        console.log("TV Typeform refreshed successfully");
+      } catch (err) {
+        console.error("Error refreshing TV Typeform:", err);
+      } finally {
+        // Always reset refreshing state
+        setTimeout(() => {
+          setIsRefreshing(false);
+        }, 500);
+      }
+    }, 500); // Increased timeout to 500ms to give DOM more time to update
   };
   
   return (
@@ -65,10 +80,11 @@ const TvTypeformEmbed = () => {
               variant="outline" 
               size="sm"
               onClick={handleRefresh}
+              disabled={isRefreshing}
               aria-label="Reiniciar formulario"
               title="Reiniciar formulario"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
             <Button 
               variant="outline" 

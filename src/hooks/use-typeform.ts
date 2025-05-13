@@ -1,5 +1,5 @@
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface TypeformOptions {
   disableMicrophone?: boolean;
@@ -7,10 +7,16 @@ interface TypeformOptions {
   lazy?: boolean; // Allow lazy loading to prevent immediate initialization
 }
 
+// Maximum number of retry attempts when initializing Typeform
+const MAX_RETRIES = 3;
+const INITIAL_TIMEOUT = 300; // Increased from 100ms to 300ms
+
 export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => {
   const typeformScriptRef = useRef<HTMLScriptElement | null>(null);
   const typeformInitializedRef = useRef<boolean>(false);
   const typeformWidgetRef = useRef<any>(null);
+  const [isScriptLoading, setIsScriptLoading] = useState<boolean>(false);
+  const [retryAttempts, setRetryAttempts] = useState<number>(0);
   
   // Default options with safe defaults
   const {
@@ -19,72 +25,129 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
     lazy = false
   } = options;
 
+  // Helper function to check if Typeform script is ready
+  const isTypeformScriptReady = (): boolean => {
+    return !!(window.tf && typeof window.tf.createWidget === 'function');
+  };
+
   useEffect(() => {
     // Only proceed if explicitly enabled
     if (!enabled) return;
     
     // Create and load the script if it doesn't exist yet
-    if (!typeformScriptRef.current) {
+    if (!typeformScriptRef.current && !isScriptLoading) {
       console.log("Initializing Typeform script");
+      setIsScriptLoading(true);
+      
       const script = document.createElement('script');
       script.src = "//embed.typeform.com/next/embed.js";
       script.async = true;
       script.defer = true; // Add defer to prevent blocking page rendering
-      document.body.appendChild(script);
-      typeformScriptRef.current = script;
       
       script.onload = () => {
         console.log("Typeform script loaded successfully");
+        setIsScriptLoading(false);
         if (!lazy) {
-          initializeTypeform();
+          setTimeout(() => {
+            initializeTypeform();
+          }, INITIAL_TIMEOUT); // Increased timeout for script initialization
         }
       };
       
       script.onerror = () => {
         console.error("Failed to load Typeform script");
+        setIsScriptLoading(false);
       };
-    } else if (enabled && !typeformInitializedRef.current) {
+      
+      document.body.appendChild(script);
+      typeformScriptRef.current = script;
+    } else if (enabled && !typeformInitializedRef.current && !isScriptLoading) {
       // If script exists but typeform not initialized yet, initialize it
-      initializeTypeform();
+      setTimeout(() => {
+        initializeTypeform();
+      }, INITIAL_TIMEOUT);
     }
 
     function initializeTypeform() {
-      if (window.tf && typeof window.tf.createWidget === 'function') {
+      // Check if the typeform API is available
+      if (isTypeformScriptReady()) {
         console.log("Creating Typeform widget");
         
-        // Find all typeform widgets and initialize them
-        setTimeout(() => {
-          if (window.tf && window.tf.createWidget) {
-            // Close any existing widgets to prevent duplicates
-            if (typeformWidgetRef.current && typeof typeformWidgetRef.current.cleanup === 'function') {
+        try {
+          // Wait a moment for DOM to be fully ready
+          setTimeout(() => {
+            // Check again right before creating widget
+            if (isTypeformScriptReady()) {
+              // Close any existing widgets to prevent duplicates
+              if (typeformWidgetRef.current && typeof typeformWidgetRef.current.cleanup === 'function') {
+                try {
+                  typeformWidgetRef.current.cleanup();
+                  typeformWidgetRef.current = null;
+                } catch (err) {
+                  console.warn("Error cleaning up previous Typeform widget:", err);
+                }
+              }
+              
+              // Create widget with options
               try {
-                typeformWidgetRef.current.cleanup();
+                typeformWidgetRef.current = window.tf.createWidget();
+                
+                // Configure widget with options if needed
+                if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
+                  typeformWidgetRef.current.options({
+                    disableKeyboardShortcuts: !keyboardShortcuts,
+                    disableAutoFocus: false, // Allow auto-focus for better accessibility
+                    enableSandbox: true, // Use sandbox mode for added security
+                    disableMicrophone: disableMicrophone, // Use option to control microphone access
+                    disableTracking: true, // Disable tracking for privacy
+                  });
+                }
+                
+                typeformInitializedRef.current = true;
+                console.log("Typeform widget initialized with options:", { 
+                  disableMicrophone, 
+                  keyboardShortcuts 
+                });
               } catch (err) {
-                console.warn("Error cleaning up previous Typeform widget:", err);
+                console.error("Error creating Typeform widget:", err);
+                // Reset initialization state to allow retry
+                typeformInitializedRef.current = false;
+                
+                // Retry initialization with backoff if under max attempts
+                if (retryAttempts < MAX_RETRIES) {
+                  const nextAttempt = retryAttempts + 1;
+                  setRetryAttempts(nextAttempt);
+                  
+                  // Exponential backoff
+                  const retryDelay = INITIAL_TIMEOUT * Math.pow(2, nextAttempt);
+                  console.log(`Retrying Typeform initialization in ${retryDelay}ms (attempt ${nextAttempt}/${MAX_RETRIES})`);
+                  
+                  setTimeout(() => {
+                    initializeTypeform();
+                  }, retryDelay);
+                }
+              }
+            } else {
+              console.warn("Typeform API not ready yet, waiting...");
+              // If script is loaded but API not ready, retry with backoff
+              if (retryAttempts < MAX_RETRIES) {
+                const nextAttempt = retryAttempts + 1;
+                setRetryAttempts(nextAttempt);
+                
+                // Exponential backoff
+                const retryDelay = INITIAL_TIMEOUT * Math.pow(2, nextAttempt);
+                console.log(`Waiting for Typeform API to be ready, retry in ${retryDelay}ms (attempt ${nextAttempt}/${MAX_RETRIES})`);
+                
+                setTimeout(() => {
+                  initializeTypeform();
+                }, retryDelay);
               }
             }
-            
-            // Create widget with options
-            typeformWidgetRef.current = window.tf.createWidget();
-            
-            // Configure widget with options if needed
-            if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
-              typeformWidgetRef.current.options({
-                disableKeyboardShortcuts: !keyboardShortcuts,
-                disableAutoFocus: false, // Allow auto-focus for better accessibility
-                enableSandbox: true, // Use sandbox mode for added security
-                disableMicrophone: disableMicrophone, // Use option to control microphone access
-                disableTracking: true, // Disable tracking for privacy
-              });
-            }
-            
-            typeformInitializedRef.current = true;
-            console.log("Typeform widget initialized with options:", { 
-              disableMicrophone, 
-              keyboardShortcuts 
-            });
-          }
-        }, 100);
+          }, INITIAL_TIMEOUT);
+        } catch (err) {
+          console.error("Unexpected error during Typeform initialization:", err);
+          typeformInitializedRef.current = false;
+        }
       }
     }
 
@@ -107,35 +170,63 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
         typeformInitializedRef.current = false;
       }
     };
-  }, [enabled, disableMicrophone, keyboardShortcuts, lazy]);
+  }, [enabled, disableMicrophone, keyboardShortcuts, lazy, retryAttempts, isScriptLoading]);
 
   // Return functions to explicitly initialize or cleanup
   return {
     initialize: () => {
-      if (window.tf && typeof window.tf.createWidget === 'function' && !typeformInitializedRef.current) {
-        if (typeformWidgetRef.current && typeof typeformWidgetRef.current.cleanup === 'function') {
-          try {
-            typeformWidgetRef.current.cleanup();
-          } catch (err) {
-            console.warn("Error cleaning up previous Typeform widget:", err);
+      // Reset retry count when manually initializing
+      setRetryAttempts(0);
+      
+      if (!isTypeformScriptReady()) {
+        console.warn("Typeform script not ready yet. Waiting for script to load before initializing.");
+        
+        // If the script isn't ready yet, wait a moment and check again
+        setTimeout(() => {
+          if (isTypeformScriptReady()) {
+            safeInitialize();
+          } else {
+            console.error("Typeform script still not ready after waiting. Please try refreshing the page.");
           }
+        }, INITIAL_TIMEOUT * 2);
+      } else {
+        safeInitialize();
+      }
+      
+      function safeInitialize() {
+        try {
+          // Clean up any existing instance first
+          if (typeformWidgetRef.current && typeof typeformWidgetRef.current.cleanup === 'function') {
+            try {
+              typeformWidgetRef.current.cleanup();
+            } catch (err) {
+              console.warn("Error cleaning up previous Typeform widget:", err);
+            }
+          }
+          
+          // Create widget first
+          if (isTypeformScriptReady()) {
+            typeformWidgetRef.current = window.tf.createWidget();
+            
+            // Then configure it with options
+            if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
+              typeformWidgetRef.current.options({
+                disableKeyboardShortcuts: !keyboardShortcuts,
+                disableMicrophone: disableMicrophone,
+                disableTracking: true,
+                enableSandbox: true
+              });
+            }
+            
+            typeformInitializedRef.current = true;
+            console.log("Typeform widget manually initialized");
+          } else {
+            console.error("Cannot initialize Typeform widget: window.tf.createWidget is not available");
+          }
+        } catch (err) {
+          console.error("Error during manual Typeform initialization:", err);
+          typeformInitializedRef.current = false;
         }
-        
-        // Create widget first
-        typeformWidgetRef.current = window.tf.createWidget();
-        
-        // Then configure it with options
-        if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
-          typeformWidgetRef.current.options({
-            disableKeyboardShortcuts: !keyboardShortcuts,
-            disableMicrophone: disableMicrophone,
-            disableTracking: true,
-            enableSandbox: true
-          });
-        }
-        
-        typeformInitializedRef.current = true;
-        console.log("Typeform widget manually initialized");
       }
     },
     cleanup: () => {
@@ -150,6 +241,7 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
         }
       }
     },
-    isInitialized: typeformInitializedRef.current
+    isInitialized: typeformInitializedRef.current,
+    isLoading: isScriptLoading
   };
 };
