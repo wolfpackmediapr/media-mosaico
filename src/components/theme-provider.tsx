@@ -35,7 +35,7 @@ export function ThemeProvider({
     }
   }, []);
 
-  const value = {
+  const value: ThemeProviderState = {
     theme: "light",
     setTheme: () => {
       // Do nothing - we only support light mode now
