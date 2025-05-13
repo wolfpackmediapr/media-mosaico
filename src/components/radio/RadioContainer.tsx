@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useRadioContainerState } from "@/hooks/radio/useRadioContainerState";
 import RadioLayout from "./RadioLayout";
@@ -60,7 +59,7 @@ const RadioContainer = ({
     setFiles: state.setFiles,
     setNewsSegments: state.setNewsSegments,
     setTranscriptionText: state.setTranscriptionText,
-    resetTranscription: state.resetTranscription, // Add reset function
+    resetTranscription: state.resetTranscription,
   });
 
   // Add notepad state
@@ -108,7 +107,7 @@ const RadioContainer = ({
         state.resetTranscription();
       }
     }
-  }, [state.lastAction, resetNotepadContent]);
+  }, [state.lastAction, state.setTranscriptionText, state.setNewsSegments, resetNotepadContent, state.resetTranscription]);
 
   // Ensure volume is always in array format for components that expect it
   const volumeArray = Array.isArray(state.volume) ? state.volume : [state.volume * 100];

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 
 interface ClearAllButtonProps {
-  onClearAll: () => void;
+  onClearAll: () => Promise<boolean>;
   clearingProgress?: number;
   clearingStage?: string;
 }
@@ -27,20 +27,33 @@ const ClearAllButton: React.FC<ClearAllButtonProps> = ({
     try {
       setIsClearing(true);
       console.log("[ClearAllButton] Starting clear all operation");
-      await onClearAll();
-      setOpen(false);
-      toast.success("Se han borrado todos los archivos y transcripciones");
-      console.log("[ClearAllButton] Clear all completed successfully");
+      
+      // Always await the promise resolution, whether it resolves to true or false
+      const success = await onClearAll();
+      
+      if (success) {
+        toast.success("Se han borrado todos los archivos y transcripciones");
+        console.log("[ClearAllButton] Clear all completed successfully");
+      } else {
+        console.warn("[ClearAllButton] Clear all completed but returned false");
+        toast.warning("Algunos elementos no se pudieron borrar completamente");
+      }
+      
     } catch (error) {
       console.error("[ClearAllButton] Error clearing state:", error);
       toast.error("No se pudieron borrar todos los elementos");
     } finally {
       setIsClearing(false);
+      setOpen(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      // Don't allow closing the dialog while clearing is in progress
+      if (isClearing && newOpen === false) return;
+      setOpen(newOpen);
+    }}>
       <DialogTrigger asChild>
         <Button
           variant="destructive"
@@ -67,7 +80,7 @@ const ClearAllButton: React.FC<ClearAllButtonProps> = ({
         {showProgress && (
           <div className="space-y-2">
             <Progress value={clearingProgress} className="h-2" />
-            <p className="text-sm text-muted-foreground">{clearingStage}</p>
+            <p className="text-sm text-muted-foreground">{clearingStage || "Limpiando..."}</p>
           </div>
         )}
         

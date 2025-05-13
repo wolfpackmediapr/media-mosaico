@@ -17,7 +17,11 @@ export const useClearRadioState = ({
   const editorResetRef = useRef<null | (() => void)>(null);
   const mountedRef = useRef(true);
   
-  const { clearStorageKeys, isClearing } = useSafeStorage({
+  const { 
+    clearStorageKeys, 
+    isClearing, 
+    getRemainingKeys 
+  } = useSafeStorage({
     storage: 'sessionStorage',
     onError: (error) => {
       console.error('[useClearRadioState] Storage error:', error);
@@ -32,14 +36,13 @@ export const useClearRadioState = ({
     clearAnalysisRef.current = fn;
   }, []);
 
-  const clearAllState = useCallback(async () => {
-    if (!mountedRef.current) return;
-
-    console.log('[useClearRadioState] Clearing all state');
-    
+  // Function to generate all possible key patterns for cleaning
+  const getAllPossibleKeys = useCallback((baseKey: string, id?: string): string[] => {
     const keysToDelete = [
-      `${persistKey}-metadata`,
-      `${persistKey}-current-index`,
+      `${baseKey}-metadata`,
+      `${baseKey}-current-index`,
+      `${baseKey}-text-content`,
+      `${baseKey}-notepad`,
       "radio-transcription",
       "radio-transcription-draft",
       "radio-content-analysis-draft",
@@ -48,46 +51,87 @@ export const useClearRadioState = ({
       "transcription-timestamp-view-draft",
       "transcription-editor-mode-draft",
       "transcription-view-mode-draft",
-      `${persistKey}-text-content`,
       "radio-transcription-text-content"
     ];
 
-    if (transcriptionId) {
+    if (id) {
       keysToDelete.push(
-        `radio-transcription-${transcriptionId}`,
-        `radio-transcription-speaker-${transcriptionId}`,
-        `transcription-timestamp-view-${transcriptionId}`,
-        `transcription-editor-mode-${transcriptionId}`,
-        `radio-content-analysis-${transcriptionId}`,
-        `radio-transcription-text-content-${transcriptionId}`,
-        `transcription-view-mode-${transcriptionId}`
+        `radio-transcription-${id}`,
+        `radio-transcription-speaker-${id}`,
+        `transcription-timestamp-view-${id}`,
+        `transcription-editor-mode-${id}`,
+        `radio-content-analysis-${id}`,
+        `radio-transcription-text-content-${id}`,
+        `transcription-view-mode-${id}`
       );
     }
 
-    const success = await clearStorageKeys(keysToDelete);
+    return keysToDelete;
+  }, []);
 
-    if (success) {
-      if (clearAnalysisRef.current) {
-        try {
-          clearAnalysisRef.current();
-        } catch (error) {
-          console.error('[useClearRadioState] Error clearing analysis state:', error);
-        }
-      }
+  // Enhanced clear function with better error handling
+  const clearAllState = useCallback(async (): Promise<boolean> => {
+    if (!mountedRef.current) return false;
 
+    console.log('[useClearRadioState] Starting state clearing process');
+    
+    // First collect all keys that need to be deleted
+    const keysToDelete = getAllPossibleKeys(persistKey, transcriptionId);
+    
+    // Attempt to clear storage
+    const storageSuccess = await clearStorageKeys(keysToDelete);
+
+    // Call reset handlers regardless of storage operation success
+    let resetSuccess = true;
+    
+    try {
+      // Reset the editor if we have a handler
       if (editorResetRef.current) {
+        console.log('[useClearRadioState] Calling editor reset function');
         try {
           editorResetRef.current();
         } catch (error) {
           console.error('[useClearRadioState] Error in editor reset:', error);
+          resetSuccess = false;
         }
       }
-
-      if (onTextChange) {
-        onTextChange("");
+      
+      // Reset analysis if we have a handler
+      if (clearAnalysisRef.current) {
+        console.log('[useClearRadioState] Calling analysis reset function');
+        try {
+          clearAnalysisRef.current();
+        } catch (error) {
+          console.error('[useClearRadioState] Error in analysis reset:', error);
+          resetSuccess = false;
+        }
       }
+      
+      // Reset text content via callback if provided
+      if (onTextChange) {
+        console.log('[useClearRadioState] Calling onTextChange with empty string');
+        try {
+          onTextChange("");
+        } catch (error) {
+          console.error('[useClearRadioState] Error in onTextChange callback:', error);
+          resetSuccess = false;
+        }
+      }
+    } catch (error) {
+      console.error('[useClearRadioState] Unexpected error during reset handlers:', error);
+      resetSuccess = false;
     }
-  }, [persistKey, transcriptionId, onTextChange, clearStorageKeys]);
+
+    // Force cleanup any remaining keys as a last resort
+    const remainingKeys = getRemainingKeys(persistKey);
+    if (remainingKeys.length > 0) {
+      console.warn(`[useClearRadioState] Found ${remainingKeys.length} remaining keys with prefix ${persistKey}, attempting to clear`);
+      await clearStorageKeys(remainingKeys);
+    }
+
+    console.log('[useClearRadioState] Clear completed with storage success:', storageSuccess, 'and reset success:', resetSuccess);
+    return storageSuccess && resetSuccess;
+  }, [persistKey, transcriptionId, onTextChange, clearStorageKeys, getRemainingKeys, getAllPossibleKeys]);
 
   useEffect(() => {
     return () => {

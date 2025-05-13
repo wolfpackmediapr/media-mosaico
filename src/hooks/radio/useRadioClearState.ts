@@ -1,17 +1,17 @@
-
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { useSafeStorage } from '../use-safe-storage';
 import { useClearRadioState } from './useClearRadioState';
+import { UploadedFile } from '@/components/radio/types';
 
 interface UseRadioClearStateOptions {
   transcriptionId?: string;
   persistKey?: string;
   onTextChange?: (text: string) => void;
-  files?: any[];
-  setFiles?: React.Dispatch<React.SetStateAction<any[]>>;
+  files?: UploadedFile[];
+  setFiles?: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
   setNewsSegments?: React.Dispatch<React.SetStateAction<any[]>>;
   setTranscriptionText?: React.Dispatch<React.SetStateAction<string>>;
-  resetTranscription?: () => void; // Add reset function from useRadioTranscription
+  resetTranscription?: () => void;
 }
 
 export const useRadioClearState = ({
@@ -22,12 +22,12 @@ export const useRadioClearState = ({
   setFiles,
   setNewsSegments,
   setTranscriptionText,
-  resetTranscription, // Add reset function
+  resetTranscription,
 }: UseRadioClearStateOptions = {}) => {
   const [clearingProgress, setClearingProgress] = useState(0);
   const [clearingStage, setClearingStage] = useState<string>('');
-  const editorResetFnRef = useRef<(() => void) | null>(null);
-  const analysisResetFnRef = useRef<(() => void) | null>(null);
+  const cancelTokenRef = useRef<boolean>(false);
+  const mountedRef = useRef(true);
   
   // Use the base clear state hook
   const {
@@ -41,146 +41,145 @@ export const useRadioClearState = ({
     onTextChange
   });
 
-  // Register the editor reset function
-  const handleRegisterEditorReset = useCallback((resetFn: () => void) => {
-    editorResetFnRef.current = resetFn;
-    // Also register with the base hook
-    handleEditorRegisterReset(resetFn);
-  }, [handleEditorRegisterReset]);
-  
-  // Register the analysis reset function
-  const handleRegisterAnalysisReset = useCallback((resetFn: () => void) => {
-    analysisResetFnRef.current = resetFn;
-    // Also register with the base hook
-    setClearAnalysis(resetFn);
-  }, [setClearAnalysis]);
-
   // Force clear all session storage keys related to radio
-  const forceClearAllSessionStorageKeys = useCallback(() => {
-    const keysToDelete = [];
-    
-    // Find and collect all radio-related keys from session storage
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && (
-          key.startsWith('radio-') || 
-          key.startsWith(`${persistKey}`) || 
-          key.includes('transcription') ||
-          key.includes('speaker')
-      )) {
-        keysToDelete.push(key);
+  const forceClearAllSessionStorageKeys = useCallback((): boolean => {
+    try {
+      const keysToDelete: string[] = [];
+      
+      // Find and collect all radio-related keys from session storage
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && (
+            key.startsWith('radio-') || 
+            key.startsWith(`${persistKey}`) || 
+            key.includes('transcription') ||
+            key.includes('speaker')
+        )) {
+          keysToDelete.push(key);
+        }
       }
+      
+      console.log(`[useRadioClearState] Found ${keysToDelete.length} keys to force remove`);
+      
+      // Delete all found keys
+      keysToDelete.forEach(key => {
+        try {
+          console.log(`[useRadioClearState] Forcing removal of session storage key: ${key}`);
+          sessionStorage.removeItem(key);
+        } catch (e) {
+          console.error(`[useRadioClearState] Error removing key ${key}:`, e);
+        }
+      });
+      
+      return keysToDelete.length > 0;
+    } catch (e) {
+      console.error('[useRadioClearState] Error in forceClearAllSessionStorageKeys:', e);
+      return false;
     }
-    
-    // Delete all found keys
-    keysToDelete.forEach(key => {
-      try {
-        console.log(`[useRadioClearState] Forcing removal of session storage key: ${key}`);
-        sessionStorage.removeItem(key);
-      } catch (e) {
-        console.error(`[useRadioClearState] Error removing key ${key}:`, e);
-      }
-    });
-    
-    return keysToDelete.length > 0;
   }, [persistKey]);
 
-  // Enhanced clear all function with progress reporting
-  const handleClearAll = useCallback(async () => {
-    if (isClearing) return;
+  // Clean up blob URLs to prevent memory leaks
+  const cleanupBlobUrls = useCallback((filesToCleanup: UploadedFile[]): void => {
+    if (!filesToCleanup || filesToCleanup.length === 0) return;
     
-    console.log('[RadioClearState] handleClearAll: Starting clear sequence');
+    console.log(`[useRadioClearState] Cleaning up ${filesToCleanup.length} blob URLs`);
+    
+    filesToCleanup.forEach(file => {
+      if (file && 'preview' in file && file.preview && typeof file.preview === 'string') {
+        try {
+          URL.revokeObjectURL(file.preview);
+          console.log(`[useRadioClearState] Revoked blob URL: ${file.preview}`);
+        } catch (e) {
+          console.error(`[useRadioClearState] Failed to revoke blob URL:`, e);
+        }
+      }
+    });
+  }, []);
+
+  // Enhanced clear all function with detailed progress reporting
+  const handleClearAll = useCallback(async (): Promise<boolean> => {
+    if (isClearing) {
+      console.warn('[useRadioClearState] Clear operation already in progress');
+      return false;
+    }
+    
+    console.log('[useRadioClearState] Starting clear sequence');
+    cancelTokenRef.current = false;
     
     setClearingProgress(5);
     setClearingStage('Iniciando limpieza');
     
-    // Step 1: Call reset functions directly
-    setClearingProgress(10);
-    setClearingStage('Limpiando componentes');
-    
-    // Call resetTranscription if available (resets all transcription state)
-    if (resetTranscription) {
-      resetTranscription();
-      console.log('[RadioClearState] Called resetTranscription');
-    }
-    
-    // Reset editor content if available
-    if (editorResetFnRef.current) {
-      try {
-        editorResetFnRef.current();
-        console.log('[RadioClearState] Called editor reset function');
-      } catch (err) {
-        console.error('[RadioClearState] Editor reset error:', err);
-      }
-    }
-    
-    // Reset analysis content if available
-    if (analysisResetFnRef.current) {
-      try {
-        analysisResetFnRef.current();
-        console.log('[RadioClearState] Called analysis reset function');
-      } catch (err) {
-        console.error('[RadioClearState] Analysis reset error:', err);
-      }
-    }
-    
-    // Step 2: Reset UI state directly through setters
-    setClearingProgress(30);
-    setClearingStage('Limpiando interfaz');
-    
-    // Clear news segments
-    if (setNewsSegments) {
-      setNewsSegments([]);
-      console.log('[RadioClearState] News segments cleared');
-    }
-    
-    // Reset transcription text
-    setClearingStage('Reiniciando transcripción');
-    if (setTranscriptionText) {
-      setTranscriptionText('');
-      console.log('[RadioClearState] Transcription text reset');
-    }
-    
-    if (onTextChange) {
-      onTextChange('');
-      console.log('[RadioClearState] Text change callback called with empty string');
-    }
-    
-    // Step 3: Reset files
-    setClearingProgress(50);
-    setClearingStage('Limpiando archivos');
-    if (setFiles) {
+    try {
+      // Step 1: Reset in-memory state first
+      setClearingProgress(10);
+      setClearingStage('Limpiando componentes');
+      
       // Keep reference to files for cleanup
       const filesToCleanup = [...files];
       
-      // Clear files from state
-      setFiles([]);
+      // Reset UI state in this specific order for best results
+      if (setTranscriptionText) {
+        setTranscriptionText('');
+        console.log('[useRadioClearState] Transcription text reset');
+      }
       
-      // Clean up blob URLs
-      filesToCleanup.forEach(file => {
-        if ('preview' in file && file.preview && typeof file.preview === 'string') {
-          try {
-            URL.revokeObjectURL(file.preview);
-          } catch (e) {
-            // Ignore revocation errors
-          }
+      if (setNewsSegments) {
+        setNewsSegments([]);
+        console.log('[useRadioClearState] News segments cleared');
+      }
+      
+      // Clear files and reset index
+      if (setFiles) {
+        setFiles([]);
+        console.log('[useRadioClearState] Files state cleared');
+      }
+      
+      if (cancelTokenRef.current) return false;
+      
+      // Step 2: Call reset functions directly
+      setClearingProgress(30);
+      setClearingStage('Reiniciando sistema');
+      
+      // Call resetTranscription if available (resets all transcription state)
+      if (resetTranscription) {
+        try {
+          resetTranscription();
+          console.log('[useRadioClearState] Transcription reset complete');
+        } catch (err) {
+          console.error('[useRadioClearState] Error during resetTranscription:', err);
         }
-      });
-      console.log('[RadioClearState] Files cleared');
-    }
-    
-    // Step 4: Clear all session storage
-    setClearingProgress(70);
-    setClearingStage('Limpiando almacenamiento');
-    
-    try {
-      // First try the normal way
-      await clearAllState();
-      console.log('[RadioClearState] Storage cleared via clearAllState');
+      }
       
-      // Force clear all session storage as a backup measure
-      forceClearAllSessionStorageKeys();
-      console.log('[RadioClearState] Storage cleared by direct force');
+      if (cancelTokenRef.current) return false;
+      setClearingProgress(50);
+      
+      // Step 3: Clean up blob URLs
+      setClearingStage('Limpiando recursos');
+      cleanupBlobUrls(filesToCleanup);
+      
+      if (cancelTokenRef.current) return false;
+      setClearingProgress(70);
+      
+      // Step 4: Clear all session storage
+      setClearingStage('Limpiando almacenamiento');
+      
+      try {
+        // First try the normal way
+        const clearSuccess = await clearAllState();
+        console.log('[useRadioClearState] Storage cleared via clearAllState:', clearSuccess);
+        
+        if (!clearSuccess || cancelTokenRef.current) {
+          // Force clear as a backup if primary clear failed
+          forceClearAllSessionStorageKeys();
+          console.log('[useRadioClearState] Forced clear completed as fallback');
+        }
+      } catch (error) {
+        console.error('[useRadioClearState] Error during storage clearing:', error);
+        
+        // Try force clearing as a fallback
+        forceClearAllSessionStorageKeys();
+        console.log('[useRadioClearState] Forced clear executed after error');
+      }
       
       // Set progress to complete
       setClearingProgress(100);
@@ -188,38 +187,48 @@ export const useRadioClearState = ({
       
       // Wait a bit before resetting progress indicators
       setTimeout(() => {
-        setClearingProgress(0);
-        setClearingStage('');
+        if (mountedRef.current) {
+          setClearingProgress(0);
+          setClearingStage('');
+        }
       }, 700);
       
       return true;
     } catch (error) {
-      console.error('[RadioClearState] Error clearing state:', error);
+      console.error('[useRadioClearState] Critical error during clear operation:', error);
       
-      // Try force clearing as a fallback
+      // Try force clearing as a last resort
       const forcedClear = forceClearAllSessionStorageKeys();
-      console.log('[RadioClearState] Forced clear successful:', forcedClear);
+      console.log('[useRadioClearState] Last resort forced clear executed:', forcedClear);
       
       setClearingProgress(0);
-      setClearingStage(forcedClear ? 'Completado' : 'Error');
-      return forcedClear;
+      setClearingStage(forcedClear ? 'Completado con errores' : 'Error');
+      return false;
     }
   }, [
-    isClearing, 
-    clearAllState, 
+    isClearing,
+    clearAllState,
     resetTranscription,
-    setNewsSegments, 
-    setTranscriptionText, 
-    onTextChange, 
-    setFiles, 
+    setNewsSegments,
+    setTranscriptionText,
+    setFiles,
     files,
+    cleanupBlobUrls,
     forceClearAllSessionStorageKeys
   ]);
   
+  // Keep track of mounted state for cleanup
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      cancelTokenRef.current = true;
+    };
+  }, []);
+
   return {
     handleClearAll,
-    handleEditorRegisterReset: handleRegisterEditorReset,
-    setClearAnalysis: handleRegisterAnalysisReset,
+    handleEditorRegisterReset,
+    setClearAnalysis,
     isClearing,
     clearingProgress,
     clearingStage

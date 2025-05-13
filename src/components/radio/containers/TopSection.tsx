@@ -4,7 +4,7 @@ import ClearAllButton from "../ClearAllButton";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 interface TopSectionProps {
-  handleClearAll: () => void;
+  handleClearAll: () => Promise<boolean>;
   files: File[];
   transcriptionText: string;
   clearingProgress?: number;
