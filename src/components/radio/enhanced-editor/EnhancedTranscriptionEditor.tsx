@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { FormattingToolbar } from './FormattingToolbar';
 import { SpeakerSegment } from './SpeakerSegment';
@@ -18,32 +18,38 @@ interface EnhancedTranscriptionEditorProps {
   currentTime?: number;
 }
 
-export const EnhancedTranscriptionEditor = ({
+export const EnhancedTranscriptionEditor: React.FC<EnhancedTranscriptionEditorProps> = ({
   transcriptionResult,
   transcriptionText,
   isProcessing,
   onTranscriptionChange,
   onTimestampClick,
   currentTime = 0
-}: EnhancedTranscriptionEditorProps) => {
-  // Initialize all state hooks at the top level, never conditionally
+}) => {
+  // Initialize all state hooks at the top level
   const [utterances, setUtterances] = useState<UtteranceTimestamp[]>([]);
   const [activeSegmentIndex, setActiveSegmentIndex] = useState<number>(-1);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editableText, setEditableText] = useState('');
 
+  // Memoize utterances to prevent unnecessary re-renders
+  const hasUtterances = useMemo(() => 
+    transcriptionResult?.utterances && 
+    transcriptionResult.utterances.length > 0, 
+  [transcriptionResult?.utterances]);
+
   // Process utterances when transcription result changes
   useEffect(() => {
-    if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
-      setUtterances(transcriptionResult.utterances);
+    if (hasUtterances) {
+      setUtterances(transcriptionResult!.utterances!);
       
       // Format the text with speaker labels if not already formatted
-      const formattedText = formatSpeakerText(transcriptionResult.utterances);
+      const formattedText = formatSpeakerText(transcriptionResult!.utterances!);
       if (formattedText && (!transcriptionText || transcriptionText !== formattedText)) {
         onTranscriptionChange(formattedText);
       }
     }
-  }, [transcriptionResult?.utterances, onTranscriptionChange, transcriptionText]);
+  }, [hasUtterances, onTranscriptionChange, transcriptionResult, transcriptionText]);
 
   // Initialize editable text when transcription text changes
   useEffect(() => {
@@ -110,7 +116,67 @@ export const EnhancedTranscriptionEditor = ({
     }
   };
 
-  // Note: Always render something, don't have conditional returns that might skip hooks
+  const handleTimestampClick = (timestamp: number) => {
+    if (onTimestampClick) {
+      onTimestampClick(timestamp);
+    }
+  };
+
+  // Render appropriate content based on state
+  const renderContent = () => {
+    if (isProcessing) {
+      return (
+        <div className="flex items-center justify-center p-6 h-[300px]">
+          <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+          <p className="text-muted-foreground">Procesando transcripción...</p>
+        </div>
+      );
+    }
+
+    if (isEditMode || (!utterances.length && transcriptionText)) {
+      return (
+        <Textarea
+          value={editableText}
+          onChange={handleTextChange}
+          placeholder="Aquí aparecerá el texto transcrito..."
+          className="min-h-[300px] resize-y"
+        />
+      );
+    }
+
+    if (utterances.length > 0) {
+      return (
+        <ScrollArea className="h-[400px]">
+          {utterances.map((utterance, index) => (
+            <SpeakerSegment
+              key={`${utterance.speaker}-${utterance.start}-${index}`}
+              speaker={utterance.speaker}
+              text={utterance.text}
+              timestamp={utterance.start}
+              isActive={index === activeSegmentIndex}
+              onTimestampClick={() => handleTimestampClick(utterance.start)}
+            />
+          ))}
+        </ScrollArea>
+      );
+    }
+
+    return (
+      <div className="text-center text-muted-foreground p-6 min-h-[300px] flex items-center justify-center">
+        {transcriptionText ? (
+          <Textarea
+            value={transcriptionText}
+            onChange={handleTextChange}
+            placeholder="Aquí aparecerá el texto transcrito..."
+            className="min-h-[300px] resize-y"
+          />
+        ) : (
+          "No hay transcripción disponible"
+        )}
+      </div>
+    );
+  };
+
   return (
     <Card className="w-full">
       <FormattingToolbar
@@ -121,48 +187,7 @@ export const EnhancedTranscriptionEditor = ({
         isEditMode={isEditMode}
       />
       <CardContent className="p-4">
-        {isProcessing ? (
-          <div className="flex items-center justify-center p-6 h-[300px]">
-            <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
-            <p className="text-muted-foreground">Procesando transcripción...</p>
-          </div>
-        ) : isEditMode || (!utterances.length && transcriptionText) ? (
-          // Edit mode or when we only have plain text without utterances
-          <Textarea
-            value={editableText}
-            onChange={handleTextChange}
-            placeholder="Aquí aparecerá el texto transcrito..."
-            className="min-h-[300px] resize-y"
-          />
-        ) : utterances.length > 0 ? (
-          // Display mode with speaker segments
-          <ScrollArea className="h-[400px]">
-            {utterances.map((utterance, index) => (
-              <SpeakerSegment
-                key={`${utterance.speaker}-${utterance.start}`}
-                speaker={utterance.speaker}
-                text={utterance.text}
-                timestamp={utterance.start}
-                isActive={index === activeSegmentIndex}
-                onTimestampClick={() => onTimestampClick?.(utterance.start)}
-              />
-            ))}
-          </ScrollArea>
-        ) : (
-          // Fallback when no utterances and no text
-          <div className="text-center text-muted-foreground p-6 min-h-[300px] flex items-center justify-center">
-            {transcriptionText ? (
-              <Textarea
-                value={transcriptionText}
-                onChange={handleTextChange}
-                placeholder="Aquí aparecerá el texto transcrito..."
-                className="min-h-[300px] resize-y"
-              />
-            ) : (
-              "No hay transcripción disponible"
-            )}
-          </div>
-        )}
+        {renderContent()}
       </CardContent>
     </Card>
   );

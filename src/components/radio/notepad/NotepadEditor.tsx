@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import NotepadToolbar from "./NotepadToolbar";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -17,22 +17,20 @@ const NotepadEditor = ({
   minHeight = "200px"
 }: NotepadEditorProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
-  // Initialize editor content when component mounts
+  // Initialize editor content when component mounts or content changes externally
   useEffect(() => {
-    if (editorRef.current) {
-      if (content) {
-        editorRef.current.innerHTML = content;
-      } else {
-        editorRef.current.innerHTML = "";
-      }
+    if (editorRef.current && editorRef.current.innerHTML !== content) {
+      editorRef.current.innerHTML = content || "";
     }
-  }, []);
+  }, [content]);
 
-  // Handle input changes
+  // Handle input changes with improved event handling
   const handleInput = () => {
     if (editorRef.current) {
-      onContentChange(editorRef.current.innerHTML);
+      const newContent = editorRef.current.innerHTML;
+      onContentChange(newContent);
     }
   };
 
@@ -43,10 +41,14 @@ const NotepadEditor = ({
         <div
           ref={editorRef}
           contentEditable="true"
-          className="outline-none p-4 notepad-editor prose prose-sm max-w-none w-full focus:ring-0"
+          className={`
+            outline-none p-4 notepad-editor prose prose-sm max-w-none w-full focus:ring-0
+            ${!content && !isFocused ? 'before:content-[attr(data-placeholder)] before:text-muted-foreground before:opacity-70' : ''}
+          `}
           onInput={handleInput}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           style={{ minHeight }}
-          dangerouslySetInnerHTML={{ __html: content }}
           data-placeholder={placeholder}
         />
       </CardContent>

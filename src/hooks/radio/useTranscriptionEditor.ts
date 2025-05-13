@@ -3,6 +3,8 @@ import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useSpeakerTextState } from "./editor/useSpeakerTextState";
 import { useFetchUtterances } from "./editor/useFetchUtterances";
 import { useTranscriptionSave } from "./editor/useTranscriptionSave";
+import { useCallback } from "react";
+import { hasSpeakerData } from "./utils/transcriptionUtils";
 
 interface UseTranscriptionEditorProps {
   transcriptionText: string;
@@ -45,14 +47,27 @@ export const useTranscriptionEditor = ({
   });
 
   // Handle autosave functionality
-  const { isSaving, saveError, saveSuccess } = useTranscriptionSave({
+  const { isSaving, saveError, saveSuccess, forceSave } = useTranscriptionSave({
     transcriptionId,
     localText
   });
 
-  // Add these properties to fix the errors in RadioTranscriptionEditor.tsx
+  // Computed properties based on speaker labels state
   const showTimestamps = hasSpeakerLabels;
   const hasTimestampData = hasSpeakerLabels;
+  
+  // Force save method for manual triggers
+  const handleForceSave = useCallback(async () => {
+    if (transcriptionId && localText) {
+      return await forceSave();
+    }
+    return false;
+  }, [forceSave, localText, transcriptionId]);
+
+  // Check if there are actual utterances in the result
+  const hasUtterances = useCallback(() => {
+    return hasSpeakerData(enhancedTranscriptionResult);
+  }, [enhancedTranscriptionResult]);
 
   return {
     localText,
@@ -67,6 +82,8 @@ export const useTranscriptionEditor = ({
     toggleEditMode,
     hasSpeakerLabels,
     resetLocalSpeakerText,
-    enhancedTranscriptionResult
+    enhancedTranscriptionResult,
+    hasUtterances,
+    handleForceSave
   };
 };

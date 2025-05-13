@@ -11,7 +11,6 @@ interface SpeakerSegmentProps {
   refProp?: React.RefObject<HTMLDivElement>;
 }
 
-// Using React.memo to prevent unnecessary re-renders
 const SpeakerSegment = memo<SpeakerSegmentProps>(({
   utterance,
   isActive,
@@ -19,65 +18,36 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
   refProp,
 }) => {
   const speakerColor = getSpeakerColor(utterance.speaker);
-  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isClickingRef = useRef<boolean>(false);
-  const lastClickTimeRef = useRef<number>(0);
+  const localRef = useRef<HTMLDivElement>(null);
+  const segmentRef = refProp || localRef;
   
-  // Clear any pending timeouts when unmounting
-  useEffect(() => {
-    return () => {
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
-      }
-    };
-  }, []);
-  
-  // Enhanced click handling with better debouncing, safety checks, and cleanup
+  // Enhanced click handler with debouncing
   const handleClick = () => {
-    const now = Date.now();
+    // Prevent click spamming
+    if (!segmentRef.current) return;
     
-    // Increased minimum time between clicks from 500ms to 800ms for better stability
-    if (now - lastClickTimeRef.current < 800) {
-      console.log("[SpeakerSegment] Click ignored, too soon after previous click");
-      return;
-    }
+    // Apply visual feedback
+    segmentRef.current.classList.add('opacity-80');
     
-    lastClickTimeRef.current = now;
-    
-    if (isClickingRef.current) {
-      console.log("[SpeakerSegment] Click ignored, still processing previous click");
-      return;
-    }
-    
-    isClickingRef.current = true;
-    
-    // Clear any existing timeout to prevent potential race conditions
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-    }
-    
-    // Increased delay to 300ms for better stability (from 200ms)
-    clickTimeoutRef.current = setTimeout(() => {
-      try {
-        onClick();
-      } catch (err) {
-        console.error("[SpeakerSegment] Error in click handler:", err);
-      } finally {
-        // Always reset clicking state after a delay, regardless of success/failure
-        // Use a separate timeout to ensure we don't block the UI
-        setTimeout(() => {
-          isClickingRef.current = false;
-          // Clear the timeout reference to prevent memory leaks
-          clickTimeoutRef.current = null;
-        }, 300);
+    // Execute the click after a short delay to prevent double triggering
+    setTimeout(() => {
+      onClick();
+      if (segmentRef.current) {
+        segmentRef.current.classList.remove('opacity-80');
       }
-    }, 300);
+    }, 150);
   };
+
+  // Get display speaker name
+  const displaySpeaker = typeof utterance.speaker === 'string' 
+    ? utterance.speaker.includes('_') 
+      ? `Speaker ${utterance.speaker.split('_')[1]}` 
+      : `Speaker ${utterance.speaker}`
+    : `Speaker ${utterance.speaker}`;
   
   return (
     <div
-      ref={refProp}
+      ref={segmentRef}
       onClick={handleClick}
       className={`
         p-3 rounded-lg transition-all cursor-pointer
@@ -93,13 +63,7 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
           className="w-4 h-4 rounded-full"
           style={{ backgroundColor: speakerColor }}
         />
-        <span className="font-medium text-sm">
-          {typeof utterance.speaker === 'string' ? 
-            utterance.speaker.includes('_') ? 
-              `Speaker ${utterance.speaker.split('_')[1]}` : 
-              `Speaker ${utterance.speaker}`
-            : `Speaker ${utterance.speaker}`}
-        </span>
+        <span className="font-medium text-sm">{displaySpeaker}</span>
         <span className="text-xs text-muted-foreground ml-auto">
           {formatTime(utterance.start, false)}
         </span>

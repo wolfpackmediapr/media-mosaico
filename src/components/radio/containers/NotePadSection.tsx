@@ -13,19 +13,29 @@ interface NotePadSectionProps {
   onExpandToggle: (isExpanded: boolean) => void;
 }
 
-const NotePadSection = ({
+const NotePadSection: React.FC<NotePadSectionProps> = ({
   notepadContent,
   onNotepadContentChange,
   isExpanded,
   onExpandToggle
-}: NotePadSectionProps) => {
+}) => {
+  const handleExpandClick = () => {
+    onExpandToggle(!isExpanded);
+  };
+
   return (
     <Card className="w-full">
       <Collapsible open={isExpanded} onOpenChange={onExpandToggle}>
         <CardHeader className="px-6 py-4 flex flex-row items-center justify-between">
           <CardTitle className="text-xl">Bloc de Notas</CardTitle>
           <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-9 p-0">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="w-9 p-0"
+              onClick={handleExpandClick}
+              aria-label={isExpanded ? "Colapsar bloc de notas" : "Expandir bloc de notas"}
+            >
               {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
           </CollapsibleTrigger>
@@ -46,4 +56,4 @@ const NotePadSection = ({
   );
 };
 
-export default NotePadSection;
+export default React.memo(NotePadSection);

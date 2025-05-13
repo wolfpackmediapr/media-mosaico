@@ -1,6 +1,6 @@
 
 import { Card, CardContent } from "@/components/ui/card";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
 import RadioReportButton from "./RadioReportButton";
@@ -35,16 +35,14 @@ interface RadioTranscriptionSlotProps {
     program_id: string;
   }) => void;
   onTimestampClick?: (segment: RadioNewsSegment) => void;
-  // Add prop to allow parent to get access to the editor's reset method
   registerEditorReset?: (fn: () => void) => void;
-  // New props for audio player integration
   isPlaying?: boolean;
   currentTime?: number;
   onPlayPause?: () => void;
   onSeek?: (timeOrSegment: number | RadioNewsSegment) => void;
 }
 
-const RadioTranscriptionSlot = ({
+const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
   isProcessing,
   transcriptionText,
   transcriptionResult,
@@ -55,24 +53,26 @@ const RadioTranscriptionSlot = ({
   onMetadataChange,
   onTimestampClick,
   registerEditorReset,
-  // Audio player props with defaults
   isPlaying = false,
   currentTime = 0,
   onPlayPause = () => {},
   onSeek = () => {},
-}: RadioTranscriptionSlotProps) => {
+}) => {
   const { checkAndGenerateSegments } = useRadioSegmentGenerator(onSegmentsReceived);
   const componentMountedRef = useRef(true);
   
-  // Store view mode with proper key including transcription ID
+  // Persistent view mode state with proper key
+  const persistViewModeKey = `transcription-view-mode-${transcriptionId || "draft"}`;
   const [viewMode, setViewMode, removeViewMode] = usePersistentState<'interactive' | 'edit'>(
-    `transcription-view-mode-${transcriptionId || "draft"}`,
+    persistViewModeKey,
     'edit',
     { storage: 'sessionStorage' }
   );
 
-  const hasUtterances = !!transcriptionResult?.utterances && 
-                        transcriptionResult.utterances.length > 0;
+  const hasUtterances = useCallback(() => {
+    return !!transcriptionResult?.utterances && 
+           transcriptionResult.utterances.length > 0;
+  }, [transcriptionResult?.utterances]);
 
   // Reset view mode to edit when transcription text is cleared
   useEffect(() => {
@@ -82,19 +82,16 @@ const RadioTranscriptionSlot = ({
     }
   }, [transcriptionText, viewMode, setViewMode]);
 
-  // Local state to store the reset method
+  // Reset functions management
   const resetFnRef = useRef<() => void>(() => {
     console.log('[RadioTranscriptionSlot] Execute fallback reset function');
-    
-    // Fallback reset logic - clear view mode
     if (componentMountedRef.current) {
       removeViewMode();
       setViewMode('edit');
     }
   });
   
-  // Pass a callback down to RadioTranscriptionEditor that lets it "register" its reset function
-  const handleRegisterReset = (fn: () => void) => {
+  const handleRegisterReset = useCallback((fn: () => void) => {
     resetFnRef.current = () => {
       console.log('[RadioTranscriptionSlot] Executing editor reset function');
       fn();
@@ -109,7 +106,7 @@ const RadioTranscriptionSlot = ({
     if (registerEditorReset) {
       registerEditorReset(resetFnRef.current);
     }
-  };
+  }, [registerEditorReset, removeViewMode, setViewMode]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -119,13 +116,12 @@ const RadioTranscriptionSlot = ({
   }, []);
 
   // Handle view mode change
-  const handleViewModeChange = (mode: 'interactive' | 'edit') => {
+  const handleViewModeChange = useCallback((mode: 'interactive' | 'edit') => {
     setViewMode(mode);
-  };
+  }, [setViewMode]);
 
-  // IMPROVED: Enhanced timestamp handling to ensure consistent format
-  const handleTimestampClick = (timestamp: number) => {
-    // Add logging to track the timestamp format
+  // Improved timestamp handling
+  const handleTimestampClick = useCallback((timestamp: number) => {
     console.log(`[RadioTranscriptionSlot] Timestamp clicked: ${timestamp}`);
     
     // Always normalize timestamp to seconds for consistency
@@ -141,30 +137,31 @@ const RadioTranscriptionSlot = ({
         end: timeInSeconds * 1000 + 1000, // Assume milliseconds for end time
         keywords: []
       };
-      console.log(`[RadioTranscriptionSlot] Passing segment with startTime: ${tempSegment.startTime}`);
       onTimestampClick(tempSegment);
     } else if (onSeek) {
       // Pass the normalized time in seconds directly to onSeek
-      console.log(`[RadioTranscriptionSlot] Seeking to: ${timeInSeconds}s`);
       onSeek(timeInSeconds);
     }
-  };
+  }, [onSeek, onTimestampClick]);
 
   return (
     <div className="space-y-4 md:space-y-6 w-full">
       <Card className="overflow-hidden w-full">
-        <RadioTranscriptionMetadata metadata={metadata} onMetadataChange={onMetadataChange} />
+        <RadioTranscriptionMetadata 
+          metadata={metadata} 
+          onMetadataChange={onMetadataChange} 
+        />
         
         <div className="p-4 border-b">
           <ViewModeToggle 
             mode={viewMode}
             onChange={handleViewModeChange}
-            hasUtterances={hasUtterances}
+            hasUtterances={hasUtterances()}
           />
         </div>
 
         <CardContent className="p-4 space-y-4">
-          {viewMode === 'interactive' && hasUtterances ? (
+          {viewMode === 'interactive' && hasUtterances() ? (
             <InteractiveTranscription
               transcriptionResult={transcriptionResult}
               currentTime={currentTime}
@@ -181,6 +178,7 @@ const RadioTranscriptionSlot = ({
               transcriptionResult={transcriptionResult}
               onTimestampClick={handleTimestampClick}
               registerReset={handleRegisterReset}
+              currentTime={currentTime}
             />
           )}
           
@@ -197,4 +195,4 @@ const RadioTranscriptionSlot = ({
   );
 };
 
-export default RadioTranscriptionSlot;
+export default React.memo(RadioTranscriptionSlot);

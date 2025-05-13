@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useMemo } from "react";
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 import { getSpeakerColor } from "./utils";
 import {
@@ -15,10 +15,27 @@ interface SpeakerLegendProps {
 }
 
 const SpeakerLegend: React.FC<SpeakerLegendProps> = ({ utterances }) => {
-  // Extract unique speakers
-  const uniqueSpeakers = Array.from(
-    new Set(utterances.map((u) => u.speaker))
-  ).sort();
+  // Extract unique speakers with memoization
+  const uniqueSpeakers = useMemo(() => {
+    if (!utterances || utterances.length === 0) return [];
+    return Array.from(
+      new Set(utterances.map((u) => u.speaker))
+    ).sort();
+  }, [utterances]);
+
+  // Format speaker name for display
+  const formatSpeakerName = (speaker: string | number) => {
+    if (typeof speaker === 'string') {
+      return speaker.includes('_') ? 
+        `Speaker ${speaker.split('_')[1]}` : 
+        `Speaker ${speaker}`;
+    }
+    return `Speaker ${speaker}`;
+  };
+
+  if (!uniqueSpeakers.length) {
+    return null;
+  }
 
   return (
     <Popover>
@@ -32,17 +49,13 @@ const SpeakerLegend: React.FC<SpeakerLegendProps> = ({ utterances }) => {
         <h4 className="text-sm font-medium mb-2">Identificación de Hablantes</h4>
         <div className="space-y-2">
           {uniqueSpeakers.map((speaker) => (
-            <div key={speaker} className="flex items-center gap-2">
+            <div key={`speaker-legend-${speaker}`} className="flex items-center gap-2">
               <div
                 className="w-3 h-3 rounded-full"
                 style={{ backgroundColor: getSpeakerColor(speaker) }}
               />
               <span className="text-xs">
-                {typeof speaker === 'string' ? 
-                  speaker.includes('_') ? 
-                    `Speaker ${speaker.split('_')[1]}` : 
-                    `Speaker ${speaker}`
-                  : `Speaker ${speaker}`}
+                {formatSpeakerName(speaker)}
               </span>
             </div>
           ))}
@@ -52,4 +65,4 @@ const SpeakerLegend: React.FC<SpeakerLegendProps> = ({ utterances }) => {
   );
 };
 
-export default SpeakerLegend;
+export default React.memo(SpeakerLegend);

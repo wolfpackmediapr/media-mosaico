@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface UseNotepadStateProps {
@@ -14,7 +14,7 @@ export const useNotepadState = ({
   initialContent = ""
 }: UseNotepadStateProps = {}) => {
   // Use persistent state to store content
-  const [content, setContent] = usePersistentState<string>(
+  const [content, setContent, removeContent] = usePersistentState<string>(
     persistKey,
     initialContent,
     { storage }
@@ -24,15 +24,32 @@ export const useNotepadState = ({
   const [isExpanded, setIsExpanded] = useState(true);
 
   // Reset function for clearing content
-  const resetContent = () => {
+  const resetContent = useCallback(() => {
     setContent("");
-  };
+    // Also try to manually remove from storage as a safeguard
+    try {
+      if (storage === 'localStorage') {
+        localStorage.removeItem(persistKey);
+      } else {
+        sessionStorage.removeItem(persistKey);
+      }
+    } catch (err) {
+      console.error("Error removing notepad content from storage:", err);
+    }
+  }, [persistKey, setContent, storage]);
+
+  // Toggle expanded state with callback
+  const toggleExpanded = useCallback(() => {
+    setIsExpanded(prev => !prev);
+  }, []);
 
   return {
     content,
     setContent,
     isExpanded,
     setIsExpanded,
-    resetContent
+    toggleExpanded,
+    resetContent,
+    removeContent
   };
 };
