@@ -47,7 +47,9 @@ const NotepadEditor = ({
           onInput={handleInput}
           style={{ minHeight }}
           dangerouslySetInnerHTML={{ __html: content }}
-          placeholder={placeholder}
+          // Remove the placeholder attribute as it's not valid on divs
+          // Instead, we can use data-placeholder and style it with CSS
+          data-placeholder={placeholder}
         />
       </CardContent>
     </Card>

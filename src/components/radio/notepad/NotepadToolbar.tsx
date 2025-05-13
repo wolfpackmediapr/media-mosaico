@@ -7,7 +7,7 @@ import {
   Italic, 
   Underline, 
   ListOrdered, 
-  ListUnordered, 
+  List, // Changed from ListUnordered to List
   AlignLeft, 
   AlignCenter, 
   AlignRight,
@@ -54,7 +54,7 @@ const NotepadToolbar = () => {
       
       <div className="h-4 w-px bg-border mx-1" />
       
-      <FormatButton icon={<ListUnordered size={16} />} tooltip="Bullet List" command="insertUnorderedList" />
+      <FormatButton icon={<List size={16} />} tooltip="Bullet List" command="insertUnorderedList" />
       <FormatButton icon={<ListOrdered size={16} />} tooltip="Numbered List" command="insertOrderedList" />
       
       <div className="h-4 w-px bg-border mx-1" />
