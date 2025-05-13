@@ -1,3 +1,4 @@
+
 /**
  * Audio format helper utilities
  * Provides functions for audio format detection, browser support checking, and audio element creation
@@ -22,6 +23,43 @@ export const getMimeTypeFromFile = (file: File): string => {
     case 'flac': return 'audio/flac';
     default: return 'audio/mpeg'; // Default to mp3 if unknown
   }
+};
+
+/**
+ * Gets detailed information about an audio file format including browser support
+ * @param file Audio file to check
+ * @returns Object containing format details, support information, and recommendations
+ */
+export const getAudioFormatDetails = (file: File): {
+  extension: string;
+  mimeType: string;
+  isSupported: boolean;
+  recommendation: string | null;
+} => {
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  const mimeType = getMimeTypeFromFile(file);
+  const audio = document.createElement('audio');
+  const canPlay = audio.canPlayType(mimeType);
+  
+  // Check browser support
+  const isSupported = canPlay !== '';
+  
+  // Generate recommendations based on format
+  let recommendation = null;
+  if (!isSupported) {
+    recommendation = `This audio format (${ext}) has limited browser support. Consider converting to MP3 for better compatibility.`;
+  } else if (canPlay === 'maybe') {
+    if (ext === 'flac' || ext === 'wav') {
+      recommendation = `${ext.toUpperCase()} files are large. Consider using MP3 for better streaming performance.`;
+    }
+  }
+  
+  return {
+    extension: ext,
+    mimeType,
+    isSupported,
+    recommendation
+  };
 };
 
 /**
