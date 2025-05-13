@@ -1,15 +1,13 @@
 import React, { useEffect } from "react";
 import { useRadioContainerState } from "@/hooks/radio/useRadioContainerState";
 import RadioLayout from "./RadioLayout";
-import {
-  TopSection,
-  LeftSection,
-  RightSection,
-  TranscriptionSection,
-  AnalysisSection,
-  NewsSegmentsSection,
-  NotePadSection
-} from "./containers";
+import { TopSection } from "./containers/TopSection";
+import { LeftSection } from "./containers/LeftSection";
+import { RightSection } from "./containers/RightSection";
+import { TranscriptionSection } from "./containers/TranscriptionSection";
+import { AnalysisSection } from "./containers/AnalysisSection";
+import { NewsSegmentsSection } from "./containers/NewsSegmentsSection";
+import { NotePadSection } from "./containers/NotePadSection";
 import { useRadioClearState } from "@/hooks/radio/useRadioClearState";
 import { useNotepadState } from "@/hooks/radio/useNotepadState";
 

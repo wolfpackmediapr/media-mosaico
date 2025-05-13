@@ -1,11 +1,9 @@
 
-export * from "./AnalysisSection";
-export * from "./LeftSection";
-export * from "./RightSection";
-export * from "./TopSection";
-export * from "./TranscriptionSection";
-export * from "./NewsSegmentsSection";
-
-// Import and then export NotePadSection (it doesn't use default exports)
-import NotePadSection from "./NotePadSection";
-export { NotePadSection };
+// Export each section with named export pattern
+export { TopSection } from "./TopSection";
+export { LeftSection } from "./LeftSection";
+export { RightSection } from "./RightSection";
+export { TranscriptionSection } from "./TranscriptionSection";
+export { AnalysisSection } from "./AnalysisSection";
+export { NewsSegmentsSection } from "./NewsSegmentsSection";
+export { NotePadSection } from "./NotePadSection";
