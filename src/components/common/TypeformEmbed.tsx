@@ -1,14 +1,15 @@
 
-import { useState, useRef, useId, useEffect } from "react";
+import { useState, useRef, useId, useEffect, useCallback } from "react";
 import { useTypeform } from "@/hooks/use-typeform";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { useTypeformResourceManager } from "@/utils/typeform/typeform-resource-manager";
 
 interface TypeformEmbedProps {
   formId: string;
   title: string;
   description: string;
-  isAuthenticated?: boolean;
+  isAuthenticated?: boolean | null;
 }
 
 const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: TypeformEmbedProps) => {
@@ -17,6 +18,9 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
   const containerRef = useRef<HTMLDivElement>(null);
   // Generate unique ID for each reload to force remounting
   const [containerId, setContainerId] = useState<string>(useId());
+  
+  // Get the resource manager for Typeform
+  const resourceManager = useTypeformResourceManager();
   
   // Only initialize Typeform when authentication is valid AND user has chosen to show it
   const shouldInitialize = isAuthenticated === true && showTypeform;
@@ -28,21 +32,32 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
     lazy: true // Use lazy loading to prevent immediate initialization
   });
   
-  const handleShowTypeform = () => {
+  // Register the container for cleanup when component unmounts or refreshes
+  useEffect(() => {
+    if (shouldInitialize && formId) {
+      const cleanup = resourceManager.registerTypeformContainer(formId, containerId);
+      
+      return () => {
+        cleanup();
+      };
+    }
+  }, [resourceManager, formId, containerId, shouldInitialize]);
+  
+  const handleShowTypeform = useCallback(() => {
     setShowTypeform(true);
     // Wait a moment for the DOM to update before initializing
     setTimeout(() => {
       typeform.initialize();
     }, 300);
-  };
+  }, [typeform]);
   
-  const handleHideTypeform = () => {
+  const handleHideTypeform = useCallback(() => {
     // Clean up typeform before hiding it
     typeform.cleanup();
     setShowTypeform(false);
-  };
+  }, [typeform]);
   
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     // Prevent multiple refreshes
     if (isRefreshing) return;
     
@@ -53,26 +68,14 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
       // First, clean up the current typeform instance
       typeform.cleanup();
       
-      // Find and remove all typeform-related elements
-      const typeformElements = document.querySelectorAll('[data-tf-live]');
-      typeformElements.forEach(element => {
-        if (element.parentNode) {
-          element.parentNode.removeChild(element);
-        }
-      });
+      // Clean up Typeform resources using our specialized resource manager
+      resourceManager.cleanupTypeformResources(formId);
       
-      // Also remove any Typeform-generated iframes or scripts that might be leftover
-      const iframes = document.querySelectorAll('iframe[src*="typeform"]');
-      iframes.forEach(iframe => {
-        if (iframe.parentNode) {
-          iframe.parentNode.removeChild(iframe);
-        }
-      });
+      // Generate a new container ID to force React to completely remount the component
+      const newContainerId = useId();
+      setContainerId(newContainerId);
       
-      // Change container ID to force React to completely remount the component
-      setContainerId(useId());
-      
-      // Wait a moment for DOM changes to take effect
+      // Wait for DOM changes to take effect
       setTimeout(() => {
         try {
           // Reinitialize after DOM changes
@@ -81,7 +84,7 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
         } catch (err) {
           console.error(`[TypeformEmbed] Error reinitializing form ${formId}:`, err);
         } finally {
-          // Always reset refresh state
+          // Always reset refresh state after a delay
           setTimeout(() => {
             setIsRefreshing(false);
           }, 500);
@@ -91,7 +94,7 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
       console.error(`[TypeformEmbed] Error during form ${formId} DOM refresh:`, err);
       setIsRefreshing(false);
     }
-  };
+  }, [typeform, resourceManager, formId, isRefreshing]);
   
   // Add effect to handle component unmounting
   useEffect(() => {
@@ -100,8 +103,13 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
       if (typeform) {
         typeform.cleanup();
       }
+      
+      // Also clean up any Typeform resources
+      if (formId) {
+        resourceManager.cleanupTypeformResources(formId);
+      }
     };
-  }, [typeform]);
+  }, [typeform, resourceManager, formId]);
   
   return (
     <div className="mt-8 p-6 bg-muted rounded-lg w-full">
