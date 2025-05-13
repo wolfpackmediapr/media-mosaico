@@ -1,7 +1,10 @@
 
-export { default as TopSection } from './TopSection';
-export { default as LeftSection } from './LeftSection';
-export { default as RightSection } from './RightSection';
-export { default as TranscriptionSection } from './TranscriptionSection';
-export { default as AnalysisSection } from './AnalysisSection';
-export { default as NewsSegmentsSection } from './NewsSegmentsSection';
+export * from "./AnalysisSection";
+export * from "./LeftSection";
+export * from "./RightSection";
+export * from "./TopSection";
+export * from "./TranscriptionSection";
+export * from "./NewsSegmentsSection";
+
+import NotePadSection from "./NotePadSection";
+export { NotePadSection };

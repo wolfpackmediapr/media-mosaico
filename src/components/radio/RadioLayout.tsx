@@ -8,6 +8,7 @@ interface RadioLayoutProps {
   leftSection: ReactNode;
   rightSection: ReactNode;
   transcriptionSection: ReactNode;  // Renamed for clarity
+  notepadSection: ReactNode;        // New notepad section
   analysisSection: ReactNode;
   newsSegmentsSection?: ReactNode;
 }
@@ -17,6 +18,7 @@ const RadioLayout = ({
   leftSection,
   rightSection,
   transcriptionSection,
+  notepadSection,              // New prop
   analysisSection,
   newsSegmentsSection
 }: RadioLayoutProps) => {
@@ -44,7 +46,12 @@ const RadioLayout = ({
         {transcriptionSection}
       </div>
 
-      {/* TypeformAlert moved here - now appears right after transcription */}
+      {/* New row - Notepad section (full width) */}
+      <div className="w-full">
+        {notepadSection}
+      </div>
+
+      {/* TypeformAlert moved here - now appears after notepad */}
       <TypeformAlert isAuthenticated={isAuthenticated} />
 
       {/* Analysis section (already full width) - now after TypeformAlert */}

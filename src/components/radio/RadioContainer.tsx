@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useRadioContainerState } from "@/hooks/radio/useRadioContainerState";
 import RadioLayout from "./RadioLayout";
@@ -8,9 +7,11 @@ import {
   RightSection,
   TranscriptionSection,
   AnalysisSection,
-  NewsSegmentsSection
+  NewsSegmentsSection,
+  NotePadSection
 } from "./containers";
 import { useRadioClearState } from "@/hooks/radio/useRadioClearState";
+import { useNotepadState } from "@/hooks/radio/useNotepadState";
 
 interface RadioContainerProps {
   persistedText?: string;
@@ -61,6 +62,18 @@ const RadioContainer = ({
     resetTranscription: state.resetTranscription, // Add reset function
   });
 
+  // Add notepad state
+  const {
+    content: notepadContent,
+    setContent: setNotepadContent,
+    isExpanded: isNotepadExpanded,
+    setIsExpanded: setIsNotepadExpanded,
+    resetContent: resetNotepadContent
+  } = useNotepadState({
+    persistKey: `${persistKey}-notepad`,
+    storage
+  });
+
   // Create wrapper functions to handle type mismatches between components
   const handleVolumeChangeWrapper = (value: number[]) => {
     // Pass the array directly to the volume handler
@@ -86,12 +99,15 @@ const RadioContainer = ({
       // Ensure news segments are cleared
       state.setNewsSegments([]);
       
+      // Clear notepad content
+      resetNotepadContent();
+      
       // Call any additional clear functions
       if (state.resetTranscription) {
         state.resetTranscription();
       }
     }
-  }, [state.lastAction]);
+  }, [state.lastAction, resetNotepadContent]);
 
   // Ensure volume is always in array format for components that expect it
   const volumeArray = Array.isArray(state.volume) ? state.volume : [state.volume * 100];
@@ -163,6 +179,14 @@ const RadioContainer = ({
             isPlaying={state.isPlaying}
             currentTime={state.currentTime}
             onPlayPause={state.handlePlayPause}
+          />
+        }
+        notepadSection={
+          <NotePadSection
+            notepadContent={notepadContent}
+            onNotepadContentChange={setNotepadContent}
+            isExpanded={isNotepadExpanded}
+            onExpandToggle={setIsNotepadExpanded}
           />
         }
         analysisSection={
