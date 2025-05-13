@@ -16,6 +16,7 @@ interface TypeformEmbedProps {
 const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: TypeformEmbedProps) => {
   const [showTypeform, setShowTypeform] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [initAttempts, setInitAttempts] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   // Generate unique ID for each reload to force remounting
   const initialId = useId();
@@ -35,6 +36,11 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
     sandboxMode: true // Enable sandbox mode for security
   });
   
+  // Make sure domain is set before initializing
+  useEffect(() => {
+    resourceManager.fixTypeformDomain();
+  }, [resourceManager, showTypeform]);
+  
   // Register the container for cleanup when component unmounts or refreshes
   useEffect(() => {
     if (shouldInitialize && formId) {
@@ -46,25 +52,61 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
     }
   }, [resourceManager, formId, containerId, shouldInitialize]);
   
-  const handleShowTypeform = useCallback(() => {
+  // Initialize typeform with retry logic
+  const initializeTypeform = useCallback(() => {
+    if (!shouldInitialize) return;
+    
+    console.log(`[TypeformEmbed] Initializing form ${formId}, attempt ${initAttempts + 1}`);
+    
     try {
-      setShowTypeform(true);
-      // Wait a moment for the DOM to update before initializing
+      // Make sure domain is set
+      resourceManager.fixTypeformDomain();
+      
+      // Initialize with slight delay
       setTimeout(() => {
         try {
           typeform.initialize();
           console.log(`[TypeformEmbed] Form ${formId} initialized`);
         } catch (err) {
           console.error(`[TypeformEmbed] Error initializing form ${formId}:`, err);
-          toast.error("Error al cargar el formulario. Por favor, inténtelo de nuevo.");
+          
+          // Retry logic - attempt up to 3 times with increasing delay
+          if (initAttempts < 3) {
+            const nextAttempt = initAttempts + 1;
+            setInitAttempts(nextAttempt);
+            
+            const delay = 500 * Math.pow(2, nextAttempt);
+            console.log(`[TypeformEmbed] Retrying in ${delay}ms, attempt ${nextAttempt}/3`);
+            
+            setTimeout(() => {
+              initializeTypeform();
+            }, delay);
+          } else {
+            toast.error("Error al cargar el formulario. Por favor, inténtelo de nuevo.");
+          }
         }
       }, 500);
+    } catch (err) {
+      console.error(`[TypeformEmbed] Error in initialization setup for form ${formId}:`, err);
+      toast.error("Error al mostrar el formulario");
+    }
+  }, [typeform, formId, shouldInitialize, resourceManager, initAttempts]);
+  
+  const handleShowTypeform = useCallback(() => {
+    try {
+      setShowTypeform(true);
+      setInitAttempts(0); // Reset attempt counter
+      
+      // Let the component fully render before initializing
+      setTimeout(() => {
+        initializeTypeform();
+      }, 100);
     } catch (err) {
       console.error(`[TypeformEmbed] Error showing form ${formId}:`, err);
       toast.error("Error al mostrar el formulario");
       setShowTypeform(false);
     }
-  }, [typeform, formId]);
+  }, [initializeTypeform, formId]);
   
   const handleHideTypeform = useCallback(() => {
     try {
@@ -72,6 +114,7 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
       typeform.cleanup();
       resourceManager.cleanupTypeformResources(formId);
       setShowTypeform(false);
+      setInitAttempts(0); // Reset attempt counter
     } catch (err) {
       console.error(`[TypeformEmbed] Error hiding form ${formId}:`, err);
       // Force hiding even if there was an error
@@ -93,29 +136,17 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
       // Clean up Typeform resources using our specialized resource manager
       resourceManager.cleanupTypeformResources(formId);
       
-      // Clean up global DOM elements related to Typeform
-      const typeformElements = document.querySelectorAll('[data-tf-live], [data-tf-widget], [id^="typeform-"], [class^="typeform-"]');
-      typeformElements.forEach(element => {
-        if (element.parentNode) {
-          element.parentNode.removeChild(element);
-        }
-      });
-      
-      // Find and remove Typeform iframes
-      const iframes = document.querySelectorAll('iframe[src*="typeform"]');
-      iframes.forEach(iframe => {
-        if (iframe.parentNode) {
-          iframe.parentNode.removeChild(iframe);
-        }
-      });
-      
       // Generate a completely new ID to force React to fully remount the component
       const newContainerId = initialId + "-" + Date.now().toString();
       setContainerId(newContainerId);
+      setInitAttempts(0); // Reset attempt counter
       
       // Wait for DOM changes to take effect
       setTimeout(() => {
         try {
+          // Make sure domain is set correctly
+          resourceManager.fixTypeformDomain();
+          
           // Re-initialize the Typeform
           typeform.initialize();
           console.log(`[TypeformEmbed] Form ${formId} refreshed successfully`);
@@ -151,6 +182,11 @@ const TypeformEmbed = ({ formId, title, description, isAuthenticated = true }: T
       }
     };
   }, [typeform, resourceManager, formId]);
+
+  // Add effect to log authentication status changes
+  useEffect(() => {
+    console.log(`[TypeformEmbed] Auth status changed: ${isAuthenticated}`);
+  }, [isAuthenticated]);
   
   return (
     <div className="mt-8 p-6 bg-muted rounded-lg w-full">

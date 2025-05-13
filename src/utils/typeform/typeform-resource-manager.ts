@@ -26,6 +26,8 @@ export const useTypeformResourceManager = () => {
    * Register a Typeform container for cleanup
    */
   const registerTypeformContainer = (formId: string, containerId: string) => {
+    console.log(`[TypeformResourceManager] Registering container for form ${formId}: ${containerId}`);
+    
     if (!typeformResources.has(formId)) {
       typeformResources.set(formId, {
         containerId,
@@ -165,10 +167,12 @@ export const useTypeformResourceManager = () => {
     
     // Reset any global Typeform state on the window object
     try {
-      // @ts-ignore - Accessing global Typeform state
       if (window.tf && window.tf._instances) {
-        // @ts-ignore - Resetting instances
-        window.tf._instances = {};
+        // Reset any instances for this specific form
+        if (window.tf._instances[formId]) {
+          delete window.tf._instances[formId];
+          console.log(`[TypeformResourceManager] Cleared instance for form ${formId}`);
+        }
       }
     } catch (err) {
       console.error(`[TypeformResourceManager] Error resetting Typeform state:`, err);
@@ -183,6 +187,8 @@ export const useTypeformResourceManager = () => {
    * Clean up all Typeform resources
    */
   const cleanupAllTypeformResources = () => {
+    console.log("[TypeformResourceManager] Cleaning up all resources");
+    
     typeformResources.forEach((_, formId) => {
       cleanupTypeformResources(formId);
     });
@@ -211,23 +217,51 @@ export const useTypeformResourceManager = () => {
         console.error(`[TypeformResourceManager] Error removing iframe:`, err);
       }
     });
+    
+    // Also try to reset the global _instances property if it exists
+    try {
+      if (window.tf && window.tf._instances) {
+        window.tf._instances = {};
+        console.log("[TypeformResourceManager] Reset all Typeform instances");
+      }
+    } catch (err) {
+      console.error("[TypeformResourceManager] Error resetting all instances:", err);
+    }
   };
   
-  // Fix any Typeform domain issues
+  // Fix any Typeform domain issues - enhanced version with more robust checks
   const fixTypeformDomain = () => {
     try {
-      // @ts-ignore - Accessing global Typeform state
-      if (window.tf && !window.tf.domain) {
-        const hostname = window.location.hostname || "localhost";
-        // @ts-ignore - Setting domain
-        window.tf.domain = {
+      if (!window.tf) {
+        console.log("[TypeformResourceManager] window.tf not yet available");
+        return false;
+      }
+      
+      const hostname = window.location.hostname || "localhost";
+      
+      if (!window.tf.domain) {
+        console.log("[TypeformResourceManager] Setting Typeform domain:", hostname);
+        // Use type assertion since we've updated the type definition
+        (window.tf as any).domain = {
           currentDomain: hostname,
           primaryDomain: hostname
         };
-        console.log("[TypeformResourceManager] Fixed Typeform domain", hostname);
+        return true;
+      } else {
+        // Domain exists but might need updating
+        const domain = window.tf.domain;
+        if (!domain.currentDomain || !domain.primaryDomain) {
+          domain.currentDomain = hostname;
+          domain.primaryDomain = hostname;
+          console.log("[TypeformResourceManager] Updated incomplete Typeform domain:", hostname);
+          return true;
+        }
       }
+      
+      return true; // Domain was already set correctly
     } catch (err) {
       console.error("[TypeformResourceManager] Error fixing Typeform domain:", err);
+      return false;
     }
   };
   
