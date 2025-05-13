@@ -44,13 +44,14 @@ const RadioLayout = ({
         {transcriptionSection}
       </div>
 
-      {/* Analysis section (already full width) */}
+      {/* TypeformAlert moved here - now appears right after transcription */}
+      <TypeformAlert isAuthenticated={isAuthenticated} />
+
+      {/* Analysis section (already full width) - now after TypeformAlert */}
       {analysisSection}
 
-      {/* News segments section if available */}
+      {/* News segments section if available - now last */}
       {newsSegmentsSection}
-
-      <TypeformAlert isAuthenticated={isAuthenticated} />
     </div>
   );
 };
