@@ -1,4 +1,3 @@
-
 /**
  * Hook for managing Typeform widget lifecycle
  */
@@ -6,6 +5,7 @@ import { useRef, useState, useCallback } from "react";
 import { TypeformOptions } from "./types";
 import { MAX_RETRIES, INITIAL_TIMEOUT } from "./constants";
 import { isTypeformScriptReady, ensureTypeformEnvironment } from "./utils";
+import { safeCreateWidget, fixTypeformDomain } from "@/utils/typeform/core-utils";
 
 /**
  * Hook for managing Typeform widget lifecycle
@@ -73,27 +73,27 @@ export const useTypeformWidget = (options: TypeformOptions) => {
           }
         }
         
-        // Additional safety check for tf.domain
-        ensureTypeformEnvironment();
+        // Ensure proper domain setup before creating widget
+        fixTypeformDomain(true);
         
-        // Create widget with options
+        // Create widget with our safe creation method
         try {
-          if (!window.tf) {
-            console.error("[useTypeformWidget] window.tf is undefined");
-            setLastError(new Error("window.tf is undefined"));
+          typeformWidgetRef.current = safeCreateWidget();
+          
+          if (!typeformWidgetRef.current) {
+            console.error("[useTypeformWidget] Failed to create widget");
+            setLastError(new Error("Failed to create Typeform widget"));
             return;
           }
-          
-          typeformWidgetRef.current = window.tf?.createWidget();
           
           // Configure widget with options if needed
           if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
             typeformWidgetRef.current.options({
               disableKeyboardShortcuts: !keyboardShortcuts,
-              disableAutoFocus: false, // Allow auto-focus for better accessibility
-              enableSandbox: sandboxMode, // Use sandboxMode option
-              disableMicrophone: disableMicrophone, // Use option to control microphone access
-              disableTracking: true, // Disable tracking for privacy
+              disableAutoFocus: false,
+              enableSandbox: sandboxMode,
+              disableMicrophone: disableMicrophone,
+              disableTracking: true,
             });
           }
           
@@ -164,11 +164,27 @@ export const useTypeformWidget = (options: TypeformOptions) => {
     
     try {
       // Clean up any existing instance first
-      cleanupWidget();
+      if (typeformWidgetRef.current && typeof typeformWidgetRef.current.cleanup === 'function') {
+        try {
+          typeformWidgetRef.current.cleanup();
+          typeformWidgetRef.current = null;
+        } catch (err) {
+          console.warn("[useTypeformWidget] Error cleaning up previous widget:", err);
+        }
+      }
       
-      // Create widget first
+      // Ensure proper domain setup with a forced update
+      fixTypeformDomain(true);
+      
+      // Create widget with our safe method
       if (isTypeformScriptReady()) {
-        typeformWidgetRef.current = window.tf?.createWidget();
+        typeformWidgetRef.current = safeCreateWidget();
+        
+        if (!typeformWidgetRef.current) {
+          console.error("[useTypeformWidget] Failed to create widget safely");
+          setLastError(new Error("Failed to create Typeform widget"));
+          return;
+        }
         
         // Then configure it with options
         if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
@@ -182,9 +198,6 @@ export const useTypeformWidget = (options: TypeformOptions) => {
         
         typeformInitializedRef.current = true;
         console.log("[useTypeformWidget] Typeform widget manually initialized");
-        
-        // Re-check environment again after initialization
-        ensureTypeformEnvironment();
       } else {
         console.error("[useTypeformWidget] Cannot initialize Typeform widget: window.tf.createWidget is not available");
       }
@@ -193,11 +206,26 @@ export const useTypeformWidget = (options: TypeformOptions) => {
       setLastError(err instanceof Error ? err : new Error("Error during manual initialization"));
       typeformInitializedRef.current = false;
     }
-  }, [cleanupWidget, disableMicrophone, keyboardShortcuts, sandboxMode]);
+  }, [disableMicrophone, keyboardShortcuts, sandboxMode]);
 
   return {
     initializeWidget,
-    cleanupWidget,
+    cleanupWidget: useCallback(() => {
+      if (typeformInitializedRef.current && typeformWidgetRef.current) {
+        console.log("[useTypeformWidget] Cleaning up Typeform widget");
+        
+        // Clean up any widget instance
+        if (typeof typeformWidgetRef.current.cleanup === 'function') {
+          try {
+            typeformWidgetRef.current.cleanup();
+            typeformWidgetRef.current = null;
+            typeformInitializedRef.current = false;
+          } catch (err) {
+            console.warn("[useTypeformWidget] Error cleaning up Typeform widget:", err);
+          }
+        }
+      }
+    }, []),
     safeInitialize,
     typeformInitializedRef,
     lastError,

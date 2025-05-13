@@ -1,6 +1,7 @@
 
 import { useState, useRef, useId, useEffect } from "react";
 import { useTypeformResourceManager } from "@/utils/typeform/typeform-resource-manager";
+import { fixTypeformDomain } from "@/utils/typeform/core-utils";
 
 interface TypeformContainerProps {
   formId: string;
@@ -18,6 +19,9 @@ export const TypeformContainer = ({ formId, containerId, onRefresh }: TypeformCo
   // Register the container for cleanup when component unmounts or refreshes
   useEffect(() => {
     if (formId) {
+      // Make sure domain is set before container is mounted
+      fixTypeformDomain(true);
+      
       const cleanup = resourceManager.registerTypeformContainer(formId, containerId);
       
       return () => {
@@ -26,10 +30,20 @@ export const TypeformContainer = ({ formId, containerId, onRefresh }: TypeformCo
     }
   }, [resourceManager, formId, containerId]);
   
-  // Add effect to ensure Typeform domain is set properly
+  // Add effect to ensure Typeform domain is set properly on mount and regularly
   useEffect(() => {
-    resourceManager.fixTypeformDomain();
-  }, [resourceManager]);
+    // Set domain on mount
+    fixTypeformDomain(true);
+    
+    // Set domain again after a short delay
+    const timer = setTimeout(() => {
+      fixTypeformDomain(true);
+    }, 500);
+    
+    return () => {
+      clearTimeout(timer);
+    };
+  }, []);
 
   return (
     <div 
@@ -41,4 +55,3 @@ export const TypeformContainer = ({ formId, containerId, onRefresh }: TypeformCo
     ></div>
   );
 };
-

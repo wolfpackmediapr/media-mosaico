@@ -34,12 +34,39 @@ export const ensureTypeformEnvironment = (): boolean => {
       // Check if domain exists on window.tf safely
       if (!window.tf.domain) {
         console.log("[Typeform] Adding domain fallback for Typeform");
-        // Add domain property to window.tf - use type assertion since we've updated the type definition
-        (window.tf as any).domain = {
-          currentDomain: getSafeDomain(),
-          primaryDomain: getSafeDomain()
+        // Get the current domain
+        const domain = getSafeDomain();
+        
+        // Add domain property to window.tf - use direct assignment
+        window.tf.domain = {
+          currentDomain: domain,
+          primaryDomain: domain
         };
+        
+        console.log("[Typeform] Domain set to:", domain);
         return true;
+      }
+      
+      // Check if domain exists but has incomplete properties
+      if (window.tf.domain) {
+        const domain = window.tf.domain;
+        let updated = false;
+        
+        if (!domain.currentDomain) {
+          domain.currentDomain = getSafeDomain();
+          updated = true;
+        }
+        
+        if (!domain.primaryDomain) {
+          domain.primaryDomain = getSafeDomain();
+          updated = true;
+        }
+        
+        if (updated) {
+          console.log("[Typeform] Updated incomplete domain properties");
+        }
+        
+        return updated;
       }
     }
     return false;

@@ -2,6 +2,7 @@
 import { useCallback, useState, useEffect } from "react";
 import { useTypeform } from "@/hooks/use-typeform";
 import { useTypeformResourceManager } from "@/utils/typeform/typeform-resource-manager";
+import { fixTypeformDomain } from "@/utils/typeform/core-utils";
 import { toast } from "sonner";
 
 interface TypeformInitializerProps {
@@ -31,6 +32,16 @@ export const useTypeformInitializer = ({
     sandboxMode: true
   });
   
+  // Ensure domain is properly set before initialization
+  const ensureDomainAndInitialize = useCallback(() => {
+    // Set the domain properly
+    fixTypeformDomain(true);
+    
+    setTimeout(() => {
+      typeform.initialize();
+    }, 100);
+  }, [typeform]);
+  
   // Initialize typeform with retry logic
   const initializeTypeform = useCallback(() => {
     if (!enabled) return;
@@ -39,12 +50,16 @@ export const useTypeformInitializer = ({
     
     try {
       // Make sure domain is set
-      resourceManager.fixTypeformDomain();
+      fixTypeformDomain(true);
       
       // Initialize with slight delay
       setTimeout(() => {
         try {
-          typeform.initialize();
+          // Ensure domain is set right before initialization
+          fixTypeformDomain(true);
+          
+          // Initialize typeform
+          ensureDomainAndInitialize();
           console.log(`[TypeformInitializer] Form ${formId} initialized`);
           if (onInitialized) onInitialized();
         } catch (err) {
@@ -59,6 +74,8 @@ export const useTypeformInitializer = ({
             console.log(`[TypeformInitializer] Retrying in ${delay}ms, attempt ${nextAttempt}/3`);
             
             setTimeout(() => {
+              // Set domain again before retry
+              fixTypeformDomain(true);
               initializeTypeform();
             }, delay);
           } else {
@@ -76,12 +93,15 @@ export const useTypeformInitializer = ({
         onError(err);
       }
     }
-  }, [typeform, formId, enabled, resourceManager, initAttempts, onInitialized, onError]);
+  }, [typeform, formId, enabled, resourceManager, initAttempts, onInitialized, onError, ensureDomainAndInitialize]);
 
   // Initialize when enabled changes to true
   useEffect(() => {
     if (enabled) {
       setInitAttempts(0); // Reset attempt counter when enabled changes
+      
+      // Set domain early
+      fixTypeformDomain(true);
       
       // Short delay to ensure component is mounted
       setTimeout(() => {
@@ -96,4 +116,3 @@ export const useTypeformInitializer = ({
     resetAttempts: () => setInitAttempts(0)
   };
 };
-
