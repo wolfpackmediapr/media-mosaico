@@ -3,7 +3,14 @@
  * Hook for loading and managing the Typeform script
  */
 import { useState, useRef, useCallback } from "react";
-import { SCRIPT_SRC, isGlobalScriptLoading, isGlobalScriptLoaded, setGlobalScriptLoading, setGlobalScriptLoaded } from "./constants";
+import { 
+  TYPEFORM_SCRIPT_URL, 
+  SCRIPT_SRC, 
+  isGlobalScriptLoading, 
+  isGlobalScriptLoaded, 
+  setGlobalScriptLoading, 
+  setGlobalScriptLoaded 
+} from "./constants";
 import { ScriptLoaderReturn } from "./types";
 import { isTypeformScriptReady } from "./utils";
 
@@ -52,7 +59,7 @@ export const useTypeformScriptLoader = (): ScriptLoaderReturn => {
     
     // Create new script if none exists
     const script = document.createElement('script');
-    script.src = SCRIPT_SRC;
+    script.src = TYPEFORM_SCRIPT_URL;
     script.async = true;
     script.defer = true; // Add defer to prevent blocking page rendering
     

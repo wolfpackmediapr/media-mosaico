@@ -4,9 +4,13 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import { ScriptLoaderReturn } from './types';
-
-// Script URL for Typeform embed
-const TYPEFORM_SCRIPT_URL = 'https://embed.typeform.com/next/embed.js';
+import { 
+  TYPEFORM_SCRIPT_URL, 
+  isGlobalScriptLoaded, 
+  isGlobalScriptLoading, 
+  setGlobalScriptLoaded, 
+  setGlobalScriptLoading 
+} from './constants';
 
 // Function to check if script is already loaded
 const isTypeformScriptLoaded = (): boolean => {
@@ -35,10 +39,12 @@ export const loadTypeformScript = (): Promise<void> => {
         // Script exists but may not be loaded yet
         existingScript.addEventListener('load', () => {
           console.log('[Typeform] Existing script loaded');
+          setGlobalScriptLoaded(true);
           resolve();
         });
         
         existingScript.addEventListener('error', (e) => {
+          setGlobalScriptLoading(false);
           reject(new Error(`Typeform script load error: ${e}`));
         });
         
@@ -46,21 +52,27 @@ export const loadTypeformScript = (): Promise<void> => {
       }
       
       console.log('[Typeform] Creating new script element');
+      setGlobalScriptLoading(true);
+      
       const script = document.createElement('script');
       script.src = TYPEFORM_SCRIPT_URL;
       script.async = true;
       
       script.addEventListener('load', () => {
         console.log('[Typeform] Script loaded successfully');
+        setGlobalScriptLoaded(true);
+        setGlobalScriptLoading(false);
         resolve();
       });
       
       script.addEventListener('error', (e) => {
+        setGlobalScriptLoading(false);
         reject(new Error(`Typeform script load error: ${e}`));
       });
       
       document.head.appendChild(script);
     } catch (err) {
+      setGlobalScriptLoading(false);
       reject(new Error(`Error loading Typeform script: ${err}`));
     }
   });
@@ -70,8 +82,8 @@ export const loadTypeformScript = (): Promise<void> => {
  * React hook for loading the Typeform script
  */
 export const useTypeformScript = (): ScriptLoaderReturn => {
-  const [isScriptLoaded, setIsScriptLoaded] = useState<boolean>(isTypeformScriptLoaded());
-  const [isScriptLoading, setIsScriptLoading] = useState<boolean>(false);
+  const [isScriptLoaded, setIsScriptLoaded] = useState<boolean>(isGlobalScriptLoaded || isTypeformScriptLoaded());
+  const [isScriptLoading, setIsScriptLoading] = useState<boolean>(isGlobalScriptLoading);
 
   const loadScript = useCallback(async () => {
     // Skip if already loaded or loading
@@ -94,7 +106,7 @@ export const useTypeformScript = (): ScriptLoaderReturn => {
     if (!isScriptLoaded && isTypeformScriptLoaded()) {
       setIsScriptLoaded(true);
     }
-  }, []);
+  }, [isScriptLoaded]);
 
   return {
     isScriptLoading,
