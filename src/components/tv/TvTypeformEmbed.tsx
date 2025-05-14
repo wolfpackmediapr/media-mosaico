@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTypeform } from "@/hooks/use-typeform";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 const TvTypeformEmbed = () => {
   const [showTypeform, setShowTypeform] = useState(false);
@@ -20,7 +21,7 @@ const TvTypeformEmbed = () => {
     // Wait a moment for the DOM to update before initializing
     setTimeout(() => {
       typeform.initialize();
-    }, 100);
+    }, 200);
   };
   
   const handleHideTypeform = () => {
@@ -29,15 +30,23 @@ const TvTypeformEmbed = () => {
     setShowTypeform(false);
   };
   
-  const handleRefresh = () => {
-    // Clean up typeform
-    typeform.cleanup();
+  const handleRefresh = async () => {
+    console.log("TV Typeform refresh requested");
     
-    // Wait a moment for the DOM to update before re-initializing
-    setTimeout(() => {
-      typeform.initialize();
-      console.log("TV Typeform refreshed");
-    }, 100);
+    // Use the new refresh method with feedback
+    try {
+      const success = await typeform.refresh();
+      if (success) {
+        console.log("TV Typeform refreshed successfully");
+        toast.success("Formulario actualizado correctamente");
+      } else {
+        console.warn("TV Typeform refresh failed");
+        toast.error("Error al actualizar el formulario");
+      }
+    } catch (err) {
+      console.error("Error refreshing TV Typeform:", err);
+      toast.error("Error al actualizar el formulario");
+    }
   };
   
   return (
@@ -65,10 +74,11 @@ const TvTypeformEmbed = () => {
               variant="outline" 
               size="sm"
               onClick={handleRefresh}
+              disabled={typeform.isRefreshing}
               aria-label="Reiniciar formulario"
               title="Reiniciar formulario"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${typeform.isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
             <Button 
               variant="outline" 
@@ -78,7 +88,14 @@ const TvTypeformEmbed = () => {
               Ocultar formulario
             </Button>
           </div>
-          <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK" className="h-[500px] md:h-[600px]"></div>
+          <div className="relative">
+            {typeform.isRefreshing && (
+              <div className="absolute inset-0 z-10 bg-slate-100/60 flex items-center justify-center">
+                <p className="text-slate-700 font-medium">Actualizando formulario...</p>
+              </div>
+            )}
+            <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK" className="h-[500px] md:h-[600px]"></div>
+          </div>
         </>
       )}
     </div>
