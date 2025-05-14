@@ -13,6 +13,7 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
   const typeformWidgetRef = useRef<any>(null);
   const cleanupInProgressRef = useRef<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const refreshAttemptRef = useRef<number>(0);
   
   // Default options with safe defaults
   const {
@@ -151,7 +152,109 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
     return false;
   };
 
-  // Return functions to explicitly initialize or cleanup with improved error handling
+  // Fixed refresh function with multiple retry attempts and iframe fallback
+  const refresh = async () => {
+    if (isRefreshing) {
+      console.log("Refresh already in progress, skipping duplicate refresh request");
+      return Promise.resolve(false);
+    }
+    
+    setIsRefreshing(true);
+    refreshAttemptRef.current += 1;
+    console.log(`Starting Typeform refresh attempt ${refreshAttemptRef.current}...`);
+    
+    return new Promise<boolean>((resolve) => {
+      // First try the standard method of cleanup and recreation
+      const cleanupSuccess = safePerformCleanup();
+      
+      // Allow more time for cleanup to complete fully
+      setTimeout(() => {
+        try {
+          if (window.tf && typeof window.tf.createWidget === 'function') {
+            // Try recreating the widget
+            try {
+              typeformWidgetRef.current = window.tf.createWidget();
+              
+              if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
+                typeformWidgetRef.current.options({
+                  disableKeyboardShortcuts: !keyboardShortcuts,
+                  disableMicrophone: disableMicrophone,
+                  disableTracking: true,
+                  enableSandbox: true
+                });
+              }
+              
+              typeformInitializedRef.current = true;
+              console.log("Typeform widget refreshed successfully");
+              
+              // If normal refresh worked, reset attempts
+              refreshAttemptRef.current = 0;
+              
+              // Allow time for the widget to fully initialize
+              setTimeout(() => {
+                setIsRefreshing(false);
+                resolve(true);
+              }, 500);
+            } catch (err) {
+              console.error("Error during primary Typeform refresh method:", err);
+              
+              // If primary method failed and we haven't tried too many times, try iframe refresh fallback
+              if (refreshAttemptRef.current <= 2) {
+                tryIframeRefresh();
+              } else {
+                console.error("Maximum refresh attempts reached, giving up");
+                setIsRefreshing(false);
+                resolve(false);
+              }
+            }
+          } else {
+            console.warn("Typeform API not available for refresh, trying iframe fallback");
+            tryIframeRefresh();
+          }
+        } catch (err) {
+          console.error("Unexpected error during Typeform refresh:", err);
+          tryIframeRefresh();
+        }
+      }, 600); // Longer delay for cleanup to complete
+      
+      // Fallback refresh method - reload the iframe directly if we can find it
+      function tryIframeRefresh() {
+        try {
+          const typeformIframes = document.querySelectorAll('iframe[src*="typeform.com"]');
+          if (typeformIframes && typeformIframes.length > 0) {
+            console.log(`Found ${typeformIframes.length} Typeform iframe(s), attempting direct refresh`);
+            
+            typeformIframes.forEach((iframe: HTMLIFrameElement) => {
+              const currentSrc = iframe.src;
+              // Force iframe refresh by temporarily clearing and resetting src
+              iframe.src = '';
+              
+              setTimeout(() => {
+                iframe.src = currentSrc;
+                console.log("Typeform iframe refreshed directly");
+                
+                // Allow time for iframe to load
+                setTimeout(() => {
+                  setIsRefreshing(false);
+                  resolve(true);
+                }, 800);
+              }, 100);
+            });
+          } else {
+            console.warn("No Typeform iframes found for direct refresh");
+            setIsRefreshing(false);
+            resolve(false);
+          }
+        } catch (fallbackErr) {
+          console.error("Error during fallback iframe refresh:", fallbackErr);
+          setIsRefreshing(false);
+          resolve(false);
+        }
+      }
+    });
+  };
+
+  // Return functions to explicitly initialize, cleanup, refresh with improved error handling
   return {
     initialize: () => {
       if (isRefreshing) {
@@ -195,54 +298,7 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
     cleanup: () => {
       return safePerformCleanup();
     },
-    refresh: () => {
-      if (isRefreshing) {
-        console.log("Refresh already in progress, skipping duplicate refresh request");
-        return Promise.resolve(false);
-      }
-      
-      setIsRefreshing(true);
-      console.log("Starting Typeform refresh...");
-      
-      // Return a promise to allow better control flow for the caller
-      return new Promise<boolean>((resolve) => {
-        // First safely cleanup the existing widget
-        safePerformCleanup();
-        
-        // Wait for cleanup to complete and DOM to stabilize
-        setTimeout(() => {
-          try {
-            if (window.tf && typeof window.tf.createWidget === 'function') {
-              // Create widget
-              typeformWidgetRef.current = window.tf.createWidget();
-              
-              // Configure widget
-              if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
-                typeformWidgetRef.current.options({
-                  disableKeyboardShortcuts: !keyboardShortcuts,
-                  disableMicrophone: disableMicrophone,
-                  disableTracking: true,
-                  enableSandbox: true
-                });
-              }
-              
-              typeformInitializedRef.current = true;
-              console.log("Typeform widget refreshed successfully");
-              setIsRefreshing(false);
-              resolve(true);
-            } else {
-              console.warn("Typeform API not available for refresh");
-              setIsRefreshing(false);
-              resolve(false);
-            }
-          } catch (err) {
-            console.error("Error during Typeform refresh:", err);
-            setIsRefreshing(false);
-            resolve(false);
-          }
-        }, 400); // Longer delay for refresh to ensure stability
-      });
-    },
+    refresh, // Use the enhanced refresh function
     isInitialized: typeformInitializedRef.current,
     isRefreshing
   };
