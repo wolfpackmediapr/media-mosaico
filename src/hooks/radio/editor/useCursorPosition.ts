@@ -12,13 +12,13 @@ interface UseCursorPositionOptions {
  */
 export const useCursorPosition = ({ isEnabled, text }: UseCursorPositionOptions) => {
   // Reference to the DOM element
-  const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   
   // Store cursor position to maintain across renders
   const cursorPositionRef = useRef<{ start: number; end: number } | null>(null);
   
   // Track cursor position on text change
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (isEnabled) {
       // Store current cursor position before the state update
       cursorPositionRef.current = {
@@ -52,6 +52,6 @@ export const useCursorPosition = ({ isEnabled, text }: UseCursorPositionOptions)
   
   return {
     inputRef,
-    handleInputChange: handleChange
+    handleInputChange
   };
 };
