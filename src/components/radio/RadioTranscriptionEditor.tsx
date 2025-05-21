@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
 import { TranscriptionEditorWrapper } from "./editor/TranscriptionEditorWrapper";
@@ -29,13 +29,10 @@ const RadioTranscriptionEditor = ({
     localText,
     isEditing,
     isLoadingUtterances,
-    showTimestamps,
-    hasTimestampData,
     isSaving,
     saveError,
     saveSuccess,
     handleTextChange,
-    toggleEditMode,
     hasSpeakerLabels,
     resetLocalSpeakerText
   } = useTranscriptionEditor({
@@ -56,7 +53,7 @@ const RadioTranscriptionEditor = ({
     }
   }, [registerReset, resetLocalSpeakerText]);
 
-  // Also monitor transcriptionText - if it's cleared, reset editor
+  // Monitor transcriptionText - if it's cleared, reset editor
   useEffect(() => {
     if (transcriptionText === '') {
       console.log('[RadioTranscriptionEditor] Empty transcription text detected, resetting');
@@ -77,6 +74,7 @@ const RadioTranscriptionEditor = ({
       saveSuccess={saveSuccess}
       hasSpeakerLabels={hasSpeakerLabels}
       isEditing={isEditing}
+      transcriptionId={transcriptionId}
     />
   );
 };
