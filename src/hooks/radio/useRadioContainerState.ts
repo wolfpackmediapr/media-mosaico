@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
@@ -182,11 +183,8 @@ export const useRadioContainerState = ({
     handleVolumeChange(value);
   };
 
-  const handlePlaybackRateChangeWrapper = () => {
-    const rates = [0.5, 1, 1.5, 2];
-    const currentIndex = rates.indexOf(playbackRate);
-    const nextIndex = (currentIndex + 1) % rates.length;
-    handlePlaybackRateChange(rates[nextIndex]);
+  const handlePlaybackRateChangeWrapper = (rate: number) => {
+    handlePlaybackRateChange(rate);
   };
 
   // Create a wrapper for handleClearAll that conforms to the expected type
@@ -265,7 +263,7 @@ export const useRadioContainerState = ({
     handleSkip,
     handleToggleMute,
     handleVolumeChange: handleVolumeChangeWrapper,
-    handlePlaybackRateChangeWrapper,
+    handlePlaybackRateChange: handlePlaybackRateChangeWrapper,
     handleSeekToSegment,
     setNewsSegments,
     handleTranscriptionProcessingError,
