@@ -105,7 +105,7 @@ export const getPlatformPlaceholderImage = (platform: string, sourceName?: strin
 
   // Special case for Molusco feed
   if (sourceName === 'Molusco') {
-    return "/lovable-uploads/da0f30a7-c379-42a2-95ed-ce8b4c40abd4.png";
+    return "/lovable-uploads/861a51b6-0cb5-41fc-9c28-6eddfe0ecc80.png";
   }
 
   const placeholders = {
