@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import type { SocialPost } from "@/types/social";
 import { platformIcons } from "@/lib/platform-icons";
+import { getSocialPostImage } from "@/services/social/image-utils";
 
 interface SocialPostCardProps {
   post: SocialPost;
@@ -19,13 +20,15 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
     link,
     pub_date,
     source,
-    image_url,
     platform,
     platform_display_name
   } = post;
 
   // Track image loading state
   const [imageError, setImageError] = useState(false);
+
+  // Use the proper image utility function to get the correct image with fallbacks
+  const imageUrl = getSocialPostImage(post);
 
   // Format the publication date
   const formattedDate = pub_date ? formatDistanceToNow(new Date(pub_date), { addSuffix: true }) : '';
@@ -35,10 +38,10 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
 
   return (
     <Card className="overflow-hidden flex flex-col h-full">
-      {image_url && !imageError ? (
+      {imageUrl && !imageError ? (
         <div className="relative w-full aspect-video overflow-hidden">
           <img 
-            src={image_url} 
+            src={imageUrl} 
             alt={title || "Social media post"} 
             className="object-cover w-full h-full"
             onError={() => setImageError(true)}
