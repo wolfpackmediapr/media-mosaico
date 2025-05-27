@@ -1,5 +1,5 @@
 
-import { useTextAreaCursor } from './useTextAreaCursor';
+import { useRef, useEffect } from 'react';
 
 interface UseCursorPositionOptions {
   isEnabled: boolean;
@@ -9,16 +9,49 @@ interface UseCursorPositionOptions {
 /**
  * A hook that tracks and restores cursor position in text inputs
  * to prevent cursor jumping when the component re-renders.
- * @deprecated Consider using the more specific useTextAreaCursor hook instead
  */
 export const useCursorPosition = ({ isEnabled, text }: UseCursorPositionOptions) => {
-  const { textAreaRef, handleTextChange } = useTextAreaCursor({
-    isEnabled,
-    text
-  });
+  // Reference to the DOM element
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  
+  // Store cursor position to maintain across renders
+  const cursorPositionRef = useRef<{ start: number; end: number } | null>(null);
+  
+  // Track cursor position on text change
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (isEnabled) {
+      // Store current cursor position before the state update
+      cursorPositionRef.current = {
+        start: e.target.selectionStart || 0,
+        end: e.target.selectionEnd || 0
+      };
+    }
+    
+    return e;
+  };
+  
+  // Restore cursor position after component updates
+  useEffect(() => {
+    if (isEnabled && inputRef.current && cursorPositionRef.current) {
+      const { start, end } = cursorPositionRef.current;
+      
+      // Ensure cursor position is within valid bounds
+      const maxLength = inputRef.current.value.length;
+      const safeStart = Math.min(start, maxLength);
+      const safeEnd = Math.min(end, maxLength);
+      
+      // Set cursor position or selection range
+      try {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(safeStart, safeEnd);
+      } catch (err) {
+        console.warn("Failed to restore cursor position:", err);
+      }
+    }
+  }, [text, isEnabled]);
   
   return {
-    inputRef: textAreaRef,
-    handleInputChange: handleTextChange
+    inputRef,
+    handleInputChange
   };
 };
