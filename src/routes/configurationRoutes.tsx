@@ -19,5 +19,9 @@ export const configurationRoutes: RouteObject[] = [
   {
     path: "configuracion/usuarios",
     element: createProtectedRoute(settingsRoutes.UsersSettings)
+  },
+  {
+    path: "ajustes/usuarios",
+    element: createProtectedRoute(settingsRoutes.UsersSettings)
   }
 ];
