@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useRadioFiles } from "@/hooks/radio/useRadioFiles";
 import { useClearRadioState } from "@/hooks/radio/useClearRadioState";
@@ -178,11 +177,21 @@ export const useRadioContainerState = ({
     clearAllStorageState
   });
 
+  // Create wrapper functions to handle type mismatches between components
+  const handleVolumeChangeWrapper = (value: number[]) => {
+    handleVolumeChange(value);
+  };
+
+  const handlePlaybackRateChangeWrapper = () => {
+    const rates = [0.5, 1, 1.5, 2];
+    const currentIndex = rates.indexOf(playbackRate);
+    const nextIndex = (currentIndex + 1) % rates.length;
+    handlePlaybackRateChange(rates[nextIndex]);
+  };
+
   // Create a wrapper for handleClearAll that conforms to the expected type
-  const handleClearAll = async (): Promise<void> => {
-    // Call the original function but ignore its return value
+  const handleClearAllWrapper = async (): Promise<void> => {
     await originalHandleClearAll();
-    // Return void implicitly
   };
 
   // Add effect to handle clearing all state
@@ -236,7 +245,7 @@ export const useRadioContainerState = ({
     // State tracking
     lastAction,
     // Handlers
-    handleClearAll, // Use our wrapped version that returns void
+    handleClearAll: handleClearAllWrapper, // Use our wrapped version that returns void
     handleTrackSelect,
     handleFilesAdded,
     setFiles,
@@ -255,8 +264,8 @@ export const useRadioContainerState = ({
     handleSeek,
     handleSkip,
     handleToggleMute,
-    handleVolumeChange,
-    handlePlaybackRateChange,
+    handleVolumeChange: handleVolumeChangeWrapper,
+    handlePlaybackRateChangeWrapper,
     handleSeekToSegment,
     setNewsSegments,
     handleTranscriptionProcessingError,

@@ -44,7 +44,7 @@ const RadioContainer = ({
     setIsMediaPlaying
   });
 
-  // Use our enhanced clear state hook with resetTranscription
+  // Use the enhanced clear state hook
   const {
     handleClearAll,
     handleEditorRegisterReset,

@@ -18,94 +18,128 @@ const ClearAllButton: React.FC<ClearAllButtonProps> = ({
   clearingStage = ''
 }) => {
   const [open, setOpen] = React.useState(false);
-  const [isClearing, setIsClearing] = React.useState(false);
+  const [isProcessing, setIsProcessing] = React.useState(false);
   
   // Determine if showing progress
-  const showProgress = isClearing && clearingProgress > 0;
+  const showProgress = isProcessing && clearingProgress > 0;
+  const isClearing = clearingProgress > 0 && clearingProgress < 100;
 
   const handleConfirm = async () => {
+    if (isProcessing) return;
+    
     try {
-      setIsClearing(true);
+      setIsProcessing(true);
       console.log("[ClearAllButton] Starting clear all operation");
       
-      // Always await the promise resolution, whether it resolves to true or false
       const success = await onClearAll();
       
       if (success) {
         toast.success("Se han borrado todos los archivos y transcripciones");
         console.log("[ClearAllButton] Clear all completed successfully");
       } else {
-        console.warn("[ClearAllButton] Clear all completed but returned false");
-        toast.warning("Algunos elementos no se pudieron borrar completamente");
+        console.warn("[ClearAllButton] Clear all completed with errors");
+        toast.warning("La limpieza se completó pero algunos elementos podrían no haberse borrado completamente");
       }
       
     } catch (error) {
       console.error("[ClearAllButton] Error clearing state:", error);
-      toast.error("No se pudieron borrar todos los elementos");
+      toast.error("Error durante la limpieza. Por favor, intente de nuevo.");
     } finally {
-      setIsClearing(false);
-      setOpen(false);
+      // Only close dialog if not actively clearing
+      if (!isClearing) {
+        setIsProcessing(false);
+        setOpen(false);
+      }
     }
   };
 
+  // Auto-close dialog when clearing completes successfully
+  React.useEffect(() => {
+    if (isProcessing && clearingProgress === 100) {
+      const timer = setTimeout(() => {
+        setIsProcessing(false);
+        setOpen(false);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isProcessing, clearingProgress]);
+
+  const canClose = !isProcessing || (!isClearing && clearingProgress === 0);
+
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
-      // Don't allow closing the dialog while clearing is in progress
-      if (isClearing && newOpen === false) return;
+      if (!canClose && newOpen === false) return;
       setOpen(newOpen);
+      if (!newOpen) {
+        setIsProcessing(false);
+      }
     }}>
       <DialogTrigger asChild>
         <Button
           variant="destructive"
           className="flex items-center gap-2"
           size="sm"
-          disabled={isClearing}
+          disabled={isProcessing}
         >
-          {isClearing ? (
+          {isProcessing ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <Trash className="w-4 h-4" />
           )}
-          {isClearing ? "Borrando..." : "Borrar todo"}
+          {isProcessing ? "Limpiando..." : "Borrar todo"}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>¿Borrar todo?</DialogTitle>
+          <DialogTitle>
+            {isProcessing ? "Limpiando datos..." : "¿Borrar todo?"}
+          </DialogTitle>
         </DialogHeader>
-        <div>
-          Esto eliminará todos los archivos y borrará todo el texto de transcripción. ¿Estás seguro? Esta acción no se puede deshacer.
+        
+        <div className="space-y-4">
+          {!isProcessing ? (
+            <p className="text-sm text-muted-foreground">
+              Esto eliminará todos los archivos y borrará todo el texto de transcripción. ¿Estás seguro? Esta acción no se puede deshacer.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Limpiando todos los datos del sistema...
+              </p>
+              
+              {showProgress && (
+                <div className="space-y-2">
+                  <Progress value={clearingProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    {clearingStage || "Procesando..."}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         
-        {showProgress && (
-          <div className="space-y-2">
-            <Progress value={clearingProgress} className="h-2" />
-            <p className="text-sm text-muted-foreground">{clearingStage || "Limpiando..."}</p>
-          </div>
-        )}
-        
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button 
             variant="secondary" 
             onClick={() => setOpen(false)}
-            disabled={isClearing}
+            disabled={!canClose}
+            size="sm"
           >
-            Cancelar
+            {isProcessing ? "Cancelar" : "Cancelar"}
           </Button>
-          <Button 
-            variant="destructive" 
-            onClick={handleConfirm}
-            disabled={isClearing}
-          >
-            {isClearing ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Borrando...
-              </>
-            ) : (
-              "Borrar todo"
-            )}
-          </Button>
+          
+          {!isProcessing && (
+            <Button 
+              variant="destructive" 
+              onClick={handleConfirm}
+              size="sm"
+            >
+              Borrar todo
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
