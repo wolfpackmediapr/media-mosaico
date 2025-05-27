@@ -98,9 +98,14 @@ export const extractImageFromHtml = (content: string): string | null => {
  * Generate a placeholder image URL for social platforms
  */
 export const getPlatformPlaceholderImage = (platform: string, sourceName?: string): string => {
+  // Special case for Benjamin Torres Gotay feed
+  if (sourceName === 'Benjamín Torres Gotay') {
+    return "/lovable-uploads/3201a499-9523-4ff1-a701-cadf852b7314.png";
+  }
+
   // Special case for Molusco feed
   if (sourceName === 'Molusco') {
-    return "/lovable-uploads/3201a499-9523-4ff1-a701-cadf852b7314.png";
+    return "/lovable-uploads/da0f30a7-c379-42a2-95ed-ce8b4c40abd4.png";
   }
 
   const placeholders = {
