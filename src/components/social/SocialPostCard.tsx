@@ -8,6 +8,7 @@ import { useState } from "react";
 import type { SocialPost } from "@/types/social";
 import { platformIcons } from "@/lib/platform-icons";
 import { getSocialPostImage } from "@/services/social/image-utils";
+import { sanitizeSocialContent } from "@/services/social/content-sanitizer";
 
 interface SocialPostCardProps {
   post: SocialPost;
@@ -29,6 +30,9 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
 
   // Use the proper image utility function to get the correct image with fallbacks
   const imageUrl = getSocialPostImage(post);
+
+  // Sanitize the description content to handle HTML properly
+  const sanitizedDescription = sanitizeSocialContent(description || '');
 
   // Format the publication date
   const formattedDate = pub_date ? formatDistanceToNow(new Date(pub_date), { addSuffix: true }) : '';
@@ -70,9 +74,16 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
       </CardHeader>
       
       <CardContent className="pb-2 flex-grow">
-        <CardDescription className="line-clamp-3">
-          {description || "No description available"}
-        </CardDescription>
+        {sanitizedDescription ? (
+          <div 
+            className="text-muted-foreground line-clamp-3 prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
+          />
+        ) : (
+          <CardDescription className="line-clamp-3">
+            No description available
+          </CardDescription>
+        )}
       </CardContent>
       
       <CardFooter className="pt-0">
