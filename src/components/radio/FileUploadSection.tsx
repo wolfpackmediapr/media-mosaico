@@ -1,5 +1,5 @@
 
-import { Dispatch, SetStateAction } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import FileUploadZone from "@/components/upload/FileUploadZone";
 import AudioFileList from "./AudioFileList";
 import { useAudioTranscription } from "@/hooks/useAudioTranscription";
@@ -41,6 +41,7 @@ const FileUploadSection = ({
 }: FileUploadSectionProps) => {
   const { processWithAuth } = useAudioTranscription();
   const { toast } = useToast();
+  const [isDragging, setIsDragging] = useState(false);
 
   const { handleFilesAdded, handleRemoveFile } = useFileUploadHandlers({
     files,
@@ -57,8 +58,19 @@ const FileUploadSection = ({
     }
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    setIsDragging(false);
     const filesArr = Array.from(e.dataTransfer.files);
     (onFilesAdded ? onFilesAdded : handleFilesAdded)(filesArr);
   };
@@ -102,9 +114,9 @@ const FileUploadSection = ({
   return (
     <>
       <FileUploadZone
-        isDragging={false}
-        onDragOver={(e) => { e.preventDefault(); }}
-        onDragLeave={(e) => e.preventDefault()}
+        isDragging={isDragging}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onFileInput={handleFileInput}
         accept="audio/*"
