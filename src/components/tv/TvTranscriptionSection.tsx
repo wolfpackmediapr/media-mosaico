@@ -1,5 +1,5 @@
 
-import TranscriptionSlot from "@/components/transcription/TranscriptionSlot";
+import TvTranscriptionSlot from "./TvTranscriptionSlot";
 import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
 import { NewsSegment } from "@/hooks/use-video-processor";
 
@@ -43,7 +43,7 @@ const TvTranscriptionSection = ({
         isProcessing={isProcessing}
       />
 
-      <TranscriptionSlot
+      <TvTranscriptionSlot
         isProcessing={isProcessing}
         transcriptionText={textContent}
         metadata={transcriptionMetadata || {
@@ -52,9 +52,9 @@ const TvTranscriptionSection = ({
           category: "Economía",
           broadcastTime: "2024-03-15T10:00:00Z"
         }}
-        analysis={testAnalysis}
         onTranscriptionChange={onTranscriptionChange}
         onSegmentsReceived={onSegmentsReceived}
+        onSeek={onSeekToTimestamp}
       />
     </>
   );
