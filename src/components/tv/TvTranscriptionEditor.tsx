@@ -1,7 +1,7 @@
 
 import React, { useEffect } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
-import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
+import { useTvTranscriptionEditor } from "@/hooks/tv/useTvTranscriptionEditor";
 import { TranscriptionEditorWrapper } from "@/components/radio/editor/TranscriptionEditorWrapper";
 
 interface TvTranscriptionEditorProps {
@@ -38,7 +38,7 @@ const TvTranscriptionEditor = ({
     toggleEditMode,
     hasSpeakerLabels,
     resetLocalSpeakerText
-  } = useTranscriptionEditor({
+  } = useTvTranscriptionEditor({
     transcriptionText,
     transcriptionId,
     transcriptionResult,
