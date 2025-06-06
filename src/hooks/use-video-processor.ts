@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/services/toastService";
@@ -32,7 +31,6 @@ export const useVideoProcessor = () => {
   const processVideo = async (file: File) => {
     setIsProcessing(true);
     setProgress(0);
-    setNewsSegments([]);
     console.log("Starting video processing for file:", file.name);
 
     try {
@@ -79,7 +77,7 @@ export const useVideoProcessor = () => {
 
         setProgress(50);
 
-        // Process the converted audio file
+        // Process the converted audio file - remove segment processing
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { videoPath: conversionData.audioPath }
@@ -93,12 +91,6 @@ export const useVideoProcessor = () => {
           setTranscriptionResult(transcriptionResult);
           setTranscriptionId(transcriptionResult.id || transcriptionResult.assemblyId || null);
           
-          // Handle news segments if available
-          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
-            console.log("Received segments:", transcriptionResult.segments);
-            setNewsSegments(transcriptionResult.segments);
-          }
-          
           // Store AssemblyAI ID if available
           if (transcriptionResult.assemblyId) {
             setAssemblyId(transcriptionResult.assemblyId);
@@ -107,11 +99,11 @@ export const useVideoProcessor = () => {
           setProgress(100);
           
           toast.success("Transcripción completada", {
-            description: `Se han identificado ${transcriptionResult.segments?.length || 0} segmentos de noticias.`
+            description: "El archivo ha sido transcrito exitosamente. Use 'Analizar contenido' para generar segmentos."
           });
         }
       } else {
-        // For smaller files, process directly
+        // For smaller files, process directly - remove segment processing
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { videoPath: filePath }
@@ -124,12 +116,6 @@ export const useVideoProcessor = () => {
           setTranscriptionResult(transcriptionResult);
           setTranscriptionId(transcriptionResult.id || transcriptionResult.assemblyId || null);
           
-          // Handle news segments if available
-          if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
-            console.log("Received segments:", transcriptionResult.segments);
-            setNewsSegments(transcriptionResult.segments);
-          }
-          
           // Store AssemblyAI ID if available
           if (transcriptionResult.assemblyId) {
             setAssemblyId(transcriptionResult.assemblyId);
@@ -138,7 +124,7 @@ export const useVideoProcessor = () => {
           setProgress(100);
           
           toast.success("Transcripción completada", {
-            description: `Se han identificado ${transcriptionResult.segments?.length || 0} segmentos de noticias.`
+            description: "El archivo ha sido transcrito exitosamente. Use 'Analizar contenido' para generar segmentos."
           });
         }
       }

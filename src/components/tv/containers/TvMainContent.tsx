@@ -170,6 +170,7 @@ const TvMainContent = ({
           testAnalysis={testAnalysis}
           onClearAnalysis={setClearAnalysis}
           lastAction={lastAction}
+          onSegmentsGenerated={onSegmentsReceived}
         />
       )}
 
