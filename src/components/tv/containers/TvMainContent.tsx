@@ -45,7 +45,6 @@ interface TvMainContentProps {
   transcriptionId?: string;
   handleTranscriptionChange: (text: string) => void;
   handleSeekToTimestamp: (timestamp: number) => void;
-  setNewsSegments: (segments: NewsSegment[]) => void;
   handleEditorRegisterReset: (fn: () => void) => void;
   currentTime: number;
   
@@ -178,7 +177,7 @@ const TvMainContent = ({
       {newsSegments && newsSegments.length > 0 && (
         <NewsSegmentsContainer
           segments={newsSegments}
-          onSegmentsChange={setNewsSegments}
+          onSegmentsChange={onSegmentsReceived}
           onSeek={handleSeekToTimestamp}
           isProcessing={isProcessing}
         />
