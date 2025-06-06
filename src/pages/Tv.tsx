@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useTvTabState } from "@/hooks/tv/useTvTabState";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
@@ -22,10 +22,6 @@ const Tv = () => {
   
   // Initialize local isPlaying state but sync with global persistent state
   const [isPlaying, setIsPlaying] = useState(false);
-  
-  // Video player state management
-  const [currentTime, setCurrentTime] = useState(0);
-  const [seekToTime, setSeekToTime] = useState<number | undefined>(undefined);
   
   // Use persistent video state to maintain playback across routes
   const { isActiveMediaRoute, isMediaPlaying, setIsMediaPlaying } = usePersistentVideoState();
@@ -120,24 +116,20 @@ const Tv = () => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Handle time updates from video player
-  const handleTimeUpdate = useCallback((time: number) => {
-    setCurrentTime(time);
-  }, []);
-
-  // Handle seeking from video player
-  const handleVideoSeek = useCallback((time: number) => {
-    setCurrentTime(time);
-    // Clear any pending seek requests
-    setSeekToTime(undefined);
-  }, []);
-
-  // Handle seeking from transcription (timestamp clicks)
-  const handleSeekToTimestamp = useCallback((timestamp: number) => {
-    console.log(`[Tv] Seeking to timestamp: ${timestamp}s`);
-    setSeekToTime(timestamp);
-    setCurrentTime(timestamp);
-  }, []);
+  const handleSeekToTimestamp = (timestamp: number) => {
+    const timeInSeconds = timestamp / 1000;
+    
+    const videoElements = document.querySelectorAll('video');
+    if (videoElements.length > 0) {
+      const videoElement = videoElements[0];
+      videoElement.currentTime = timeInSeconds;
+      videoElement.play();
+      setIsPlaying(true);
+      setIsMediaPlaying(true);
+    } else {
+      console.warn('No video element found to seek');
+    }
+  };
 
   return (
     <div className="w-full space-y-6">
@@ -161,10 +153,6 @@ const Tv = () => {
         onTranscriptionComplete={handleTranscriptionComplete}
         onRemoveFile={handleRemoveFile}
         isActiveMediaRoute={isActiveMediaRoute}
-        currentTime={currentTime}
-        seekToTime={seekToTime}
-        onTimeUpdate={handleTimeUpdate}
-        onSeek={handleVideoSeek}
       />
 
       {textContent && (
@@ -178,9 +166,6 @@ const Tv = () => {
           onSegmentsChange={setNewsSegments}
           onSeekToTimestamp={handleSeekToTimestamp}
           onSegmentsReceived={setNewsSegments}
-          currentTime={currentTime}
-          isPlaying={isPlaying}
-          onPlayPause={togglePlayback}
         />
       )}
 

@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import TvTranscriptionMetadata from "./TvTranscriptionMetadata";
