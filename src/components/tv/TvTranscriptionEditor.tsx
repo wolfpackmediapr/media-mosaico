@@ -44,7 +44,7 @@ const TvTranscriptionEditor = ({
     onTranscriptionChange,
   });
 
-  // Register reset function with parent
+  // Register reset function with parent only once
   useEffect(() => {
     if (registerReset) {
       console.log('[TvTranscriptionEditor] Registering reset function with parent');
@@ -53,7 +53,7 @@ const TvTranscriptionEditor = ({
         resetLocalSpeakerText();
       });
     }
-  }, [registerReset, resetLocalSpeakerText]);
+  }, [registerReset]); // Remove resetLocalSpeakerText from dependencies to prevent infinite loop
 
   // Monitor transcriptionText - if it's cleared, reset editor
   useEffect(() => {

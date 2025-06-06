@@ -96,11 +96,14 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
         setViewMode('edit');
       }
     };
-    
-    if (registerEditorReset) {
+  }, [removeViewMode, setViewMode]);
+
+  // Register the reset function with parent only once
+  useEffect(() => {
+    if (registerEditorReset && resetFnRef.current) {
       registerEditorReset(resetFnRef.current);
     }
-  }, [registerEditorReset, removeViewMode, setViewMode]);
+  }, [registerEditorReset]);
 
   // Cleanup on unmount
   useEffect(() => {

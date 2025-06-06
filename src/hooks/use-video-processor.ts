@@ -44,7 +44,7 @@ export const useVideoProcessor = () => {
       // Get the actual file path from the latest transcription record
       const { data: transcriptionData, error: transcriptionError } = await supabase
         .from('transcriptions')
-        .select('original_file_path')
+        .select('original_file_path, id')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -69,7 +69,10 @@ export const useVideoProcessor = () => {
 
         const { data: conversionData, error: conversionError } = await supabase.functions
           .invoke('convert-to-audio', {
-            body: { videoPath: filePath }
+            body: { 
+              videoPath: filePath,
+              transcriptionId: transcriptionData?.id
+            }
           });
 
         if (conversionError) throw conversionError;
@@ -77,7 +80,7 @@ export const useVideoProcessor = () => {
 
         setProgress(50);
 
-        // Process the converted audio file - remove segment processing
+        // Process the converted audio file
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { videoPath: conversionData.audioPath }

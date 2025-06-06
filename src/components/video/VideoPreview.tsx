@@ -1,7 +1,6 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import VideoFileItem from "./VideoFileItem";
-import { processVideoFile } from "./VideoProcessing";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -34,8 +33,7 @@ const VideoPreview = ({
   onRemoveFile,
   isActiveMediaRoute = true
 }: VideoPreviewProps) => {
-  const handleProcess = async (file: UploadedFile) => {
-    await processVideoFile(file, onTranscriptionComplete);
+  const handleProcess = (file: UploadedFile) => {
     onProcess(file);
   };
 
