@@ -2,7 +2,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import TvTranscriptionMetadata from "./TvTranscriptionMetadata";
 import TvTranscriptionEditor from "./TvTranscriptionEditor";
-import TvReportButton from "./TvReportButton";
 import TvInteractiveTranscription from "./TvInteractiveTranscription";
 import { TvViewModeToggle } from "./interactive-transcription/TvViewModeToggle";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
@@ -168,14 +167,6 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
               currentTime={currentTime}
             />
           )}
-          
-          <div className="flex justify-end">
-            <TvReportButton
-              transcriptionText={transcriptionText}
-              metadata={metadata}
-              isProcessing={isProcessing}
-            />
-          </div>
         </CardContent>
       </Card>
     </div>

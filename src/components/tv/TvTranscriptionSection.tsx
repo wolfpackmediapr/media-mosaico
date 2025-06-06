@@ -1,11 +1,10 @@
 
 import TvTranscriptionSlot from "./TvTranscriptionSlot";
-import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
 import { NewsSegment } from "@/hooks/use-video-processor";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface TvTranscriptionSectionProps {
   textContent: string;
-  newsSegments: NewsSegment[];
   isProcessing: boolean;
   transcriptionMetadata?: {
     channel?: string;
@@ -13,50 +12,54 @@ interface TvTranscriptionSectionProps {
     category?: string;
     broadcastTime?: string;
   };
-  testAnalysis: any;
+  transcriptionResult?: TranscriptionResult;
+  transcriptionId?: string;
   onTranscriptionChange: (text: string) => void;
-  onSegmentsChange: (segments: NewsSegment[]) => void;
   onSeekToTimestamp: (timestamp: number) => void;
-  onSegmentsReceived: (segments: NewsSegment[]) => void;
+  onSegmentsReceived?: (segments: NewsSegment[]) => void;
+  registerEditorReset?: (fn: () => void) => void;
+  isPlaying?: boolean;
+  currentTime?: number;
+  onPlayPause?: () => void;
 }
 
 const TvTranscriptionSection = ({
   textContent,
-  newsSegments,
   isProcessing,
   transcriptionMetadata,
-  testAnalysis,
+  transcriptionResult,
+  transcriptionId,
   onTranscriptionChange,
-  onSegmentsChange,
   onSeekToTimestamp,
-  onSegmentsReceived
+  onSegmentsReceived,
+  registerEditorReset,
+  isPlaying = false,
+  currentTime = 0,
+  onPlayPause = () => {}
 }: TvTranscriptionSectionProps) => {
   
   if (!textContent) return null;
 
   return (
-    <>
-      <NewsSegmentsContainer
-        segments={newsSegments}
-        onSegmentsChange={onSegmentsChange}
-        onSeek={onSeekToTimestamp}
-        isProcessing={isProcessing}
-      />
-
-      <TvTranscriptionSlot
-        isProcessing={isProcessing}
-        transcriptionText={textContent}
-        metadata={transcriptionMetadata || {
-          channel: "WIPR",
-          program: "Noticias Puerto Rico",
-          category: "Economía",
-          broadcastTime: "2024-03-15T10:00:00Z"
-        }}
-        onTranscriptionChange={onTranscriptionChange}
-        onSegmentsReceived={onSegmentsReceived}
-        onSeek={onSeekToTimestamp}
-      />
-    </>
+    <TvTranscriptionSlot
+      isProcessing={isProcessing}
+      transcriptionText={textContent}
+      transcriptionResult={transcriptionResult}
+      transcriptionId={transcriptionId}
+      metadata={transcriptionMetadata || {
+        channel: "WIPR",
+        program: "Noticias Puerto Rico",
+        category: "Economía",
+        broadcastTime: "2024-03-15T10:00:00Z"
+      }}
+      onTranscriptionChange={onTranscriptionChange}
+      onSegmentsReceived={onSegmentsReceived}
+      onSeek={onSeekToTimestamp}
+      registerEditorReset={registerEditorReset}
+      isPlaying={isPlaying}
+      currentTime={currentTime}
+      onPlayPause={onPlayPause}
+    />
   );
 };
 

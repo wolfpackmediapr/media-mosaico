@@ -4,9 +4,15 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useTvTabState } from "@/hooks/tv/useTvTabState";
 import { useVideoProcessor } from "@/hooks/use-video-processor";
 import { usePersistentVideoState } from "@/hooks/tv/usePersistentVideoState";
+import { useTvClearState } from "@/hooks/tv/useTvClearState";
+import { useTvNotepadState } from "@/hooks/tv/useTvNotepadState";
 import VideoSection from "@/components/tv/VideoSection";
 import TvTranscriptionSection from "@/components/tv/TvTranscriptionSection";
 import TvTypeformEmbed from "@/components/tv/TvTypeformEmbed";
+import TvTopSection from "@/components/tv/TvTopSection";
+import TvNotePadSection from "@/components/tv/TvNotePadSection";
+import TvAnalysisSection from "@/components/tv/TvAnalysisSection";
+import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -52,11 +58,41 @@ const Tv = () => {
     progress,
     transcriptionText,
     transcriptionMetadata,
+    transcriptionResult,
+    transcriptionId,
     newsSegments,
     processVideo,
     setTranscriptionText: setVideoProcessorText,
     setNewsSegments
   } = useVideoProcessor();
+
+  // Add clear state management
+  const {
+    handleClearAll,
+    handleEditorRegisterReset,
+    setClearAnalysis,
+    clearingProgress,
+    clearingStage,
+    lastAction
+  } = useTvClearState({
+    persistKey: "tv-files",
+    onTextChange: setTextContent,
+    files: uploadedFiles,
+    setFiles: setUploadedFiles,
+    setNewsSegments,
+    setTranscriptionText: setVideoProcessorText,
+  });
+
+  // Add notepad state
+  const {
+    content: notepadContent,
+    setContent: setNotepadContent,
+    isExpanded: isNotepadExpanded,
+    setIsExpanded: setIsNotepadExpanded,
+  } = useTvNotepadState({
+    persistKey: "tv-notepad",
+    storage: 'sessionStorage'
+  });
 
   // Sync videoProcessor text with our persisted text state
   useEffect(() => {
@@ -133,6 +169,15 @@ const Tv = () => {
 
   return (
     <div className="w-full space-y-6">
+      {/* 1. TopSection - Clear all controls */}
+      <TvTopSection
+        handleClearAll={handleClearAll}
+        files={uploadedFiles}
+        transcriptionText={textContent}
+        clearingProgress={clearingProgress}
+        clearingStage={clearingStage}
+      />
+
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">MONITOREO TV</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-2">
@@ -140,6 +185,7 @@ const Tv = () => {
         </p>
       </div>
 
+      {/* 2. VideoSection - Two columns (upload + preview) */}
       <VideoSection
         uploadedFiles={uploadedFiles}
         setUploadedFiles={setUploadedFiles}
@@ -155,21 +201,56 @@ const Tv = () => {
         isActiveMediaRoute={isActiveMediaRoute}
       />
 
+      {/* 3. TranscriptionSection - Transcription editing only */}
       {textContent && (
         <TvTranscriptionSection 
           textContent={textContent}
-          newsSegments={newsSegments}
           isProcessing={isProcessing}
           transcriptionMetadata={transcriptionMetadata}
-          testAnalysis={testAnalysis}
+          transcriptionResult={transcriptionResult}
+          transcriptionId={transcriptionId}
           onTranscriptionChange={handleTranscriptionChange}
-          onSegmentsChange={setNewsSegments}
           onSeekToTimestamp={handleSeekToTimestamp}
           onSegmentsReceived={setNewsSegments}
+          registerEditorReset={handleEditorRegisterReset}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          onPlayPause={togglePlayback}
         />
       )}
 
+      {/* 4. NotePadSection - Notepad for annotations */}
+      <TvNotePadSection
+        notepadContent={notepadContent}
+        onNotepadContentChange={setNotepadContent}
+        isExpanded={isNotepadExpanded}
+        onExpandToggle={setIsNotepadExpanded}
+      />
+
+      {/* 5. TypeformEmbed - Typeform integration */}
       <TvTypeformEmbed />
+
+      {/* 6. AnalysisSection - AI analysis results */}
+      {textContent && (
+        <TvAnalysisSection
+          transcriptionText={textContent}
+          transcriptionId={transcriptionId}
+          transcriptionResult={transcriptionResult}
+          testAnalysis={testAnalysis}
+          onClearAnalysis={setClearAnalysis}
+          lastAction={lastAction}
+        />
+      )}
+
+      {/* 7. NewsSegmentsSection - News segments (if available) */}
+      {newsSegments && newsSegments.length > 0 && (
+        <NewsSegmentsContainer
+          segments={newsSegments}
+          onSegmentsChange={setNewsSegments}
+          onSeek={handleSeekToTimestamp}
+          isProcessing={isProcessing}
+        />
+      )}
     </div>
   );
 };
