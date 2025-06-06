@@ -16,6 +16,7 @@ interface TranscriptionEditorWrapperProps {
   saveError?: string | null;
   saveSuccess?: boolean;
   isEditing?: boolean;
+  showPlaceholder?: boolean;
 }
 
 export const TranscriptionEditorWrapper = ({
@@ -30,6 +31,7 @@ export const TranscriptionEditorWrapper = ({
   saveError,
   saveSuccess,
   isEditing,
+  showPlaceholder,
 }: TranscriptionEditorWrapperProps) => {
   return (
     <div className="relative">
