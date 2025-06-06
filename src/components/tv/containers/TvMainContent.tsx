@@ -1,3 +1,4 @@
+
 import React from "react";
 import TvTopSection from "./TvTopSection";
 import TvVideoSection from "./TvVideoSection";
@@ -132,23 +133,21 @@ const TvMainContent = ({
         isActiveMediaRoute={isActiveMediaRoute}
       />
 
-      {/* 3. TranscriptionSection - Transcription editing only */}
-      {textContent && (
-        <TvTranscriptionSection 
-          textContent={textContent}
-          isProcessing={isProcessing}
-          transcriptionMetadata={transcriptionMetadata}
-          transcriptionResult={transcriptionResult}
-          transcriptionId={transcriptionId}
-          onTranscriptionChange={handleTranscriptionChange}
-          onSeekToTimestamp={handleSeekToTimestamp}
-          onSegmentsReceived={onSegmentsReceived}
-          registerEditorReset={handleEditorRegisterReset}
-          isPlaying={isPlaying}
-          currentTime={currentTime}
-          onPlayPause={togglePlayback}
-        />
-      )}
+      {/* 3. TranscriptionSection - Always show the transcription editor */}
+      <TvTranscriptionSection 
+        textContent={textContent}
+        isProcessing={isProcessing}
+        transcriptionMetadata={transcriptionMetadata}
+        transcriptionResult={transcriptionResult}
+        transcriptionId={transcriptionId}
+        onTranscriptionChange={handleTranscriptionChange}
+        onSeekToTimestamp={handleSeekToTimestamp}
+        onSegmentsReceived={onSegmentsReceived}
+        registerEditorReset={handleEditorRegisterReset}
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        onPlayPause={togglePlayback}
+      />
 
       {/* 4. NotePadSection - Notepad for annotations */}
       <TvNotePadSection
@@ -161,7 +160,7 @@ const TvMainContent = ({
       {/* 5. TypeformEmbed - Typeform integration */}
       <TvTypeformEmbed />
 
-      {/* 6. AnalysisSection - AI analysis results */}
+      {/* 6. AnalysisSection - AI analysis results (only show when there's text) */}
       {textContent && (
         <TvAnalysisSection
           transcriptionText={textContent}

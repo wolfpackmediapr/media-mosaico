@@ -38,8 +38,7 @@ const TvTranscriptionSection = ({
   onPlayPause = () => {}
 }: TvTranscriptionSectionProps) => {
   
-  if (!textContent) return null;
-
+  // Always render the transcription slot, regardless of text content
   return (
     <TvTranscriptionSlot
       isProcessing={isProcessing}

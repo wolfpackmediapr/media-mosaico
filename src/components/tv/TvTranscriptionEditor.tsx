@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
@@ -76,6 +77,7 @@ const TvTranscriptionEditor = ({
       saveSuccess={saveSuccess}
       hasSpeakerLabels={hasSpeakerLabels}
       isEditing={isEditing}
+      showPlaceholder={!transcriptionText} // Show placeholder when no content
     />
   );
 };
