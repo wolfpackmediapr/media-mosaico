@@ -40,12 +40,32 @@ export const useVideoProcessor = () => {
       if (authError) throw new Error('Authentication required');
       if (!user) throw new Error('Please log in to process videos');
 
+      setProgress(5);
+
+      // First upload the file to storage
+      console.log('[VideoProcessor] Uploading file to storage');
+      const timestamp = Date.now();
+      const sanitizedFileName = file.name.replace(/\s+/g, '_');
+      const fileName = `${user.id}/${timestamp}_${sanitizedFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw new Error("Error al subir el archivo: " + uploadError.message);
+      }
+
       setProgress(10);
 
-      // Create a TV transcription record for this video
+      // Create a TV transcription record for this video with the storage path
       console.log('[VideoProcessor] Creating TV transcription record');
       const tvTranscription = await TvTranscriptionService.createTranscription({
-        original_file_path: file.name, // We'll use filename for now, should be actual storage path
+        original_file_path: fileName, // Use the actual storage path
         status: 'processing',
         progress: 10
       });
