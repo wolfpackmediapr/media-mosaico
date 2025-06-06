@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/services/toastService";
+import { TvTranscriptionService } from "@/services/tv/tvTranscriptionService";
 
 interface TranscriptionMetadata {
   channel?: string;
@@ -41,26 +42,23 @@ export const useVideoProcessor = () => {
 
       setProgress(10);
 
-      // Get the actual file path from the latest transcription record
-      const { data: transcriptionData, error: transcriptionError } = await supabase
-        .from('transcriptions')
-        .select('original_file_path, id')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (transcriptionError) {
-        console.error('Error getting transcription record:', transcriptionError);
-        throw new Error('Could not find the file in our system');
+      // Create a TV transcription record for this video
+      console.log('[VideoProcessor] Creating TV transcription record');
+      const tvTranscription = await TvTranscriptionService.createTranscription({
+        original_file_path: file.name, // We'll use filename for now, should be actual storage path
+        status: 'processing',
+        progress: 10
+      });
+
+      if (!tvTranscription) {
+        throw new Error('Failed to create transcription record');
       }
+
+      console.log('[VideoProcessor] Created TV transcription:', tvTranscription.id);
+      setTranscriptionId(tvTranscription.id);
       
-      const filePath = transcriptionData?.original_file_path;
-      if (!filePath) {
-        throw new Error('No file path found in database');
-      }
-      
-      console.log('Using file path from database:', filePath);
+      const filePath = tvTranscription.original_file_path;
+      console.log('Using file path:', filePath);
 
       // Updated size limit to 20MB
       if (file.size > 20 * 1024 * 1024) {
@@ -71,7 +69,7 @@ export const useVideoProcessor = () => {
           .invoke('convert-to-audio', {
             body: { 
               videoPath: filePath,
-              transcriptionId: transcriptionData?.id
+              transcriptionId: tvTranscription.id
             }
           });
 
@@ -90,9 +88,16 @@ export const useVideoProcessor = () => {
         setProgress(90);
 
         if (transcriptionResult?.text) {
+          // Update TV transcription record with results
+          await TvTranscriptionService.updateTranscription(tvTranscription.id, {
+            transcription_text: transcriptionResult.text,
+            audio_file_path: conversionData.audioPath,
+            status: 'completed',
+            progress: 100
+          });
+
           setTranscriptionText(transcriptionResult.text);
           setTranscriptionResult(transcriptionResult);
-          setTranscriptionId(transcriptionResult.id || transcriptionResult.assemblyId || null);
           
           // Store AssemblyAI ID if available
           if (transcriptionResult.assemblyId) {
@@ -106,7 +111,7 @@ export const useVideoProcessor = () => {
           });
         }
       } else {
-        // For smaller files, process directly - remove segment processing
+        // For smaller files, process directly
         const { data: transcriptionResult, error: processError } = await supabase.functions
           .invoke('transcribe-video', {
             body: { videoPath: filePath }
@@ -115,9 +120,15 @@ export const useVideoProcessor = () => {
         if (processError) throw processError;
 
         if (transcriptionResult?.text) {
+          // Update TV transcription record with results
+          await TvTranscriptionService.updateTranscription(tvTranscription.id, {
+            transcription_text: transcriptionResult.text,
+            status: 'completed',
+            progress: 100
+          });
+
           setTranscriptionText(transcriptionResult.text);
           setTranscriptionResult(transcriptionResult);
-          setTranscriptionId(transcriptionResult.id || transcriptionResult.assemblyId || null);
           
           // Store AssemblyAI ID if available
           if (transcriptionResult.assemblyId) {

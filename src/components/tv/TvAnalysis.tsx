@@ -85,6 +85,33 @@ const TvAnalysis = ({
         
         if (data.segments && Array.isArray(data.segments)) {
           console.log('[TvAnalysis] Segments received:', data.segments);
+          
+          // Save segments to TV-specific table
+          if (transcriptionId && data.segments.length > 0) {
+            console.log('[TvAnalysis] Saving segments to tv_news_segments table');
+            const segmentsToInsert = data.segments.map((segment: any, index: number) => ({
+              transcription_id: transcriptionId,
+              segment_number: index + 1,
+              segment_title: segment.headline || `Segmento ${index + 1}`,
+              transcript: segment.text || '',
+              timestamp_start: segment.start ? `${Math.floor(segment.start / 60)}:${String(segment.start % 60).padStart(2, '0')}` : null,
+              timestamp_end: segment.end ? `${Math.floor(segment.end / 60)}:${String(segment.end % 60).padStart(2, '0')}` : null,
+              start_ms: segment.start ? segment.start * 1000 : null,
+              end_ms: segment.end ? segment.end * 1000 : null,
+              keywords: segment.keywords || []
+            }));
+            
+            const { error: insertError } = await supabase
+              .from('tv_news_segments')
+              .insert(segmentsToInsert);
+              
+            if (insertError) {
+              console.error('[TvAnalysis] Error saving segments:', insertError);
+            } else {
+              console.log('[TvAnalysis] Segments saved successfully to tv_news_segments');
+            }
+          }
+          
           setSegments(data.segments);
           if (onSegmentsGenerated) {
             onSegmentsGenerated(data.segments);

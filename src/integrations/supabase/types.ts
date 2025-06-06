@@ -1415,6 +1415,62 @@ export type Database = {
         }
         Relationships: []
       }
+      tv_news_segments: {
+        Row: {
+          created_at: string | null
+          embedding: string | null
+          end_ms: number | null
+          id: string
+          keywords: string[] | null
+          segment_number: number
+          segment_title: string
+          start_ms: number | null
+          timestamp_end: string | null
+          timestamp_start: string | null
+          transcript: string
+          transcription_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          embedding?: string | null
+          end_ms?: number | null
+          id?: string
+          keywords?: string[] | null
+          segment_number: number
+          segment_title: string
+          start_ms?: number | null
+          timestamp_end?: string | null
+          timestamp_start?: string | null
+          transcript: string
+          transcription_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          embedding?: string | null
+          end_ms?: number | null
+          id?: string
+          keywords?: string[] | null
+          segment_number?: number
+          segment_title?: string
+          start_ms?: number | null
+          timestamp_end?: string | null
+          timestamp_start?: string | null
+          transcript?: string
+          transcription_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tv_news_segments_transcription_id_fkey"
+            columns: ["transcription_id"]
+            isOneToOne: false
+            referencedRelation: "tv_transcriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tv_programs: {
         Row: {
           channel_id: string
@@ -1515,6 +1571,123 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tv_transcriptions: {
+        Row: {
+          analysis_alerts: Json | null
+          analysis_category: string | null
+          analysis_client_relevance: Json | null
+          analysis_content_summary: string | null
+          analysis_cuando: string | null
+          analysis_donde: string | null
+          analysis_keywords: string[] | null
+          analysis_notifications: string[] | null
+          analysis_porque: string | null
+          analysis_que: string | null
+          analysis_quien: string | null
+          analysis_report_data: Json | null
+          analysis_summary: string | null
+          assembly_chapters: Json | null
+          assembly_content_safety: Json | null
+          assembly_entities: Json | null
+          assembly_key_phrases: Json | null
+          assembly_sentiment_analysis: Json | null
+          assembly_summary: string | null
+          assembly_topics: Json | null
+          audio_file_path: string | null
+          broadcast_time: string | null
+          category: string | null
+          channel: string | null
+          created_at: string
+          id: string
+          keywords: string[] | null
+          original_file_path: string
+          program: string | null
+          progress: number | null
+          relevant_clients: string[] | null
+          status: string
+          summary: string | null
+          transcription_text: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          analysis_alerts?: Json | null
+          analysis_category?: string | null
+          analysis_client_relevance?: Json | null
+          analysis_content_summary?: string | null
+          analysis_cuando?: string | null
+          analysis_donde?: string | null
+          analysis_keywords?: string[] | null
+          analysis_notifications?: string[] | null
+          analysis_porque?: string | null
+          analysis_que?: string | null
+          analysis_quien?: string | null
+          analysis_report_data?: Json | null
+          analysis_summary?: string | null
+          assembly_chapters?: Json | null
+          assembly_content_safety?: Json | null
+          assembly_entities?: Json | null
+          assembly_key_phrases?: Json | null
+          assembly_sentiment_analysis?: Json | null
+          assembly_summary?: string | null
+          assembly_topics?: Json | null
+          audio_file_path?: string | null
+          broadcast_time?: string | null
+          category?: string | null
+          channel?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          original_file_path: string
+          program?: string | null
+          progress?: number | null
+          relevant_clients?: string[] | null
+          status?: string
+          summary?: string | null
+          transcription_text?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          analysis_alerts?: Json | null
+          analysis_category?: string | null
+          analysis_client_relevance?: Json | null
+          analysis_content_summary?: string | null
+          analysis_cuando?: string | null
+          analysis_donde?: string | null
+          analysis_keywords?: string[] | null
+          analysis_notifications?: string[] | null
+          analysis_porque?: string | null
+          analysis_que?: string | null
+          analysis_quien?: string | null
+          analysis_report_data?: Json | null
+          analysis_summary?: string | null
+          assembly_chapters?: Json | null
+          assembly_content_safety?: Json | null
+          assembly_entities?: Json | null
+          assembly_key_phrases?: Json | null
+          assembly_sentiment_analysis?: Json | null
+          assembly_summary?: string | null
+          assembly_topics?: Json | null
+          audio_file_path?: string | null
+          broadcast_time?: string | null
+          category?: string | null
+          channel?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          original_file_path?: string
+          program?: string | null
+          progress?: number | null
+          relevant_clients?: string[] | null
+          status?: string
+          summary?: string | null
+          transcription_text?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       user_profiles: {
         Row: {
