@@ -20,6 +20,11 @@ interface VideoSectionProps {
   onTranscriptionComplete: (text: string) => void;
   onRemoveFile: (index: number) => void;
   isActiveMediaRoute?: boolean;
+  // New props for video player integration
+  currentTime?: number;
+  seekToTime?: number;
+  onTimeUpdate?: (time: number) => void;
+  onSeek?: (time: number) => void;
 }
 
 const VideoSection = ({
@@ -34,7 +39,11 @@ const VideoSection = ({
   onProcess,
   onTranscriptionComplete,
   onRemoveFile,
-  isActiveMediaRoute = true
+  isActiveMediaRoute = true,
+  currentTime,
+  seekToTime,
+  onTimeUpdate,
+  onSeek
 }: VideoSectionProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -61,6 +70,10 @@ const VideoSection = ({
         onTranscriptionComplete={onTranscriptionComplete}
         onRemoveFile={onRemoveFile}
         isActiveMediaRoute={isActiveMediaRoute}
+        currentTime={currentTime}
+        seekToTime={seekToTime}
+        onTimeUpdate={onTimeUpdate}
+        onSeek={onSeek}
       />
     </div>
   );

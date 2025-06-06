@@ -19,9 +19,21 @@ interface VideoPlayerProps {
   src: string;
   className?: string;
   title?: string;
+  onTimeUpdate?: (currentTime: number) => void;
+  onSeek?: (time: number) => void;
+  onPlayPause?: (isPlaying: boolean) => void;
+  seekToTime?: number;
 }
 
-const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
+const VideoPlayer = ({ 
+  src, 
+  className, 
+  title = "Video",
+  onTimeUpdate,
+  onSeek,
+  onPlayPause,
+  seekToTime
+}: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -50,18 +62,33 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
     { storage: 'sessionStorage' }
   );
 
+  // Handle external seek requests
+  useEffect(() => {
+    if (seekToTime !== undefined && videoRef.current && Math.abs(seekToTime - currentTime) > 1) {
+      console.log(`[VideoPlayer] External seek to: ${seekToTime}s`);
+      videoRef.current.currentTime = seekToTime;
+      setCurrentTime(seekToTime);
+    }
+  }, [seekToTime, currentTime]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const handleTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
+      const newTime = video.currentTime;
+      setCurrentTime(newTime);
+      
+      // Notify parent component about time updates
+      if (onTimeUpdate) {
+        onTimeUpdate(newTime);
+      }
       
       // Save position periodically
       if (src) {
         setPlaybackPositions(prev => ({
           ...prev,
-          [src]: video.currentTime
+          [src]: newTime
         }));
       }
     };
@@ -91,7 +118,7 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
-  }, [src, playbackPositions]);
+  }, [src, playbackPositions, onTimeUpdate]);
 
   // Integrate with Media Session API
   useMediaSession({
@@ -101,25 +128,31 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
       if (videoRef.current && !isPlaying) {
         videoRef.current.play();
         setIsPlaying(true);
+        if (onPlayPause) onPlayPause(true);
       }
     },
     onPause: () => {
       if (videoRef.current && isPlaying) {
         videoRef.current.pause();
         setIsPlaying(false);
+        if (onPlayPause) onPlayPause(false);
       }
     },
     onSeekBackward: () => {
       if (videoRef.current) {
-        videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+        const newTime = Math.max(0, videoRef.current.currentTime - 10);
+        videoRef.current.currentTime = newTime;
+        if (onSeek) onSeek(newTime);
       }
     },
     onSeekForward: () => {
       if (videoRef.current) {
-        videoRef.current.currentTime = Math.min(
+        const newTime = Math.min(
           videoRef.current.duration, 
           videoRef.current.currentTime + 10
         );
+        videoRef.current.currentTime = newTime;
+        if (onSeek) onSeek(newTime);
       }
     }
   });
@@ -131,7 +164,9 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
     } else {
       videoRef.current.play();
     }
-    setIsPlaying(!isPlaying);
+    const newPlayingState = !isPlaying;
+    setIsPlaying(newPlayingState);
+    if (onPlayPause) onPlayPause(newPlayingState);
   };
 
   const handleProgress = (value: number[]) => {
@@ -139,6 +174,7 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
     const time = (value[0] / 100) * duration;
     videoRef.current.currentTime = time;
     setCurrentTime(time);
+    if (onSeek) onSeek(time);
   };
 
   const handleVolume = (value: number[]) => {

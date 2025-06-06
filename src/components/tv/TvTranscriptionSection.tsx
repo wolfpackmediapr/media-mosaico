@@ -18,6 +18,10 @@ interface TvTranscriptionSectionProps {
   onSegmentsChange: (segments: NewsSegment[]) => void;
   onSeekToTimestamp: (timestamp: number) => void;
   onSegmentsReceived: (segments: NewsSegment[]) => void;
+  // New props for video player integration
+  currentTime?: number;
+  isPlaying?: boolean;
+  onPlayPause?: () => void;
 }
 
 const TvTranscriptionSection = ({
@@ -29,7 +33,10 @@ const TvTranscriptionSection = ({
   onTranscriptionChange,
   onSegmentsChange,
   onSeekToTimestamp,
-  onSegmentsReceived
+  onSegmentsReceived,
+  currentTime = 0,
+  isPlaying = false,
+  onPlayPause = () => {}
 }: TvTranscriptionSectionProps) => {
   
   if (!textContent) return null;
@@ -55,6 +62,9 @@ const TvTranscriptionSection = ({
         onTranscriptionChange={onTranscriptionChange}
         onSegmentsReceived={onSegmentsReceived}
         onSeek={onSeekToTimestamp}
+        currentTime={currentTime}
+        isPlaying={isPlaying}
+        onPlayPause={onPlayPause}
       />
     </>
   );

@@ -1,7 +1,11 @@
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import VideoFileItem from "./VideoFileItem";
-import { processVideoFile } from "./VideoProcessing";
+import React, { useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Trash2, Play, Pause, Volume2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import VideoPlayer from "./VideoPlayer";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -16,9 +20,14 @@ interface VideoPreviewProps {
   onTogglePlayback: () => void;
   onVolumeChange: (value: number[]) => void;
   onProcess: (file: UploadedFile) => void;
-  onTranscriptionComplete?: (text: string) => void;
-  onRemoveFile?: (index: number) => void;
+  onTranscriptionComplete: (text: string) => void;
+  onRemoveFile: (index: number) => void;
   isActiveMediaRoute?: boolean;
+  // New props for video player integration
+  currentTime?: number;
+  seekToTime?: number;
+  onTimeUpdate?: (time: number) => void;
+  onSeek?: (time: number) => void;
 }
 
 const VideoPreview = ({
@@ -32,42 +41,143 @@ const VideoPreview = ({
   onProcess,
   onTranscriptionComplete,
   onRemoveFile,
-  isActiveMediaRoute = true
+  isActiveMediaRoute = true,
+  currentTime,
+  seekToTime,
+  onTimeUpdate,
+  onSeek
 }: VideoPreviewProps) => {
-  const handleProcess = async (file: UploadedFile) => {
-    await processVideoFile(file, onTranscriptionComplete);
-    onProcess(file);
-  };
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  const handlePlayPause = useCallback((playing: boolean) => {
+    // Sync with parent playback state
+    if (playing !== isPlaying) {
+      onTogglePlayback();
+    }
+  }, [isPlaying, onTogglePlayback]);
+
+  if (uploadedFiles.length === 0) {
+    return (
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Play className="h-5 w-5" />
+            Vista Previa de Video
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-48">
+          <p className="text-muted-foreground">
+            No hay archivos seleccionados
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
-        <CardTitle>Videos Subidos</CardTitle>
-        <CardDescription>Lista de videos listos para procesar</CardDescription>
-        {!isActiveMediaRoute && isPlaying && (
-          <div className="mt-2 text-xs text-amber-500 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-md">
-            Este video se está reproduciendo en otra pestaña
-          </div>
-        )}
+        <CardTitle className="flex items-center gap-2">
+          <Play className="h-5 w-5" />
+          Vista Previa de Video
+        </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {uploadedFiles.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">No hay videos subidos</p>
-          ) : (
-            uploadedFiles.map((file, index) => (
-              <VideoFileItem
-                key={index}
-                file={file}
-                index={index}
-                isProcessing={isProcessing}
-                progress={progress}
-                onProcess={handleProcess}
-                onRemove={onRemoveFile}
-              />
-            ))
-          )}
-        </div>
+      <CardContent className="space-y-4">
+        {uploadedFiles.map((file, index) => (
+          <div key={index} className="relative">
+            <div
+              className="relative group"
+              onMouseEnter={() => setHoveredIndex(index)}
+              onMouseLeave={() => setHoveredIndex(null)}
+            >
+              {file.preview && (
+                <VideoPlayer
+                  src={file.preview}
+                  className="w-full rounded-lg"
+                  title={file.name}
+                  onTimeUpdate={onTimeUpdate}
+                  onSeek={onSeek}
+                  onPlayPause={handlePlayPause}
+                  seekToTime={seekToTime}
+                />
+              )}
+
+              {hoveredIndex === index && (
+                <div className="absolute top-2 right-2 z-10">
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => onRemoveFile(index)}
+                    className="h-8 w-8 bg-red-500/80 hover:bg-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium truncate">
+                  {file.name}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {(file.size / (1024 * 1024)).toFixed(1)} MB
+                </span>
+              </div>
+
+              {isProcessing && (
+                <div className="space-y-2">
+                  <Progress value={progress} className="w-full" />
+                  <p className="text-xs text-muted-foreground">
+                    Procesando video... {progress}%
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => onProcess(file)}
+                  disabled={isProcessing}
+                  className="flex-1"
+                >
+                  {isProcessing ? "Procesando..." : "Transcribir Video"}
+                </Button>
+              </div>
+
+              {isActiveMediaRoute && (
+                <div className="flex items-center gap-4 pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={onTogglePlayback}
+                    className="flex-shrink-0"
+                  >
+                    {isPlaying ? (
+                      <Pause className="h-4 w-4" />
+                    ) : (
+                      <Play className="h-4 w-4" />
+                    )}
+                  </Button>
+
+                  <div className="flex items-center gap-2 flex-1">
+                    <Volume2 className="h-4 w-4 flex-shrink-0" />
+                    <Slider
+                      value={volume}
+                      onValueChange={onVolumeChange}
+                      max={100}
+                      step={1}
+                      className="flex-1"
+                    />
+                    <span className="text-xs text-muted-foreground min-w-[3ch]">
+                      {volume[0]}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
