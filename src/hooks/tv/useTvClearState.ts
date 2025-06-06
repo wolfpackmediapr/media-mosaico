@@ -1,5 +1,6 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { usePersistentState } from '@/hooks/use-persistent-state';
+import { useTvClearOperations } from './clear/useTvClearOperations';
 
 interface UploadedFile extends File {
   preview?: string;
@@ -39,23 +40,16 @@ export const useTvClearState = ({
     { storage: 'sessionStorage' }
   );
 
-  // Clean up blob URLs to prevent memory leaks
-  const cleanupBlobUrls = useCallback((filesToCleanup: UploadedFile[]): void => {
-    if (!filesToCleanup || filesToCleanup.length === 0) return;
-    
-    console.log(`[useTvClearState] Cleaning up ${filesToCleanup.length} blob URLs`);
-    
-    filesToCleanup.forEach(file => {
-      if (file && 'preview' in file && file.preview && typeof file.preview === 'string') {
-        try {
-          URL.revokeObjectURL(file.preview);
-          console.log(`[useTvClearState] Revoked blob URL: ${file.preview}`);
-        } catch (e) {
-          console.error(`[useTvClearState] Failed to revoke blob URL:`, e);
-        }
-      }
-    });
-  }, []);
+  // Clear operations hook
+  const { cleanupBlobUrls, clearUIState, clearTranscription, clearStorage } = useTvClearOperations({
+    files,
+    setFiles,
+    setNewsSegments,
+    setTranscriptionText,
+    resetTranscription,
+    onTextChange,
+    persistKey
+  });
 
   // Enhanced clear all function
   const handleClearAll = useCallback(async (): Promise<boolean> => {
@@ -75,33 +69,13 @@ export const useTvClearState = ({
       setClearingStage('Limpiando archivos de video...');
       setClearProgress(20);
       
-      const filesToCleanup = [...files];
-      
-      // Reset UI state immediately for better UX
-      if (setTranscriptionText) {
-        setTranscriptionText('');
-      }
-      
-      if (setNewsSegments) {
-        setNewsSegments([]);
-      }
-      
-      if (setFiles) {
-        setFiles([]);
-      }
+      const filesToCleanup = clearUIState();
       
       setClearingStage('Limpiando transcripción...');
       setClearProgress(40);
       
-      // Step 2: Call reset functions
-      if (resetTranscription) {
-        try {
-          resetTranscription();
-          console.log('[useTvClearState] Transcription reset complete');
-        } catch (err) {
-          console.error('[useTvClearState] Error during resetTranscription:', err);
-        }
-      }
+      // Step 2: Clear transcription
+      clearTranscription();
       
       // Step 3: Clear editor
       setClearingStage('Limpiando editor...');
@@ -139,18 +113,7 @@ export const useTvClearState = ({
       setClearingStage('Finalizando...');
       setClearProgress(95);
       
-      try {
-        // Clear persistent state
-        sessionStorage.removeItem(persistKey);
-        sessionStorage.removeItem(`${persistKey}-transcription`);
-        sessionStorage.removeItem(`${persistKey}-notepad`);
-        
-        if (onTextChange) {
-          onTextChange('');
-        }
-      } catch (err) {
-        console.error('[useTvClearState] Error clearing storage:', err);
-      }
+      clearStorage();
       
       // Mark as clear action
       setLastAction('clear');
@@ -175,16 +138,12 @@ export const useTvClearState = ({
     }
   }, [
     isClearing,
-    files,
-    setTranscriptionText,
-    setNewsSegments,
-    setFiles,
-    resetTranscription,
+    clearUIState,
+    clearTranscription,
     editorResetFn,
     clearAnalysisFn,
     cleanupBlobUrls,
-    persistKey,
-    onTextChange,
+    clearStorage,
     setLastAction
   ]);
 

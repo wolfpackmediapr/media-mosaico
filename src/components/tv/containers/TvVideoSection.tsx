@@ -1,13 +1,12 @@
-
 import { useState } from "react";
-import VideoUploadSection from "./VideoUploadSection";
+import VideoUploadSection from "../VideoUploadSection";
 import VideoPreview from "@/components/video/VideoPreview";
 
 interface UploadedFile extends File {
   preview?: string;
 }
 
-interface VideoSectionProps {
+interface TvVideoSectionProps {
   uploadedFiles: UploadedFile[];
   setUploadedFiles: (files: UploadedFile[]) => void;
   isPlaying: boolean;
@@ -22,7 +21,7 @@ interface VideoSectionProps {
   isActiveMediaRoute?: boolean;
 }
 
-const VideoSection = ({
+const TvVideoSection = ({
   uploadedFiles,
   setUploadedFiles,
   isPlaying,
@@ -35,7 +34,7 @@ const VideoSection = ({
   onTranscriptionComplete,
   onRemoveFile,
   isActiveMediaRoute = true
-}: VideoSectionProps) => {
+}: TvVideoSectionProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleFilesUploaded = (newFiles: File[]) => {
@@ -66,4 +65,4 @@ const VideoSection = ({
   );
 };
 
-export default VideoSection;
+export default TvVideoSection;
