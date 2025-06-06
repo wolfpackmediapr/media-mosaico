@@ -24,6 +24,8 @@ export const useVideoProcessor = () => {
   const [progress, setProgress] = useState(0);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
+  const [transcriptionResult, setTranscriptionResult] = useState<any>(null);
+  const [transcriptionId, setTranscriptionId] = useState<string | null>(null);
   const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
   const [assemblyId, setAssemblyId] = useState<string | null>(null);
 
@@ -88,6 +90,8 @@ export const useVideoProcessor = () => {
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          setTranscriptionResult(transcriptionResult);
+          setTranscriptionId(transcriptionResult.id || transcriptionResult.assemblyId || null);
           
           // Handle news segments if available
           if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
@@ -117,6 +121,8 @@ export const useVideoProcessor = () => {
 
         if (transcriptionResult?.text) {
           setTranscriptionText(transcriptionResult.text);
+          setTranscriptionResult(transcriptionResult);
+          setTranscriptionId(transcriptionResult.id || transcriptionResult.assemblyId || null);
           
           // Handle news segments if available
           if (transcriptionResult.segments && Array.isArray(transcriptionResult.segments)) {
@@ -151,6 +157,8 @@ export const useVideoProcessor = () => {
     progress,
     transcriptionText,
     transcriptionMetadata,
+    transcriptionResult,
+    transcriptionId,
     newsSegments,
     assemblyId,
     processVideo,

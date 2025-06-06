@@ -28,6 +28,7 @@ const Tv = () => {
   
   // Initialize local isPlaying state but sync with global persistent state
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
   
   // Use persistent video state to maintain playback across routes
   const { isActiveMediaRoute, isMediaPlaying, setIsMediaPlaying } = usePersistentVideoState();
