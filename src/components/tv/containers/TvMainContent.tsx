@@ -2,12 +2,12 @@
 import React from "react";
 import TvTopSection from "./TvTopSection";
 import TvVideoSection from "./TvVideoSection";
-import TvTranscriptionSection from "../TvTranscriptionSection";
+import TvTranscriptionManager from "../transcription/TvTranscriptionManager";
 import TvNotePadSection from "../TvNotePadSection";
 import TvTypeformEmbed from "../TvTypeformEmbed";
 import TvAnalysisSection from "../TvAnalysisSection";
 import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
-import { NewsSegment } from "@/hooks/use-video-processor";
+import { NewsSegment } from "@/hooks/tv/useTvVideoProcessor";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface UploadedFile extends File {
@@ -101,7 +101,7 @@ const TvMainContent = ({
 }: TvMainContentProps) => {
   return (
     <div className="w-full space-y-6">
-      {/* 1. TopSection - Clear all controls */}
+      {/* Top Section - Clear all controls */}
       <TvTopSection
         handleClearAll={handleClearAll}
         files={uploadedFiles}
@@ -117,7 +117,7 @@ const TvMainContent = ({
         </p>
       </div>
 
-      {/* 2. VideoSection - Two columns (upload + preview) */}
+      {/* Video Section - Upload and preview */}
       <TvVideoSection
         uploadedFiles={uploadedFiles}
         setUploadedFiles={setUploadedFiles}
@@ -133,8 +133,8 @@ const TvMainContent = ({
         isActiveMediaRoute={isActiveMediaRoute}
       />
 
-      {/* 3. TranscriptionSection - Always show the transcription editor */}
-      <TvTranscriptionSection 
+      {/* Transcription Section */}
+      <TvTranscriptionManager
         textContent={textContent}
         isProcessing={isProcessing}
         transcriptionMetadata={transcriptionMetadata}
@@ -149,7 +149,7 @@ const TvMainContent = ({
         onPlayPause={togglePlayback}
       />
 
-      {/* 4. NotePadSection - Notepad for annotations */}
+      {/* Notepad Section */}
       <TvNotePadSection
         notepadContent={notepadContent}
         onNotepadContentChange={setNotepadContent}
@@ -157,10 +157,10 @@ const TvMainContent = ({
         onExpandToggle={setIsNotepadExpanded}
       />
 
-      {/* 5. TypeformEmbed - Typeform integration */}
+      {/* Typeform Embed */}
       <TvTypeformEmbed />
 
-      {/* 6. AnalysisSection - AI analysis results (only show when there's text) */}
+      {/* Analysis Section - only show when there's text */}
       {textContent && (
         <TvAnalysisSection
           transcriptionText={textContent}
@@ -173,7 +173,7 @@ const TvMainContent = ({
         />
       )}
 
-      {/* 7. NewsSegmentsSection - News segments (if available) */}
+      {/* News Segments Section */}
       {newsSegments && newsSegments.length > 0 && (
         <NewsSegmentsContainer
           segments={newsSegments}

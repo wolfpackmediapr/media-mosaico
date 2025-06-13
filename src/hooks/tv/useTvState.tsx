@@ -1,7 +1,8 @@
+
 import { useState, useEffect } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useTvTabState } from "@/hooks/tv/useTvTabState";
-import { useVideoProcessor } from "@/hooks/use-video-processor";
+import { useTvVideoProcessor } from "@/hooks/tv/useTvVideoProcessor";
 import { usePersistentVideoState } from "@/hooks/tv/usePersistentVideoState";
 import { useTvClearState } from "@/hooks/tv/useTvClearState";
 import { useTvNotepadState } from "@/hooks/tv/useTvNotepadState";
@@ -11,28 +12,28 @@ interface UploadedFile extends File {
 }
 
 export const useTvState = () => {
-  // Use persistent state for uploaded files so they're remembered across navigation
+  // Use persistent state for uploaded files
   const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
     "tv-uploaded-files",
     [],
     { storage: 'sessionStorage' }
   );
   
-  // Initialize local isPlaying state but sync with global persistent state
+  // Video playback state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   
-  // Use persistent video state to maintain playback across routes
+  // Persistent video state across routes
   const { isActiveMediaRoute, isMediaPlaying, setIsMediaPlaying } = usePersistentVideoState();
   
-  // Use persistent state for volume preference
+  // Volume preferences
   const [volume, setVolume] = usePersistentState<number[]>(
     "tv-player-volume",
     [50],
     { storage: 'localStorage' }
   );
   
-  // Use TV tab state for persisting transcription text
+  // Tab state for transcription text
   const { textContent, setTextContent } = useTvTabState({
     persistKey: "tv-transcription",
     storage: 'sessionStorage',
@@ -46,6 +47,7 @@ export const useTvState = () => {
     }
   }, [isActiveMediaRoute, isMediaPlaying]);
 
+  // Use the refactored video processor
   const {
     isProcessing,
     progress,
@@ -57,9 +59,9 @@ export const useTvState = () => {
     processVideo,
     setTranscriptionText: setVideoProcessorText,
     setNewsSegments
-  } = useVideoProcessor();
+  } = useTvVideoProcessor();
 
-  // Add clear state management
+  // Clear state management
   const {
     handleClearAll,
     handleEditorRegisterReset,
@@ -76,7 +78,7 @@ export const useTvState = () => {
     setTranscriptionText: setVideoProcessorText,
   });
 
-  // Add notepad state
+  // Notepad state
   const {
     content: notepadContent,
     setContent: setNotepadContent,
@@ -87,21 +89,21 @@ export const useTvState = () => {
     storage: 'sessionStorage'
   });
 
-  // Sync videoProcessor text with our persisted text state
+  // Sync video processor text with persisted text state
   useEffect(() => {
     if (transcriptionText && transcriptionText !== textContent) {
       setTextContent(transcriptionText);
     }
   }, [transcriptionText, setTextContent, textContent]);
 
-  // When our text content changes externally, update the processor state
+  // Update processor state when text content changes externally
   useEffect(() => {
     if (textContent && textContent !== transcriptionText) {
       setVideoProcessorText(textContent);
     }
   }, [textContent, transcriptionText, setVideoProcessorText]);
 
-  // Enhanced text change handler to update both states
+  // Enhanced text change handler
   const handleTranscriptionChange = (text: string) => {
     setTextContent(text);
     setVideoProcessorText(text);
