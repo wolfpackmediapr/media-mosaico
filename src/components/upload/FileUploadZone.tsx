@@ -57,7 +57,7 @@ const FileUploadZone = ({
                 {message}
               </p>
               <p className="text-xs text-gray-500 mb-2">
-                Tamaño máximo permitido: 80MB
+                Tamaño máximo permitido: 150MB
               </p>
               <Button
                 variant="outline"

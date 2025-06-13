@@ -5,7 +5,7 @@ import { toast } from "sonner";
 // Adjust max file size to match Supabase's practical limits
 // Supabase can technically handle 5GB files, but for video processing
 // we'll set a more conservative limit for reliable processing
-const MAX_FILE_SIZE = 80 * 1024 * 1024; // 80MB in bytes
+const MAX_FILE_SIZE = 150 * 1024 * 1024; // 150MB in bytes
 
 const sanitizeFileName = (fileName: string) => {
   // Remove special characters and spaces, replace with underscores
@@ -30,7 +30,7 @@ export const useFileUpload = () => {
 
     if (file.size > MAX_FILE_SIZE) {
       toast.error("Archivo demasiado grande", {
-        description: "El archivo excede el límite de 80MB. Por favor, reduce su tamaño antes de subirlo."
+        description: "El archivo excede el límite de 150MB. Por favor, reduce su tamaño antes de subirlo."
       });
       return null;
     }

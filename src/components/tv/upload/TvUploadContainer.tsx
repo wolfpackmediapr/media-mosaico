@@ -41,7 +41,7 @@ const TvUploadContainer = ({
       <CardHeader>
         <CardTitle>Subir Videos</CardTitle>
         <CardDescription>
-          Sube archivos de video para transcribir (máximo 80MB)
+          Sube archivos de video para transcribir (máximo 150MB)
         </CardDescription>
       </CardHeader>
       <CardContent>
