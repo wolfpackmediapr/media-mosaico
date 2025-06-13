@@ -2,7 +2,7 @@
 import React, { useEffect } from "react";
 import TvAnalysis from "./TvAnalysis";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
-import { NewsSegment } from "@/hooks/use-video-processor";
+import { NewsSegment } from "@/hooks/tv/useTvVideoProcessor";
 
 interface TvAnalysisSectionProps {
   transcriptionText: string;
@@ -29,11 +29,6 @@ const TvAnalysisSection = ({
       console.log('[TvAnalysisSection] Detected clear action, ensuring analysis is reset');
     }
   }, [lastAction]);
-
-  // Don't show analysis if no transcription text or if cleared
-  if (!transcriptionText || lastAction === 'clear') {
-    return null;
-  }
 
   return (
     <TvAnalysis 
