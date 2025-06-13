@@ -2,8 +2,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import TvTranscriptionMetadata from "./TvTranscriptionMetadata";
 import TvTranscriptionEditor from "./TvTranscriptionEditor";
-import TvInteractiveTranscription from "./TvInteractiveTranscription";
-import { TvViewModeToggle } from "./interactive-transcription/TvViewModeToggle";
+import InteractiveTranscription from "@/components/radio/interactive-transcription/InteractiveTranscription";
+import ViewModeToggle from "@/components/radio/interactive-transcription/ViewModeToggle";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { normalizeTimeToSeconds } from "@/components/radio/interactive-transcription/utils";
@@ -142,7 +142,7 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
         />
         
         <div className="p-4 border-b">
-          <TvViewModeToggle 
+          <ViewModeToggle 
             mode={viewMode}
             onChange={handleViewModeChange}
             hasUtterances={hasUtterances()}
@@ -151,7 +151,7 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
 
         <CardContent className="p-4 space-y-4">
           {viewMode === 'interactive' && hasUtterances() ? (
-            <TvInteractiveTranscription
+            <InteractiveTranscription
               transcriptionResult={transcriptionResult}
               currentTime={currentTime}
               isPlaying={isPlaying}
