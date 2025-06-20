@@ -50,20 +50,18 @@ const TranscriptionSection = ({
   currentTime,
   onPlayPause,
 }: TranscriptionSectionProps) => {
-  // IMPROVED: Handle both time values and segment objects consistently
+  // Handle both time values and segment objects consistently
   const handleSeekOperation = (timeOrSegment: number | RadioNewsSegment) => {
     console.log(`[TranscriptionSection] Seeking to:`, timeOrSegment);
     
     if (typeof timeOrSegment === 'number') {
       // Create a temporary segment object for the timestamp
-      // Make sure we're using a consistent format for the segment
       const timeInSeconds = normalizeTimeToSeconds(timeOrSegment);
       console.log(`[TranscriptionSection] Creating temp segment with normalized time: ${timeInSeconds}s`);
       
       const tempSegment: RadioNewsSegment = {
         headline: "Timestamp",
         text: "",
-        // Convert to milliseconds for startTime as that's what the RadioNewsSegment expects
         startTime: timeInSeconds * 1000,
         end: timeInSeconds * 1000 + 1000,
         keywords: []
@@ -71,10 +69,21 @@ const TranscriptionSection = ({
       handleSeekToSegment(tempSegment);
     } else {
       // We already have a segment object
-      // Make sure the startTime is properly formatted if needed
-      const segment = { ...timeOrSegment };
-      handleSeekToSegment(segment);
+      handleSeekToSegment(timeOrSegment);
     }
+  };
+
+  // Handle timestamp clicks (number) separately from segment handling
+  const handleTimestampClick = (timestamp: number) => {
+    const timeInSeconds = normalizeTimeToSeconds(timestamp);
+    const tempSegment: RadioNewsSegment = {
+      headline: "Timestamp",
+      text: "",
+      startTime: timeInSeconds * 1000,
+      end: timeInSeconds * 1000 + 1000,
+      keywords: []
+    };
+    handleSeekToSegment(tempSegment);
   };
 
   return (
@@ -87,7 +96,7 @@ const TranscriptionSection = ({
       onTranscriptionChange={handleTranscriptionTextChange}
       onSegmentsReceived={handleSegmentsReceived}
       onMetadataChange={handleMetadataChange}
-      onTimestampClick={handleSeekToSegment}
+      onTimestampClick={handleTimestampClick}
       registerEditorReset={registerEditorReset}
       isPlaying={isPlaying}
       currentTime={currentTime}

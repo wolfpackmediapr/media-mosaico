@@ -8,7 +8,7 @@ import ViewModeToggle from "@/components/radio/interactive-transcription/ViewMod
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { normalizeTimeToSeconds } from "@/components/radio/interactive-transcription/utils";
-import { NewsSegment } from "@/hooks/radio/useRadioSegmentGenerator";
+import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
 
 interface RadioTranscriptionSlotProps {
   isProcessing: boolean;
@@ -22,7 +22,7 @@ interface RadioTranscriptionSlotProps {
     keywords?: string[];
   };
   onTranscriptionChange: (text: string) => void;
-  onSegmentsReceived?: (segments: NewsSegment[]) => void;
+  onSegmentsReceived?: (segments: RadioNewsSegment[]) => void;
   onMetadataChange?: (metadata: {
     emisora: string;
     programa: string;
