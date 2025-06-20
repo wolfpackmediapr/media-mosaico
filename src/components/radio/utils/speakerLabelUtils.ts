@@ -63,9 +63,16 @@ export const formatTranscriptionWithSpeakerNames = (
         const fullMatch = match[1]; // "SPEAKER 1", "SPEAKER 2", etc.
         const speakerNumber = match[2]; // "1", "2", etc.
         
+        // Map speaker numbers to letters as they appear in the database
+        // SPEAKER 1 -> A, SPEAKER 2 -> B, etc.
+        const speakerLetter = String.fromCharCode(64 + parseInt(speakerNumber)); // 65 = 'A', 66 = 'B', etc.
+        
+        console.log(`[speakerLabelUtils] Mapping ${fullMatch} (number: ${speakerNumber}) to letter: ${speakerLetter}`);
+        
         // Try different speaker ID formats that might be stored in the database
         const possibleSpeakerIds = [
-          `SPEAKER_${speakerNumber}`, // Format like "SPEAKER_1"
+          speakerLetter,               // "A", "B", etc. (most likely format in database)
+          `SPEAKER_${speakerNumber}`,  // Format like "SPEAKER_1"
           `SPEAKER ${speakerNumber}`,  // Format like "SPEAKER 1"
           speakerNumber,               // Just the number "1"
           `speaker_${speakerNumber}`,  // Lowercase variant
@@ -76,23 +83,23 @@ export const formatTranscriptionWithSpeakerNames = (
         // Try each possible format to find a custom name
         for (const speakerId of possibleSpeakerIds) {
           const testName = getDisplayName(speakerId);
-          // Check if we got a custom name (not the default formatted name)
-          if (testName && !testName.includes('Speaker ')) {
+          console.log(`[speakerLabelUtils] Testing speakerId: ${speakerId}, result: ${testName}`);
+          
+          // Check if we got a custom name by seeing if it's different from the default format
+          // Custom names won't contain "Speaker" in them
+          if (testName && !testName.toLowerCase().includes('speaker')) {
             customName = testName;
             console.log(`[speakerLabelUtils] Found custom name for ${speakerId}: ${customName}`);
             break;
           }
         }
         
-        // If no custom name found, try the getDisplayName with the full match
-        if (!customName) {
-          customName = getDisplayName(`SPEAKER_${speakerNumber}`);
-        }
-        
-        // Store the replacement
+        // Store the replacement if we found a custom name
         if (customName && !replacements.has(fullMatch)) {
           replacements.set(fullMatch, customName);
           console.log(`[speakerLabelUtils] Will replace "${fullMatch}" with "${customName}"`);
+        } else {
+          console.log(`[speakerLabelUtils] No custom name found for ${fullMatch}, keeping original`);
         }
       });
       
@@ -100,12 +107,16 @@ export const formatTranscriptionWithSpeakerNames = (
       replacements.forEach((customName, originalSpeaker) => {
         // Use word boundary to ensure we only replace speaker labels, not text content
         const replacePattern = new RegExp(`^${originalSpeaker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:`, 'gmi');
+        const beforeReplace = formattedText.length;
         formattedText = formattedText.replace(replacePattern, `${customName}:`);
+        const afterReplace = formattedText.length;
+        console.log(`[speakerLabelUtils] Replaced ${originalSpeaker}: ${beforeReplace !== afterReplace ? 'SUCCESS' : 'NO CHANGE'}`);
       });
     }
     
     if (foundSpeakers) {
       console.log('[speakerLabelUtils] Successfully formatted plain text with custom names');
+      console.log('[speakerLabelUtils] Sample of formatted text:', formattedText.substring(0, 300));
       return formattedText;
     }
   }

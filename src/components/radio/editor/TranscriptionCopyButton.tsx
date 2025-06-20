@@ -21,7 +21,7 @@ const TranscriptionCopyButton: React.FC<TranscriptionCopyButtonProps> = ({
   isProcessing
 }) => {
   const [isCopied, setIsCopied] = useState(false);
-  const { getDisplayName, isLoading: speakerLabelsLoading } = useSpeakerLabels({ transcriptionId });
+  const { getDisplayName, getCustomName, isLoading: speakerLabelsLoading } = useSpeakerLabels({ transcriptionId });
 
   // Enhanced validation for when the button should be disabled
   const isButtonDisabled = !transcriptionText || isProcessing || speakerLabelsLoading;
@@ -44,8 +44,25 @@ const TranscriptionCopyButton: React.FC<TranscriptionCopyButtonProps> = ({
 
       let textToCopy = transcriptionText;
 
+      // Check if we have any custom speaker names by testing a few common speaker IDs
+      const hasCustomNames = transcriptionId && getCustomName && (
+        getCustomName('A') || 
+        getCustomName('B') || 
+        getCustomName('SPEAKER_1') || 
+        getCustomName('SPEAKER_2')
+      );
+
+      console.log('[TranscriptionCopyButton] Custom speaker names check:', {
+        hasTranscriptionId: !!transcriptionId,
+        hasGetCustomName: !!getCustomName,
+        hasCustomNames,
+        speakerA: getCustomName?.('A'),
+        speakerB: getCustomName?.('B')
+      });
+
       // Always attempt to format with custom names if we have the necessary data
-      if (transcriptionId && getDisplayName) {
+      if (transcriptionId && getDisplayName && hasCustomNames) {
+        console.log('[TranscriptionCopyButton] Formatting transcription with custom speaker names');
         textToCopy = formatTranscriptionWithSpeakerNames(
           transcriptionText,
           transcriptionResult,
@@ -53,10 +70,7 @@ const TranscriptionCopyButton: React.FC<TranscriptionCopyButtonProps> = ({
           speakerLabelsLoading
         );
       } else {
-        console.log('[TranscriptionCopyButton] Missing required data for custom formatting', {
-          hasTranscriptionId: !!transcriptionId,
-          hasGetDisplayName: !!getDisplayName
-        });
+        console.log('[TranscriptionCopyButton] Using original text - no custom names available');
       }
 
       console.log('[TranscriptionCopyButton] Final text to copy length:', textToCopy.length);
@@ -66,8 +80,8 @@ const TranscriptionCopyButton: React.FC<TranscriptionCopyButtonProps> = ({
       setIsCopied(true);
       
       // Provide more specific success message
-      const hasCustomNames = textToCopy !== transcriptionText;
-      const message = hasCustomNames 
+      const hasAppliedCustomNames = textToCopy !== transcriptionText;
+      const message = hasAppliedCustomNames 
         ? "Transcripción copiada con nombres personalizados" 
         : "Transcripción copiada al portapapeles";
       
