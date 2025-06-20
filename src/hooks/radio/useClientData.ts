@@ -12,20 +12,26 @@ export const useClientData = () => {
     const loadClients = async () => {
       try {
         setIsLoading(true);
+        console.log('[useClientData] Loading clients from database...');
         
-        // Use the fetchClients function but get all clients with a large limit
         const { data, error } = await supabase
           .from('clients')
           .select('*')
           .order('name')
           .limit(100);
         
-        if (error) throw error;
-        
-        setClients(data || []);
+        if (error) {
+          console.error('[useClientData] Error loading clients:', error);
+          toast.error('No se pudieron cargar los clientes');
+          setClients([]);
+        } else {
+          console.log(`[useClientData] Loaded ${data?.length || 0} clients`);
+          setClients(data || []);
+        }
       } catch (error) {
-        console.error('Error loading clients:', error);
-        toast.error('No se pudieron cargar los clientes');
+        console.error('[useClientData] Exception loading clients:', error);
+        toast.error('Error al cargar los clientes');
+        setClients([]);
       } finally {
         setIsLoading(false);
       }

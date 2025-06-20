@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,7 +19,7 @@ interface RadioAnalysisProps {
   transcriptionResult?: TranscriptionResult;
   onSegmentsGenerated?: (segments: RadioNewsSegment[]) => void;
   onClearAnalysis?: (clearFn: () => void) => void;
-  forceReset?: boolean; // Add forceReset prop
+  forceReset?: boolean;
 }
 
 const ANALYSIS_PERSIST_KEY = "radio-content-analysis";
@@ -38,9 +39,19 @@ const RadioAnalysis = ({
   );
   
   const { generateRadioSegments } = useRadioSegmentGenerator(onSegmentsGenerated);
-  const { categories } = useCategories();
-  const { clients } = useClientData();
+  const { categories, isLoading: categoriesLoading } = useCategories();
+  const { clients, isLoading: clientsLoading } = useClientData();
   const mountedRef = useRef(true);
+
+  console.log('[RadioAnalysis] Component state:', {
+    hasTranscriptionText: !!transcriptionText,
+    transcriptionLength: transcriptionText?.length || 0,
+    categoriesCount: categories.length,
+    clientsCount: clients.length,
+    categoriesLoading,
+    clientsLoading,
+    isAnalyzing
+  });
 
   // Function to clear analysis state
   const clearAnalysisState = useRef(() => {
@@ -56,7 +67,6 @@ const RadioAnalysis = ({
     if (typeof onClearAnalysis === "function") {
       onClearAnalysis(clearAnalysisState.current);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClearAnalysis]);
   
   // Cleanup on unmount
@@ -72,9 +82,7 @@ const RadioAnalysis = ({
       console.log('[RadioAnalysis] Force reset triggered');
       clearAnalysisState.current();
       
-      // Force delete any persistent storage keys related to analysis
       try {
-        // Find and delete any session storage keys related to analysis
         for (let i = 0; i < sessionStorage.length; i++) {
           const key = sessionStorage.key(i);
           if (key && (key.includes(ANALYSIS_PERSIST_KEY) || key.includes('radio-content-analysis'))) {
@@ -102,13 +110,43 @@ const RadioAnalysis = ({
       return;
     }
 
+    if (categoriesLoading || clientsLoading) {
+      toast.error("Cargando configuración, espere un momento...");
+      return;
+    }
+
+    console.log('[RadioAnalysis] Starting analysis with:', {
+      transcriptionLength: transcriptionText.length,
+      categoriesCount: categories.length,
+      clientsCount: clients.length
+    });
+
     setIsAnalyzing(true);
     try {
-      const formattedCategories = categories.map(cat => cat.name_es);
-      const formattedClients = clients.map(client => ({
-        name: client.name,
-        keywords: client.keywords || []
-      }));
+      // Format categories - ensure we have the category names
+      const formattedCategories = categories.length > 0 
+        ? categories.map(cat => cat.name_es || cat.name).filter(Boolean)
+        : [
+          'ENTRETENIMIENTO', 'EDUCACION & CULTURA', 'COMUNIDAD', 'SALUD', 
+          'CRIMEN', 'TRIBUNALES', 'AMBIENTE & EL TIEMPO', 'ECONOMIA & NEGOCIOS',
+          'GOBIERNO', 'POLITICA', 'EE.UU. & INTERNACIONALES', 'DEPORTES',
+          'RELIGION', 'OTRAS', 'ACCIDENTES', 'CIENCIA & TECNOLOGIA'
+        ];
+
+      // Format clients with their keywords
+      const formattedClients = clients.length > 0
+        ? clients.map(client => ({
+            name: client.name,
+            keywords: Array.isArray(client.keywords) ? client.keywords : []
+          }))
+        : [];
+
+      console.log('[RadioAnalysis] Calling edge function with:', {
+        transcriptionTextLength: transcriptionText.length,
+        categoriesCount: formattedCategories.length,
+        clientsCount: formattedClients.length,
+        transcriptId: transcriptionId
+      });
 
       const { data, error } = await supabase.functions.invoke('analyze-radio-content', {
         body: { 
@@ -119,13 +157,21 @@ const RadioAnalysis = ({
         }
       });
 
-      if (error) throw error;
+      console.log('[RadioAnalysis] Edge function response:', { data, error });
+
+      if (error) {
+        console.error('[RadioAnalysis] Edge function error:', error);
+        throw error;
+      }
 
       if (data?.analysis) {
+        console.log('[RadioAnalysis] Analysis received, length:', data.analysis.length);
         setAnalysis(data.analysis);
         toast.success("El contenido ha sido analizado exitosamente.");
         
+        // Generate segments if callback provided
         if (onSegmentsGenerated) {
+          console.log('[RadioAnalysis] Generating segments...');
           if (transcriptionResult) {
             generateRadioSegments(transcriptionResult);
           } else {
@@ -133,6 +179,7 @@ const RadioAnalysis = ({
           }
         }
         
+        // Create notification for successful analysis
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
@@ -140,6 +187,7 @@ const RadioAnalysis = ({
             let keywords: string[] = [];
             let matchedClients: string[] = [];
             
+            // Extract information from analysis
             const categoryMatch = data.analysis.match(/Categoría[s]?:?\s*([A-ZÁ-ÚÑ\s&]+)/i);
             if (categoryMatch && categoryMatch[1]) {
               category = categoryMatch[1].trim();
@@ -169,16 +217,19 @@ const RadioAnalysis = ({
                   relevantKeywords: keywords
                 }
               });
-              console.log("Created notification for radio content analysis");
+              console.log("[RadioAnalysis] Created notification for radio content analysis");
             }
           }
         } catch (notifyError) {
-          console.error('Error creating notification:', notifyError);
+          console.error('[RadioAnalysis] Error creating notification:', notifyError);
         }
+      } else {
+        console.error('[RadioAnalysis] No analysis in response:', data);
+        toast.error("No se recibió análisis del servidor");
       }
     } catch (error) {
-      console.error('Error analyzing content:', error);
-      toast.error("No se pudo analizar el contenido");
+      console.error('[RadioAnalysis] Error analyzing content:', error);
+      toast.error(`No se pudo analizar el contenido: ${error.message || 'Error desconocido'}`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -190,6 +241,7 @@ const RadioAnalysis = ({
       return;
     }
 
+    console.log('[RadioAnalysis] Generating improved segments...');
     if (transcriptionResult) {
       generateRadioSegments(transcriptionResult);
     } else if (transcriptionText) {
@@ -199,15 +251,24 @@ const RadioAnalysis = ({
     toast.success("Segmentos generados con timestamping mejorado");
   };
 
+  // Show loading state if categories or clients are still loading
+  const isDataLoading = categoriesLoading || clientsLoading;
+  const hasTranscriptionText = !!transcriptionText && transcriptionText.length > 10;
+
   return (
     <Card>
       <CardHeader className="bg-gradient-to-r from-primary-50 to-transparent">
         <CardTitle className="text-xl font-bold">Análisis de Contenido</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
+        {isDataLoading && (
+          <div className="text-sm text-muted-foreground">
+            Cargando configuración de categorías y clientes...
+          </div>
+        )}
         <AnalysisActions
           isAnalyzing={isAnalyzing}
-          hasTranscriptionText={!!transcriptionText}
+          hasTranscriptionText={hasTranscriptionText && !isDataLoading}
           onAnalyzeContent={analyzeContent}
           showSegmentGeneration={true}
           canGenerateSegments={!!(transcriptionText || transcriptionResult)}
