@@ -53,35 +53,66 @@ const formatTranscriptionWithCustomNames = (
   if (text && getDisplayName) {
     console.log('[TranscriptionCopyButton] Attempting to format plain text with speaker names');
     
-    // Enhanced regex to match various speaker formats
-    const speakerPatterns = [
-      /^(SPEAKER\s+\d+|Speaker\s+\d+|SPEAKER_\d+|Speaker_\d+):\s*/gmi,
-      /^([A-Z]+\s+\d+):\s*/gmi // Generic pattern for custom names that might already be applied
-    ];
-    
+    // Split text into paragraphs to process line by line
     let formattedText = text;
     let foundSpeakers = false;
     
-    // Try each pattern
-    for (const pattern of speakerPatterns) {
-      const matches = [...text.matchAll(pattern)];
-      if (matches.length > 0) {
-        foundSpeakers = true;
-        console.log(`[TranscriptionCopyButton] Found ${matches.length} speaker matches with pattern`);
+    // Enhanced regex to match "SPEAKER X:" format (the format used in our transcriptions)
+    const speakerPattern = /^(SPEAKER\s+(\d+)):\s*/gmi;
+    
+    // Find all speaker matches first to understand the mapping
+    const speakerMatches = [...text.matchAll(speakerPattern)];
+    
+    if (speakerMatches.length > 0) {
+      foundSpeakers = true;
+      console.log(`[TranscriptionCopyButton] Found ${speakerMatches.length} speaker instances`);
+      
+      // Create a map of replacements to avoid multiple replacements of the same text
+      const replacements = new Map<string, string>();
+      
+      speakerMatches.forEach(match => {
+        const fullMatch = match[1]; // "SPEAKER 1", "SPEAKER 2", etc.
+        const speakerNumber = match[2]; // "1", "2", etc.
         
-        matches.forEach(match => {
-          const originalSpeaker = match[1];
-          // Extract speaker identifier (number or full name)
-          const speakerMatch = originalSpeaker.match(/(?:SPEAKER|Speaker)[\s_]?(\d+)/i);
-          if (speakerMatch) {
-            const speakerId = `SPEAKER_${speakerMatch[1]}`;
-            const customName = getDisplayName(speakerId);
-            console.log(`[TranscriptionCopyButton] Replacing ${originalSpeaker} with ${customName}`);
-            formattedText = formattedText.replace(new RegExp(`^${originalSpeaker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:`, 'gmi'), `${customName}:`);
+        // Try different speaker ID formats that might be stored in the database
+        const possibleSpeakerIds = [
+          `SPEAKER_${speakerNumber}`, // Format like "SPEAKER_1"
+          `SPEAKER ${speakerNumber}`,  // Format like "SPEAKER 1"
+          speakerNumber,               // Just the number "1"
+          `speaker_${speakerNumber}`,  // Lowercase variant
+        ];
+        
+        let customName = null;
+        
+        // Try each possible format to find a custom name
+        for (const speakerId of possibleSpeakerIds) {
+          const testName = getDisplayName(speakerId);
+          // Check if we got a custom name (not the default formatted name)
+          if (testName && !testName.includes('Speaker ')) {
+            customName = testName;
+            console.log(`[TranscriptionCopyButton] Found custom name for ${speakerId}: ${customName}`);
+            break;
           }
-        });
-        break; // Use the first pattern that matches
-      }
+        }
+        
+        // If no custom name found, try the getDisplayName with the full match
+        if (!customName) {
+          customName = getDisplayName(`SPEAKER_${speakerNumber}`);
+        }
+        
+        // Store the replacement
+        if (customName && !replacements.has(fullMatch)) {
+          replacements.set(fullMatch, customName);
+          console.log(`[TranscriptionCopyButton] Will replace "${fullMatch}" with "${customName}"`);
+        }
+      });
+      
+      // Apply all replacements
+      replacements.forEach((customName, originalSpeaker) => {
+        // Use word boundary to ensure we only replace speaker labels, not text content
+        const replacePattern = new RegExp(`^${originalSpeaker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:`, 'gmi');
+        formattedText = formattedText.replace(replacePattern, `${customName}:`);
+      });
     }
     
     if (foundSpeakers) {
@@ -140,6 +171,7 @@ const TranscriptionCopyButton: React.FC<TranscriptionCopyButtonProps> = ({
       }
 
       console.log('[TranscriptionCopyButton] Final text to copy length:', textToCopy.length);
+      console.log('[TranscriptionCopyButton] Sample of final text:', textToCopy.substring(0, 300));
 
       await navigator.clipboard.writeText(textToCopy);
       setIsCopied(true);
