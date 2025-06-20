@@ -1,5 +1,5 @@
 
-import React, { memo, useRef, useEffect } from "react";
+import React, { memo, useRef, forwardRef } from "react";
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 import { formatTime } from "@/components/radio/timestamped/timeUtils";
 import { getSpeakerColor } from "./utils";
@@ -13,16 +13,18 @@ interface SpeakerSegmentProps {
   transcriptionId?: string;
 }
 
-const SpeakerSegment = memo<SpeakerSegmentProps>(({
+const SpeakerSegment = memo(forwardRef<HTMLDivElement, SpeakerSegmentProps>(({
   utterance,
   isActive,
   onClick,
   refProp,
   transcriptionId,
-}) => {
+}, forwardedRef) => {
   const speakerColor = getSpeakerColor(utterance.speaker);
   const localRef = useRef<HTMLDivElement>(null);
-  const segmentRef = refProp || localRef;
+  
+  // Use forwarded ref if available, otherwise use refProp, otherwise use local ref
+  const segmentRef = forwardedRef || refProp || localRef;
   
   // Get custom speaker name
   const { getDisplayName } = useSpeakerLabels({ transcriptionId });
@@ -30,16 +32,20 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
   // Enhanced click handler with debouncing
   const handleClick = () => {
     // Prevent click spamming
-    if (!segmentRef.current) return;
+    const currentRef = typeof segmentRef === 'function' ? null : segmentRef?.current;
+    if (!currentRef) {
+      onClick();
+      return;
+    }
     
     // Apply visual feedback
-    segmentRef.current.classList.add('opacity-80');
+    currentRef.classList.add('opacity-80');
     
     // Execute the click after a short delay to prevent double triggering
     setTimeout(() => {
       onClick();
-      if (segmentRef.current) {
-        segmentRef.current.classList.remove('opacity-80');
+      if (currentRef) {
+        currentRef.classList.remove('opacity-80');
       }
     }, 150);
   };
@@ -83,7 +89,7 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
       </p>
     </div>
   );
-});
+}));
 
 SpeakerSegment.displayName = 'SpeakerSegment';
 

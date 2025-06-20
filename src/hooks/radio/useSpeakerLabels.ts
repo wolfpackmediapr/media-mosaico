@@ -44,26 +44,49 @@ export const useSpeakerLabels = ({ transcriptionId }: UseSpeakerLabelsProps) => 
     }
   }, [transcriptionId]);
 
-  // Save speaker label mutation
+  // Save speaker label mutation - Fixed upsert logic
   const saveLabelMutation = useOptimisticMutation({
     mutationFn: async ({ originalSpeaker, customName }: { originalSpeaker: string; customName: string }) => {
       if (!transcriptionId) throw new Error('No transcription ID');
 
-      const { data, error } = await supabase
-        .from('speaker_labels')
-        .upsert({
-          transcription_id: transcriptionId,
-          original_speaker: originalSpeaker,
-          custom_name: customName,
-          user_id: (await supabase.auth.getUser()).data.user?.id
-        }, {
-          onConflict: 'transcription_id,original_speaker'
-        })
-        .select()
-        .single();
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('No authenticated user');
 
-      if (error) throw error;
-      return data;
+      // First, try to find existing record
+      const { data: existing } = await supabase
+        .from('speaker_labels')
+        .select('id')
+        .eq('transcription_id', transcriptionId)
+        .eq('original_speaker', originalSpeaker)
+        .maybeSingle();
+
+      if (existing) {
+        // Update existing record
+        const { data, error } = await supabase
+          .from('speaker_labels')
+          .update({ custom_name: customName })
+          .eq('id', existing.id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } else {
+        // Insert new record
+        const { data, error } = await supabase
+          .from('speaker_labels')
+          .insert({
+            transcription_id: transcriptionId,
+            original_speaker: originalSpeaker,
+            custom_name: customName,
+            user_id: user.user.id
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
     },
     onMutate: ({ originalSpeaker, customName }) => {
       // Optimistic update

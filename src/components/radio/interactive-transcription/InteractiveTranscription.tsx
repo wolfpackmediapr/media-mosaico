@@ -28,6 +28,11 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
 
   const utterances = transcriptionResult?.utterances || [];
 
+  // Initialize refs array when utterances change
+  useEffect(() => {
+    segmentRefs.current = segmentRefs.current.slice(0, utterances.length);
+  }, [utterances.length]);
+
   // Find active segment based on current time
   const normalizedCurrentTime = useMemo(() => normalizeTimeToSeconds(currentTime), [currentTime]);
 
@@ -48,7 +53,7 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
     setActiveSegmentIndex(activeIndex);
   }, [normalizedCurrentTime, utterances]);
 
-  // Auto-scroll to active segment
+  // Auto-scroll to active segment - Fixed ref handling
   useEffect(() => {
     if (activeSegmentIndex >= 0 && segmentRefs.current[activeSegmentIndex] && scrollContainerRef.current) {
       const activeElement = segmentRefs.current[activeSegmentIndex];
@@ -71,6 +76,11 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   const handleSegmentClick = (utterance: any) => {
     const seekTime = normalizeTimeToSeconds(utterance.start);
     onSeek(seekTime);
+  };
+
+  // Fixed ref assignment function
+  const setSegmentRef = (index: number) => (el: HTMLDivElement | null) => {
+    segmentRefs.current[index] = el;
   };
 
   if (!utterances.length) {
@@ -117,7 +127,8 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
             utterance={utterance}
             isActive={index === activeSegmentIndex}
             onClick={() => handleSegmentClick(utterance)}
-            refProp={{ current: segmentRefs.current[index] }}
+            refProp={{ current: null }}
+            ref={setSegmentRef(index)}
             transcriptionId={transcriptionResult?.transcript_id}
           />
         ))}
