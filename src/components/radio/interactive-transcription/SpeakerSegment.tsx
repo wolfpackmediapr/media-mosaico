@@ -1,88 +1,102 @@
 
-import React, { memo, useRef, useEffect } from "react";
-import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
-import { formatTime } from "@/components/radio/timestamped/timeUtils";
-import { getSpeakerColor } from "./utils";
+import React from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Play, Pause } from "lucide-react";
+import { useSpeakerLabels } from "@/hooks/radio/speaker-labels/useSpeakerLabels";
 
 interface SpeakerSegmentProps {
-  utterance: UtteranceTimestamp;
-  isActive: boolean;
-  onClick: () => void;
-  refProp?: React.RefObject<HTMLDivElement>;
+  speaker: string;
+  text: string;
+  startTime: number;
+  endTime: number;
+  isCurrentSegment: boolean;
+  isPlaying: boolean;
+  onSeek: (time: number) => void;
+  onPlayPause: () => void;
+  getSpeakerColor: (speaker: string) => string;
+  transcriptionId?: string;
 }
 
-const SpeakerSegment = memo<SpeakerSegmentProps>(({
-  utterance,
-  isActive,
-  onClick,
-  refProp,
+const SpeakerSegment: React.FC<SpeakerSegmentProps> = ({
+  speaker,
+  text,
+  startTime,
+  isCurrentSegment,
+  isPlaying,
+  onSeek,
+  onPlayPause,
+  getSpeakerColor,
+  transcriptionId,
 }) => {
-  const speakerColor = getSpeakerColor(utterance.speaker);
-  const localRef = useRef<HTMLDivElement>(null);
-  const segmentRef = refProp || localRef;
-  
-  // Enhanced click handler with debouncing
-  const handleClick = () => {
-    // Prevent click spamming
-    if (!segmentRef.current) return;
-    
-    // Apply visual feedback
-    segmentRef.current.classList.add('opacity-80');
-    
-    // Execute the click after a short delay to prevent double triggering
-    setTimeout(() => {
-      onClick();
-      if (segmentRef.current) {
-        segmentRef.current.classList.remove('opacity-80');
-      }
-    }, 150);
+  const { getSpeakerDisplayName } = useSpeakerLabels({ transcriptionId });
+
+  const formatTime = (timeInMs: number) => {
+    const seconds = Math.floor(timeInMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
   };
 
-  // Get display speaker name
-  const displaySpeaker = typeof utterance.speaker === 'string' 
-    ? utterance.speaker.includes('_') 
-      ? `Speaker ${utterance.speaker.split('_')[1]}` 
-      : `Speaker ${utterance.speaker}`
-    : `Speaker ${utterance.speaker}`;
-  
+  const handleSeek = () => {
+    onSeek(startTime);
+  };
+
+  const displayName = getSpeakerDisplayName(speaker);
+
   return (
-    <div
-      ref={segmentRef}
-      onClick={handleClick}
-      className={`
-        p-3 rounded-lg transition-all cursor-pointer
-        hover:bg-muted/50
-        ${isActive ? 'bg-muted ring-2 ring-primary ring-offset-2' : 'bg-card border'}
-      `}
-      data-speaker={utterance.speaker}
-      data-start={utterance.start}
-      data-end={utterance.end}
+    <div 
+      className={`p-4 border rounded-lg transition-all duration-200 ${
+        isCurrentSegment 
+          ? 'bg-blue-50 border-blue-200 shadow-sm' 
+          : 'bg-white border-gray-200 hover:bg-gray-50'
+      }`}
     >
-      <div className="flex items-center gap-2 mb-1">
-        <div 
-          className="w-4 h-4 rounded-full"
-          style={{ backgroundColor: speakerColor }}
-        />
-        <span className="font-medium text-sm">{displaySpeaker}</span>
-        <span className="text-xs text-muted-foreground ml-auto">
-          {formatTime(utterance.start, false)}
-        </span>
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0">
+          <Badge
+            variant="secondary"
+            className="text-xs font-medium px-2 py-1 mb-2"
+            style={{
+              backgroundColor: getSpeakerColor(speaker),
+              color: 'white'
+            }}
+          >
+            {displayName}
+          </Badge>
+          <div className="text-xs text-gray-500 mb-2">
+            {formatTime(startTime)}
+          </div>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSeek}
+              className="h-6 w-6 p-0"
+              title={`Seek to ${formatTime(startTime)}`}
+            >
+              ⏯
+            </Button>
+            {isCurrentSegment && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onPlayPause}
+                className="h-6 w-6 p-0"
+              >
+                {isPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap break-words">
+            {text}
+          </p>
+        </div>
       </div>
-      
-      <p 
-        className={`text-base leading-relaxed ${isActive ? 'font-medium' : ''}`}
-        style={{ 
-          borderLeftColor: speakerColor,
-          borderLeftWidth: '2px',
-          paddingLeft: '0.75rem'
-        }}
-      >
-        {utterance.text}
-      </p>
     </div>
   );
-});
-
-SpeakerSegment.displayName = 'SpeakerSegment';
+};
 
 export default SpeakerSegment;
