@@ -28,17 +28,11 @@ export const fetchCategories = async (): Promise<Category[]> => {
   try {
     console.log('[categoriesService] Attempting to fetch categories from database...');
     
-    // Try to fetch from database first - use raw SQL to avoid TypeScript issues
+    // Direct query to categories table
     const { data, error } = await supabase
-      .rpc('get_categories') // We'll create this function or use direct query
-      .then(() => null) // This will fail, so we'll use the direct approach
-      .catch(async () => {
-        // Direct query to categories table
-        return await supabase
-          .from('categories' as any)
-          .select('*')
-          .order('name_es');
-      });
+      .from('categories')
+      .select('*')
+      .order('name_es');
 
     if (error) {
       console.warn('[categoriesService] Database error, using fallback categories:', error.message);
@@ -48,7 +42,7 @@ export const fetchCategories = async (): Promise<Category[]> => {
     if (data && data.length > 0) {
       console.log(`[categoriesService] Found ${data.length} categories in database`);
       // Map the database results to our Category type
-      return data.map((item: any) => ({
+      return data.map((item) => ({
         id: item.id,
         name_es: item.name_es,
         name_en: item.name_en,
@@ -66,14 +60,14 @@ export const fetchCategories = async (): Promise<Category[]> => {
 
 export const addCategory = async (category: Omit<Category, 'id'>): Promise<Category> => {
   try {
-    // Use raw query to avoid TypeScript issues
     const { data, error } = await supabase
-      .from('categories' as any)
+      .from('categories')
       .insert([category])
       .select()
       .single();
 
     if (error) throw error;
+    
     return {
       id: data.id,
       name_es: data.name_es,
@@ -94,13 +88,14 @@ export const addCategory = async (category: Omit<Category, 'id'>): Promise<Categ
 export const updateCategory = async (id: string, categoryData: Partial<Category>): Promise<Category> => {
   try {
     const { data, error } = await supabase
-      .from('categories' as any)
+      .from('categories')
       .update(categoryData)
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
+    
     return {
       id: data.id,
       name_es: data.name_es,
@@ -120,7 +115,7 @@ export const updateCategory = async (id: string, categoryData: Partial<Category>
 export const deleteCategory = async (id: string): Promise<void> => {
   try {
     const { error } = await supabase
-      .from('categories' as any)
+      .from('categories')
       .delete()
       .eq('id', id);
 
