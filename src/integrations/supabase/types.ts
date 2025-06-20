@@ -66,6 +66,30 @@ export type Database = {
         }
         Relationships: []
       }
+      categories: {
+        Row: {
+          created_at: string
+          id: string
+          name_en: string
+          name_es: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name_en: string
+          name_es: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name_en?: string
+          name_es?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       client_alerts: {
         Row: {
           client_id: string | null

@@ -13,6 +13,10 @@ export const configurationRoutes: RouteObject[] = [
     element: createProtectedRoute(settingsRoutes.GeneralSettings)
   },
   {
+    path: "ajustes/general",
+    element: createProtectedRoute(settingsRoutes.GeneralSettings)
+  },
+  {
     path: "configuracion/notificaciones",
     element: createProtectedRoute(settingsRoutes.NotificationsSettings)
   },

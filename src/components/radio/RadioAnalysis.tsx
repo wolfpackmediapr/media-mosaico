@@ -123,9 +123,9 @@ const RadioAnalysis = ({
 
     setIsAnalyzing(true);
     try {
-      // Format categories - ensure we have the category names
+      // Format categories - ensure we have the category names, use name_es from database
       const formattedCategories = categories.length > 0 
-        ? categories.map(cat => cat.name_es || cat.name).filter(Boolean)
+        ? categories.map(cat => cat.name_es).filter(Boolean)
         : [
           'ENTRETENIMIENTO', 'EDUCACION & CULTURA', 'COMUNIDAD', 'SALUD', 
           'CRIMEN', 'TRIBUNALES', 'AMBIENTE & EL TIEMPO', 'ECONOMIA & NEGOCIOS',
