@@ -17,6 +17,7 @@ interface TranscriptionEditorWrapperProps {
   saveSuccess?: boolean;
   isEditing?: boolean;
   showPlaceholder?: boolean;
+  transcriptionId?: string;
 }
 
 export const TranscriptionEditorWrapper = ({
@@ -32,6 +33,7 @@ export const TranscriptionEditorWrapper = ({
   saveSuccess,
   isEditing,
   showPlaceholder,
+  transcriptionId,
 }: TranscriptionEditorWrapperProps) => {
   return (
     <div className="relative">
@@ -42,6 +44,7 @@ export const TranscriptionEditorWrapper = ({
         onTranscriptionChange={onTranscriptionChange}
         onTimestampClick={onTimestampClick}
         currentTime={currentTime}
+        transcriptionId={transcriptionId}
       />
       <SaveStatus 
         isSaving={isSaving} 

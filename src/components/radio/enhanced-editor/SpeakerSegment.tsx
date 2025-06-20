@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { formatTime } from "../timestamped/timeUtils";
+import { useSpeakerLabels } from "@/hooks/radio/useSpeakerLabels";
 
 interface SpeakerSegmentProps {
   speaker: string;
@@ -8,6 +9,7 @@ interface SpeakerSegmentProps {
   timestamp: number;
   isActive?: boolean;
   onTimestampClick?: () => void;
+  transcriptionId?: string;
 }
 
 export const SpeakerSegment = ({
@@ -15,9 +17,16 @@ export const SpeakerSegment = ({
   text,
   timestamp,
   isActive = false,
-  onTimestampClick
+  onTimestampClick,
+  transcriptionId
 }: SpeakerSegmentProps) => {
   const speakerColor = `hsl(${parseInt(speaker.split('_')[1] || '1') * 60}, 70%, 50%)`;
+  
+  // Get custom speaker name if transcriptionId is available
+  const { getDisplayName } = useSpeakerLabels({ transcriptionId });
+  
+  // Use custom name if available, otherwise fallback to default format
+  const displayName = transcriptionId ? getDisplayName(speaker) : `SPEAKER ${speaker.split('_')[1] || speaker}`;
   
   return (
     <div 
@@ -32,7 +41,7 @@ export const SpeakerSegment = ({
           style={{ backgroundColor: speakerColor }}
         />
         <span className="font-medium">
-          SPEAKER {speaker.split('_')[1] || speaker}
+          {displayName}
         </span>
         <button
           onClick={onTimestampClick}

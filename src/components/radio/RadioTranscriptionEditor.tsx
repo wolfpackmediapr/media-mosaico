@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTranscriptionEditor } from "@/hooks/radio/useTranscriptionEditor";
@@ -77,6 +76,7 @@ const RadioTranscriptionEditor = ({
       saveSuccess={saveSuccess}
       hasSpeakerLabels={hasSpeakerLabels}
       isEditing={isEditing}
+      transcriptionId={transcriptionId}
     />
   );
 };

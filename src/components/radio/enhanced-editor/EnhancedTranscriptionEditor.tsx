@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { FormattingToolbar } from './FormattingToolbar';
@@ -16,6 +15,7 @@ interface EnhancedTranscriptionEditorProps {
   onTranscriptionChange: (text: string) => void;
   onTimestampClick?: (timestamp: number) => void;
   currentTime?: number;
+  transcriptionId?: string;
 }
 
 export const EnhancedTranscriptionEditor: React.FC<EnhancedTranscriptionEditorProps> = ({
@@ -24,7 +24,8 @@ export const EnhancedTranscriptionEditor: React.FC<EnhancedTranscriptionEditorPr
   isProcessing,
   onTranscriptionChange,
   onTimestampClick,
-  currentTime = 0
+  currentTime = 0,
+  transcriptionId
 }) => {
   // Initialize all state hooks at the top level
   const [utterances, setUtterances] = useState<UtteranceTimestamp[]>([]);
@@ -155,6 +156,7 @@ export const EnhancedTranscriptionEditor: React.FC<EnhancedTranscriptionEditorPr
               timestamp={utterance.start}
               isActive={index === activeSegmentIndex}
               onTimestampClick={() => handleTimestampClick(utterance.start)}
+              transcriptionId={transcriptionId}
             />
           ))}
         </ScrollArea>
