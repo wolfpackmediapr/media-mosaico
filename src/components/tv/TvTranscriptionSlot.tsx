@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import TvTranscriptionMetadata from "./TvTranscriptionMetadata";
@@ -158,7 +157,6 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
               isPlaying={isPlaying}
               onPlayPause={onPlayPause}
               onSeek={handleTimestampClick}
-              transcriptionId={transcriptionId}
             />
           ) : (
             <TvTranscriptionEditor

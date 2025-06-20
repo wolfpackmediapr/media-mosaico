@@ -1,94 +1,68 @@
 
-import React from "react";
-import { Badge } from "@/components/ui/badge";
+import React, { useMemo } from "react";
+import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
+import { getSpeakerColor } from "./utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { RotateCcw } from "lucide-react";
-import { useSpeakerLabels } from "@/hooks/radio/speaker-labels/useSpeakerLabels";
-import SpeakerNameInput from "@/components/radio/speaker-labels/SpeakerNameInput";
+import { Users } from "lucide-react";
 
 interface SpeakerLegendProps {
-  speakers: string[];
-  getSpeakerColor: (speaker: string) => string;
-  transcriptionId?: string;
+  utterances: UtteranceTimestamp[];
 }
 
-const SpeakerLegend: React.FC<SpeakerLegendProps> = ({ 
-  speakers, 
-  getSpeakerColor,
-  transcriptionId 
-}) => {
-  const {
-    saveSpeakerLabel,
-    deleteSpeakerLabel,
-    clearAllSpeakerLabels,
-    getSpeakerDisplayName,
-    hasCustomName,
-    isSaving
-  } = useSpeakerLabels({ transcriptionId });
+const SpeakerLegend: React.FC<SpeakerLegendProps> = ({ utterances }) => {
+  // Extract unique speakers with memoization
+  const uniqueSpeakers = useMemo(() => {
+    if (!utterances || utterances.length === 0) return [];
+    return Array.from(
+      new Set(utterances.map((u) => u.speaker))
+    ).sort();
+  }, [utterances]);
 
-  if (speakers.length === 0) return null;
-
-  const handleClearAll = async () => {
-    if (window.confirm('Are you sure you want to reset all speaker names to their original values?')) {
-      await clearAllSpeakerLabels();
+  // Format speaker name for display
+  const formatSpeakerName = (speaker: string | number) => {
+    if (typeof speaker === 'string') {
+      return speaker.includes('_') ? 
+        `Speaker ${speaker.split('_')[1]}` : 
+        `Speaker ${speaker}`;
     }
+    return `Speaker ${speaker}`;
   };
 
-  const hasAnyCustomNames = speakers.some(speaker => hasCustomName(speaker));
+  if (!uniqueSpeakers.length) {
+    return null;
+  }
 
   return (
-    <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-gray-700">Speakers</h3>
-        {hasAnyCustomNames && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleClearAll}
-            disabled={isSaving}
-            className="text-xs"
-          >
-            <RotateCcw className="h-3 w-3 mr-1" />
-            Reset All
-          </Button>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {speakers.map((speaker) => {
-          const displayName = getSpeakerDisplayName(speaker);
-          const customName = hasCustomName(speaker);
-          
-          return (
-            <div key={speaker} className="flex items-center gap-1">
-              <Badge
-                variant="secondary"
-                className="text-xs px-2 py-1"
-                style={{
-                  backgroundColor: getSpeakerColor(speaker),
-                  color: 'white'
-                }}
-              >
-                {speaker}
-              </Badge>
-              <span className="text-xs text-gray-500">→</span>
-              <SpeakerNameInput
-                originalSpeaker={speaker}
-                displayName={displayName}
-                hasCustomName={customName}
-                onSave={saveSpeakerLabel}
-                onDelete={deleteSpeakerLabel}
-                isInline={true}
-                className="text-xs"
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="flex items-center gap-1">
+          <Users className="h-4 w-4" />
+          <span className="hidden sm:inline">{uniqueSpeakers.length} Hablantes</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3">
+        <h4 className="text-sm font-medium mb-2">Identificación de Hablantes</h4>
+        <div className="space-y-2">
+          {uniqueSpeakers.map((speaker) => (
+            <div key={`speaker-legend-${speaker}`} className="flex items-center gap-2">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: getSpeakerColor(speaker) }}
               />
+              <span className="text-xs">
+                {formatSpeakerName(speaker)}
+              </span>
             </div>
-          );
-        })}
-      </div>
-      <p className="text-xs text-gray-500 mt-2">
-        Click on any speaker name to customize it. Custom names will be used throughout this transcription.
-      </p>
-    </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
-export default SpeakerLegend;
+export default React.memo(SpeakerLegend);

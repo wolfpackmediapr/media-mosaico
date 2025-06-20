@@ -3,12 +3,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
-import InteractiveTranscription from "@/components/radio/interactive-transcription/InteractiveTranscription";
-import ViewModeToggle from "@/components/radio/interactive-transcription/ViewModeToggle";
+import RadioReportButton from "./RadioReportButton";
+import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
+import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { normalizeTimeToSeconds } from "@/components/radio/interactive-transcription/utils";
-import { RadioNewsSegment } from "@/components/radio/RadioNewsSegmentsContainer";
+import { InteractiveTranscription, ViewModeToggle } from "./interactive-transcription";
+import { normalizeTimeToSeconds } from "./interactive-transcription/utils";
 
 interface RadioTranscriptionSlotProps {
   isProcessing: boolean;
@@ -19,7 +20,9 @@ interface RadioTranscriptionSlotProps {
     emisora?: string;
     programa?: string;
     horario?: string;
-    keywords?: string[];
+    categoria?: string;
+    station_id?: string;
+    program_id?: string;
   };
   onTranscriptionChange: (text: string) => void;
   onSegmentsReceived?: (segments: RadioNewsSegment[]) => void;
@@ -27,13 +30,16 @@ interface RadioTranscriptionSlotProps {
     emisora: string;
     programa: string;
     horario: string;
+    categoria: string;
+    station_id: string;
+    program_id: string;
   }) => void;
-  onTimestampClick?: (timestamp: number) => void;
+  onTimestampClick?: (segment: RadioNewsSegment) => void;
   registerEditorReset?: (fn: () => void) => void;
   isPlaying?: boolean;
   currentTime?: number;
   onPlayPause?: () => void;
-  onSeek?: (time: number) => void;
+  onSeek?: (timeOrSegment: number | RadioNewsSegment) => void;
 }
 
 const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
@@ -52,10 +58,11 @@ const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
   onPlayPause = () => {},
   onSeek = () => {},
 }) => {
+  const { checkAndGenerateSegments } = useRadioSegmentGenerator(onSegmentsReceived);
   const componentMountedRef = useRef(true);
   
   // Persistent view mode state with proper key
-  const persistViewModeKey = `radio-transcription-view-mode-${transcriptionId || "draft"}`;
+  const persistViewModeKey = `transcription-view-mode-${transcriptionId || "draft"}`;
   const [viewMode, setViewMode, removeViewMode] = usePersistentState<'interactive' | 'edit'>(
     persistViewModeKey,
     'edit',
@@ -95,14 +102,11 @@ const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
         setViewMode('edit');
       }
     };
-  }, [removeViewMode, setViewMode]);
-
-  // Register the reset function with parent only once
-  useEffect(() => {
-    if (registerEditorReset && resetFnRef.current) {
+    
+    if (registerEditorReset) {
       registerEditorReset(resetFnRef.current);
     }
-  }, [registerEditorReset]);
+  }, [registerEditorReset, removeViewMode, setViewMode]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -116,7 +120,7 @@ const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
     setViewMode(mode);
   }, [setViewMode]);
 
-  // Improved timestamp handling for audio
+  // Improved timestamp handling
   const handleTimestampClick = useCallback((timestamp: number) => {
     console.log(`[RadioTranscriptionSlot] Timestamp clicked: ${timestamp}`);
     
@@ -125,7 +129,15 @@ const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
     console.log(`[RadioTranscriptionSlot] Normalized timestamp: ${timeInSeconds}s`);
     
     if (onTimestampClick) {
-      onTimestampClick(timeInSeconds);
+      // Create a temporary segment object for the timestamp
+      const tempSegment: RadioNewsSegment = {
+        headline: "Timestamp",
+        text: "",
+        startTime: timeInSeconds * 1000, // Convert back to milliseconds for the segment
+        end: timeInSeconds * 1000 + 1000, // Assume milliseconds for end time
+        keywords: []
+      };
+      onTimestampClick(tempSegment);
     } else if (onSeek) {
       // Pass the normalized time in seconds directly to onSeek
       onSeek(timeInSeconds);
@@ -145,8 +157,6 @@ const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
             mode={viewMode}
             onChange={handleViewModeChange}
             hasUtterances={hasUtterances()}
-            transcriptionResult={transcriptionResult}
-            transcriptionId={transcriptionId}
           />
         </div>
 
@@ -158,7 +168,6 @@ const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
               isPlaying={isPlaying}
               onPlayPause={onPlayPause}
               onSeek={handleTimestampClick}
-              transcriptionId={transcriptionId}
             />
           ) : (
             <RadioTranscriptionEditor
@@ -172,6 +181,14 @@ const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
               currentTime={currentTime}
             />
           )}
+          
+          <div className="flex justify-end">
+            <RadioReportButton
+              transcriptionText={transcriptionText}
+              metadata={metadata}
+              isProcessing={isProcessing}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

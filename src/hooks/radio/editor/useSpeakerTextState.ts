@@ -8,10 +8,8 @@ import {
 import { 
   formatSpeakerText, 
   parseSpeakerTextToUtterances,
-  formatPlainTextAsSpeaker,
-  applySpeakerLabelsToText
+  formatPlainTextAsSpeaker 
 } from "@/components/radio/utils/speakerTextUtils";
-import { useSpeakerLabels } from "@/hooks/radio/speaker-labels/useSpeakerLabels";
 
 interface UseSpeakerTextStateProps {
   transcriptionText: string;
@@ -40,11 +38,6 @@ export const useSpeakerTextState = ({
   
   const lastTextRef = useRef(transcriptionText);
 
-  // Speaker labels integration
-  const { speakerLabels, getSpeakerDisplayName } = useSpeakerLabels({ 
-    transcriptionId 
-  });
-
   const hasSpeakerLabels = Boolean(
     enhancedTranscriptionResult?.utterances &&
     enhancedTranscriptionResult.utterances.length > 0
@@ -66,14 +59,14 @@ export const useSpeakerTextState = ({
     }
   }, [transcriptionText, localSpeakerText, setLocalSpeakerText, removeLocalSpeakerText]);
 
-  //Process transcription result and text with speaker labels
+  // Process transcription result and text
   useEffect(() => {
     if (!mountedRef.current) return;
 
     if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
       console.log('[useSpeakerTextState] New transcription result with utterances received');
       setEnhancedTranscriptionResult(transcriptionResult);
-      const formattedText = formatSpeakerText(transcriptionResult.utterances, speakerLabels);
+      const formattedText = formatSpeakerText(transcriptionResult.utterances);
       if (formattedText && localSpeakerText !== formattedText) {
         console.log('[useSpeakerTextState] Setting formatted speaker text from utterances');
         setLocalSpeakerText(formattedText);
@@ -86,42 +79,20 @@ export const useSpeakerTextState = ({
     else if (transcriptionText && transcriptionText !== lastTextRef.current) {
       console.log('[useSpeakerTextState] Processing plain transcription text');
       const formattedText = formatPlainTextAsSpeaker(transcriptionText);
-      const textWithLabels = applySpeakerLabelsToText(formattedText, speakerLabels);
-      setLocalSpeakerText(textWithLabels);
-      lastTextRef.current = textWithLabels;
-      onTranscriptionChange(textWithLabels);
+      setLocalSpeakerText(formattedText);
+      lastTextRef.current = formattedText;
+      onTranscriptionChange(formattedText);
       
-      const parsedUtterances = parseSpeakerTextToUtterances(textWithLabels, speakerLabels);
+      const parsedUtterances = parseSpeakerTextToUtterances(formattedText);
       if (parsedUtterances.length > 0) {
         setEnhancedTranscriptionResult(prev => ({
           ...(prev || {}),
-          text: textWithLabels,
+          text: formattedText,
           utterances: parsedUtterances
         }) as TranscriptionResult);
       }
     }
-  }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText, speakerLabels]);
-
-  // Update text when speaker labels change
-  useEffect(() => {
-    if (localSpeakerText && Object.keys(speakerLabels).length > 0) {
-      const updatedText = applySpeakerLabelsToText(localSpeakerText, speakerLabels);
-      if (updatedText !== localSpeakerText) {
-        setLocalSpeakerText(updatedText);
-        onTranscriptionChange(updatedText);
-        
-        // Update enhanced result as well
-        const parsedUtterances = parseSpeakerTextToUtterances(updatedText, speakerLabels);
-        if (parsedUtterances.length > 0) {
-          setEnhancedTranscriptionResult(prev => ({
-            ...(prev || {}),
-            text: updatedText,
-            utterances: parsedUtterances
-          }) as TranscriptionResult);
-        }
-      }
-    }
-  }, [speakerLabels, localSpeakerText, setLocalSpeakerText, onTranscriptionChange]);
+  }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText]);
 
   // More robust reset function that clears all associated state
   const resetLocalSpeakerText = () => {
@@ -155,7 +126,7 @@ export const useSpeakerTextState = ({
     setLocalSpeakerText(newText);
     onTranscriptionChange(newText);
     
-    const newUtterances = parseSpeakerTextToUtterances(newText, speakerLabels);
+    const newUtterances = parseSpeakerTextToUtterances(newText);
     if (newUtterances.length > 0) {
       setEnhancedTranscriptionResult(prev => ({
         ...(prev || {}),

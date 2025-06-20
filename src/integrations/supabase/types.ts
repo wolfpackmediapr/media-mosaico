@@ -1229,36 +1229,6 @@ export type Database = {
         }
         Relationships: []
       }
-      speaker_labels: {
-        Row: {
-          created_at: string
-          custom_name: string
-          id: string
-          original_speaker: string
-          transcription_id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          custom_name: string
-          id?: string
-          original_speaker: string
-          transcription_id: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          custom_name?: string
-          id?: string
-          original_speaker?: string
-          transcription_id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       stations: {
         Row: {
           created_at: string | null
