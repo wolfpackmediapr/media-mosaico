@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +8,8 @@ import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
 import { useCategories } from "@/hooks/radio/useCategories";
 import { useClientData } from "@/hooks/radio/useClientData";
+import { useSpeakerLabels } from "@/hooks/radio/useSpeakerLabels";
+import { formatTranscriptionWithSpeakerNames } from "@/components/radio/utils/speakerLabelUtils";
 import AnalysisActions from "./analysis/AnalysisActions";
 import AnalysisResult from "./analysis/AnalysisResult";
 import { usePersistentState } from "@/hooks/use-persistent-state";
@@ -41,6 +42,7 @@ const RadioAnalysis = ({
   const { generateRadioSegments } = useRadioSegmentGenerator(onSegmentsGenerated);
   const { categories, isLoading: categoriesLoading } = useCategories();
   const { clients, isLoading: clientsLoading } = useClientData();
+  const { getDisplayName, isLoading: speakerLabelsLoading } = useSpeakerLabels({ transcriptionId });
   const mountedRef = useRef(true);
 
   console.log('[RadioAnalysis] Component state:', {
@@ -50,6 +52,7 @@ const RadioAnalysis = ({
     clientsCount: clients.length,
     categoriesLoading,
     clientsLoading,
+    speakerLabelsLoading,
     isAnalyzing
   });
 
@@ -118,11 +121,33 @@ const RadioAnalysis = ({
     console.log('[RadioAnalysis] Starting analysis with:', {
       transcriptionLength: transcriptionText.length,
       categoriesCount: categories.length,
-      clientsCount: clients.length
+      clientsCount: clients.length,
+      hasSpeakerLabels: !!getDisplayName && !speakerLabelsLoading
     });
 
     setIsAnalyzing(true);
     try {
+      // Format transcription with custom speaker names if available
+      let textForAnalysis = transcriptionText;
+      
+      if (transcriptionId && getDisplayName && !speakerLabelsLoading) {
+        console.log('[RadioAnalysis] Formatting transcription with custom speaker names');
+        textForAnalysis = formatTranscriptionWithSpeakerNames(
+          transcriptionText,
+          transcriptionResult,
+          getDisplayName,
+          speakerLabelsLoading
+        );
+        
+        // Check if formatting was successful
+        const hasCustomNames = textForAnalysis !== transcriptionText;
+        console.log('[RadioAnalysis] Custom speaker names applied:', hasCustomNames);
+        
+        if (hasCustomNames) {
+          console.log('[RadioAnalysis] Sample of formatted text:', textForAnalysis.substring(0, 300));
+        }
+      }
+
       // Format categories - ensure we have the category names, use name_es from database
       const formattedCategories = categories.length > 0 
         ? categories.map(cat => cat.name_es).filter(Boolean)
@@ -142,7 +167,7 @@ const RadioAnalysis = ({
         : [];
 
       console.log('[RadioAnalysis] Calling edge function with:', {
-        transcriptionTextLength: transcriptionText.length,
+        transcriptionTextLength: textForAnalysis.length,
         categoriesCount: formattedCategories.length,
         clientsCount: formattedClients.length,
         transcriptId: transcriptionId
@@ -150,7 +175,7 @@ const RadioAnalysis = ({
 
       const { data, error } = await supabase.functions.invoke('analyze-radio-content', {
         body: { 
-          transcriptionText,
+          transcriptionText: textForAnalysis, // Use formatted text with custom speaker names
           transcriptId: transcriptionId || null,
           categories: formattedCategories,
           clients: formattedClients
@@ -167,7 +192,14 @@ const RadioAnalysis = ({
       if (data?.analysis) {
         console.log('[RadioAnalysis] Analysis received, length:', data.analysis.length);
         setAnalysis(data.analysis);
-        toast.success("El contenido ha sido analizado exitosamente.");
+        
+        // Provide more specific success message
+        const hasCustomNames = textForAnalysis !== transcriptionText;
+        const message = hasCustomNames 
+          ? "El contenido ha sido analizado exitosamente con nombres personalizados." 
+          : "El contenido ha sido analizado exitosamente.";
+        
+        toast.success(message);
         
         // Generate segments if callback provided
         if (onSegmentsGenerated) {
@@ -261,14 +293,14 @@ const RadioAnalysis = ({
         <CardTitle className="text-xl font-bold">Análisis de Contenido</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
-        {isDataLoading && (
+        {(isDataLoading || speakerLabelsLoading) && (
           <div className="text-sm text-muted-foreground">
-            Cargando configuración de categorías y clientes...
+            Cargando configuración de categorías, clientes y etiquetas de hablantes...
           </div>
         )}
         <AnalysisActions
           isAnalyzing={isAnalyzing}
-          hasTranscriptionText={hasTranscriptionText && !isDataLoading}
+          hasTranscriptionText={hasTranscriptionText && !isDataLoading && !speakerLabelsLoading}
           onAnalyzeContent={analyzeContent}
           showSegmentGeneration={true}
           canGenerateSegments={!!(transcriptionText || transcriptionResult)}

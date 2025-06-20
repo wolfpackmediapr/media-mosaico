@@ -56,7 +56,7 @@ PARA CADA SECCIÓN DE PROGRAMA REGULAR:
    - Incluir desarrollo cronológico de los temas
    - Destacar citas textuales relevantes
    - Mencionar interacciones entre participantes si las hay
-   - Identificación de los participantes en la conversación (cuántos hablantes participan y si se pueden identificar sus roles o nombres) [si hay etiquetas de hablante]
+   - Identificación de los participantes en la conversación (cuántos hablantes participan y si se pueden identificar sus roles o nombres)${hasSpeakerLabels ? ' [utilizar los nombres específicos de los hablantes cuando estén disponibles]' : ' [si hay etiquetas de hablante]'}
 
 2. Temas principales tratados
    - Listar temas por orden de importancia
@@ -90,14 +90,21 @@ Responde en español de manera concisa y profesional. Asegúrate de:
 1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
 2. Si es un anuncio, enfatizar las marcas, productos y llamadas a la acción
 3. Si es contenido regular, mantener el formato de análisis detallado
-4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave`;
+4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave${hasSpeakerLabels ? '\n5. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas como "SPEAKER A" o "SPEAKER B"' : ''}`;
   } else {
-    prompt += `\n\nResponde en español de manera concisa y profesional, comenzando SIEMPRE con el encabezado del tipo de contenido identificado en mayúsculas.`;
+    prompt += `\n\nResponde en español de manera concisa y profesional, comenzando SIEMPRE con el encabezado del tipo de contenido identificado en mayúsculas.${hasSpeakerLabels ? ' Utiliza los nombres específicos de los hablantes cuando estén disponibles.' : ''}`;
   }
 
   // Add speaker-specific instructions if available
   if (hasSpeakerLabels) {
-    prompt += `\n\nLa transcripción incluye etiquetas de hablantes (SPEAKER A, SPEAKER B, etc.). Utiliza esta información para identificar diferentes personas, sus roles y la dinámica de la conversación.`;
+    prompt += `\n\nIMPORTANTE - MANEJO DE HABLANTES:
+La transcripción incluye nombres específicos de hablantes (pueden ser nombres propios como "María", "Juan", etc., en lugar de etiquetas genéricas). Utiliza estos nombres específicos en tu análisis para:
+- Identificar diferentes personas y sus roles
+- Describir la dinámica de la conversación
+- Mencionar contribuciones específicas de cada participante
+- Proporcionar un análisis más personalizado y profesional
+
+Evita usar referencias genéricas como "hablante 1", "participante A", etc., cuando tengas nombres específicos disponibles.`;
   }
 
   // Add any additional context provided
