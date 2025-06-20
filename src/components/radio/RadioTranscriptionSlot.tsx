@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import RadioTranscriptionMetadata from "./RadioTranscriptionMetadata";
 import RadioTranscriptionEditor from "./RadioTranscriptionEditor";
 import RadioReportButton from "./RadioReportButton";
+import TranscriptionCopyButton from "./editor/TranscriptionCopyButton";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
@@ -182,7 +183,13 @@ const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
             />
           )}
           
-          <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row gap-2 justify-end">
+            <TranscriptionCopyButton
+              transcriptionText={transcriptionText}
+              transcriptionResult={transcriptionResult}
+              transcriptionId={transcriptionId}
+              isProcessing={isProcessing}
+            />
             <RadioReportButton
               transcriptionText={transcriptionText}
               metadata={metadata}
