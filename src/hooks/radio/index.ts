@@ -1,4 +1,3 @@
-
 export * from './useProgramsManagement';
 export * from './useRadioRatesManagement';
 export * from './useRadioSegmentGenerator';
@@ -21,3 +20,4 @@ export * from './useNotepadState';
 export * from './useAudioErrorHandling';
 // Import from the TV module directly rather than importing from here
 // export * from '../tv/useTvTabState';
+export { useSpeakerLabels } from './useSpeakerLabels';

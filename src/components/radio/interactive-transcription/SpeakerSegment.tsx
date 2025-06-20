@@ -3,12 +3,14 @@ import React, { memo, useRef, useEffect } from "react";
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 import { formatTime } from "@/components/radio/timestamped/timeUtils";
 import { getSpeakerColor } from "./utils";
+import { useSpeakerLabels } from "@/hooks/radio/useSpeakerLabels";
 
 interface SpeakerSegmentProps {
   utterance: UtteranceTimestamp;
   isActive: boolean;
   onClick: () => void;
   refProp?: React.RefObject<HTMLDivElement>;
+  transcriptionId?: string;
 }
 
 const SpeakerSegment = memo<SpeakerSegmentProps>(({
@@ -16,10 +18,14 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
   isActive,
   onClick,
   refProp,
+  transcriptionId,
 }) => {
   const speakerColor = getSpeakerColor(utterance.speaker);
   const localRef = useRef<HTMLDivElement>(null);
   const segmentRef = refProp || localRef;
+  
+  // Get custom speaker name
+  const { getDisplayName } = useSpeakerLabels({ transcriptionId });
   
   // Enhanced click handler with debouncing
   const handleClick = () => {
@@ -38,12 +44,8 @@ const SpeakerSegment = memo<SpeakerSegmentProps>(({
     }, 150);
   };
 
-  // Get display speaker name
-  const displaySpeaker = typeof utterance.speaker === 'string' 
-    ? utterance.speaker.includes('_') 
-      ? `Speaker ${utterance.speaker.split('_')[1]}` 
-      : `Speaker ${utterance.speaker}`
-    : `Speaker ${utterance.speaker}`;
+  // Get display speaker name (with custom name if available)
+  const displaySpeaker = getDisplayName(String(utterance.speaker));
   
   return (
     <div
