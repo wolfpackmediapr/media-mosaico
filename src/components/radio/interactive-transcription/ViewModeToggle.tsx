@@ -1,67 +1,77 @@
 
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Edit, Headphones } from "lucide-react";
-import { 
-  Tooltip, 
-  TooltipContent, 
-  TooltipTrigger, 
-  TooltipProvider 
-} from "@/components/ui/tooltip";
+import { Eye, Edit, Users } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import SpeakerManagement from "./SpeakerManagement";
+import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface ViewModeToggleProps {
   mode: 'interactive' | 'edit';
   onChange: (mode: 'interactive' | 'edit') => void;
   hasUtterances: boolean;
-  disabled?: boolean;
+  transcriptionResult?: TranscriptionResult;
+  transcriptionId?: string;
 }
 
-const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
-  mode,
-  onChange,
+const ViewModeToggle: React.FC<ViewModeToggleProps> = ({ 
+  mode, 
+  onChange, 
   hasUtterances,
-  disabled = false
+  transcriptionResult,
+  transcriptionId
 }) => {
-  if (!hasUtterances) {
-    return null;
-  }
+  const [speakerDialogOpen, setSpeakerDialogOpen] = useState(false);
 
   return (
-    <div className="flex border rounded-md overflow-hidden">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={mode === 'edit' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => onChange('edit')}
-              className="rounded-none border-0 flex-1"
-              disabled={disabled}
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Normal
+    <div className="flex items-center gap-2">
+      <div className="flex rounded-md border">
+        <Button
+          variant={mode === 'edit' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => onChange('edit')}
+          className="rounded-r-none"
+        >
+          <Edit className="h-4 w-4 mr-1" />
+          Editar
+        </Button>
+        <Button
+          variant={mode === 'interactive' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => onChange('interactive')}
+          disabled={!hasUtterances}
+          className="rounded-l-none border-l"
+        >
+          <Eye className="h-4 w-4 mr-1" />
+          Interactivo
+        </Button>
+      </div>
+      
+      {hasUtterances && (
+        <Dialog open={speakerDialogOpen} onOpenChange={setSpeakerDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Users className="h-4 w-4 mr-1" />
+              Hablantes
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Modo normal</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={mode === 'interactive' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => onChange('interactive')}
-              className="rounded-none border-0 flex-1"
-              disabled={disabled}
-            >
-              <Headphones className="h-4 w-4 mr-2" />
-              Interactivo
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Transcripción interactiva</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Gestión de Hablantes</DialogTitle>
+            </DialogHeader>
+            <SpeakerManagement 
+              transcriptionResult={transcriptionResult}
+              transcriptionId={transcriptionId}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

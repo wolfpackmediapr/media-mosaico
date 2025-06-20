@@ -145,6 +145,8 @@ const RadioTranscriptionSlot: React.FC<RadioTranscriptionSlotProps> = ({
             mode={viewMode}
             onChange={handleViewModeChange}
             hasUtterances={hasUtterances()}
+            transcriptionResult={transcriptionResult}
+            transcriptionId={transcriptionId}
           />
         </div>
 

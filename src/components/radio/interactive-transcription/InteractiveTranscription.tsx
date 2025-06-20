@@ -1,7 +1,6 @@
 
 import React, { useMemo } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
-import SpeakerLegend from "./SpeakerLegend";
 import SpeakerSegment from "./SpeakerSegment";
 
 interface InteractiveTranscriptionProps {
@@ -71,30 +70,22 @@ const InteractiveTranscription: React.FC<InteractiveTranscriptionProps> = ({
   }
 
   return (
-    <div className="space-y-4">
-      <SpeakerLegend 
-        speakers={speakers} 
-        getSpeakerColor={getSpeakerColor}
-        transcriptionId={transcriptionId}
-      />
-      
-      <div className="space-y-3">
-        {utterances.map((utterance, index) => (
-          <SpeakerSegment
-            key={index}
-            speaker={utterance.speaker?.toString() || 'Unknown'}
-            text={utterance.text}
-            startTime={utterance.start || 0}
-            endTime={utterance.end || 0}
-            isCurrentSegment={index === currentSegmentIndex}
-            isPlaying={isPlaying}
-            onSeek={onSeek}
-            onPlayPause={onPlayPause}
-            getSpeakerColor={getSpeakerColor}
-            transcriptionId={transcriptionId}
-          />
-        ))}
-      </div>
+    <div className="max-h-96 overflow-y-auto space-y-3">
+      {utterances.map((utterance, index) => (
+        <SpeakerSegment
+          key={index}
+          speaker={utterance.speaker?.toString() || 'Unknown'}
+          text={utterance.text}
+          startTime={utterance.start || 0}
+          endTime={utterance.end || 0}
+          isCurrentSegment={index === currentSegmentIndex}
+          isPlaying={isPlaying}
+          onSeek={onSeek}
+          onPlayPause={onPlayPause}
+          getSpeakerColor={getSpeakerColor}
+          transcriptionId={transcriptionId}
+        />
+      ))}
     </div>
   );
 };
