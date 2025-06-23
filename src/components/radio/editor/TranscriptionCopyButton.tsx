@@ -44,20 +44,33 @@ const TranscriptionCopyButton: React.FC<TranscriptionCopyButtonProps> = ({
 
       let textToCopy = transcriptionText;
 
-      // Check if we have any custom speaker names by testing a few common speaker IDs
-      const hasCustomNames = transcriptionId && getCustomName && (
-        getCustomName('A') || 
-        getCustomName('B') || 
-        getCustomName('SPEAKER_1') || 
-        getCustomName('SPEAKER_2')
-      );
+      // Extract actual speaker IDs from the transcription text to check for custom names
+      const speakerPattern = /^SPEAKER\s+(\d+):/gm;
+      const speakerMatches = [...transcriptionText.matchAll(speakerPattern)];
+      const actualSpeakerIds = [...new Set(speakerMatches.map(match => match[1]))]; // Get unique speaker numbers
+      
+      // Check if we have any custom speaker names for the actual speakers in the text
+      const hasCustomNames = transcriptionId && getCustomName && actualSpeakerIds.some(speakerNum => {
+        // Try different formats that might be stored in the database
+        const possibleIds = [
+          String.fromCharCode(64 + parseInt(speakerNum)), // "1" -> "A", "2" -> "B"
+          `SPEAKER_${speakerNum}`,
+          `SPEAKER ${speakerNum}`,
+          speakerNum,
+          `speaker_${speakerNum}`
+        ];
+        return possibleIds.some(id => getCustomName(id) && !getCustomName(id).toLowerCase().includes('speaker'));
+      });
 
       console.log('[TranscriptionCopyButton] Custom speaker names check:', {
         hasTranscriptionId: !!transcriptionId,
         hasGetCustomName: !!getCustomName,
         hasCustomNames,
-        speakerA: getCustomName?.('A'),
-        speakerB: getCustomName?.('B')
+        actualSpeakerIds,
+        sampleCustomNames: actualSpeakerIds.map(id => ({ 
+          speakerId: id, 
+          customName: getCustomName?.(String.fromCharCode(64 + parseInt(id))) 
+        }))
       });
 
       // Always attempt to format with custom names if we have the necessary data
