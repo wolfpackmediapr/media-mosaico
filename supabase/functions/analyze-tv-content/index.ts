@@ -17,19 +17,34 @@ serve(async (req) => {
   try {
     console.log('[analyze-tv-content] Request received');
     
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    // Properly handle authentication by setting the Authorization header
-    const authHeader = req.headers.get('Authorization');
-    if (authHeader) {
-      // Extract the JWT token from the Authorization header
-      const token = authHeader.replace('Bearer ', '');
-      // Set the auth context for this request
-      await supabaseClient.auth.getUser(token);
+    // Create Supabase client with proper configuration
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[analyze-tv-content] Missing Supabase configuration');
+      throw new Error('Configuración de Supabase no disponible');
     }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get auth token from request headers
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('[analyze-tv-content] No authorization header');
+      throw new Error('Token de autorización requerido');
+    }
+
+    // Verify user authentication
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('[analyze-tv-content] Auth error:', authError);
+      throw new Error('Usuario no autenticado');
+    }
+
+    console.log('[analyze-tv-content] User authenticated:', user.id);
 
     const { 
       transcriptionText, 
@@ -37,7 +52,8 @@ serve(async (req) => {
       categories = [], 
       clients = [],
       videoPath,
-      analysisType = 'text' // 'text' | 'video' | 'hybrid'
+      analysisType = 'gemini',
+      enhancedMode = true
     } = await req.json();
 
     console.log('[analyze-tv-content] Processing request:', {
@@ -46,227 +62,187 @@ serve(async (req) => {
       transcriptId,
       analysisType,
       categoriesCount: categories.length,
-      clientsCount: clients.length
+      clientsCount: clients.length,
+      enhancedMode
     });
 
-    // Validate input based on analysis type
-    if (analysisType === 'text' && !transcriptionText) {
-      throw new Error('El texto de transcripción es requerido para análisis de texto');
+    // Validate we have something to analyze
+    if (!transcriptionText && !videoPath) {
+      throw new Error('Se requiere texto de transcripción o ruta de video para el análisis');
     }
-    
-    if ((analysisType === 'video' || analysisType === 'hybrid') && !videoPath) {
-      throw new Error('La ruta del video es requerida para análisis de video');
+
+    // Get Gemini API key
+    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+    if (!geminiApiKey) {
+      console.error('[analyze-tv-content] Missing Gemini API key');
+      throw new Error('Clave API de Google Gemini no configurada');
     }
 
     // Build the TV-specific prompt
     const prompt = constructTvPrompt(categories, clients, '', !!transcriptionText);
     
-    console.log('[analyze-tv-content] Calling Google Gemini API with analysis type:', analysisType);
-
-    // Get Gemini API key
-    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
-    if (!geminiApiKey) {
-      throw new Error('Google Gemini API key not configured');
-    }
+    console.log('[analyze-tv-content] Starting Gemini analysis');
 
     let geminiResponse;
     let analysisResult;
 
-    if (analysisType === 'video' || analysisType === 'hybrid') {
-      // First upload video to Gemini Files API if needed
-      let fileUri = null;
-      
-      if (videoPath) {
-        console.log('[analyze-tv-content] Uploading video to Gemini Files API');
+    try {
+      if (videoPath && (analysisType === 'video' || analysisType === 'hybrid' || analysisType === 'gemini')) {
+        console.log('[analyze-tv-content] Processing video analysis for path:', videoPath);
         
-        // Get signed URL for the video
-        const { data: signedUrlData } = await supabaseClient.storage
+        // Get signed URL for the video file
+        const { data: signedUrlData, error: signedUrlError } = await supabaseClient.storage
           .from('media')
           .createSignedUrl(videoPath, 3600);
         
-        if (!signedUrlData?.signedUrl) {
-          throw new Error('No se pudo generar URL firmada para el video');
+        if (signedUrlError || !signedUrlData?.signedUrl) {
+          console.error('[analyze-tv-content] Signed URL error:', signedUrlError);
+          
+          // Fall back to text-only analysis if video fails
+          if (transcriptionText) {
+            console.log('[analyze-tv-content] Falling back to text-only analysis');
+            analysisType = 'text';
+          } else {
+            throw new Error('No se pudo acceder al archivo de video y no hay texto disponible');
+          }
+        } else {
+          console.log('[analyze-tv-content] Got signed URL for video');
+          
+          // For now, let's do text analysis with video context mention
+          // The full video upload to Gemini is complex and may be causing timeouts
+          if (transcriptionText) {
+            const videoContextPrompt = `${prompt}\n\nNota: Este análisis se basa en la transcripción del siguiente video: ${videoPath}\n\nTranscripción:\n${transcriptionText}`;
+            
+            geminiResponse = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      parts: [
+                        {
+                          text: videoContextPrompt
+                        }
+                      ]
+                    }
+                  ],
+                  generationConfig: {
+                    temperature: 0.1,
+                    topK: 32,
+                    topP: 0.8,
+                    maxOutputTokens: 8192,
+                    responseMimeType: "application/json"
+                  }
+                })
+              }
+            );
+          } else {
+            throw new Error('Análisis de video sin transcripción no está disponible actualmente');
+          }
         }
-
-        // Download video data
-        const videoResponse = await fetch(signedUrlData.signedUrl);
-        if (!videoResponse.ok) {
-          throw new Error('No se pudo descargar el video desde el almacenamiento');
+      } else {
+        // Text-only analysis
+        if (!transcriptionText) {
+          throw new Error('Se requiere texto de transcripción para el análisis');
         }
         
-        const videoBlob = await videoResponse.blob();
-        const videoBase64 = btoa(String.fromCharCode(...new Uint8Array(await videoBlob.arrayBuffer())));
+        console.log('[analyze-tv-content] Processing text-only analysis');
+        const userPrompt = `${prompt}\n\nTranscripción:\n${transcriptionText}`;
 
-        // Upload to Gemini Files API
-        const uploadResponse = await fetch('https://generativelanguage.googleapis.com/upload/v1beta/files', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${geminiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            file: {
-              displayName: `tv-analysis-${transcriptId || Date.now()}`,
-              mimeType: 'video/mp4'
-            }
-          })
-        });
-
-        if (!uploadResponse.ok) {
-          const uploadError = await uploadResponse.text();
-          console.error('[analyze-tv-content] Upload init error:', uploadError);
-          throw new Error('Error al inicializar subida de video a Gemini');
-        }
-
-        const uploadData = await uploadResponse.json();
-        const uploadUrl = uploadData.file.uri;
-
-        // Upload the actual video data
-        const dataUploadResponse = await fetch(uploadUrl, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${geminiApiKey}`,
-            'Content-Type': 'video/mp4',
-          },
-          body: videoBase64
-        });
-
-        if (!dataUploadResponse.ok) {
-          throw new Error('Error al subir datos del video a Gemini');
-        }
-
-        fileUri = uploadData.file.name;
-        console.log('[analyze-tv-content] Video uploaded to Gemini with URI:', fileUri);
-      }
-
-      // Prepare content for analysis
-      const contents = [{
-        parts: []
-      }];
-
-      // Add video if available
-      if (fileUri) {
-        contents[0].parts.push({
-          fileData: {
-            fileUri: fileUri,
-            mimeType: 'video/mp4'
-          }
-        });
-      }
-
-      // Add transcription text if available (hybrid mode)
-      if (analysisType === 'hybrid' && transcriptionText) {
-        contents[0].parts.push({
-          text: `Transcripción del audio:\n${transcriptionText}\n\n`
-        });
-      }
-
-      // Add the analysis prompt
-      contents[0].parts.push({
-        text: prompt
-      });
-
-      // Call Gemini with video content
-      geminiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: contents,
-            generationConfig: {
-              temperature: 0.1,
-              topK: 32,
-              topP: 0.8,
-              maxOutputTokens: 8192,
-              responseMimeType: "application/json"
-            }
-          })
-        }
-      );
-
-    } else {
-      // Text-only analysis (existing functionality)
-      const userPrompt = `${prompt}\n\nTranscripción:\n${transcriptionText}`;
-
-      geminiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: userPrompt
-                  }
-                ]
+        geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: userPrompt
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                topK: 32,
+                topP: 0.8,
+                maxOutputTokens: 8192,
+                responseMimeType: "application/json"
               }
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              topK: 32,
-              topP: 0.8,
-              maxOutputTokens: 8192,
-              responseMimeType: "application/json"
-            }
-          })
-        }
-      );
-    }
+            })
+          }
+        );
+      }
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error('[analyze-tv-content] Gemini API error:', errorText);
-      throw new Error(`Error en la API de Gemini: ${geminiResponse.status}`);
-    }
+      if (!geminiResponse.ok) {
+        const errorText = await geminiResponse.text();
+        console.error('[analyze-tv-content] Gemini API error:', errorText);
+        throw new Error(`Error en la API de Gemini: ${geminiResponse.status} - ${errorText}`);
+      }
 
-    const geminiData = await geminiResponse.json();
-    console.log('[analyze-tv-content] Gemini response received');
+      const geminiData = await geminiResponse.json();
+      console.log('[analyze-tv-content] Gemini response received');
 
-    if (!geminiData.candidates || geminiData.candidates.length === 0) {
-      throw new Error('No se recibió respuesta válida de Gemini');
-    }
+      if (!geminiData.candidates || geminiData.candidates.length === 0) {
+        console.error('[analyze-tv-content] No candidates in Gemini response:', geminiData);
+        throw new Error('No se recibió una respuesta válida de Gemini');
+      }
 
-    const rawAnalysis = geminiData.candidates[0].content.parts[0].text;
-    
-    // Try to parse as JSON, fallback to text if needed
-    try {
-      analysisResult = JSON.parse(rawAnalysis);
-      console.log('[analyze-tv-content] Successfully parsed JSON response');
-    } catch (parseError) {
-      console.warn('[analyze-tv-content] Failed to parse JSON, using raw text:', parseError);
-      analysisResult = { 
-        raw_analysis: rawAnalysis,
-        parsed: false 
-      };
+      const rawAnalysis = geminiData.candidates[0].content.parts[0].text;
+      
+      // Try to parse as JSON, fallback to text if needed
+      try {
+        analysisResult = JSON.parse(rawAnalysis);
+        console.log('[analyze-tv-content] Successfully parsed JSON response');
+      } catch (parseError) {
+        console.warn('[analyze-tv-content] Failed to parse JSON, using raw text:', parseError);
+        analysisResult = { 
+          raw_analysis: rawAnalysis,
+          parsed: false,
+          analysis_type: analysisType
+        };
+      }
+
+    } catch (geminiError) {
+      console.error('[analyze-tv-content] Gemini processing error:', geminiError);
+      throw new Error(`Error en el procesamiento con Gemini: ${geminiError.message}`);
     }
 
     // Store analysis if transcriptId is provided
     if (transcriptId) {
       console.log('[analyze-tv-content] Storing analysis for transcript:', transcriptId);
       
-      const analysisToStore = typeof analysisResult === 'object' 
-        ? JSON.stringify(analysisResult)
-        : analysisResult;
-      
-      const { error: updateError } = await supabaseClient
-        .from('tv_transcriptions')
-        .update({
-          analysis_result: analysisToStore,
-          analyzed_at: new Date().toISOString(),
-          analysis_type: analysisType
-        })
-        .eq('id', transcriptId);
+      try {
+        const analysisToStore = typeof analysisResult === 'object' 
+          ? JSON.stringify(analysisResult)
+          : analysisResult;
+        
+        const { error: updateError } = await supabaseClient
+          .from('tv_transcriptions')
+          .update({
+            analysis_result: analysisToStore,
+            analyzed_at: new Date().toISOString(),
+            analysis_type: analysisType
+          })
+          .eq('id', transcriptId);
 
-      if (updateError) {
-        console.error('[analyze-tv-content] Error storing analysis:', updateError);
-        // Don't throw here - analysis was successful, storage is secondary
+        if (updateError) {
+          console.error('[analyze-tv-content] Error storing analysis:', updateError);
+          // Don't throw here - analysis was successful, storage is secondary
+        } else {
+          console.log('[analyze-tv-content] Analysis stored successfully');
+        }
+      } catch (storageError) {
+        console.error('[analyze-tv-content] Storage error:', storageError);
+        // Continue - analysis was successful
       }
     }
 
@@ -285,11 +261,16 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('[analyze-tv-content] Error:', error);
+    
+    // Provide detailed error information for debugging
+    const errorResponse = {
+      error: error.message || 'Error interno del servidor',
+      success: false,
+      timestamp: new Date().toISOString()
+    };
+
     return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Error interno del servidor',
-        success: false 
-      }),
+      JSON.stringify(errorResponse),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

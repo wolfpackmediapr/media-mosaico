@@ -89,27 +89,15 @@ export const useTvAnalysis = ({
 
   // Determine optimal analysis type based on available data
   const getOptimalAnalysisType = (): AnalysisType => {
-    // Always prefer Gemini for new analyses since it handles both video and text
     return 'gemini';
   };
 
   const analyzeContent = async (requestedType?: AnalysisType) => {
     const effectiveAnalysisType = requestedType || getOptimalAnalysisType();
     
-    // For Gemini analysis, we need either transcription text or video path
-    if (effectiveAnalysisType === 'gemini' && (!transcriptionText && !videoPath)) {
+    // Basic validation
+    if (!transcriptionText && !videoPath) {
       toast.error("No hay contenido para analizar");
-      return null;
-    }
-    
-    // For legacy analysis types
-    if (effectiveAnalysisType === 'text' && !transcriptionText) {
-      toast.error("No hay texto para analizar");
-      return null;
-    }
-    
-    if ((effectiveAnalysisType === 'video' || effectiveAnalysisType === 'hybrid') && !videoPath) {
-      toast.error("No hay video disponible para análisis visual");
       return null;
     }
 
@@ -118,58 +106,50 @@ export const useTvAnalysis = ({
     setAnalysisType(effectiveAnalysisType);
     
     try {
+      // Check authentication first
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('[useTvAnalysis] Authentication error:', authError);
+        throw new Error('Debe iniciar sesión para analizar contenido');
+      }
+
       const formattedCategories = categories.map(cat => cat.name_es);
       const formattedClients = clients.map(client => ({
         name: client.name,
         keywords: client.keywords || []
       }));
 
-      let functionName = 'analyze-tv-content';
-      let requestBody: any = {};
+      const requestBody = { 
+        transcriptionText,
+        transcriptId: transcriptionId || null,
+        videoPath: videoPath,
+        analysisType: effectiveAnalysisType,
+        categories: formattedCategories,
+        clients: formattedClients,
+        enhancedMode: true
+      };
 
-      if (effectiveAnalysisType === 'gemini') {
-        // Use the unified Gemini function if we haven't processed yet
-        // Otherwise, use the existing analysis function for additional insights
-        console.log('[useTvAnalysis] Using Gemini-enhanced analysis');
-        
-        requestBody = { 
-          transcriptionText,
-          transcriptId: transcriptionId || null,
-          videoPath: videoPath,
-          analysisType: 'hybrid', // Use hybrid for enhanced analysis
-          categories: formattedCategories,
-          clients: formattedClients,
-          enhancedMode: true // Flag for Gemini-enhanced analysis
-        };
-      } else {
-        // Legacy analysis types
-        requestBody = { 
-          transcriptionText: effectiveAnalysisType !== 'video' ? transcriptionText : undefined,
-          transcriptId: transcriptionId || null,
-          videoPath: (effectiveAnalysisType === 'video' || effectiveAnalysisType === 'hybrid') ? videoPath : undefined,
-          analysisType: effectiveAnalysisType,
-          categories: formattedCategories,
-          clients: formattedClients
-        };
-      }
+      console.log('[useTvAnalysis] Calling analyze-tv-content edge function');
 
-      console.log('[useTvAnalysis] Calling', functionName, 'edge function');
-
-      const { data, error } = await supabase.functions.invoke(functionName, {
+      const { data, error } = await supabase.functions.invoke('analyze-tv-content', {
         body: requestBody
       });
 
       if (error) {
         console.error('[useTvAnalysis] Edge function error:', error);
         
-        // Provide more specific error messages based on the error
+        // Provide specific error messages
         let errorMessage = 'No se pudo analizar el contenido de TV';
         
         if (error.message) {
           if (error.message.includes('Google Gemini API key not configured')) {
             errorMessage = 'API de Gemini no configurada. Contacte al administrador.';
-          } else if (error.message.includes('Edge Function returned a non-2xx status code')) {
-            errorMessage = 'Error en el servicio de análisis. Intente nuevamente en unos momentos.';
+          } else if (error.message.includes('authentication') || error.message.includes('auth')) {
+            errorMessage = 'Error de autenticación. Por favor, inicie sesión nuevamente.';
+          } else if (error.message.includes('video') && transcriptionText) {
+            errorMessage = 'Error con el video. Intentando análisis solo con texto...';
+            // Retry with text-only analysis
+            return analyzeContent('text');
           } else {
             errorMessage = `Error de análisis: ${error.message}`;
           }
@@ -188,12 +168,12 @@ export const useTvAnalysis = ({
         
         setAnalysis(analysisText);
         
-        // Show appropriate success message based on analysis type
+        // Show success message
         const typeMessages = {
-          text: "El contenido de TV ha sido analizado exitosamente (análisis de texto).",
-          video: "El contenido de TV ha sido analizado exitosamente (análisis visual completo).",
-          hybrid: "El contenido de TV ha sido analizado exitosamente (análisis híbrido: texto + video).",
-          gemini: "El contenido de TV ha sido analizado exitosamente con Gemini AI (análisis multimodal completo)."
+          text: "Análisis de contenido completado (texto).",
+          video: "Análisis de contenido completado (video).",
+          hybrid: "Análisis de contenido completado (híbrido).",
+          gemini: "Análisis de contenido completado con Gemini AI."
         };
         
         toast.success(typeMessages[effectiveAnalysisType]);
@@ -201,10 +181,15 @@ export const useTvAnalysis = ({
       }
       
       console.warn('[useTvAnalysis] No analysis received');
-      return null;
-    } catch (error) {
+      throw new Error('No se recibió análisis del servidor');
+      
+    } catch (error: any) {
       console.error('[useTvAnalysis] Error analyzing TV content:', error);
-      toast.error(`${error.message || 'Error desconocido al analizar el contenido'}`);
+      
+      // Show user-friendly error message
+      const userMessage = error.message || 'Error desconocido al analizar el contenido';
+      toast.error(`Error: ${userMessage}`);
+      
       return null;
     } finally {
       setIsAnalyzing(false);
