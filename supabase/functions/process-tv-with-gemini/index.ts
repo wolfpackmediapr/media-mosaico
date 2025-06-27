@@ -4,7 +4,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 import { validateEnvironment } from './environment.ts';
-import { testGeminiConnectivity, uploadToGemini, waitForFileProcessing, generateAnalysis, cleanupGeminiFile } from './gemini-client.ts';
+import { testGeminiConnectivity, generateAnalysisWithVideo, cleanupGeminiFile } from './gemini-client.ts';
 import { validateAndGetFile, downloadVideoWithRetry } from './storage-utils.ts';
 import { parseAnalysisText } from './analysis-parser.ts';
 import { updateTranscriptionRecord } from './database-utils.ts';
@@ -87,29 +87,24 @@ serve(async (req) => {
     // Step 6: Download video with retry
     const videoBlob = await downloadVideoWithRetry(videoUrl);
 
-    // Step 7: Upload to Gemini
-    const { fileUri, fileName } = await uploadToGemini(videoBlob, geminiApiKey, videoPath);
+    // Step 7: Generate analysis directly with video (new approach)
+    console.log('[process-tv-with-gemini] Starting direct video analysis...');
+    const analysisText = await generateAnalysisWithVideo(videoBlob, geminiApiKey, videoPath);
 
-    // Step 8: Wait for file processing
-    await waitForFileProcessing(fileName, geminiApiKey);
-
-    // Step 9: Generate analysis
-    const analysisText = await generateAnalysis(fileUri, geminiApiKey);
-
-    // Step 10: Parse analysis
+    // Step 8: Parse analysis
     const parsedAnalysis = parseAnalysisText(analysisText);
 
-    // Step 11: Update database if transcription ID provided
+    // Step 9: Update database if transcription ID provided
     if (transcriptionId) {
       await updateTranscriptionRecord(supabase, transcriptionId, parsedAnalysis);
     }
 
-    // Step 12: Cleanup Gemini file
-    await cleanupGeminiFile(fileName, geminiApiKey);
+    // Step 10: Cleanup (no-op with new approach)
+    await cleanupGeminiFile();
 
     console.log('[process-tv-with-gemini] === REQUEST COMPLETED SUCCESSFULLY ===');
 
-    // Step 13: Return successful response
+    // Step 11: Return successful response
     return new Response(
       JSON.stringify({
         text: parsedAnalysis.transcription || 'Transcripción procesada exitosamente',
