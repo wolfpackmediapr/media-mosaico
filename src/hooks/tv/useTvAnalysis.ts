@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,7 +13,7 @@ interface UseTvAnalysisProps {
   forceReset?: boolean;
 }
 
-type AnalysisType = 'text' | 'video' | 'hybrid';
+type AnalysisType = 'text' | 'video' | 'hybrid' | 'gemini';
 
 const ANALYSIS_PERSIST_KEY = "tv-content-analysis";
 
@@ -30,7 +29,7 @@ export const useTvAnalysis = ({
     `${ANALYSIS_PERSIST_KEY}-${transcriptionId || "draft"}`,
     ""
   );
-  const [analysisType, setAnalysisType] = useState<AnalysisType>('text');
+  const [analysisType, setAnalysisType] = useState<AnalysisType>('gemini');
   
   const { categories } = useCategories();
   const { clients } = useClientData();
@@ -89,19 +88,20 @@ export const useTvAnalysis = ({
 
   // Determine optimal analysis type based on available data
   const getOptimalAnalysisType = (): AnalysisType => {
-    if (videoPath && transcriptionText) {
-      return 'hybrid'; // Best of both worlds
-    } else if (videoPath) {
-      return 'video'; // Video-only analysis
-    } else {
-      return 'text'; // Text-only analysis
-    }
+    // Always prefer Gemini for new analyses since it handles both video and text
+    return 'gemini';
   };
 
   const analyzeContent = async (requestedType?: AnalysisType) => {
     const effectiveAnalysisType = requestedType || getOptimalAnalysisType();
     
-    // Validate input based on analysis type
+    // For Gemini analysis, we need either transcription text or video path
+    if (effectiveAnalysisType === 'gemini' && (!transcriptionText && !videoPath)) {
+      toast.error("No hay contenido para analizar");
+      return null;
+    }
+    
+    // For legacy analysis types
     if (effectiveAnalysisType === 'text' && !transcriptionText) {
       toast.error("No hay texto para analizar");
       return null;
@@ -123,18 +123,38 @@ export const useTvAnalysis = ({
         keywords: client.keywords || []
       }));
 
-      console.log('[useTvAnalysis] Calling analyze-tv-content edge function');
+      let functionName = 'analyze-tv-content';
+      let requestBody: any = {};
 
-      const requestBody = { 
-        transcriptionText: effectiveAnalysisType !== 'video' ? transcriptionText : undefined,
-        transcriptId: transcriptionId || null,
-        videoPath: (effectiveAnalysisType === 'video' || effectiveAnalysisType === 'hybrid') ? videoPath : undefined,
-        analysisType: effectiveAnalysisType,
-        categories: formattedCategories,
-        clients: formattedClients
-      };
+      if (effectiveAnalysisType === 'gemini') {
+        // Use the unified Gemini function if we haven't processed yet
+        // Otherwise, use the existing analysis function for additional insights
+        console.log('[useTvAnalysis] Using Gemini-enhanced analysis');
+        
+        requestBody = { 
+          transcriptionText,
+          transcriptId: transcriptionId || null,
+          videoPath: videoPath,
+          analysisType: 'hybrid', // Use hybrid for enhanced analysis
+          categories: formattedCategories,
+          clients: formattedClients,
+          enhancedMode: true // Flag for Gemini-enhanced analysis
+        };
+      } else {
+        // Legacy analysis types
+        requestBody = { 
+          transcriptionText: effectiveAnalysisType !== 'video' ? transcriptionText : undefined,
+          transcriptId: transcriptionId || null,
+          videoPath: (effectiveAnalysisType === 'video' || effectiveAnalysisType === 'hybrid') ? videoPath : undefined,
+          analysisType: effectiveAnalysisType,
+          categories: formattedCategories,
+          clients: formattedClients
+        };
+      }
 
-      const { data, error } = await supabase.functions.invoke('analyze-tv-content', {
+      console.log('[useTvAnalysis] Calling', functionName, 'edge function');
+
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: requestBody
       });
 
@@ -157,14 +177,15 @@ export const useTvAnalysis = ({
         const typeMessages = {
           text: "El contenido de TV ha sido analizado exitosamente (análisis de texto).",
           video: "El contenido de TV ha sido analizado exitosamente (análisis visual completo).",
-          hybrid: "El contenido de TV ha sido analizado exitosamente (análisis híbrido: texto + video)."
+          hybrid: "El contenido de TV ha sido analizado exitosamente (análisis híbrido: texto + video).",
+          gemini: "El contenido de TV ha sido analizado exitosamente con Gemini AI (análisis multimodal completo)."
         };
         
         toast.success(typeMessages[effectiveAnalysisType]);
         return data;
       }
       
-      console.warn('[useTvAnalysis] No analysis received from Gemini');
+      console.warn('[useTvAnalysis] No analysis received');
       return null;
     } catch (error) {
       console.error('[useTvAnalysis] Error analyzing TV content:', error);
@@ -184,6 +205,7 @@ export const useTvAnalysis = ({
     hasVideoPath: !!videoPath,
     canDoHybridAnalysis: !!(transcriptionText && videoPath),
     canDoVideoAnalysis: !!videoPath,
+    canDoGeminiAnalysis: !!(transcriptionText || videoPath),
     optimalAnalysisType: getOptimalAnalysisType()
   };
 };

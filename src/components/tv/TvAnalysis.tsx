@@ -39,6 +39,7 @@ const TvAnalysis = ({
     hasTranscriptionText,
     hasVideoPath,
     canDoHybridAnalysis,
+    canDoGeminiAnalysis,
     optimalAnalysisType
   } = useTvAnalysis({
     transcriptionText,
@@ -48,7 +49,7 @@ const TvAnalysis = ({
     forceReset
   });
 
-  const analyzeContent = async (requestedType?: 'text' | 'video' | 'hybrid') => {
+  const analyzeContent = async (requestedType?: 'text' | 'video' | 'hybrid' | 'gemini') => {
     const result = await performAnalysis(requestedType);
     
     if (result?.analysis) {
@@ -85,6 +86,21 @@ const TvAnalysis = ({
     toast.success("Segmentos generados con timestamping mejorado");
   };
 
+  const getAnalysisTypeLabel = () => {
+    switch (analysisType) {
+      case 'gemini':
+        return 'Gemini AI';
+      case 'hybrid':
+        return 'Híbrido';
+      case 'video':
+        return 'Video';
+      case 'text':
+        return 'Texto';
+      default:
+        return 'Análisis';
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="bg-gradient-to-r from-primary-50 to-transparent">
@@ -92,13 +108,12 @@ const TvAnalysis = ({
           Análisis de Contenido TV
           {analysisType && (
             <span className="text-sm font-normal bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-              {analysisType === 'hybrid' ? 'Híbrido' : 
-               analysisType === 'video' ? 'Video' : 'Texto'}
+              {getAnalysisTypeLabel()}
             </span>
           )}
         </CardTitle>
         <div className="text-sm text-muted-foreground">
-          Análisis inteligente con Google Gemini AI - Soporte para video, texto y análisis híbrido
+          Análisis inteligente potenciado por Gemini AI - Procesamiento multimodal avanzado de video y audio
         </div>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
@@ -107,6 +122,7 @@ const TvAnalysis = ({
           hasTranscriptionText={hasTranscriptionText}
           hasVideoPath={hasVideoPath}
           canDoHybridAnalysis={canDoHybridAnalysis}
+          canDoGeminiAnalysis={canDoGeminiAnalysis}
           optimalAnalysisType={optimalAnalysisType}
           onAnalyzeContent={analyzeContent}
           showSegmentGeneration={true}

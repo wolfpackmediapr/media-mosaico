@@ -21,6 +21,21 @@ interface TranscriptionMetadata {
   keywords?: string[];
 }
 
+interface GeminiAnalysisResult {
+  text: string;
+  visual_analysis: string;
+  segments: NewsSegment[];
+  keywords: string[];
+  summary: string;
+  analysis: {
+    who?: string;
+    what?: string;
+    when?: string;
+    where?: string;
+    why?: string;
+  };
+}
+
 export const useTvVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -34,7 +49,7 @@ export const useTvVideoProcessor = () => {
   const processVideo = async (file: File) => {
     setIsProcessing(true);
     setProgress(0);
-    console.log("Starting video processing for file:", file.name);
+    console.log("Starting unified Gemini video processing for file:", file.name);
 
     try {
       // Check authentication
@@ -62,14 +77,14 @@ export const useTvVideoProcessor = () => {
         throw new Error("Error al subir el archivo: " + uploadError.message);
       }
 
-      setProgress(10);
+      setProgress(15);
 
       // Create TV transcription record
       console.log('[TvVideoProcessor] Creating TV transcription record');
       const tvTranscription = await TvTranscriptionService.createTranscription({
         original_file_path: fileName,
         status: 'processing',
-        progress: 10
+        progress: 15
       });
 
       if (!tvTranscription) {
@@ -78,92 +93,98 @@ export const useTvVideoProcessor = () => {
 
       console.log('[TvVideoProcessor] Created TV transcription:', tvTranscription.id);
       setTranscriptionId(tvTranscription.id);
+      setProgress(25);
+
+      // Update transcription progress
+      await TvTranscriptionService.updateTranscription(tvTranscription.id, {
+        progress: 25,
+        status: 'processing'
+      });
+
+      console.log('[TvVideoProcessor] Calling unified Gemini processing function');
+      setProgress(35);
+
+      // Call the new unified Gemini processing function
+      const { data: geminiResult, error: processError } = await supabase.functions
+        .invoke('process-tv-with-gemini', {
+          body: { 
+            videoPath: fileName,
+            transcriptionId: tvTranscription.id
+          }
+        });
+
+      if (processError) {
+        console.error('[TvVideoProcessor] Gemini processing error:', processError);
+        throw new Error(`Processing failed: ${processError.message}`);
+      }
+
+      if (!geminiResult?.success) {
+        console.error('[TvVideoProcessor] Gemini processing failed:', geminiResult);
+        throw new Error('Gemini processing failed');
+      }
+
+      setProgress(85);
+
+      const result = geminiResult as GeminiAnalysisResult;
+      console.log('[TvVideoProcessor] Gemini processing completed successfully');
+
+      // Set the transcription text and segments
+      setTranscriptionText(result.text);
+      setNewsSegments(result.segments || []);
+
+      // Create a TranscriptionResult-like object for compatibility
+      const mockTranscriptionResult: TranscriptionResult = {
+        text: result.text,
+        confidence: 0.95, // High confidence for Gemini
+        utterances: result.segments.map((segment, index) => ({
+          start: segment.start * 1000, // Convert to ms
+          end: segment.end * 1000,
+          text: segment.text,
+          confidence: 0.95,
+          speaker: `Speaker_${index % 2}`, // Mock speaker labels
+          words: []
+        })),
+        words: []
+      };
+
+      setTranscriptionResult(mockTranscriptionResult);
+      setProgress(95);
+
+      // Final database update
+      await TvTranscriptionService.updateTranscription(tvTranscription.id, {
+        transcription_text: result.text,
+        status: 'completed',
+        progress: 100,
+        analysis_summary: result.summary,
+        analysis_keywords: result.keywords,
+        keywords: result.keywords
+      });
+
+      setProgress(100);
       
-      const filePath = tvTranscription.original_file_path;
-      console.log('Using file path:', filePath);
+      toast.success("Procesamiento completado", {
+        description: `Video analizado exitosamente con Gemini AI. Se generaron ${result.segments.length} segmentos de noticias.`
+      });
 
-      // Process based on file size (20MB limit)
-      if (file.size > 20 * 1024 * 1024) {
-        console.log("File is larger than 20MB, converting to audio first");
-        setProgress(20);
+      console.log('[TvVideoProcessor] Unified processing completed successfully');
 
-        const { data: conversionData, error: conversionError } = await supabase.functions
-          .invoke('convert-to-audio', {
-            body: { 
-              videoPath: filePath,
-              transcriptionId: tvTranscription.id
-            }
-          });
-
-        if (conversionError) throw conversionError;
-        console.log("Conversion response:", conversionData);
-
-        setProgress(50);
-
-        // Process the converted audio file
-        const { data: transcriptionResult, error: processError } = await supabase.functions
-          .invoke('transcribe-video', {
-            body: { videoPath: conversionData.audioPath }
-          });
-
-        if (processError) throw processError;
-        setProgress(90);
-
-        if (transcriptionResult?.text) {
-          await TvTranscriptionService.updateTranscription(tvTranscription.id, {
-            transcription_text: transcriptionResult.text,
-            audio_file_path: conversionData.audioPath,
-            status: 'completed',
+    } catch (error: any) {
+      console.error('[TvVideoProcessor] Error in unified processing:', error);
+      
+      // Update transcription status to failed
+      if (transcriptionId) {
+        try {
+          await TvTranscriptionService.updateTranscription(transcriptionId, {
+            status: 'failed',
             progress: 100
           });
-
-          setTranscriptionText(transcriptionResult.text);
-          setTranscriptionResult(transcriptionResult);
-          
-          if (transcriptionResult.assemblyId) {
-            setAssemblyId(transcriptionResult.assemblyId);
-          }
-          
-          setProgress(100);
-          
-          toast.success("Transcripción completada", {
-            description: "El archivo ha sido transcrito exitosamente. Use 'Analizar contenido' para generar segmentos."
-          });
-        }
-      } else {
-        // Process smaller files directly
-        const { data: transcriptionResult, error: processError } = await supabase.functions
-          .invoke('transcribe-video', {
-            body: { videoPath: filePath }
-          });
-
-        if (processError) throw processError;
-
-        if (transcriptionResult?.text) {
-          await TvTranscriptionService.updateTranscription(tvTranscription.id, {
-            transcription_text: transcriptionResult.text,
-            status: 'completed',
-            progress: 100
-          });
-
-          setTranscriptionText(transcriptionResult.text);
-          setTranscriptionResult(transcriptionResult);
-          
-          if (transcriptionResult.assemblyId) {
-            setAssemblyId(transcriptionResult.assemblyId);
-          }
-          
-          setProgress(100);
-          
-          toast.success("Transcripción completada", {
-            description: "El archivo ha sido transcrito exitosamente. Use 'Analizar contenido' para generar segmentos."
-          });
+        } catch (updateError) {
+          console.error('[TvVideoProcessor] Failed to update error status:', updateError);
         }
       }
-    } catch (error: any) {
-      console.error('Error processing file:', error);
+      
       toast.error("Error al procesar", {
-        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente."
+        description: error.message || "No se pudo procesar el archivo con Gemini AI. Por favor, intenta nuevamente."
       });
     } finally {
       setIsProcessing(false);

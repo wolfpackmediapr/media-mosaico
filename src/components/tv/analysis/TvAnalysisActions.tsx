@@ -1,22 +1,17 @@
 
+import React from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Play, Settings, Video, FileText, Zap } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Brain, FileText, Video, Sparkles, Zap } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface TvAnalysisActionsProps {
   isAnalyzing: boolean;
   hasTranscriptionText: boolean;
-  hasVideoPath?: boolean;
-  canDoHybridAnalysis?: boolean;
-  optimalAnalysisType?: 'text' | 'video' | 'hybrid';
-  onAnalyzeContent: (type?: 'text' | 'video' | 'hybrid') => void;
+  hasVideoPath: boolean;
+  canDoHybridAnalysis: boolean;
+  canDoGeminiAnalysis?: boolean;
+  optimalAnalysisType: 'text' | 'video' | 'hybrid' | 'gemini';
+  onAnalyzeContent: (type?: 'text' | 'video' | 'hybrid' | 'gemini') => void;
   showSegmentGeneration?: boolean;
   canGenerateSegments?: boolean;
   onGenerateSegments?: () => void;
@@ -26,172 +21,163 @@ interface TvAnalysisActionsProps {
 const TvAnalysisActions = ({
   isAnalyzing,
   hasTranscriptionText,
-  hasVideoPath = false,
-  canDoHybridAnalysis = false,
-  optimalAnalysisType = 'text',
+  hasVideoPath,
+  canDoHybridAnalysis,
+  canDoGeminiAnalysis = false,
+  optimalAnalysisType,
   onAnalyzeContent,
   showSegmentGeneration = false,
   canGenerateSegments = false,
   onGenerateSegments,
-  isGeneratingSegments = false
+  isGeneratingSegments = false,
 }: TvAnalysisActionsProps) => {
-  
-  const getAnalysisTypeLabel = (type: string) => {
+  const getAnalysisTypeInfo = (type: string) => {
     switch (type) {
-      case 'text': return 'Análisis de Texto';
-      case 'video': return 'Análisis de Video';
-      case 'hybrid': return 'Análisis Híbrido';
-      default: return 'Análisis';
+      case 'gemini':
+        return {
+          label: 'Gemini AI',
+          icon: Sparkles,
+          description: 'Análisis multimodal completo con IA avanzada',
+          color: 'bg-purple-100 text-purple-700 border-purple-200'
+        };
+      case 'hybrid':
+        return {
+          label: 'Híbrido',
+          icon: Brain,
+          description: 'Análisis combinado de texto y video',
+          color: 'bg-blue-100 text-blue-700 border-blue-200'
+        };
+      case 'video':
+        return {
+          label: 'Video',
+          icon: Video,
+          description: 'Análisis visual del contenido',
+          color: 'bg-green-100 text-green-700 border-green-200'
+        };
+      case 'text':
+        return {
+          label: 'Texto',
+          icon: FileText,
+          description: 'Análisis de transcripción',
+          color: 'bg-gray-100 text-gray-700 border-gray-200'
+        };
+      default:
+        return {
+          label: 'Análisis',
+          icon: Brain,
+          description: 'Análisis de contenido',
+          color: 'bg-gray-100 text-gray-700 border-gray-200'
+        };
     }
   };
 
-  const getAnalysisTypeDescription = (type: string) => {
-    switch (type) {
-      case 'text': return 'Analiza solo la transcripción de texto';
-      case 'video': return 'Análisis visual completo del video';
-      case 'hybrid': return 'Combina análisis de texto y video (recomendado)';
-      default: return '';
-    }
-  };
-
-  const hasAnyContent = hasTranscriptionText || hasVideoPath;
+  const optimalInfo = getAnalysisTypeInfo(optimalAnalysisType);
+  const OptimalIcon = optimalInfo.icon;
 
   return (
-    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-      <div className="flex gap-2 flex-wrap">
-        {/* Primary Analysis Button */}
-        <Button
-          onClick={() => onAnalyzeContent()}
-          disabled={!hasAnyContent || isAnalyzing}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium shadow-md"
-        >
-          {isAnalyzing ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="mr-2 h-4 w-4" />
-          )}
-          {isAnalyzing 
-            ? "Analizando..." 
-            : `${getAnalysisTypeLabel(optimalAnalysisType)} (Gemini AI)`
-          }
-        </Button>
-
-        {/* Advanced Analysis Options */}
-        {hasAnyContent && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="outline" 
-                disabled={isAnalyzing}
-                className="border-blue-200 hover:border-blue-300"
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                Opciones Avanzadas
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-80">
-              <DropdownMenuLabel className="font-semibold">
-                Tipos de Análisis Disponibles
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              
-              {hasTranscriptionText && (
-                <DropdownMenuItem 
-                  onClick={() => onAnalyzeContent('text')}
-                  disabled={isAnalyzing}
-                  className="flex flex-col items-start py-3"
-                >
-                  <div className="flex items-center w-full">
-                    <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                    <span className="font-medium">Análisis de Texto</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground mt-1 ml-6">
-                    {getAnalysisTypeDescription('text')}
-                  </span>
-                </DropdownMenuItem>
-              )}
-
-              {hasVideoPath && (
-                <DropdownMenuItem 
-                  onClick={() => onAnalyzeContent('video')}
-                  disabled={isAnalyzing}
-                  className="flex flex-col items-start py-3"
-                >
-                  <div className="flex items-center w-full">
-                    <Video className="mr-2 h-4 w-4 text-green-600" />
-                    <span className="font-medium">Análisis de Video</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground mt-1 ml-6">
-                    {getAnalysisTypeDescription('video')}
-                  </span>
-                </DropdownMenuItem>
-              )}
-
-              {canDoHybridAnalysis && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => onAnalyzeContent('hybrid')}
-                    disabled={isAnalyzing}
-                    className="flex flex-col items-start py-3 bg-gradient-to-r from-purple-50 to-blue-50"
-                  >
-                    <div className="flex items-center w-full">
-                      <Zap className="mr-2 h-4 w-4 text-purple-600" />
-                      <span className="font-medium text-purple-700">Análisis Híbrido</span>
-                      <span className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                        Recomendado
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground mt-1 ml-6">
-                      {getAnalysisTypeDescription('hybrid')}
-                    </span>
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+    <div className="space-y-4">
+      {/* Optimal Analysis Button */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => onAnalyzeContent()}
+            disabled={isAnalyzing}
+            className="flex-1"
+            size="lg"
+          >
+            <OptimalIcon className="w-4 h-4 mr-2" />
+            {isAnalyzing ? 'Analizando...' : `Analizar con ${optimalInfo.label}`}
+          </Button>
+          <Badge variant="outline" className={optimalInfo.color}>
+            Recomendado
+          </Badge>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {optimalInfo.description}
+        </p>
       </div>
 
-      {/* Segment Generation Button */}
-      {showSegmentGeneration && (
-        <Button
-          onClick={onGenerateSegments}
-          disabled={!canGenerateSegments || isGeneratingSegments}
-          variant="outline"
-          className="border-green-200 hover:border-green-300 text-green-700 hover:text-green-800"
-        >
-          {isGeneratingSegments ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="mr-2 h-4 w-4" />
-          )}
-          {isGeneratingSegments ? "Generando..." : "Generar Segmentos"}
-        </Button>
+      {/* Alternative Analysis Options */}
+      {(hasTranscriptionText || hasVideoPath) && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground">Opciones alternativas:</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {/* Gemini Analysis */}
+            {canDoGeminiAnalysis && optimalAnalysisType !== 'gemini' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAnalyzeContent('gemini')}
+                disabled={isAnalyzing}
+                className="justify-start"
+              >
+                <Sparkles className="w-3 h-3 mr-2" />
+                Gemini AI
+              </Button>
+            )}
+
+            {/* Hybrid Analysis */}
+            {canDoHybridAnalysis && optimalAnalysisType !== 'hybrid' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAnalyzeContent('hybrid')}
+                disabled={isAnalyzing}
+                className="justify-start"
+              >
+                <Brain className="w-3 h-3 mr-2" />
+                Híbrido
+              </Button>
+            )}
+
+            {/* Video Analysis */}
+            {hasVideoPath && optimalAnalysisType !== 'video' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAnalyzeContent('video')}
+                disabled={isAnalyzing}
+                className="justify-start"
+              >
+                <Video className="w-3 h-3 mr-2" />
+                Solo Video
+              </Button>
+            )}
+
+            {/* Text Analysis */}
+            {hasTranscriptionText && optimalAnalysisType !== 'text' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAnalyzeContent('text')}
+                disabled={isAnalyzing}
+                className="justify-start"
+              >
+                <FileText className="w-3 h-3 mr-2" />
+                Solo Texto
+              </Button>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* Status Indicators */}
-      <div className="flex flex-col text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          {hasTranscriptionText && (
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3 text-blue-500" />
-              Texto disponible
-            </span>
-          )}
-          {hasVideoPath && (
-            <span className="flex items-center gap-1">
-              <Video className="h-3 w-3 text-green-500" />
-              Video disponible
-            </span>
-          )}
+      {/* Segment Generation */}
+      {showSegmentGeneration && (
+        <div className="pt-2 border-t">
+          <Button
+            variant="outline"
+            onClick={onGenerateSegments}
+            disabled={!canGenerateSegments || isGeneratingSegments}
+            className="w-full"
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            {isGeneratingSegments ? 'Generando segmentos...' : 'Generar segmentos mejorados'}
+          </Button>
+          <p className="text-xs text-muted-foreground mt-1">
+            Genera segmentos de noticias con timestamps precisos
+          </p>
         </div>
-        {optimalAnalysisType && (
-          <span className="text-xs text-muted-foreground mt-1">
-            Análisis óptimo: {getAnalysisTypeLabel(optimalAnalysisType)}
-          </span>
-        )}
-      </div>
+      )}
     </div>
   );
 };
