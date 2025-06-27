@@ -135,7 +135,6 @@ export const useTvVideoProcessor = () => {
       // Create a TranscriptionResult-like object for compatibility
       const mockTranscriptionResult: TranscriptionResult = {
         text: result.text,
-        confidence: 0.95, // High confidence for Gemini
         utterances: result.segments.map((segment, index) => ({
           start: segment.start * 1000, // Convert to ms
           end: segment.end * 1000,
@@ -155,8 +154,7 @@ export const useTvVideoProcessor = () => {
         transcription_text: result.text,
         status: 'completed',
         progress: 100,
-        analysis_summary: result.summary,
-        analysis_keywords: result.keywords,
+        summary: result.summary,
         keywords: result.keywords
       });
 

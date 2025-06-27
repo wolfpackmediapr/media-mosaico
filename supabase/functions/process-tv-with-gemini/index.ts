@@ -23,7 +23,20 @@ serve(async (req) => {
 
   try {
     console.log('[process-tv-with-gemini] Request received');
-    const { videoPath, transcriptionId } = await req.json();
+    
+    // Parse request body with better error handling
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (parseError) {
+      console.error('[process-tv-with-gemini] Failed to parse request body:', parseError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { videoPath, transcriptionId } = requestBody;
     
     if (!videoPath) {
       throw new Error('Video path is required');
@@ -72,22 +85,23 @@ serve(async (req) => {
     const videoBuffer = await videoResponse.arrayBuffer();
     const videoBlob = new Blob([videoBuffer]);
 
-    // Upload to Gemini Files API
+    // Upload to Gemini Files API with proper FormData
     console.log('[process-tv-with-gemini] Uploading to Gemini Files API');
+    const formData = new FormData();
+    
+    // Add metadata as JSON
+    const metadata = {
+      file: { 
+        displayName: 'TV Video Analysis',
+        mimeType: 'video/mp4'
+      }
+    };
+    formData.append('metadata', JSON.stringify(metadata));
+    formData.append('file', videoBlob, 'video.mp4');
+
     const uploadResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`, {
       method: 'POST',
-      headers: {
-        'X-Goog-Upload-Protocol': 'multipart',
-      },
-      body: (() => {
-        const boundary = '----formdata-boundary-' + Math.random().toString(36);
-        const formData = new FormData();
-        formData.append('metadata', JSON.stringify({
-          file: { displayName: 'TV Video Analysis' }
-        }));
-        formData.append('file', videoBlob, 'video.mp4');
-        return formData;
-      })(),
+      body: formData,
     });
 
     if (!uploadResponse.ok) {
@@ -109,8 +123,14 @@ serve(async (req) => {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/files/${uploadResult.file.name}?key=${geminiApiKey}`);
-      const statusResult = await statusResponse.json();
       
+      if (!statusResponse.ok) {
+        console.error('[process-tv-with-gemini] Status check failed:', statusResponse.statusText);
+        attempts++;
+        continue;
+      }
+      
+      const statusResult = await statusResponse.json();
       console.log('[process-tv-with-gemini] File status:', statusResult.state);
       
       if (statusResult.state === 'ACTIVE') {
@@ -189,8 +209,13 @@ serve(async (req) => {
     }
 
     const analysisResult = await analysisResponse.json();
-    const analysisText = analysisResult.candidates[0].content.parts[0].text;
+    console.log('[process-tv-with-gemini] Analysis result received');
     
+    if (!analysisResult.candidates || !analysisResult.candidates[0] || !analysisResult.candidates[0].content) {
+      throw new Error('Invalid response format from Gemini');
+    }
+    
+    const analysisText = analysisResult.candidates[0].content.parts[0].text;
     console.log('[process-tv-with-gemini] Raw analysis result:', analysisText);
 
     // Parse the JSON response
@@ -230,6 +255,8 @@ serve(async (req) => {
           transcription_text: parsedAnalysis.transcription,
           status: 'completed',
           progress: 100,
+          summary: parsedAnalysis.summary,
+          keywords: parsedAnalysis.keywords,
           analysis_summary: parsedAnalysis.summary,
           analysis_quien: parsedAnalysis.analysis?.who,
           analysis_que: parsedAnalysis.analysis?.what,
@@ -237,7 +264,6 @@ serve(async (req) => {
           analysis_donde: parsedAnalysis.analysis?.where,
           analysis_porque: parsedAnalysis.analysis?.why,
           analysis_keywords: parsedAnalysis.keywords,
-          keywords: parsedAnalysis.keywords,
           updated_at: new Date().toISOString()
         })
         .eq('id', transcriptionId);

@@ -17,6 +17,14 @@ export interface TvTranscription {
   progress: number;
   created_at: string;
   updated_at: string;
+  // Analysis fields
+  analysis_summary?: string;
+  analysis_keywords?: string[];
+  analysis_quien?: string;
+  analysis_que?: string;
+  analysis_cuando?: string;
+  analysis_donde?: string;
+  analysis_porque?: string;
 }
 
 export interface TvNewsSegment {
