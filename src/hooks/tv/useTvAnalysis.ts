@@ -9,15 +9,19 @@ import { useClientData } from "@/hooks/radio/useClientData";
 interface UseTvAnalysisProps {
   transcriptionText?: string;
   transcriptionId?: string;
+  videoPath?: string;
   onClearAnalysis?: (clearFn: () => void) => void;
   forceReset?: boolean;
 }
+
+type AnalysisType = 'text' | 'video' | 'hybrid';
 
 const ANALYSIS_PERSIST_KEY = "tv-content-analysis";
 
 export const useTvAnalysis = ({
   transcriptionText,
   transcriptionId,
+  videoPath,
   onClearAnalysis,
   forceReset
 }: UseTvAnalysisProps) => {
@@ -26,6 +30,7 @@ export const useTvAnalysis = ({
     `${ANALYSIS_PERSIST_KEY}-${transcriptionId || "draft"}`,
     ""
   );
+  const [analysisType, setAnalysisType] = useState<AnalysisType>('text');
   
   const { categories } = useCategories();
   const { clients } = useClientData();
@@ -82,14 +87,34 @@ export const useTvAnalysis = ({
     }
   }, [transcriptionId, transcriptionText, setAnalysis]);
 
-  const analyzeContent = async () => {
-    if (!transcriptionText) {
+  // Determine optimal analysis type based on available data
+  const getOptimalAnalysisType = (): AnalysisType => {
+    if (videoPath && transcriptionText) {
+      return 'hybrid'; // Best of both worlds
+    } else if (videoPath) {
+      return 'video'; // Video-only analysis
+    } else {
+      return 'text'; // Text-only analysis
+    }
+  };
+
+  const analyzeContent = async (requestedType?: AnalysisType) => {
+    const effectiveAnalysisType = requestedType || getOptimalAnalysisType();
+    
+    // Validate input based on analysis type
+    if (effectiveAnalysisType === 'text' && !transcriptionText) {
       toast.error("No hay texto para analizar");
       return null;
     }
+    
+    if ((effectiveAnalysisType === 'video' || effectiveAnalysisType === 'hybrid') && !videoPath) {
+      toast.error("No hay video disponible para análisis visual");
+      return null;
+    }
 
-    console.log('[useTvAnalysis] Starting TV analysis with Gemini API');
+    console.log('[useTvAnalysis] Starting TV analysis with type:', effectiveAnalysisType);
     setIsAnalyzing(true);
+    setAnalysisType(effectiveAnalysisType);
     
     try {
       const formattedCategories = categories.map(cat => cat.name_es);
@@ -100,13 +125,17 @@ export const useTvAnalysis = ({
 
       console.log('[useTvAnalysis] Calling analyze-tv-content edge function');
 
+      const requestBody = { 
+        transcriptionText: effectiveAnalysisType !== 'video' ? transcriptionText : undefined,
+        transcriptId: transcriptionId || null,
+        videoPath: (effectiveAnalysisType === 'video' || effectiveAnalysisType === 'hybrid') ? videoPath : undefined,
+        analysisType: effectiveAnalysisType,
+        categories: formattedCategories,
+        clients: formattedClients
+      };
+
       const { data, error } = await supabase.functions.invoke('analyze-tv-content', {
-        body: { 
-          transcriptionText,
-          transcriptId: transcriptionId || null,
-          categories: formattedCategories,
-          clients: formattedClients
-        }
+        body: requestBody
       });
 
       if (error) {
@@ -115,9 +144,23 @@ export const useTvAnalysis = ({
       }
 
       if (data?.analysis) {
-        console.log('[useTvAnalysis] TV analysis completed successfully');
-        setAnalysis(data.analysis);
-        toast.success("El contenido de TV ha sido analizado exitosamente con Gemini AI.");
+        console.log('[useTvAnalysis] TV analysis completed successfully with type:', effectiveAnalysisType);
+        
+        // Format analysis for display
+        const analysisText = typeof data.analysis === 'object' 
+          ? JSON.stringify(data.analysis, null, 2)
+          : data.analysis;
+        
+        setAnalysis(analysisText);
+        
+        // Show appropriate success message based on analysis type
+        const typeMessages = {
+          text: "El contenido de TV ha sido analizado exitosamente (análisis de texto).",
+          video: "El contenido de TV ha sido analizado exitosamente (análisis visual completo).",
+          hybrid: "El contenido de TV ha sido analizado exitosamente (análisis híbrido: texto + video)."
+        };
+        
+        toast.success(typeMessages[effectiveAnalysisType]);
         return data;
       }
       
@@ -135,7 +178,12 @@ export const useTvAnalysis = ({
   return {
     isAnalyzing,
     analysis,
+    analysisType,
     analyzeContent,
-    hasTranscriptionText: !!transcriptionText
+    hasTranscriptionText: !!transcriptionText,
+    hasVideoPath: !!videoPath,
+    canDoHybridAnalysis: !!(transcriptionText && videoPath),
+    canDoVideoAnalysis: !!videoPath,
+    optimalAnalysisType: getOptimalAnalysisType()
   };
 };

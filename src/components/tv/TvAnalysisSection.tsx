@@ -8,6 +8,7 @@ interface TvAnalysisSectionProps {
   transcriptionText: string;
   transcriptionId?: string;
   transcriptionResult?: TranscriptionResult;
+  videoPath?: string;
   testAnalysis?: any;
   onClearAnalysis?: (clearFn: () => void) => void;
   lastAction?: string | null;
@@ -18,6 +19,7 @@ const TvAnalysisSection = ({
   transcriptionText,
   transcriptionId,
   transcriptionResult,
+  videoPath,
   testAnalysis,
   onClearAnalysis,
   lastAction,
@@ -35,6 +37,7 @@ const TvAnalysisSection = ({
       transcriptionText={transcriptionText} 
       transcriptionId={transcriptionId}
       transcriptionResult={transcriptionResult}
+      videoPath={videoPath}
       onSegmentsGenerated={onSegmentsGenerated}
       onClearAnalysis={onClearAnalysis}
       forceReset={lastAction === 'clear'}

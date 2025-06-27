@@ -1,13 +1,12 @@
 
-import React from "react";
-import TvTopSection from "./TvTopSection";
+import React, { useState, useCallback, useRef } from "react";
+import { Card } from "@/components/ui/card";
 import TvVideoSection from "./TvVideoSection";
-import TvTranscriptionManager from "../transcription/TvTranscriptionManager";
-import TvNotePadSection from "../TvNotePadSection";
-import TvTypeformEmbed from "../TvTypeformEmbed";
+import TvTranscriptionSection from "../TvTranscriptionSection";
 import TvAnalysisSection from "../TvAnalysisSection";
-import NewsSegmentsContainer from "@/components/transcription/NewsSegmentsContainer";
-import { NewsSegment } from "@/hooks/tv/useTvVideoProcessor";
+import TvNotePadSection from "../TvNotePadSection";
+import TvReportButton from "../TvReportButton";
+import { NewsSegment } from "@/hooks/use-video-processor";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface UploadedFile extends File {
@@ -15,27 +14,13 @@ interface UploadedFile extends File {
 }
 
 interface TvMainContentProps {
-  // Top section props
-  handleClearAll: () => Promise<boolean>;
-  clearingProgress: number;
-  clearingStage: string;
-  
-  // Video section props
   uploadedFiles: UploadedFile[];
   setUploadedFiles: (files: UploadedFile[]) => void;
   isPlaying: boolean;
   volume: number[];
   isProcessing: boolean;
   progress: number;
-  togglePlayback: () => void;
-  setVolume: (value: number[]) => void;
-  processVideo: (file: UploadedFile) => void;
-  handleTranscriptionComplete: (text: string) => void;
-  handleRemoveFile: (index: number) => void;
-  isActiveMediaRoute: boolean;
-  
-  // Transcription props
-  textContent: string;
+  transcriptionText: string;
   transcriptionMetadata?: {
     channel?: string;
     program?: string;
@@ -44,80 +29,65 @@ interface TvMainContentProps {
   };
   transcriptionResult?: TranscriptionResult;
   transcriptionId?: string;
-  handleTranscriptionChange: (text: string) => void;
-  handleSeekToTimestamp: (timestamp: number) => void;
-  handleEditorRegisterReset: (fn: () => void) => void;
-  currentTime: number;
-  
-  // Notepad props
-  notepadContent: string;
-  setNotepadContent: (content: string) => void;
-  isNotepadExpanded: boolean;
-  setIsNotepadExpanded: (expanded: boolean) => void;
-  
-  // Analysis props
-  testAnalysis: any;
-  setClearAnalysis: (clearFn: () => void) => void;
-  lastAction: string | null;
-  
-  // News segments props
   newsSegments: NewsSegment[];
+  currentVideoPath?: string;
+  onTogglePlayback: () => void;
+  onVolumeChange: (value: number[]) => void;
+  onProcess: (file: UploadedFile) => void;
+  onTranscriptionComplete: (text: string) => void;
+  onRemoveFile: (index: number) => void;
+  onTranscriptionChange: (text: string) => void;
+  onSeekToTimestamp: (timestamp: number) => void;
+  onSegmentsReceived?: (segments: NewsSegment[]) => void;
   setNewsSegments: (segments: NewsSegment[]) => void;
+  lastAction?: string | null;
+  currentTime?: number;
+  onPlayPause?: () => void;
+  testAnalysis?: any;
 }
 
 const TvMainContent = ({
-  handleClearAll,
-  clearingProgress,
-  clearingStage,
   uploadedFiles,
   setUploadedFiles,
   isPlaying,
   volume,
   isProcessing,
   progress,
-  togglePlayback,
-  setVolume,
-  processVideo,
-  handleTranscriptionComplete,
-  handleRemoveFile,
-  isActiveMediaRoute,
-  textContent,
+  transcriptionText,
   transcriptionMetadata,
   transcriptionResult,
   transcriptionId,
-  handleTranscriptionChange,
-  handleSeekToTimestamp,
-  setNewsSegments: onSegmentsReceived,
-  handleEditorRegisterReset,
-  currentTime,
-  notepadContent,
-  setNotepadContent,
-  isNotepadExpanded,
-  setIsNotepadExpanded,
-  testAnalysis,
-  setClearAnalysis,
+  newsSegments,
+  currentVideoPath,
+  onTogglePlayback,
+  onVolumeChange,
+  onProcess,
+  onTranscriptionComplete,
+  onRemoveFile,
+  onTranscriptionChange,
+  onSeekToTimestamp,
+  onSegmentsReceived,
+  setNewsSegments,
   lastAction,
-  newsSegments
+  currentTime = 0,
+  onPlayPause = () => {},
+  testAnalysis
 }: TvMainContentProps) => {
+  const [notepadContent, setNotepadContent] = useState("");
+  const clearAnalysisFnRef = useRef<(() => void) | null>(null);
+  const clearEditorFnRef = useRef<(() => void) | null>(null);
+
+  const handleClearAnalysis = useCallback((clearFn: () => void) => {
+    clearAnalysisFnRef.current = clearFn;
+  }, []);
+
+  const handleRegisterEditorReset = useCallback((resetFn: () => void) => {
+    clearEditorFnRef.current = resetFn;
+  }, []);
+
   return (
-    <div className="w-full space-y-6">
-      {/* Top Section - Clear all controls */}
-      <TvTopSection
-        handleClearAll={handleClearAll}
-        files={uploadedFiles}
-        transcriptionText={textContent}
-        clearingProgress={clearingProgress}
-        clearingStage={clearingStage}
-      />
-
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">MONITOREO TV</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-2">
-          Sube, transcribe y gestiona contenido de video de manera eficiente
-        </p>
-      </div>
-
-      {/* Video Section - Upload and preview */}
+    <div className="container mx-auto p-4 space-y-6">
+      {/* Video Upload and Preview Section */}
       <TvVideoSection
         uploadedFiles={uploadedFiles}
         setUploadedFiles={setUploadedFiles}
@@ -125,63 +95,66 @@ const TvMainContent = ({
         volume={volume}
         isProcessing={isProcessing}
         progress={progress}
-        onTogglePlayback={togglePlayback}
-        onVolumeChange={setVolume}
-        onProcess={processVideo}
-        onTranscriptionComplete={handleTranscriptionComplete}
-        onRemoveFile={handleRemoveFile}
-        isActiveMediaRoute={isActiveMediaRoute}
+        onTogglePlayback={onTogglePlayback}
+        onVolumeChange={onVolumeChange}
+        onProcess={onProcess}
+        onTranscriptionComplete={onTranscriptionComplete}
+        onRemoveFile={onRemoveFile}
       />
 
-      {/* Transcription Section */}
-      <TvTranscriptionManager
-        textContent={textContent}
-        isProcessing={isProcessing}
-        transcriptionMetadata={transcriptionMetadata}
-        transcriptionResult={transcriptionResult}
-        transcriptionId={transcriptionId}
-        onTranscriptionChange={handleTranscriptionChange}
-        onSeekToTimestamp={handleSeekToTimestamp}
-        onSegmentsReceived={onSegmentsReceived}
-        registerEditorReset={handleEditorRegisterReset}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        onPlayPause={togglePlayback}
-      />
+      {/* Two Column Layout for Content */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Left Column - Transcription and Analysis */}
+        <div className="space-y-6">
+          {/* Transcription Section */}
+          <TvTranscriptionSection
+            textContent={transcriptionText}
+            isProcessing={isProcessing}
+            transcriptionMetadata={transcriptionMetadata}
+            transcriptionResult={transcriptionResult}
+            transcriptionId={transcriptionId}
+            onTranscriptionChange={onTranscriptionChange}
+            onSeekToTimestamp={onSeekToTimestamp}
+            onSegmentsReceived={onSegmentsReceived}
+            registerEditorReset={handleRegisterEditorReset}
+            isPlaying={isPlaying}
+            currentTime={currentTime}
+            onPlayPause={onPlayPause}
+          />
 
-      {/* Notepad Section */}
-      <TvNotePadSection
-        notepadContent={notepadContent}
-        onNotepadContentChange={setNotepadContent}
-        isExpanded={isNotepadExpanded}
-        onExpandToggle={setIsNotepadExpanded}
-      />
+          {/* Analysis Section - Enhanced with video path support */}
+          {(transcriptionText || currentVideoPath) && (
+            <TvAnalysisSection
+              transcriptionText={transcriptionText}
+              transcriptionId={transcriptionId}
+              transcriptionResult={transcriptionResult}
+              videoPath={currentVideoPath}
+              testAnalysis={testAnalysis}
+              onClearAnalysis={handleClearAnalysis}
+              lastAction={lastAction}
+              onSegmentsGenerated={onSegmentsReceived}
+            />
+          )}
+        </div>
 
-      {/* Typeform Embed */}
-      <TvTypeformEmbed />
-
-      {/* Analysis Section - only show when there's text */}
-      {textContent && (
-        <TvAnalysisSection
-          transcriptionText={textContent}
-          transcriptionId={transcriptionId}
-          transcriptionResult={transcriptionResult}
-          testAnalysis={testAnalysis}
-          onClearAnalysis={setClearAnalysis}
-          lastAction={lastAction}
-          onSegmentsGenerated={onSegmentsReceived}
-        />
-      )}
-
-      {/* News Segments Section */}
-      {newsSegments && newsSegments.length > 0 && (
-        <NewsSegmentsContainer
-          segments={newsSegments}
-          onSegmentsChange={onSegmentsReceived}
-          onSeek={handleSeekToTimestamp}
-          isProcessing={isProcessing}
-        />
-      )}
+        {/* Right Column - Notepad and Report */}
+        <div className="space-y-6">
+          <TvNotePadSection
+            content={notepadContent}
+            onContentChange={setNotepadContent}
+            segments={newsSegments}
+            onSeekToTimestamp={onSeekToTimestamp}
+          />
+          
+          <Card className="p-4">
+            <TvReportButton 
+              segments={newsSegments}
+              transcriptionText={transcriptionText}
+              notepadContent={notepadContent}
+            />
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };

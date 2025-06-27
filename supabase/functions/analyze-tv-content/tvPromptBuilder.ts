@@ -27,14 +27,45 @@ export const constructTvPrompt = (
       }).join('\n')
     : '';
 
-  let prompt = `Eres un analista experto en contenido de televisión. Tu tarea es analizar la siguiente transcripción de TV en español e identificar y separar el contenido publicitario del contenido regular del programa televisivo.
+  let prompt = `Eres un analista experto en contenido de televisión puertorriqueña. Tu tarea es analizar la siguiente transcripción de TV en español e identificar y separar el contenido publicitario del contenido regular del programa televisivo.
 
-IMPORTANTE - FORMATO DE RESPUESTA:
-Debes identificar y separar claramente cada sección de contenido, comenzando CADA SECCIÓN con uno de estos encabezados:
+CONTEXTO CULTURAL PUERTORRIQUEÑO:
+Reconoce expresiones, modismos y referencias culturales específicas de Puerto Rico. Identifica menciones de:
+- Lugares: municipios (San Juan, Bayamón, Ponce, etc.), barrios, puntos de referencia (El Yunque, Viejo San Juan, etc.)
+- Personalidades: políticos locales (gobernadores, alcaldes, legisladores), artistas, figuras públicas
+- Eventos: festivales (Festival de la Calle San Sebastián, Festival Casals), tradiciones, noticias locales
+- Instituciones: UPR, gobierno municipal, Departamento de Educación, PRPA, etc.
+- Referencias al estatus político: estadidad, independencia, ELA, relaciones con Estados Unidos
 
-[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
-o
-[TIPO DE CONTENIDO: PROGRAMA REGULAR]
+IMPORTANTE - FORMATO DE RESPUESTA JSON:
+Debes responder ÚNICAMENTE en formato JSON válido con esta estructura exacta:
+
+{
+  "segments": [
+    {
+      "content_type": "ANUNCIO_PUBLICITARIO" | "PROGRAMA_REGULAR",
+      "timestamp_start": "MM:SS",
+      "timestamp_end": "MM:SS",
+      "analysis": {
+        // Contenido específico según el tipo
+      },
+      "speakers": [
+        {
+          "name": "nombre_real_identificado",
+          "role": "presentador|reportero|invitado|corresponsal"
+        }
+      ],
+      "keywords_detected": ["palabra1", "palabra2"],
+      "client_relevance": [
+        {
+          "client": "nombre_cliente",
+          "relevance_score": 0.8,
+          "justification": "texto_justificativo_con_cita"
+        }
+      ]
+    }
+  ]
+}
 
 IDENTIFICACIÓN DE ANUNCIOS EN TV:
 Señales clave para identificar anuncios televisivos:
@@ -48,90 +79,143 @@ Señales clave para identificar anuncios televisivos:
 - Referencias a promociones especiales o eventos comerciales
 
 PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
-1. Marca(s) o producto(s) anunciados
-2. Mensajes clave del anuncio
-3. Llamada a la acción (si existe)
-4. Tono del anuncio
-5. Duración aproximada
-6. Tipo de anuncio (spot comercial, patrocinio, producto placement, etc.)
+En el campo "analysis" incluir:
+{
+  "marcas_anunciadas": ["marca1", "marca2"],
+  "mensajes_clave": ["mensaje1", "mensaje2"],
+  "llamada_accion": "texto_de_llamada_a_accion",
+  "tono_anuncio": "persuasivo|informativo|emocional|urgente",
+  "duracion_aproximada": "MM:SS",
+  "tipo_anuncio": "spot_comercial|patrocinio|producto_placement|infomercial",
+  "target_demografico": "adultos|jovenes|familias|profesionales"
+}
 
 PARA CADA SECCIÓN DE PROGRAMA REGULAR:
-1. Resumen del contenido televisivo (70-100 oraciones)
-   - Incluir desarrollo cronológico de los temas tratados
-   - Destacar citas textuales relevantes de presentadores o invitados
-   - Mencionar interacciones entre presentadores, reporteros o invitados
-   - Identificación de los participantes (presentadores, reporteros, invitados, corresponsales)${hasSpeakerLabels ? ' [utilizar los nombres específicos cuando estén disponibles]' : ''}
-   - Describir segmentos informativos, entrevistas, reportajes o secciones especiales
-   - Identificar transiciones entre diferentes bloques del programa
-
-2. Temas principales tratados en el programa
-   - Listar temas por orden de importancia y tiempo de cobertura
-   - Incluir subtemas y noticias secundarias
-   - Señalar conexiones temáticas entre diferentes segmentos
-   - Identificar noticias de última hora o breaking news
-   
-3. Formato y tono del contenido televisivo
-   - Estilo de presentación (noticiero formal, programa magazine, talk show, etc.)
-   - Tipo de lenguaje utilizado por presentadores
-   - Enfoque del contenido (informativo, de opinión, entretenimiento, educativo)
-   - Dinámica entre presentadores y/o invitados
-   - Identificar segmentos en vivo vs. pregrabados (si es evidente)
-   
-4. Categorías aplicables de: ${categoriesText}
-   - Justificar la selección de cada categoría basándose en el contenido televisivo
-   - Indicar categoría principal y secundarias según el tiempo de cobertura
-   
-5. Presencia de personas, instituciones o entidades relevantes mencionadas
-   - Funcionarios públicos, empresarios, expertos entrevistados
-   - Organizaciones, empresas o instituciones mencionadas
-   - Personalidades públicas o figuras relevantes citadas`;
+En el campo "analysis" incluir:
+{
+  "resumen_detallado": "70-100 oraciones con desarrollo cronológico de los temas tratados",
+  "citas_textuales": ["cita1", "cita2"],
+  "interacciones_participantes": "descripción de la dinámica entre presentadores/invitados",
+  "participantes_identificados": [
+    {
+      "nombre": "nombre_completo",
+      "rol": "presentador_principal|co_presentador|reportero|invitado|corresponsal",
+      "segmentos_participacion": ["segmento1", "segmento2"]
+    }
+  ],
+  "segmentos_programa": [
+    {
+      "tipo": "noticia|entrevista|reportaje|seccion_especial|breaking_news",
+      "titulo": "titulo_del_segmento",
+      "timestamp": "MM:SS"
+    }
+  ],
+  "temas_principales": [
+    {
+      "tema": "nombre_del_tema",
+      "importancia": "alta|media|baja",
+      "tiempo_cobertura": "MM:SS",
+      "subtemas": ["subtema1", "subtema2"]
+    }
+  ],
+  "formato_tono": {
+    "estilo_presentacion": "noticiero_formal|magazine|talk_show|programa_opinion",
+    "tipo_lenguaje": "formal|informal|conversacional|tecnico",
+    "enfoque_contenido": "informativo|opinion|entretenimiento|educativo",
+    "dinamica_presentadores": "colaborativa|jerarquica|debate|conversacional",
+    "segmentos_vivo_vs_pregrabado": "identificacion_cuando_sea_evidente"
+  },
+  "categorias_aplicables": {
+    "categoria_principal": "categoria_con_mayor_tiempo_cobertura",
+    "categorias_secundarias": ["cat1", "cat2"],
+    "justificaciones": {
+      "categoria_principal": "justificacion_con_cita_textual",
+      "categorias_secundarias": ["just1", "just2"]
+    }
+  },
+  "entidades_mencionadas": {
+    "funcionarios_publicos": ["nombre1", "nombre2"],
+    "empresarios_expertos": ["nombre1", "nombre2"],  
+    "organizaciones_instituciones": ["org1", "org2"],
+    "personalidades_publicas": ["pers1", "pers2"]
+  },
+  "contenido_politico_especifico": {
+    "referencias_estatus": ["estadidad", "independencia", "ELA"],
+    "figuras_politicas_locales": ["figura1", "figura2"],
+    "figuras_politicas_federales": ["figura1", "figura2"],
+    "politicas_publicas_pr": ["politica1", "politica2"],
+    "relaciones_eeuu": "descripcion_si_aplica"
+  }
+}`;
 
   // Add clients section if available
   if (clientsText) {
     prompt += `
-6. Clientes relevantes que podrían estar interesados en este contenido televisivo
-   Lista de clientes disponibles: ${clientsText}
-   - Analizar menciones directas o indirectas
-   - Identificar oportunidades de publicity o cobertura relevante`;
-  } else {
-    prompt += `
-6. Oportunidades de publicity o menciones comerciales relevantes identificadas`;
+
+ANÁLISIS DE RELEVANCIA PARA CLIENTES:
+Lista de clientes disponibles: ${clientsText}
+Para cada cliente relevante, incluir en client_relevance:
+- Analizar menciones directas o indirectas en el contenido
+- Calcular score de relevancia (0.0-1.0) basado en:
+  * Mención directa del cliente: 0.8-1.0
+  * Mención de industria/sector: 0.5-0.7  
+  * Mención de competencia: 0.3-0.5
+  * Contexto relacionado: 0.1-0.3
+- Justificar con citas textuales exactas del contenido`;
   }
 
   // Add keyword mapping if available
   if (clientKeywordMap) {
     prompt += `
-7. Palabras clave mencionadas relevantes para los clientes televisivos
-   Lista de correlación entre clientes y palabras clave:
+
+MAPEO DE PALABRAS CLAVE POR CLIENTE:
 ${clientKeywordMap}
 
-Responde en español de manera concisa y profesional para contenido televisivo. Asegúrate de:
-1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
-2. Si es un anuncio, enfatizar las marcas, productos, llamadas a la acción y tipo de publicidad televisiva
-3. Si es contenido regular, mantener el formato de análisis detallado específico para TV
-4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
-5. Considerar el contexto televisivo (noticieros, programas, horarios de transmisión)${hasSpeakerLabels ? '\n6. Utilizar los nombres específicos de presentadores, reporteros e invitados cuando estén disponibles' : ''}`;
-  } else {
-    prompt += `\n\nResponde en español de manera concisa y profesional para contenido televisivo, comenzando SIEMPRE con el encabezado del tipo de contenido identificado en mayúsculas.${hasSpeakerLabels ? ' Utiliza los nombres específicos de presentadores, reporteros e invitados cuando estén disponibles.' : ''}`;
+INSTRUCCIONES PARA KEYWORDS:
+- Identificar palabras clave exactas mencionadas en el contenido
+- Incluir variantes y contextos relacionados
+- Excluir menciones no relevantes (ej: "banco de sangre" para cliente bancario)
+- Considerar peso contextual y relevancia demográfica`;
   }
 
   // Add speaker-specific instructions if available
   if (hasSpeakerLabels) {
-    prompt += `\n\nIMPORTANTE - MANEJO DE PARTICIPANTES EN TV:
-La transcripción incluye nombres específicos de participantes (presentadores, reporteros, invitados, corresponsales). Utiliza estos nombres específicos en tu análisis para:
-- Identificar roles específicos (conductor principal, co-conductor, reportero, invitado, etc.)
-- Describir la dinámica televisiva entre participantes
-- Mencionar contribuciones específicas de cada presentador o invitado
-- Proporcionar un análisis más personalizado del programa televisivo
-- Identificar segmentos conducidos por diferentes presentadores
+    prompt += `
 
-Evita usar referencias genéricas como "presentador 1", "invitado A", etc., cuando tengas nombres específicos disponibles.`;
+IMPORTANTE - IDENTIFICACIÓN PRECISA DE HABLANTES:
+La transcripción incluye nombres específicos de participantes. Para cada speaker:
+1. Determinar el nombre real basándose en:
+   - Contexto de la conversación
+   - Menciones directas en el diálogo
+   - Referencias cruzadas entre participantes
+2. Identificar roles específicos:
+   - Conductor principal / Co-conductor
+   - Reportero de campo / Corresponsal
+   - Invitado experto / Entrevistado
+   - Analista / Comentarista
+3. NO usar referencias genéricas como "SPEAKER_01" cuando el nombre real sea identificable
+4. Describir contribuciones específicas de cada participante al programa`;
   }
+
+  prompt += `
+
+TIMESTAMP REQUIREMENTS:
+- Utilizar formato MM:SS para todos los timestamps
+- Incluir timestamp_start y timestamp_end para cada segmento identificado
+- Referenciar momentos específicos en justificaciones cuando sea relevante
+
+CONTEXTO LINGUÍSTICO PUERTORRIQUEÑO:
+- Reconocer dialectos y pronunciaciones específicas de Puerto Rico
+- Identificar modismos locales y expresiones coloquiales
+- Considerar código-switching entre español e inglés
+- Entender referencias culturales y históricas locales`;
 
   // Add any additional context provided
   if (additionalContext) {
-    prompt += additionalContext;
+    prompt += `\n\nCONTEXTO ADICIONAL:\n${additionalContext}`;
   }
+
+  prompt += `\n\nRECORDAR: Responder ÚNICAMENTE en formato JSON válido con la estructura especificada arriba.`;
 
   return prompt;
 };
