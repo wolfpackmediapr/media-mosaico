@@ -6,6 +6,7 @@ import TvTranscriptionSection from "../TvTranscriptionSection";
 import TvAnalysisSection from "../TvAnalysisSection";
 import TvNotePadSection from "../TvNotePadSection";
 import TvReportButton from "../TvReportButton";
+import TvTypeformEmbed from "../TvTypeformEmbed";
 import { NewsSegment } from "@/hooks/use-video-processor";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
@@ -140,7 +141,7 @@ const TvMainContent = ({
           )}
         </div>
 
-        {/* Right Column - Notepad and Report */}
+        {/* Right Column - Notepad, Report, and TV Alert */}
         <div className="space-y-6">
           <TvNotePadSection
             content={notepadContent}
@@ -158,6 +159,9 @@ const TvMainContent = ({
               isProcessing={isProcessing}
             />
           </Card>
+
+          {/* TV Alert Section */}
+          <TvTypeformEmbed />
         </div>
       </div>
     </div>
