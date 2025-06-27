@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -44,7 +45,6 @@ export const useTvAnalysis = ({
     if (typeof onClearAnalysis === "function") {
       onClearAnalysis(clearAnalysisState.current);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClearAnalysis]);
   
   // Cleanup on unmount
@@ -60,9 +60,7 @@ export const useTvAnalysis = ({
       console.log('[useTvAnalysis] Force reset triggered');
       clearAnalysisState.current();
       
-      // Force delete any persistent storage keys related to analysis
       try {
-        // Find and delete any session storage keys related to analysis
         for (let i = 0; i < sessionStorage.length; i++) {
           const key = sessionStorage.key(i);
           if (key && (key.includes(ANALYSIS_PERSIST_KEY) || key.includes('tv-content-analysis'))) {
@@ -90,7 +88,9 @@ export const useTvAnalysis = ({
       return null;
     }
 
+    console.log('[useTvAnalysis] Starting TV analysis with Gemini API');
     setIsAnalyzing(true);
+    
     try {
       const formattedCategories = categories.map(cat => cat.name_es);
       const formattedClients = clients.map(client => ({
@@ -98,28 +98,34 @@ export const useTvAnalysis = ({
         keywords: client.keywords || []
       }));
 
-      const { data, error } = await supabase.functions.invoke('analyze-radio-content', {
+      console.log('[useTvAnalysis] Calling analyze-tv-content edge function');
+
+      const { data, error } = await supabase.functions.invoke('analyze-tv-content', {
         body: { 
           transcriptionText,
           transcriptId: transcriptionId || null,
           categories: formattedCategories,
-          clients: formattedClients,
-          contentType: 'tv'
+          clients: formattedClients
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useTvAnalysis] Edge function error:', error);
+        throw error;
+      }
 
       if (data?.analysis) {
+        console.log('[useTvAnalysis] TV analysis completed successfully');
         setAnalysis(data.analysis);
-        toast.success("El contenido ha sido analizado exitosamente.");
+        toast.success("El contenido de TV ha sido analizado exitosamente con Gemini AI.");
         return data;
       }
       
+      console.warn('[useTvAnalysis] No analysis received from Gemini');
       return null;
     } catch (error) {
-      console.error('Error analyzing content:', error);
-      toast.error("No se pudo analizar el contenido");
+      console.error('[useTvAnalysis] Error analyzing TV content:', error);
+      toast.error(`No se pudo analizar el contenido de TV: ${error.message || 'Error desconocido'}`);
       return null;
     } finally {
       setIsAnalyzing(false);
