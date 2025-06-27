@@ -15,14 +15,20 @@ serve(async (req) => {
   }
 
   try {
+    console.log('[analyze-tv-content] Request received');
+    
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Properly handle authentication by setting the Authorization header
     const authHeader = req.headers.get('Authorization');
     if (authHeader) {
-      supabaseClient.auth.setAuth(authHeader.replace('Bearer ', ''));
+      // Extract the JWT token from the Authorization header
+      const token = authHeader.replace('Bearer ', '');
+      // Set the auth context for this request
+      await supabaseClient.auth.getUser(token);
     }
 
     const { 

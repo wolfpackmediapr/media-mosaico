@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -160,7 +161,21 @@ export const useTvAnalysis = ({
 
       if (error) {
         console.error('[useTvAnalysis] Edge function error:', error);
-        throw error;
+        
+        // Provide more specific error messages based on the error
+        let errorMessage = 'No se pudo analizar el contenido de TV';
+        
+        if (error.message) {
+          if (error.message.includes('Google Gemini API key not configured')) {
+            errorMessage = 'API de Gemini no configurada. Contacte al administrador.';
+          } else if (error.message.includes('Edge Function returned a non-2xx status code')) {
+            errorMessage = 'Error en el servicio de análisis. Intente nuevamente en unos momentos.';
+          } else {
+            errorMessage = `Error de análisis: ${error.message}`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       if (data?.analysis) {
@@ -189,7 +204,7 @@ export const useTvAnalysis = ({
       return null;
     } catch (error) {
       console.error('[useTvAnalysis] Error analyzing TV content:', error);
-      toast.error(`No se pudo analizar el contenido de TV: ${error.message || 'Error desconocido'}`);
+      toast.error(`${error.message || 'Error desconocido al analizar el contenido'}`);
       return null;
     } finally {
       setIsAnalyzing(false);
