@@ -1,4 +1,3 @@
-
 import { useTvVideoProcessor } from "./useTvVideoProcessor";
 import { useTvClearState } from "./useTvClearState";
 import { useTvNotepadState } from "./useTvNotepadState";
@@ -29,14 +28,18 @@ export const useTvState = () => {
     onVolumeChange,
     currentTime,
     onPlayPause,
-    onSeekToTimestamp
+    onSeekToTimestamp,
+    setCurrentVideoPath
   } = usePersistentVideoState();
 
   const { notepadContent, setNotepadContent } = useTvNotepadState();
 
   const {
     lastAction,
-    clearAllTvState
+    clearAllTvState,
+    clearingProgress,
+    clearingStage,
+    isClearing
   } = useTvClearState({
     setUploadedFiles,
     setTranscriptionText,
@@ -46,6 +49,9 @@ export const useTvState = () => {
 
   const handleProcess = (file: File) => {
     processVideo(file);
+    // Set the video path for analysis when processing starts
+    const videoPath = `${file.name}-${Date.now()}`;
+    setCurrentVideoPath(videoPath);
   };
 
   const handleRemoveFile = (index: number) => {
@@ -65,7 +71,7 @@ export const useTvState = () => {
     // Video controls
     isPlaying,
     volume,
-    currentVideoPath, // Now available for analysis
+    currentVideoPath,
     onTogglePlayback,
     onVolumeChange,
     currentTime,
@@ -96,6 +102,9 @@ export const useTvState = () => {
     
     // Clear functionality
     lastAction,
-    clearAllTvState
+    clearAllTvState,
+    clearingProgress,
+    clearingStage,
+    isClearing
   };
 };

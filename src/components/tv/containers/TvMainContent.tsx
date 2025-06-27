@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
+import TvTopSection from "./TvTopSection";
 import TvVideoSection from "./TvVideoSection";
 import TvTranscriptionSection from "../TvTranscriptionSection";
 import TvAnalysisSection from "../TvAnalysisSection";
@@ -47,6 +48,10 @@ interface TvMainContentProps {
   testAnalysis?: any;
   notepadContent: string;
   setNotepadContent: (content: string) => void;
+  clearAllTvState: () => Promise<boolean>;
+  clearingProgress?: number;
+  clearingStage?: string;
+  isClearing?: boolean;
 }
 
 const TvMainContent = ({
@@ -76,7 +81,11 @@ const TvMainContent = ({
   onPlayPause = () => {},
   testAnalysis,
   notepadContent,
-  setNotepadContent
+  setNotepadContent,
+  clearAllTvState,
+  clearingProgress = 0,
+  clearingStage = '',
+  isClearing = false
 }: TvMainContentProps) => {
   const clearAnalysisFnRef = useRef<(() => void) | null>(null);
   const clearEditorFnRef = useRef<(() => void) | null>(null);
@@ -91,6 +100,15 @@ const TvMainContent = ({
 
   return (
     <div className="container mx-auto p-4 space-y-6">
+      {/* Top Section with Clear All Button */}
+      <TvTopSection
+        handleClearAll={clearAllTvState}
+        files={uploadedFiles}
+        transcriptionText={transcriptionText}
+        clearingProgress={clearingProgress}
+        clearingStage={clearingStage}
+      />
+
       {/* Video Upload and Preview Section */}
       <TvVideoSection
         uploadedFiles={uploadedFiles || []}
