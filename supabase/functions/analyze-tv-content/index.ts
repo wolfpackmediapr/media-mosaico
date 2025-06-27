@@ -15,36 +15,74 @@ serve(async (req) => {
   }
 
   try {
-    console.log('[analyze-tv-content] Request received');
+    console.log('[analyze-tv-content] Function started - validating environment');
     
-    // Create Supabase client with proper configuration
+    // Validate all required environment variables first
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
     
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('[analyze-tv-content] Missing Supabase configuration');
-      throw new Error('Configuración de Supabase no disponible');
+    console.log('[analyze-tv-content] Environment check:', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseAnonKey: !!supabaseAnonKey,
+      hasGeminiKey: !!geminiApiKey
+    });
+
+    if (!supabaseUrl) {
+      console.error('[analyze-tv-content] Missing SUPABASE_URL');
+      throw new Error('Configuración de Supabase URL no disponible');
     }
 
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    if (!supabaseAnonKey) {
+      console.error('[analyze-tv-content] Missing SUPABASE_ANON_KEY');
+      throw new Error('Configuración de Supabase Anon Key no disponible');
+    }
+
+    if (!geminiApiKey) {
+      console.error('[analyze-tv-content] Missing GOOGLE_GEMINI_API_KEY');
+      throw new Error('Clave API de Google Gemini no configurada');
+    }
+
+    // Create Supabase client with anon key (correct pattern for edge functions)
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: req.headers.get('Authorization') ?? '' },
+      },
+    });
+
+    console.log('[analyze-tv-content] Supabase client created, validating auth');
 
     // Get auth token from request headers
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      console.error('[analyze-tv-content] No authorization header');
+      console.error('[analyze-tv-content] No authorization header found');
       throw new Error('Token de autorización requerido');
     }
 
-    // Verify user authentication
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    // Verify user authentication using the anon client with auth header
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (authError || !user) {
-      console.error('[analyze-tv-content] Auth error:', authError);
+    if (authError) {
+      console.error('[analyze-tv-content] Auth verification error:', authError);
+      throw new Error('Error de autenticación: ' + authError.message);
+    }
+
+    if (!user) {
+      console.error('[analyze-tv-content] No user found in token');
       throw new Error('Usuario no autenticado');
     }
 
-    console.log('[analyze-tv-content] User authenticated:', user.id);
+    console.log('[analyze-tv-content] User authenticated successfully:', user.id);
+
+    // Parse and validate request body
+    let requestBody;
+    try {
+      requestBody = await req.json();
+      console.log('[analyze-tv-content] Request body parsed successfully');
+    } catch (parseError) {
+      console.error('[analyze-tv-content] Failed to parse request body:', parseError);
+      throw new Error('Formato de solicitud inválido');
+    }
 
     const { 
       transcriptionText, 
@@ -54,9 +92,9 @@ serve(async (req) => {
       videoPath,
       analysisType = 'gemini',
       enhancedMode = true
-    } = await req.json();
+    } = requestBody;
 
-    console.log('[analyze-tv-content] Processing request:', {
+    console.log('[analyze-tv-content] Processing request with parameters:', {
       hasTranscriptionText: !!transcriptionText,
       hasVideoPath: !!videoPath,
       transcriptId,
@@ -68,20 +106,13 @@ serve(async (req) => {
 
     // Validate we have something to analyze
     if (!transcriptionText && !videoPath) {
+      console.error('[analyze-tv-content] No content provided for analysis');
       throw new Error('Se requiere texto de transcripción o ruta de video para el análisis');
-    }
-
-    // Get Gemini API key
-    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
-    if (!geminiApiKey) {
-      console.error('[analyze-tv-content] Missing Gemini API key');
-      throw new Error('Clave API de Google Gemini no configurada');
     }
 
     // Build the TV-specific prompt
     const prompt = constructTvPrompt(categories, clients, '', !!transcriptionText);
-    
-    console.log('[analyze-tv-content] Starting Gemini analysis');
+    console.log('[analyze-tv-content] TV prompt constructed successfully');
 
     let geminiResponse;
     let analysisResult;
@@ -100,19 +131,19 @@ serve(async (req) => {
           
           // Fall back to text-only analysis if video fails
           if (transcriptionText) {
-            console.log('[analyze-tv-content] Falling back to text-only analysis');
-            analysisType = 'text';
+            console.log('[analyze-tv-content] Video failed, falling back to text-only analysis');
+            // Continue with text analysis below
           } else {
             throw new Error('No se pudo acceder al archivo de video y no hay texto disponible');
           }
         } else {
-          console.log('[analyze-tv-content] Got signed URL for video');
+          console.log('[analyze-tv-content] Got video signed URL, processing with video context');
           
-          // For now, let's do text analysis with video context mention
-          // The full video upload to Gemini is complex and may be causing timeouts
+          // For now, do text analysis with video context mention
           if (transcriptionText) {
             const videoContextPrompt = `${prompt}\n\nNota: Este análisis se basa en la transcripción del siguiente video: ${videoPath}\n\nTranscripción:\n${transcriptionText}`;
             
+            console.log('[analyze-tv-content] Calling Gemini API with video context');
             geminiResponse = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
               {
@@ -144,8 +175,10 @@ serve(async (req) => {
             throw new Error('Análisis de video sin transcripción no está disponible actualmente');
           }
         }
-      } else {
-        // Text-only analysis
+      }
+
+      // Text-only analysis (fallback or primary)
+      if (!geminiResponse) {
         if (!transcriptionText) {
           throw new Error('Se requiere texto de transcripción para el análisis');
         }
@@ -153,6 +186,7 @@ serve(async (req) => {
         console.log('[analyze-tv-content] Processing text-only analysis');
         const userPrompt = `${prompt}\n\nTranscripción:\n${transcriptionText}`;
 
+        console.log('[analyze-tv-content] Calling Gemini API for text analysis');
         geminiResponse = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
           {
@@ -184,12 +218,16 @@ serve(async (req) => {
 
       if (!geminiResponse.ok) {
         const errorText = await geminiResponse.text();
-        console.error('[analyze-tv-content] Gemini API error:', errorText);
+        console.error('[analyze-tv-content] Gemini API error response:', {
+          status: geminiResponse.status,
+          statusText: geminiResponse.statusText,
+          errorText
+        });
         throw new Error(`Error en la API de Gemini: ${geminiResponse.status} - ${errorText}`);
       }
 
       const geminiData = await geminiResponse.json();
-      console.log('[analyze-tv-content] Gemini response received');
+      console.log('[analyze-tv-content] Gemini response received successfully');
 
       if (!geminiData.candidates || geminiData.candidates.length === 0) {
         console.error('[analyze-tv-content] No candidates in Gemini response:', geminiData);
@@ -260,13 +298,14 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[analyze-tv-content] Error:', error);
+    console.error('[analyze-tv-content] Function error:', error);
     
     // Provide detailed error information for debugging
     const errorResponse = {
       error: error.message || 'Error interno del servidor',
       success: false,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      details: error.stack || 'No stack trace available'
     };
 
     return new Response(

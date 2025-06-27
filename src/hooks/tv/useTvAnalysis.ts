@@ -129,7 +129,11 @@ export const useTvAnalysis = ({
         enhancedMode: true
       };
 
-      console.log('[useTvAnalysis] Calling analyze-tv-content edge function');
+      console.log('[useTvAnalysis] Calling analyze-tv-content edge function with body:', {
+        hasTranscriptionText: !!transcriptionText,
+        hasVideoPath: !!videoPath,
+        analysisType: effectiveAnalysisType
+      });
 
       const { data, error } = await supabase.functions.invoke('analyze-tv-content', {
         body: requestBody
@@ -142,9 +146,12 @@ export const useTvAnalysis = ({
         let errorMessage = 'No se pudo analizar el contenido de TV';
         
         if (error.message) {
-          if (error.message.includes('Google Gemini API key not configured')) {
+          if (error.message.includes('Google Gemini API key not configured') || 
+              error.message.includes('Clave API de Google Gemini no configurada')) {
             errorMessage = 'API de Gemini no configurada. Contacte al administrador.';
-          } else if (error.message.includes('authentication') || error.message.includes('auth')) {
+          } else if (error.message.includes('authentication') || 
+                     error.message.includes('auth') || 
+                     error.message.includes('Token de autorización')) {
             errorMessage = 'Error de autenticación. Por favor, inicie sesión nuevamente.';
           } else if (error.message.includes('video') && transcriptionText) {
             errorMessage = 'Error con el video. Intentando análisis solo con texto...';
