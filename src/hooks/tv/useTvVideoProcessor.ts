@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/services/toastService";
@@ -58,7 +59,7 @@ export const useTvVideoProcessor = () => {
 
       setProgress(5);
 
-      // Upload file to storage
+      // Upload file to storage with proper path structure
       console.log('[TvVideoProcessor] Uploading file to storage');
       const timestamp = Date.now();
       const sanitizedFileName = file.name.replace(/\s+/g, '_');
@@ -100,14 +101,14 @@ export const useTvVideoProcessor = () => {
         status: 'processing'
       });
 
-      console.log('[TvVideoProcessor] Calling unified processing function');
+      console.log('[TvVideoProcessor] Calling unified processing function with videoPath:', fileName);
       setProgress(35);
 
-      // Call the unified processing function
+      // Call the unified processing function with correct file path
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-gemini', {
           body: { 
-            videoPath: fileName,
+            videoPath: fileName, // Pass the correct storage path
             transcriptionId: tvTranscription.id
           }
         });
