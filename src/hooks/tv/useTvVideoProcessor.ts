@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/services/toastService";
@@ -49,7 +48,7 @@ export const useTvVideoProcessor = () => {
   const processVideo = async (file: File) => {
     setIsProcessing(true);
     setProgress(0);
-    console.log("Starting unified Gemini video processing for file:", file.name);
+    console.log("Starting video processing for file:", file.name);
 
     try {
       // Check authentication
@@ -101,11 +100,11 @@ export const useTvVideoProcessor = () => {
         status: 'processing'
       });
 
-      console.log('[TvVideoProcessor] Calling unified Gemini processing function');
+      console.log('[TvVideoProcessor] Calling unified processing function');
       setProgress(35);
 
-      // Call the new unified Gemini processing function
-      const { data: geminiResult, error: processError } = await supabase.functions
+      // Call the unified processing function
+      const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-gemini', {
           body: { 
             videoPath: fileName,
@@ -114,19 +113,18 @@ export const useTvVideoProcessor = () => {
         });
 
       if (processError) {
-        console.error('[TvVideoProcessor] Gemini processing error:', processError);
+        console.error('[TvVideoProcessor] Processing error:', processError);
         throw new Error(`Processing failed: ${processError.message}`);
       }
 
-      if (!geminiResult?.success) {
-        console.error('[TvVideoProcessor] Gemini processing failed:', geminiResult);
-        throw new Error('Gemini processing failed');
+      if (!result?.success) {
+        console.error('[TvVideoProcessor] Processing failed:', result);
+        throw new Error('Video processing failed');
       }
 
       setProgress(85);
 
-      const result = geminiResult as GeminiAnalysisResult;
-      console.log('[TvVideoProcessor] Gemini processing completed successfully');
+      console.log('[TvVideoProcessor] Processing completed successfully');
 
       // Set the transcription text and segments
       setTranscriptionText(result.text);
@@ -161,13 +159,13 @@ export const useTvVideoProcessor = () => {
       setProgress(100);
       
       toast.success("Procesamiento completado", {
-        description: `Video analizado exitosamente con Gemini AI. Se generaron ${result.segments.length} segmentos de noticias.`
+        description: `Video analizado exitosamente. Se generaron ${result.segments.length} segmentos de noticias.`
       });
 
-      console.log('[TvVideoProcessor] Unified processing completed successfully');
+      console.log('[TvVideoProcessor] Processing completed successfully');
 
     } catch (error: any) {
-      console.error('[TvVideoProcessor] Error in unified processing:', error);
+      console.error('[TvVideoProcessor] Error in processing:', error);
       
       // Update transcription status to failed
       if (transcriptionId) {
@@ -182,7 +180,7 @@ export const useTvVideoProcessor = () => {
       }
       
       toast.error("Error al procesar", {
-        description: error.message || "No se pudo procesar el archivo con Gemini AI. Por favor, intenta nuevamente."
+        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente."
       });
     } finally {
       setIsProcessing(false);

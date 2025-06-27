@@ -34,13 +34,9 @@ const TvAnalysis = ({
   const {
     isAnalyzing,
     analysis,
-    analysisType,
     analyzeContent: performAnalysis,
-    hasTranscriptionText,
-    hasVideoPath,
-    canDoHybridAnalysis,
-    canDoGeminiAnalysis,
-    optimalAnalysisType
+    hasContent,
+    canAnalyze
   } = useTvAnalysis({
     transcriptionText,
     transcriptionId,
@@ -49,10 +45,10 @@ const TvAnalysis = ({
     forceReset
   });
 
-  const analyzeContent = async (requestedType?: 'text' | 'video' | 'hybrid' | 'gemini') => {
-    const result = await performAnalysis(requestedType);
+  const analyzeContent = async () => {
+    const result = await performAnalysis();
     
-    if (result?.analysis) {
+    if (result?.success) {
       // Generate segments if callback provided
       if (onSegmentsGenerated) {
         if (transcriptionResult) {
@@ -64,9 +60,7 @@ const TvAnalysis = ({
       
       // Create notification
       await createAnalysisNotification(
-        typeof result.analysis === 'object' 
-          ? JSON.stringify(result.analysis) 
-          : result.analysis
+        result.summary || "Análisis de contenido completado"
       );
     }
   };
@@ -86,44 +80,21 @@ const TvAnalysis = ({
     toast.success("Segmentos generados con timestamping mejorado");
   };
 
-  const getAnalysisTypeLabel = () => {
-    switch (analysisType) {
-      case 'gemini':
-        return 'Gemini AI';
-      case 'hybrid':
-        return 'Híbrido';
-      case 'video':
-        return 'Video';
-      case 'text':
-        return 'Texto';
-      default:
-        return 'Análisis';
-    }
-  };
-
   return (
     <Card>
       <CardHeader className="bg-gradient-to-r from-primary-50 to-transparent">
         <CardTitle className="text-xl font-bold flex items-center gap-2">
           Análisis de Contenido TV
-          {analysisType && (
-            <span className="text-sm font-normal bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-              {getAnalysisTypeLabel()}
-            </span>
-          )}
         </CardTitle>
         <div className="text-sm text-muted-foreground">
-          Análisis inteligente potenciado por Gemini AI - Procesamiento multimodal avanzado de video y audio
+          Análisis inteligente avanzado de contenido multimedia
         </div>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
         <TvAnalysisActions
           isAnalyzing={isAnalyzing}
-          hasTranscriptionText={hasTranscriptionText}
-          hasVideoPath={hasVideoPath}
-          canDoHybridAnalysis={canDoHybridAnalysis}
-          canDoGeminiAnalysis={canDoGeminiAnalysis}
-          optimalAnalysisType={optimalAnalysisType}
+          hasContent={hasContent}
+          canAnalyze={canAnalyze}
           onAnalyzeContent={analyzeContent}
           showSegmentGeneration={true}
           canGenerateSegments={!!(transcriptionText || transcriptionResult)}

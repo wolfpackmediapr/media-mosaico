@@ -14,8 +14,6 @@ interface UseTvAnalysisProps {
   forceReset?: boolean;
 }
 
-type AnalysisType = 'text' | 'video' | 'hybrid' | 'gemini';
-
 const ANALYSIS_PERSIST_KEY = "tv-content-analysis";
 
 export const useTvAnalysis = ({
@@ -30,7 +28,6 @@ export const useTvAnalysis = ({
     `${ANALYSIS_PERSIST_KEY}-${transcriptionId || "draft"}`,
     ""
   );
-  const [analysisType, setAnalysisType] = useState<AnalysisType>('gemini');
   
   const { categories } = useCategories();
   const { clients } = useClientData();
@@ -87,23 +84,15 @@ export const useTvAnalysis = ({
     }
   }, [transcriptionId, transcriptionText, setAnalysis]);
 
-  // Determine optimal analysis type based on available data
-  const getOptimalAnalysisType = (): AnalysisType => {
-    return 'gemini';
-  };
-
-  const analyzeContent = async (requestedType?: AnalysisType) => {
-    const effectiveAnalysisType = requestedType || getOptimalAnalysisType();
-    
+  const analyzeContent = async () => {
     // Basic validation
     if (!transcriptionText && !videoPath) {
       toast.error("No hay contenido para analizar");
       return null;
     }
 
-    console.log('[useTvAnalysis] Starting TV analysis with type:', effectiveAnalysisType);
+    console.log('[useTvAnalysis] Starting TV content analysis');
     setIsAnalyzing(true);
-    setAnalysisType(effectiveAnalysisType);
     
     try {
       // Check authentication first
@@ -113,77 +102,33 @@ export const useTvAnalysis = ({
         throw new Error('Debe iniciar sesión para analizar contenido');
       }
 
-      const formattedCategories = categories.map(cat => cat.name_es);
-      const formattedClients = clients.map(client => ({
-        name: client.name,
-        keywords: client.keywords || []
-      }));
-
-      const requestBody = { 
-        transcriptionText,
-        transcriptId: transcriptionId || null,
-        videoPath: videoPath,
-        analysisType: effectiveAnalysisType,
-        categories: formattedCategories,
-        clients: formattedClients,
-        enhancedMode: true
-      };
-
-      console.log('[useTvAnalysis] Calling analyze-tv-content edge function with body:', {
-        hasTranscriptionText: !!transcriptionText,
-        hasVideoPath: !!videoPath,
-        analysisType: effectiveAnalysisType
-      });
-
-      const { data, error } = await supabase.functions.invoke('analyze-tv-content', {
-        body: requestBody
+      // Use the unified Gemini processing function
+      const { data, error } = await supabase.functions.invoke('process-tv-with-gemini', {
+        body: { 
+          videoPath: videoPath,
+          transcriptionId: transcriptionId,
+          transcriptionText: transcriptionText
+        }
       });
 
       if (error) {
-        console.error('[useTvAnalysis] Edge function error:', error);
-        
-        // Provide specific error messages
-        let errorMessage = 'No se pudo analizar el contenido de TV';
-        
-        if (error.message) {
-          if (error.message.includes('Google Gemini API key not configured') || 
-              error.message.includes('Clave API de Google Gemini no configurada')) {
-            errorMessage = 'API de Gemini no configurada. Contacte al administrador.';
-          } else if (error.message.includes('authentication') || 
-                     error.message.includes('auth') || 
-                     error.message.includes('Token de autorización')) {
-            errorMessage = 'Error de autenticación. Por favor, inicie sesión nuevamente.';
-          } else if (error.message.includes('video') && transcriptionText) {
-            errorMessage = 'Error con el video. Intentando análisis solo con texto...';
-            // Retry with text-only analysis
-            return analyzeContent('text');
-          } else {
-            errorMessage = `Error de análisis: ${error.message}`;
-          }
-        }
-        
-        throw new Error(errorMessage);
+        console.error('[useTvAnalysis] Processing error:', error);
+        throw new Error(`Error al procesar: ${error.message}`);
       }
 
-      if (data?.analysis) {
-        console.log('[useTvAnalysis] TV analysis completed successfully with type:', effectiveAnalysisType);
+      if (data?.success) {
+        console.log('[useTvAnalysis] Analysis completed successfully');
         
-        // Format analysis for display
-        const analysisText = typeof data.analysis === 'object' 
-          ? JSON.stringify(data.analysis, null, 2)
-          : data.analysis;
+        // Create a comprehensive analysis summary
+        const analysisText = JSON.stringify({
+          summary: data.summary || 'Análisis completado',
+          keywords: data.keywords || [],
+          analysis: data.analysis || {},
+          segments_count: data.segments?.length || 0
+        }, null, 2);
         
         setAnalysis(analysisText);
-        
-        // Show success message
-        const typeMessages = {
-          text: "Análisis de contenido completado (texto).",
-          video: "Análisis de contenido completado (video).",
-          hybrid: "Análisis de contenido completado (híbrido).",
-          gemini: "Análisis de contenido completado con Gemini AI."
-        };
-        
-        toast.success(typeMessages[effectiveAnalysisType]);
+        toast.success("Análisis de contenido completado");
         return data;
       }
       
@@ -206,13 +151,8 @@ export const useTvAnalysis = ({
   return {
     isAnalyzing,
     analysis,
-    analysisType,
     analyzeContent,
-    hasTranscriptionText: !!transcriptionText,
-    hasVideoPath: !!videoPath,
-    canDoHybridAnalysis: !!(transcriptionText && videoPath),
-    canDoVideoAnalysis: !!videoPath,
-    canDoGeminiAnalysis: !!(transcriptionText || videoPath),
-    optimalAnalysisType: getOptimalAnalysisType()
+    hasContent: !!(transcriptionText || videoPath),
+    canAnalyze: !!(transcriptionText || videoPath)
   };
 };
