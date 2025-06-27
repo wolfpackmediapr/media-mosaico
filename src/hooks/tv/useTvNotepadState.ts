@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 
@@ -36,6 +37,8 @@ export const useTvNotepadState = ({
   }, [content, setContent]);
 
   return {
+    notepadContent: content, // Match expected property name
+    setNotepadContent: setContent, // Match expected property name
     content,
     setContent,
     isExpanded,

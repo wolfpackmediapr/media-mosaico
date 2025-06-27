@@ -1,30 +1,33 @@
+
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ChevronDown, ChevronUp, Copy, Eraser } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { NewsSegment } from "@/hooks/tv/useTvVideoProcessor";
 
 interface TvNotePadSectionProps {
-  notepadContent: string;
-  onNotepadContentChange: (content: string) => void;
-  isExpanded: boolean;
-  onExpandToggle: (expanded: boolean) => void;
+  content: string;
+  onContentChange: (content: string) => void;
+  segments?: NewsSegment[];
+  onSeekToTimestamp?: (timestamp: number) => void;
 }
 
 const TvNotePadSection: React.FC<TvNotePadSectionProps> = ({
-  notepadContent,
-  onNotepadContentChange,
-  isExpanded,
-  onExpandToggle
+  content,
+  onContentChange,
+  segments = [],
+  onSeekToTimestamp
 }) => {
   const { toast } = useToast();
+  const [isExpanded, setIsExpanded] = React.useState(true);
 
   const handleCopy = async () => {
-    if (!notepadContent.trim()) return;
+    if (!content.trim()) return;
 
     try {
-      await navigator.clipboard.writeText(notepadContent);
+      await navigator.clipboard.writeText(content);
       toast({
         title: "Éxito",
         description: "Contenido copiado al portapapeles",
@@ -41,9 +44,9 @@ const TvNotePadSection: React.FC<TvNotePadSectionProps> = ({
   };
 
   const handleClear = () => {
-    if (!notepadContent.trim()) return;
+    if (!content.trim()) return;
 
-    onNotepadContentChange("");
+    onContentChange("");
     toast({
       title: "Éxito",
       description: "Notas borradas",
@@ -58,7 +61,7 @@ const TvNotePadSection: React.FC<TvNotePadSectionProps> = ({
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={() => onExpandToggle(true)}
+          onClick={() => setIsExpanded(true)}
           className="h-8 px-2"
         >
           <ChevronDown className="h-4 w-4" />
@@ -75,7 +78,7 @@ const TvNotePadSection: React.FC<TvNotePadSectionProps> = ({
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={() => onExpandToggle(false)}
+          onClick={() => setIsExpanded(false)}
           className="h-8 px-2"
         >
           <ChevronUp className="h-4 w-4" />
@@ -86,8 +89,8 @@ const TvNotePadSection: React.FC<TvNotePadSectionProps> = ({
         <Textarea
           placeholder="Escribe tus notas de TV aquí..."
           className="min-h-[120px] w-full"
-          value={notepadContent}
-          onChange={(e) => onNotepadContentChange(e.target.value)}
+          value={content}
+          onChange={(e) => onContentChange(e.target.value)}
         />
         
         <div className="flex gap-2 mt-3">
@@ -95,7 +98,7 @@ const TvNotePadSection: React.FC<TvNotePadSectionProps> = ({
             variant="ghost"
             size="sm"
             onClick={handleCopy}
-            disabled={!notepadContent.trim()}
+            disabled={!content.trim()}
             className="h-8 px-3"
             aria-label="Copiar contenido al portapapeles"
           >
@@ -106,7 +109,7 @@ const TvNotePadSection: React.FC<TvNotePadSectionProps> = ({
             variant="ghost"
             size="sm"
             onClick={handleClear}
-            disabled={!notepadContent.trim()}
+            disabled={!content.trim()}
             className="h-8 px-3"
             aria-label="Limpiar notas"
           >

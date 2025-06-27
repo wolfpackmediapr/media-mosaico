@@ -44,6 +44,8 @@ interface TvMainContentProps {
   currentTime?: number;
   onPlayPause?: () => void;
   testAnalysis?: any;
+  notepadContent: string;
+  setNotepadContent: (content: string) => void;
 }
 
 const TvMainContent = ({
@@ -71,9 +73,10 @@ const TvMainContent = ({
   lastAction,
   currentTime = 0,
   onPlayPause = () => {},
-  testAnalysis
+  testAnalysis,
+  notepadContent,
+  setNotepadContent
 }: TvMainContentProps) => {
-  const [notepadContent, setNotepadContent] = useState("");
   const clearAnalysisFnRef = useRef<(() => void) | null>(null);
   const clearEditorFnRef = useRef<(() => void) | null>(null);
 
@@ -89,7 +92,7 @@ const TvMainContent = ({
     <div className="container mx-auto p-4 space-y-6">
       {/* Video Upload and Preview Section */}
       <TvVideoSection
-        uploadedFiles={uploadedFiles}
+        uploadedFiles={uploadedFiles || []}
         setUploadedFiles={setUploadedFiles}
         isPlaying={isPlaying}
         volume={volume}
@@ -151,6 +154,8 @@ const TvMainContent = ({
               segments={newsSegments}
               transcriptionText={transcriptionText}
               notepadContent={notepadContent}
+              metadata={transcriptionMetadata}
+              isProcessing={isProcessing}
             />
           </Card>
         </div>

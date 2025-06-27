@@ -1,24 +1,30 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { FileBarChart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { NewsSegment } from "@/hooks/tv/useTvVideoProcessor";
 
 interface TvReportButtonProps {
+  segments?: NewsSegment[];
   transcriptionText: string;
+  notepadContent?: string;
   metadata?: {
     channel?: string;
     program?: string;
     category?: string;
     broadcastTime?: string;
   };
-  isProcessing: boolean;
+  isProcessing?: boolean;
 }
 
 const TvReportButton: React.FC<TvReportButtonProps> = ({
+  segments = [],
   transcriptionText,
+  notepadContent = "",
   metadata,
-  isProcessing,
+  isProcessing = false,
 }) => {
   const handleGenerateReport = async () => {
     try {
@@ -34,6 +40,9 @@ const TvReportButton: React.FC<TvReportButtonProps> = ({
           },
           type: 'tv_transcription',
           format: 'pdf',
+          segments,
+          transcriptionText,
+          notepadContent,
           metadata: {
             channel: metadata?.channel,
             program: metadata?.program,

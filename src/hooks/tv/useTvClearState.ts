@@ -1,3 +1,4 @@
+
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 import { useTvClearOperations } from './clear/useTvClearOperations';
@@ -14,6 +15,8 @@ interface UseTvClearStateOptions {
   setNewsSegments?: React.Dispatch<React.SetStateAction<any[]>>;
   setTranscriptionText?: React.Dispatch<React.SetStateAction<string>>;
   resetTranscription?: () => void;
+  setUploadedFiles?: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
+  setNotepadContent?: React.Dispatch<React.SetStateAction<string>>;
 }
 
 export const useTvClearState = ({
@@ -24,6 +27,8 @@ export const useTvClearState = ({
   setNewsSegments,
   setTranscriptionText,
   resetTranscription,
+  setUploadedFiles,
+  setNotepadContent,
 }: UseTvClearStateOptions = {}) => {
   const [isClearing, setIsClearing] = useState(false);
   const [clearProgress, setClearProgress] = useState(0);
@@ -43,7 +48,7 @@ export const useTvClearState = ({
   // Clear operations hook
   const { cleanupBlobUrls, clearUIState, clearTranscription, clearStorage } = useTvClearOperations({
     files,
-    setFiles,
+    setFiles: setFiles || setUploadedFiles,
     setNewsSegments,
     setTranscriptionText,
     resetTranscription,
@@ -115,6 +120,11 @@ export const useTvClearState = ({
       
       clearStorage();
       
+      // Clear notepad content if function provided
+      if (setNotepadContent) {
+        setNotepadContent('');
+      }
+      
       // Mark as clear action
       setLastAction('clear');
       
@@ -144,7 +154,8 @@ export const useTvClearState = ({
     clearAnalysisFn,
     cleanupBlobUrls,
     clearStorage,
-    setLastAction
+    setLastAction,
+    setNotepadContent
   ]);
 
   const handleEditorRegisterReset = useCallback((resetFn: () => void) => {
@@ -165,6 +176,7 @@ export const useTvClearState = ({
 
   return {
     handleClearAll,
+    clearAllTvState: handleClearAll, // Add expected property name
     handleEditorRegisterReset,
     setClearAnalysis,
     isClearing,
