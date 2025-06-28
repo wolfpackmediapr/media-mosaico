@@ -15,6 +15,12 @@ export function categorizeError(error: Error): { statusCode: number; userMessage
   } else if (error.message.includes('timeout') || error.message.includes('processing timeout')) {
     statusCode = 408;
     userMessage = 'Tiempo de procesamiento agotado - intenta con un archivo más pequeño';
+  } else if (error.message.includes('File upload failed')) {
+    statusCode = 502;
+    userMessage = 'Error al subir el archivo para análisis - por favor intenta nuevamente';
+  } else if (error.message.includes('File processing failed')) {
+    statusCode = 422;
+    userMessage = 'No se pudo procesar el archivo - verifica que sea un video válido';
   } else if (error.message.includes('Gemini')) {
     statusCode = 503;
     userMessage = 'Servicio de análisis temporalmente no disponible';

@@ -29,15 +29,97 @@ export async function testGeminiConnectivity(apiKey: string): Promise<boolean> {
   }
 }
 
+export async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, videoPath: string) {
+  try {
+    console.log('[process-tv-with-gemini] Starting video upload to Gemini...');
+    
+    // Create form data for file upload
+    const formData = new FormData();
+    formData.append('file', videoBlob, videoPath.split('/').pop() || 'video.mp4');
+    
+    // Upload file to Gemini
+    const uploadResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error('[process-tv-with-gemini] File upload error:', {
+        status: uploadResponse.status,
+        statusText: uploadResponse.statusText,
+        error: errorText
+      });
+      throw new Error(`File upload failed: ${uploadResponse.status} - ${errorText}`);
+    }
+
+    const uploadResult = await uploadResponse.json();
+    console.log('[process-tv-with-gemini] File uploaded successfully:', {
+      name: uploadResult.file?.name,
+      uri: uploadResult.file?.uri,
+      state: uploadResult.file?.state
+    });
+    
+    return uploadResult.file;
+  } catch (error) {
+    console.error('[process-tv-with-gemini] Video upload error:', error);
+    throw new Error(`Gemini video upload failed: ${error.message}`);
+  }
+}
+
+export async function waitForFileProcessing(fileUri: string, apiKey: string, maxAttempts = 30): Promise<any> {
+  console.log('[process-tv-with-gemini] Waiting for file processing to complete...');
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileUri}?key=${apiKey}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!statusResponse.ok) {
+        throw new Error(`Status check failed: ${statusResponse.status}`);
+      }
+
+      const fileStatus = await statusResponse.json();
+      console.log(`[process-tv-with-gemini] File status check (${attempt}/${maxAttempts}):`, fileStatus.state);
+
+      if (fileStatus.state === 'ACTIVE') {
+        console.log('[process-tv-with-gemini] File processing completed successfully');
+        return fileStatus;
+      } else if (fileStatus.state === 'FAILED') {
+        throw new Error('File processing failed');
+      }
+
+      // Wait before next attempt (exponential backoff)
+      const waitTime = Math.min(2000 * Math.pow(1.5, attempt - 1), 10000);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+    } catch (error) {
+      console.error(`[process-tv-with-gemini] Status check attempt ${attempt} failed:`, error);
+      if (attempt === maxAttempts) {
+        throw new Error(`File processing timeout after ${maxAttempts} attempts`);
+      }
+    }
+  }
+  
+  throw new Error('File processing timeout');
+}
+
 export async function generateAnalysisWithVideo(videoBlob: Blob, apiKey: string, videoPath: string) {
   try {
     console.log('[process-tv-with-gemini] Starting video analysis with Gemini 2.5 Flash...');
     
-    // Convert video to base64
-    const videoBuffer = await videoBlob.arrayBuffer();
-    const videoBase64 = btoa(String.fromCharCode(...new Uint8Array(videoBuffer)));
+    // Step 1: Upload video to Gemini
+    const uploadedFile = await uploadVideoToGemini(videoBlob, apiKey, videoPath);
     
-    console.log('[process-tv-with-gemini] Video converted to base64, size:', videoBase64.length);
+    // Step 2: Wait for file processing to complete
+    const processedFile = await waitForFileProcessing(uploadedFile.name, apiKey);
+    
+    // Step 3: Generate analysis using the uploaded file
+    console.log('[process-tv-with-gemini] Starting content analysis...');
     
     const prompt = `
     Analyze this TV news video comprehensively and provide a detailed JSON response. The video is from Puerto Rico or Caribbean region.
@@ -83,9 +165,9 @@ export async function generateAnalysisWithVideo(videoBlob: Blob, apiKey: string,
           parts: [
             { text: prompt },
             {
-              inline_data: {
+              file_data: {
                 mime_type: 'video/mp4',
-                data: videoBase64
+                file_uri: processedFile.uri
               }
             }
           ]
@@ -97,7 +179,7 @@ export async function generateAnalysisWithVideo(videoBlob: Blob, apiKey: string,
       }
     };
 
-    console.log('[process-tv-with-gemini] Sending request to Gemini 2.5 Flash...');
+    console.log('[process-tv-with-gemini] Sending analysis request to Gemini 2.5 Flash...');
 
     const analysisResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
@@ -125,6 +207,9 @@ export async function generateAnalysisWithVideo(videoBlob: Blob, apiKey: string,
       throw new Error('Invalid response format from Gemini');
     }
     
+    // Step 4: Cleanup uploaded file
+    await cleanupGeminiFile(processedFile.name, apiKey);
+    
     return analysisResult.candidates[0].content.parts[0].text;
     
   } catch (error) {
@@ -133,12 +218,12 @@ export async function generateAnalysisWithVideo(videoBlob: Blob, apiKey: string,
   }
 }
 
-// Legacy functions removed - no longer needed with direct approach
+// Legacy functions removed - no longer needed with proper upload approach
 export async function uploadToGemini() {
   throw new Error('uploadToGemini is deprecated - use generateAnalysisWithVideo instead');
 }
 
-export async function waitForFileProcessing() {
+export async function waitForFileProcessingLegacy() {
   throw new Error('waitForFileProcessing is deprecated - use generateAnalysisWithVideo instead');
 }
 
@@ -146,7 +231,25 @@ export async function generateAnalysis() {
   throw new Error('generateAnalysis is deprecated - use generateAnalysisWithVideo instead');
 }
 
-export async function cleanupGeminiFile() {
-  // No cleanup needed with direct approach
-  console.log('[process-tv-with-gemini] No cleanup needed with direct analysis approach');
+export async function cleanupGeminiFile(fileName?: string, apiKey?: string) {
+  if (!fileName || !apiKey) {
+    console.log('[process-tv-with-gemini] No file cleanup needed');
+    return;
+  }
+  
+  try {
+    console.log('[process-tv-with-gemini] Cleaning up uploaded file:', fileName);
+    
+    const deleteResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`, {
+      method: 'DELETE',
+    });
+    
+    if (deleteResponse.ok) {
+      console.log('[process-tv-with-gemini] File cleanup completed successfully');
+    } else {
+      console.warn('[process-tv-with-gemini] File cleanup failed, but continuing:', deleteResponse.status);
+    }
+  } catch (error) {
+    console.warn('[process-tv-with-gemini] File cleanup error (non-critical):', error);
+  }
 }

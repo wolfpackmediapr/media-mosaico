@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -87,8 +86,8 @@ serve(async (req) => {
     // Step 6: Download video with retry
     const videoBlob = await downloadVideoWithRetry(videoUrl);
 
-    // Step 7: Generate analysis directly with video (new approach)
-    console.log('[process-tv-with-gemini] Starting direct video analysis...');
+    // Step 7: Generate analysis using proper file upload workflow
+    console.log('[process-tv-with-gemini] Starting video analysis with proper upload workflow...');
     const analysisText = await generateAnalysisWithVideo(videoBlob, geminiApiKey, videoPath);
 
     // Step 8: Parse analysis
@@ -99,12 +98,9 @@ serve(async (req) => {
       await updateTranscriptionRecord(supabase, transcriptionId, parsedAnalysis);
     }
 
-    // Step 10: Cleanup (no-op with new approach)
-    await cleanupGeminiFile();
-
     console.log('[process-tv-with-gemini] === REQUEST COMPLETED SUCCESSFULLY ===');
 
-    // Step 11: Return successful response
+    // Step 10: Return successful response
     return new Response(
       JSON.stringify({
         text: parsedAnalysis.transcription || 'Transcripción procesada exitosamente',
