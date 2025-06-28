@@ -27,9 +27,21 @@ const VideoFileItem = ({
   onRemove,
 }: VideoFileItemProps) => {
   const getButtonText = () => {
-    if (!isProcessing) return "Procesar Transcripción";
-    if (progress === 100) return "Procesamiento completado";
+    if (!isProcessing) return "Procesar Video";
+    if (progress < 15) return "Subiendo video...";
+    if (progress < 30) return "Preparando análisis...";
+    if (progress < 60) return "Procesando con IA...";
+    if (progress < 90) return "Generando resultados...";
+    if (progress === 100) return "¡Procesamiento completado!";
     return `Procesando: ${progress}%`;
+  };
+
+  const getProgressDescription = () => {
+    if (progress < 15) return "Subiendo archivo al servidor";
+    if (progress < 30) return "Validando y preparando video";
+    if (progress < 60) return "Analizando contenido con Gemini AI";
+    if (progress < 90) return "Generando transcripción y segmentos";
+    return "Finalizando procesamiento";
   };
 
   return (
@@ -60,7 +72,12 @@ const VideoFileItem = ({
 
       <div className="space-y-2">
         {isProcessing && (
-          <Progress value={progress} className="h-2" />
+          <div className="space-y-2">
+            <Progress value={progress} className="h-2" />
+            <p className="text-xs text-muted-foreground text-center">
+              {getProgressDescription()}
+            </p>
+          </div>
         )}
         <Button
           className="w-full relative"

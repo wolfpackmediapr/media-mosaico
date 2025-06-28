@@ -1,11 +1,11 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 import { validateEnvironment } from './environment.ts';
-import { testGeminiConnectivity, generateAnalysisWithVideo, cleanupGeminiFile } from './gemini-client.ts';
+import { processVideoWithGemini } from './gemini-unified-processor.ts';
 import { validateAndGetFile, downloadVideoWithRetry } from './storage-utils.ts';
-import { parseAnalysisText } from './analysis-parser.ts';
 import { updateTranscriptionRecord } from './database-utils.ts';
 import { categorizeError } from './error-handler.ts';
 
@@ -14,21 +14,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface NewsSegment {
-  headline: string;
-  text: string;
-  start: number;
-  end: number;
-  keywords?: string[];
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('[process-tv-with-gemini] === REQUEST START ===');
+    console.log('[process-tv-with-gemini] === UNIFIED PROCESSING START ===');
     
     // Step 1: Validate environment
     const { supabaseUrl, supabaseServiceKey, geminiApiKey } = validateEnvironment();
@@ -67,10 +59,7 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Test Gemini connectivity
-    await testGeminiConnectivity(geminiApiKey);
-
-    // Step 4: Initialize Supabase client
+    // Step 3: Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get auth context
@@ -80,35 +69,81 @@ serve(async (req) => {
       await supabase.auth.getUser(token);
     }
 
-    // Step 5: Validate and get video file
-    const videoUrl = await validateAndGetFile(supabase, videoPath);
-
-    // Step 6: Download video with retry
-    const videoBlob = await downloadVideoWithRetry(videoUrl);
-
-    // Step 7: Generate analysis using proper file upload workflow
-    console.log('[process-tv-with-gemini] Starting video analysis with proper upload workflow...');
-    const analysisText = await generateAnalysisWithVideo(videoBlob, geminiApiKey, videoPath);
-
-    // Step 8: Parse analysis
-    const parsedAnalysis = parseAnalysisText(analysisText);
-
-    // Step 9: Update database if transcription ID provided
+    // Step 4: Update initial processing status
     if (transcriptionId) {
-      await updateTranscriptionRecord(supabase, transcriptionId, parsedAnalysis);
+      await updateTranscriptionRecord(supabase, transcriptionId, {
+        status: 'processing',
+        progress: 10
+      });
     }
 
-    console.log('[process-tv-with-gemini] === REQUEST COMPLETED SUCCESSFULLY ===');
+    // Step 5: Validate and get video file
+    console.log('[process-tv-with-gemini] Validating video file...');
+    const videoUrl = await validateAndGetFile(supabase, videoPath);
 
-    // Step 10: Return successful response
+    if (transcriptionId) {
+      await updateTranscriptionRecord(supabase, transcriptionId, {
+        progress: 20
+      });
+    }
+
+    // Step 6: Download video with retry
+    console.log('[process-tv-with-gemini] Downloading video...');
+    const videoBlob = await downloadVideoWithRetry(videoUrl);
+
+    if (transcriptionId) {
+      await updateTranscriptionRecord(supabase, transcriptionId, {
+        progress: 30
+      });
+    }
+
+    // Step 7: Process video with unified Gemini workflow
+    console.log('[process-tv-with-gemini] Starting unified video processing...');
+    const result = await processVideoWithGemini(
+      videoBlob, 
+      geminiApiKey, 
+      videoPath,
+      (progress) => {
+        // Progress callback for updating database
+        if (transcriptionId) {
+          updateTranscriptionRecord(supabase, transcriptionId, {
+            progress: Math.min(30 + Math.floor(progress * 0.6), 90)
+          }).catch(err => console.warn('Progress update failed:', err));
+        }
+      }
+    );
+
+    // Step 8: Update database with complete results
+    if (transcriptionId) {
+      await updateTranscriptionRecord(supabase, transcriptionId, {
+        transcription_text: result.transcription,
+        status: 'completed',
+        progress: 100,
+        summary: result.summary,
+        keywords: result.keywords,
+        analysis_summary: result.summary,
+        analysis_quien: result.analysis?.who,
+        analysis_que: result.analysis?.what,
+        analysis_cuando: result.analysis?.when,
+        analysis_donde: result.analysis?.where,
+        analysis_porque: result.analysis?.why,
+        analysis_keywords: result.keywords,
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    console.log('[process-tv-with-gemini] === UNIFIED PROCESSING COMPLETED ===');
+
+    // Step 9: Return unified response
     return new Response(
       JSON.stringify({
-        text: parsedAnalysis.transcription || 'Transcripción procesada exitosamente',
-        visual_analysis: parsedAnalysis.visual_analysis || 'Análisis visual completado',
-        segments: parsedAnalysis.segments || [],
-        keywords: parsedAnalysis.keywords || [],
-        summary: parsedAnalysis.summary || 'Análisis completado exitosamente',
-        analysis: parsedAnalysis.analysis || {},
+        transcription: result.transcription,
+        visual_analysis: result.visual_analysis,
+        segments: result.segments,
+        keywords: result.keywords,
+        summary: result.summary,
+        analysis: result.analysis,
+        utterances: result.utterances,
         success: true
       }),
       { 
@@ -118,7 +153,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[process-tv-with-gemini] === REQUEST FAILED ===');
+    console.error('[process-tv-with-gemini] === UNIFIED PROCESSING FAILED ===');
     console.error('[process-tv-with-gemini] Error details:', {
       message: error.message,
       stack: error.stack,

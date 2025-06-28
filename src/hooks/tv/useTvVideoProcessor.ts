@@ -21,21 +21,6 @@ interface TranscriptionMetadata {
   keywords?: string[];
 }
 
-interface GeminiAnalysisResult {
-  text: string;
-  visual_analysis: string;
-  segments: NewsSegment[];
-  keywords: string[];
-  summary: string;
-  analysis: {
-    who?: string;
-    what?: string;
-    when?: string;
-    where?: string;
-    why?: string;
-  };
-}
-
 export const useTvVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -49,7 +34,7 @@ export const useTvVideoProcessor = () => {
   const processVideo = async (file: File) => {
     setIsProcessing(true);
     setProgress(0);
-    console.log("Starting video processing for file:", file.name);
+    console.log("[TvVideoProcessor] Starting unified video processing:", file.name);
 
     try {
       // Check authentication
@@ -58,8 +43,11 @@ export const useTvVideoProcessor = () => {
       if (!user) throw new Error('Please log in to process videos');
 
       setProgress(5);
+      toast.info("Iniciando procesamiento", {
+        description: "Subiendo video y preparando análisis..."
+      });
 
-      // Upload file to storage with proper path structure
+      // Upload file to storage
       console.log('[TvVideoProcessor] Uploading file to storage');
       const timestamp = Date.now();
       const sanitizedFileName = file.name.replace(/\s+/g, '_');
@@ -77,14 +65,14 @@ export const useTvVideoProcessor = () => {
         throw new Error("Error al subir el archivo: " + uploadError.message);
       }
 
-      setProgress(15);
+      setProgress(10);
 
       // Create TV transcription record
       console.log('[TvVideoProcessor] Creating TV transcription record');
       const tvTranscription = await TvTranscriptionService.createTranscription({
         original_file_path: fileName,
         status: 'processing',
-        progress: 15
+        progress: 10
       });
 
       if (!tvTranscription) {
@@ -93,22 +81,18 @@ export const useTvVideoProcessor = () => {
 
       console.log('[TvVideoProcessor] Created TV transcription:', tvTranscription.id);
       setTranscriptionId(tvTranscription.id);
-      setProgress(25);
+      setProgress(15);
 
-      // Update transcription progress
-      await TvTranscriptionService.updateTranscription(tvTranscription.id, {
-        progress: 25,
-        status: 'processing'
+      toast.info("Procesando video", {
+        description: "Analizando contenido con IA avanzada..."
       });
 
-      console.log('[TvVideoProcessor] Calling unified processing function with videoPath:', fileName);
-      setProgress(35);
-
-      // Call the unified processing function with correct file path
+      // Call unified processing function
+      console.log('[TvVideoProcessor] Calling unified processing function');
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-gemini', {
           body: { 
-            videoPath: fileName, // Pass the correct storage path
+            videoPath: fileName,
             transcriptionId: tvTranscription.id
           }
         });
@@ -123,50 +107,36 @@ export const useTvVideoProcessor = () => {
         throw new Error('Video processing failed');
       }
 
-      setProgress(85);
-
-      console.log('[TvVideoProcessor] Processing completed successfully');
-
-      // Set the transcription text and segments
-      setTranscriptionText(result.text);
+      // Set all results from unified response
+      setTranscriptionText(result.transcription || '');
       setNewsSegments(result.segments || []);
-
-      // Create a TranscriptionResult-like object for compatibility
-      const mockTranscriptionResult: TranscriptionResult = {
-        text: result.text,
-        utterances: result.segments.map((segment, index) => ({
-          start: segment.start * 1000, // Convert to ms
-          end: segment.end * 1000,
-          text: segment.text,
-          confidence: 0.95,
-          speaker: `Speaker_${index % 2}`, // Mock speaker labels
-          words: []
-        })),
-        words: []
-      };
-
-      setTranscriptionResult(mockTranscriptionResult);
-      setProgress(95);
-
-      // Final database update
-      await TvTranscriptionService.updateTranscription(tvTranscription.id, {
-        transcription_text: result.text,
-        status: 'completed',
-        progress: 100,
-        summary: result.summary,
-        keywords: result.keywords
-      });
-
       setProgress(100);
-      
-      toast.success("Procesamiento completado", {
-        description: `Video analizado exitosamente. Se generaron ${result.segments.length} segmentos de noticias.`
-      });
 
-      console.log('[TvVideoProcessor] Processing completed successfully');
+      // Create TranscriptionResult for compatibility with existing components
+      if (result.utterances && Array.isArray(result.utterances)) {
+        const mockTranscriptionResult: TranscriptionResult = {
+          text: result.transcription,
+          utterances: result.utterances.map((utterance: any) => ({
+            start: utterance.start || 0,
+            end: utterance.end || 1000,
+            text: utterance.text || '',
+            confidence: utterance.confidence || 0.95,
+            speaker: utterance.speaker || 'Speaker_0',
+            words: []
+          })),
+          words: []
+        };
+        setTranscriptionResult(mockTranscriptionResult);
+      }
+
+      console.log('[TvVideoProcessor] Unified processing completed successfully');
+      
+      toast.success("¡Procesamiento completado!", {
+        description: `Video analizado exitosamente. Se generaron ${result.segments?.length || 0} segmentos de noticias.`
+      });
 
     } catch (error: any) {
-      console.error('[TvVideoProcessor] Error in processing:', error);
+      console.error('[TvVideoProcessor] Error in unified processing:', error);
       
       // Update transcription status to failed
       if (transcriptionId) {
@@ -180,7 +150,7 @@ export const useTvVideoProcessor = () => {
         }
       }
       
-      toast.error("Error al procesar", {
+      toast.error("Error al procesar video", {
         description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente."
       });
     } finally {
