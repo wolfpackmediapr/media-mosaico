@@ -203,10 +203,21 @@ async function generateComprehensiveAnalysis(fileUri: string, apiKey: string, ca
 **Tribunales:** Tribunal Supremo, decisión, derechos civiles, precedente, organizaciones de derechos humanos`;
 
   const prompt = `
-Eres un analista experto en contenido de TV. Tu tarea es analizar la siguiente transcripción de TV en español e identificar y separar el contenido publicitario del contenido regular del programa.
+Eres un analista experto en contenido de TV. Analiza este video de TV en español y proporciona DOS SECCIONES CLARAMENTE SEPARADAS:
 
-IMPORTANTE - FORMATO DE RESPUESTA:
-Debes identificar y separar claramente cada sección de contenido, comenzando CADA SECCIÓN con uno de estos encabezados:
+## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES
+
+Proporciona una transcripción completa y precisa del contenido hablado en el video, identificando claramente a cada hablante cuando sea posible. Utiliza el formato:
+
+HABLANTE 1: [texto hablado]
+HABLANTE 2: [texto hablado]
+NARRADOR: [texto hablado]
+
+Si puedes identificar nombres específicos de los hablantes, utilízalos en lugar de "HABLANTE 1", etc.
+
+## SECCIÓN 2: ANÁLISIS DE CONTENIDO
+
+Identifica y separa claramente cada sección de contenido, comenzando CADA SECCIÓN con uno de estos encabezados:
 
 [TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
 o
@@ -256,22 +267,12 @@ PARA CADA SECCIÓN DE PROGRAMA REGULAR:
 ${keywordMapping}
 
 Responde en español de manera concisa y profesional. Asegúrate de:
-1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
-2. Si es un anuncio, enfatizar las marcas, productos y llamadas a la acción
-3. Si es contenido regular, mantener el formato de análisis detallado
-4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
-5. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas como "SPEAKER A" o "SPEAKER B"
-
-IMPORTANTE - MANEJO DE HABLANTES:
-La transcripción incluye nombres específicos de hablantes (pueden ser nombres propios como "María", "Juan", etc., en lugar de etiquetas genéricas). Utiliza estos nombres específicos en tu análisis para:
-- Identificar diferentes personas y sus roles
-- Describir la dinámica de la conversación
-- Mencionar contribuciones específicas de cada participante
-- Proporcionar un análisis más personalizado y profesional
-
-Evita usar referencias genéricas como "hablante 1", "participante A", etc., cuando tengas nombres específicos disponibles.
-
-Proporciona un análisis completo en texto formateado que incluya transcripción, análisis visual, segmentos de noticias identificados, palabras clave, resumen y análisis de las 5W (quién, qué, cuándo, dónde, por qué).
+1. Separar claramente las DOS SECCIONES principales (TRANSCRIPCIÓN y ANÁLISIS)
+2. Comenzar SIEMPRE cada subsección de análisis con el encabezado de tipo de contenido correspondiente en mayúsculas
+3. Si es un anuncio, enfatizar las marcas, productos y llamadas a la acción
+4. Si es contenido regular, mantener el formato de análisis detallado
+5. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
+6. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas como "SPEAKER A" o "SPEAKER B"
   `;
 
   const requestBody = {
@@ -328,16 +329,19 @@ Proporciona un análisis completo en texto formateado que incluya transcripción
         throw new Error('Invalid response format from Gemini - no text content');
       }
       
-      const analysisText = result.candidates[0].content.parts[0].text;
+      const fullResponseText = result.candidates[0].content.parts[0].text;
       console.log('[gemini-unified] Analysis completed successfully');
       
-      // Create a structured response with the text analysis and basic metadata
+      // Parse the response to separate transcription and analysis
+      const { transcription, analysis } = parseGeminiResponse(fullResponseText);
+      
+      // Create a structured response with separated transcription and analysis
       return {
-        transcription: extractTranscriptionFromAnalysis(analysisText),
+        transcription: transcription,
         visual_analysis: "Análisis visual procesado exitosamente",
-        segments: extractSegmentsFromAnalysis(analysisText),
-        keywords: extractKeywordsFromAnalysis(analysisText),
-        summary: extractSummaryFromAnalysis(analysisText),
+        segments: extractSegmentsFromAnalysis(analysis),
+        keywords: extractKeywordsFromAnalysis(analysis),
+        summary: extractSummaryFromAnalysis(analysis),
         analysis: {
           who: "Participantes identificados en el análisis",
           what: "Contenido analizado del programa de TV", 
@@ -345,14 +349,8 @@ Proporciona un análisis completo en texto formateado que incluya transcripción
           where: "Puerto Rico/Región Caribe",
           why: "Información noticiosa y publicitaria relevante"
         },
-        utterances: [{
-          start: 0,
-          end: 60000,
-          text: analysisText.substring(0, 500) || "Contenido procesado",
-          confidence: 0.85,
-          speaker: "Speaker_0"
-        }],
-        full_analysis: analysisText
+        utterances: createUtterancesFromTranscription(transcription),
+        full_analysis: analysis
       };
       
     } catch (error) {
@@ -365,9 +363,88 @@ Proporciona un análisis completo en texto formateado que incluya transcripción
   }
 }
 
-function extractTranscriptionFromAnalysis(analysisText: string): string {
-  // Extract first 2000 characters as transcription summary
-  return analysisText.substring(0, 2000) || "Transcripción procesada exitosamente";
+function parseGeminiResponse(fullText: string): { transcription: string, analysis: string } {
+  // Look for section headers to separate transcription and analysis
+  const transcriptionMatch = fullText.match(/## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES\s*([\s\S]*?)(?=## SECCIÓN 2:|$)/i);
+  const analysisMatch = fullText.match(/## SECCIÓN 2: ANÁLISIS DE CONTENIDO\s*([\s\S]*)/i);
+  
+  let transcription = "";
+  let analysis = "";
+  
+  if (transcriptionMatch && transcriptionMatch[1]) {
+    transcription = transcriptionMatch[1].trim();
+  }
+  
+  if (analysisMatch && analysisMatch[1]) {
+    analysis = analysisMatch[1].trim();
+  }
+  
+  // Fallback: if sections not found, try to split differently
+  if (!transcription && !analysis) {
+    const sections = fullText.split(/(?=## SECCIÓN|SECCIÓN)/i);
+    if (sections.length >= 2) {
+      transcription = sections[1] || "";
+      analysis = sections.slice(2).join('\n') || sections[1] || fullText;
+    } else {
+      // Final fallback: treat entire response as analysis if no clear separation
+      transcription = "Transcripción no disponible en formato separado";
+      analysis = fullText;
+    }
+  }
+  
+  // Clean up the extracted sections
+  transcription = transcription.replace(/^## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES\s*/i, '').trim();
+  analysis = analysis.replace(/^## SECCIÓN 2: ANÁLISIS DE CONTENIDO\s*/i, '').trim();
+  
+  return { transcription, analysis };
+}
+
+function createUtterancesFromTranscription(transcription: string): any[] {
+  // Parse speaker-based transcription into utterances
+  const lines = transcription.split('\n').filter(line => line.trim());
+  const utterances = [];
+  let currentTime = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line) {
+      // Look for speaker pattern (SPEAKER_NAME: text)
+      const speakerMatch = line.match(/^([^:]+):\s*(.*)$/);
+      if (speakerMatch) {
+        const speaker = speakerMatch[1].trim();
+        const text = speakerMatch[2].trim();
+        
+        utterances.push({
+          start: currentTime,
+          end: currentTime + 5000, // 5 seconds per utterance as estimate
+          text: text,
+          confidence: 0.90,
+          speaker: speaker
+        });
+        
+        currentTime += 5000;
+      } else {
+        // Handle lines without clear speaker identification
+        utterances.push({
+          start: currentTime,
+          end: currentTime + 3000,
+          text: line,
+          confidence: 0.85,
+          speaker: "Speaker_Unknown"
+        });
+        
+        currentTime += 3000;
+      }
+    }
+  }
+  
+  return utterances.length > 0 ? utterances : [{
+    start: 0,
+    end: 60000,
+    text: transcription.substring(0, 500) || "Contenido procesado",
+    confidence: 0.85,
+    speaker: "Speaker_0"
+  }];
 }
 
 function extractSegmentsFromAnalysis(analysisText: string): any[] {
