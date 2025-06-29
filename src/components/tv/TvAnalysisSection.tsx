@@ -13,6 +13,8 @@ interface TvAnalysisSectionProps {
   onClearAnalysis?: (clearFn: () => void) => void;
   lastAction?: string | null;
   onSegmentsGenerated?: (segments: NewsSegment[]) => void;
+  // NEW: Accept analysis results from processing
+  analysisResults?: string;
 }
 
 const TvAnalysisSection = ({
@@ -23,7 +25,8 @@ const TvAnalysisSection = ({
   testAnalysis,
   onClearAnalysis,
   lastAction,
-  onSegmentsGenerated
+  onSegmentsGenerated,
+  analysisResults
 }: TvAnalysisSectionProps) => {
   // Force clear when lastAction is 'clear'
   useEffect(() => {
@@ -41,6 +44,7 @@ const TvAnalysisSection = ({
       onSegmentsGenerated={onSegmentsGenerated}
       onClearAnalysis={onClearAnalysis}
       forceReset={lastAction === 'clear'}
+      analysisResults={analysisResults} // NEW: Pass analysis results
     />
   );
 };

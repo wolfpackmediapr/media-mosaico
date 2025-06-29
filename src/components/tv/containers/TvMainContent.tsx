@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import TvTopSection from "./TvTopSection";
@@ -52,6 +51,7 @@ interface TvMainContentProps {
   clearingProgress?: number;
   clearingStage?: string;
   isClearing?: boolean;
+  analysisResults?: string; // NEW: Add analysis results prop
 }
 
 const TvMainContent = ({
@@ -85,7 +85,8 @@ const TvMainContent = ({
   clearAllTvState,
   clearingProgress = 0,
   clearingStage = '',
-  isClearing = false
+  isClearing = false,
+  analysisResults // NEW: Include analysis results
 }: TvMainContentProps) => {
   const clearAnalysisFnRef = useRef<(() => void) | null>(null);
   const clearEditorFnRef = useRef<(() => void) | null>(null);
@@ -144,8 +145,8 @@ const TvMainContent = ({
             onPlayPause={onPlayPause}
           />
 
-          {/* Analysis Section - Enhanced with video path support */}
-          {(transcriptionText || currentVideoPath) && (
+          {/* Analysis Section - Enhanced with automatic display */}
+          {(transcriptionText || currentVideoPath || analysisResults) && (
             <TvAnalysisSection
               transcriptionText={transcriptionText}
               transcriptionId={transcriptionId}
@@ -155,6 +156,7 @@ const TvMainContent = ({
               onClearAnalysis={handleClearAnalysis}
               lastAction={lastAction}
               onSegmentsGenerated={onSegmentsReceived}
+              analysisResults={analysisResults} // NEW: Pass analysis results
             />
           )}
         </div>

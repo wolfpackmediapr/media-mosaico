@@ -30,10 +30,15 @@ export const useTvVideoProcessor = () => {
   const [transcriptionId, setTranscriptionId] = useState<string | null>(null);
   const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
   const [assemblyId, setAssemblyId] = useState<string | null>(null);
+  // NEW: Store analysis results directly from processing
+  const [analysisResults, setAnalysisResults] = useState<string>("");
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);
     setProgress(0);
+    // Clear previous results
+    setAnalysisResults("");
+    
     console.log("[TvVideoProcessor] Starting unified video processing:", file.name);
 
     try {
@@ -93,7 +98,7 @@ export const useTvVideoProcessor = () => {
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-gemini', {
           body: { 
-            videoPath: fileName, // This now uses the correct userId/filename format
+            videoPath: fileName,
             transcriptionId: tvTranscription.id
           }
         });
@@ -111,9 +116,19 @@ export const useTvVideoProcessor = () => {
       // Set all results from unified response
       setTranscriptionText(result.transcription || '');
       setNewsSegments(result.segments || []);
+      
+      // NEW: Automatically set analysis results from Gemini processing
+      const analysisText = result.full_analysis || result.summary || '';
+      setAnalysisResults(analysisText);
+      console.log('[TvVideoProcessor] Analysis automatically populated:', {
+        hasFullAnalysis: !!result.full_analysis,
+        hasSummary: !!result.summary,
+        analysisLength: analysisText.length
+      });
+      
       setProgress(100);
 
-      // Create TranscriptionResult for compatibility with existing components
+      // Create TranscriptionResult for compatibility
       if (result.utterances && Array.isArray(result.utterances)) {
         const mockTranscriptionResult: TranscriptionResult = {
           text: result.transcription,
@@ -168,6 +183,7 @@ export const useTvVideoProcessor = () => {
     transcriptionId,
     newsSegments,
     assemblyId,
+    analysisResults, // NEW: Return analysis results
     processVideo,
     setTranscriptionText,
     setNewsSegments

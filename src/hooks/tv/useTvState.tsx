@@ -13,6 +13,7 @@ export const useTvState = () => {
     transcriptionId,
     newsSegments,
     assemblyId,
+    analysisResults,
     processVideo,
     setTranscriptionText,
     setNewsSegments
@@ -89,6 +90,7 @@ export const useTvState = () => {
     newsSegments,
     assemblyId,
     notepadContent,
+    analysisResults,
     
     // Actions
     onProcess: handleProcess,

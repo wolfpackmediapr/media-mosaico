@@ -1,13 +1,13 @@
 
-import React from "react";
 import { Button } from "@/components/ui/button";
-import { Brain, Zap } from "lucide-react";
+import { Bot, Sparkles, Loader } from "lucide-react";
 
 interface TvAnalysisActionsProps {
   isAnalyzing: boolean;
   hasContent: boolean;
   canAnalyze: boolean;
   onAnalyzeContent: () => void;
+  showAnalyzeButton?: boolean; // NEW: Optional prop to hide analyze button
   showSegmentGeneration?: boolean;
   canGenerateSegments?: boolean;
   onGenerateSegments?: () => void;
@@ -19,52 +19,57 @@ const TvAnalysisActions = ({
   hasContent,
   canAnalyze,
   onAnalyzeContent,
+  showAnalyzeButton = true, // Default to true for backward compatibility
   showSegmentGeneration = false,
   canGenerateSegments = false,
   onGenerateSegments,
-  isGeneratingSegments = false,
+  isGeneratingSegments = false
 }: TvAnalysisActionsProps) => {
   return (
-    <div className="space-y-4">
-      {/* Main Analysis Button */}
-      <div className="space-y-2">
+    <div className="flex flex-col sm:flex-row gap-3">
+      {/* Show analyze button only if showAnalyzeButton is true */}
+      {showAnalyzeButton && (
         <Button
           onClick={onAnalyzeContent}
-          disabled={isAnalyzing || !canAnalyze}
-          className="w-full"
+          disabled={!canAnalyze || isAnalyzing}
+          className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
           size="lg"
         >
-          <Brain className="w-4 h-4 mr-2" />
-          {isAnalyzing ? 'Analizando contenido...' : 'Analizar Contenido'}
+          {isAnalyzing ? (
+            <>
+              <Loader className="mr-2 h-4 w-4 animate-spin" />
+              Analizando...
+            </>
+          ) : (
+            <>
+              <Bot className="mr-2 h-4 w-4" />
+              Analizar Contenido
+            </>
+          )}
         </Button>
-        {hasContent && (
-          <p className="text-sm text-muted-foreground text-center">
-            Análisis inteligente de video y transcripción
-          </p>
-        )}
-        {!hasContent && (
-          <p className="text-sm text-muted-foreground text-center">
-            Sube un video o añade texto para comenzar el análisis
-          </p>
-        )}
-      </div>
+      )}
 
-      {/* Segment Generation */}
-      {showSegmentGeneration && (
-        <div className="pt-2 border-t">
-          <Button
-            variant="outline"
-            onClick={onGenerateSegments}
-            disabled={!canGenerateSegments || isGeneratingSegments}
-            className="w-full"
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            {isGeneratingSegments ? 'Generando segmentos...' : 'Generar segmentos mejorados'}
-          </Button>
-          <p className="text-xs text-muted-foreground mt-1 text-center">
-            Genera segmentos de noticias con timestamps precisos
-          </p>
-        </div>
+      {/* Segment generation button */}
+      {showSegmentGeneration && canGenerateSegments && onGenerateSegments && (
+        <Button
+          onClick={onGenerateSegments}
+          disabled={isGeneratingSegments}
+          variant="outline"
+          className="flex-1 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+          size="lg"
+        >
+          {isGeneratingSegments ? (
+            <>
+              <Loader className="mr-2 h-4 w-4 animate-spin" />
+              Generando...
+            </>
+          ) : (
+            <>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Generar Segmentos
+            </>
+          )}
+        </Button>
       )}
     </div>
   );
