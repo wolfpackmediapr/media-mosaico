@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import VideoUploadSection from "../VideoUploadSection";
 import VideoPreview from "@/components/video/VideoPreview";
@@ -42,7 +43,7 @@ const TvVideoSection = ({
   };
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 w-full">
+    <div className="grid gap-6 lg:grid-cols-2 w-full">
       <VideoUploadSection
         isDragging={isDragging}
         setIsDragging={setIsDragging}

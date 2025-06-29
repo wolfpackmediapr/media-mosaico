@@ -1,5 +1,7 @@
+
 import React, { useState, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
+import TvLayout from "../TvLayout";
 import TvTopSection from "./TvTopSection";
 import TvVideoSection from "./TvVideoSection";
 import TvTranscriptionSection from "../TvTranscriptionSection";
@@ -51,7 +53,7 @@ interface TvMainContentProps {
   clearingProgress?: number;
   clearingStage?: string;
   isClearing?: boolean;
-  analysisResults?: string; // NEW: Add analysis results prop
+  analysisResults?: string;
 }
 
 const TvMainContent = ({
@@ -86,7 +88,7 @@ const TvMainContent = ({
   clearingProgress = 0,
   clearingStage = '',
   isClearing = false,
-  analysisResults // NEW: Include analysis results
+  analysisResults
 }: TvMainContentProps) => {
   const clearAnalysisFnRef = useRef<(() => void) | null>(null);
   const clearEditorFnRef = useRef<(() => void) | null>(null);
@@ -99,91 +101,99 @@ const TvMainContent = ({
     clearEditorFnRef.current = resetFn;
   }, []);
 
-  return (
-    <div className="container mx-auto p-4 space-y-6">
-      {/* Top Section with Clear All Button */}
-      <TvTopSection
-        handleClearAll={clearAllTvState}
-        files={uploadedFiles}
+  // Define layout sections
+  const topSection = (
+    <TvTopSection
+      handleClearAll={clearAllTvState}
+      files={uploadedFiles}
+      transcriptionText={transcriptionText}
+      clearingProgress={clearingProgress}
+      clearingStage={clearingStage}
+    />
+  );
+
+  const videoSection = (
+    <TvVideoSection
+      uploadedFiles={uploadedFiles || []}
+      setUploadedFiles={setUploadedFiles}
+      isPlaying={isPlaying}
+      volume={volume}
+      isProcessing={isProcessing}
+      progress={progress}
+      onTogglePlayback={onTogglePlayback}
+      onVolumeChange={onVolumeChange}
+      onProcess={onProcess}
+      onTranscriptionComplete={onTranscriptionComplete}
+      onRemoveFile={onRemoveFile}
+    />
+  );
+
+  const transcriptionSection = (
+    <TvTranscriptionSection
+      textContent={transcriptionText}
+      isProcessing={isProcessing}
+      transcriptionMetadata={transcriptionMetadata}
+      transcriptionResult={transcriptionResult}
+      transcriptionId={transcriptionId}
+      onTranscriptionChange={onTranscriptionChange}
+      onSeekToTimestamp={onSeekToTimestamp}
+      onSegmentsReceived={onSegmentsReceived}
+      registerEditorReset={handleRegisterEditorReset}
+      isPlaying={isPlaying}
+      currentTime={currentTime}
+      onPlayPause={onPlayPause}
+    />
+  );
+
+  const analysisSection = (transcriptionText || currentVideoPath || analysisResults) ? (
+    <TvAnalysisSection
+      transcriptionText={transcriptionText}
+      transcriptionId={transcriptionId}
+      transcriptionResult={transcriptionResult}
+      videoPath={currentVideoPath}
+      testAnalysis={testAnalysis}
+      onClearAnalysis={handleClearAnalysis}
+      lastAction={lastAction}
+      onSegmentsGenerated={onSegmentsReceived}
+      analysisResults={analysisResults}
+    />
+  ) : null;
+
+  const notepadSection = (
+    <TvNotePadSection
+      content={notepadContent}
+      onContentChange={setNotepadContent}
+      segments={newsSegments}
+      onSeekToTimestamp={onSeekToTimestamp}
+    />
+  );
+
+  const reportSection = (
+    <Card className="p-4">
+      <TvReportButton 
+        segments={newsSegments}
         transcriptionText={transcriptionText}
-        clearingProgress={clearingProgress}
-        clearingStage={clearingStage}
-      />
-
-      {/* Video Upload and Preview Section */}
-      <TvVideoSection
-        uploadedFiles={uploadedFiles || []}
-        setUploadedFiles={setUploadedFiles}
-        isPlaying={isPlaying}
-        volume={volume}
+        notepadContent={notepadContent}
+        metadata={transcriptionMetadata}
         isProcessing={isProcessing}
-        progress={progress}
-        onTogglePlayback={onTogglePlayback}
-        onVolumeChange={onVolumeChange}
-        onProcess={onProcess}
-        onTranscriptionComplete={onTranscriptionComplete}
-        onRemoveFile={onRemoveFile}
       />
+    </Card>
+  );
 
-      {/* Two Column Layout for Content */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Left Column - Transcription and Analysis */}
-        <div className="space-y-6">
-          {/* Transcription Section */}
-          <TvTranscriptionSection
-            textContent={transcriptionText}
-            isProcessing={isProcessing}
-            transcriptionMetadata={transcriptionMetadata}
-            transcriptionResult={transcriptionResult}
-            transcriptionId={transcriptionId}
-            onTranscriptionChange={onTranscriptionChange}
-            onSeekToTimestamp={onSeekToTimestamp}
-            onSegmentsReceived={onSegmentsReceived}
-            registerEditorReset={handleRegisterEditorReset}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            onPlayPause={onPlayPause}
-          />
+  const typeformSection = <TvTypeformEmbed />;
 
-          {/* Analysis Section - Enhanced with automatic display */}
-          {(transcriptionText || currentVideoPath || analysisResults) && (
-            <TvAnalysisSection
-              transcriptionText={transcriptionText}
-              transcriptionId={transcriptionId}
-              transcriptionResult={transcriptionResult}
-              videoPath={currentVideoPath}
-              testAnalysis={testAnalysis}
-              onClearAnalysis={handleClearAnalysis}
-              lastAction={lastAction}
-              onSegmentsGenerated={onSegmentsReceived}
-              analysisResults={analysisResults} // NEW: Pass analysis results
-            />
-          )}
-        </div>
-
-        {/* Right Column - Notepad, Report, and TV Alert */}
-        <div className="space-y-6">
-          <TvNotePadSection
-            content={notepadContent}
-            onContentChange={setNotepadContent}
-            segments={newsSegments}
-            onSeekToTimestamp={onSeekToTimestamp}
-          />
-          
-          <Card className="p-4">
-            <TvReportButton 
-              segments={newsSegments}
-              transcriptionText={transcriptionText}
-              notepadContent={notepadContent}
-              metadata={transcriptionMetadata}
-              isProcessing={isProcessing}
-            />
-          </Card>
-
-          {/* TV Alert Section */}
-          <TvTypeformEmbed />
-        </div>
-      </div>
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      <TvLayout
+        isAuthenticated={true}
+        topSection={topSection}
+        videoSection={videoSection}
+        transcriptionSection={transcriptionSection}
+        analysisSection={analysisSection}
+        notepadSection={notepadSection}
+        reportSection={reportSection}
+        typeformSection={typeformSection}
+      />
     </div>
   );
 };

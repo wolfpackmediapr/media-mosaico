@@ -23,7 +23,7 @@ const TvTopSection = ({
   clearingStage = ''
 }: TvTopSectionProps) => (
   <ErrorBoundary>
-    <div className="flex justify-end mb-2">
+    <div className="flex justify-end">
       <ClearAllButton 
         onClearAll={handleClearAll}
         clearingProgress={clearingProgress}
