@@ -1,15 +1,18 @@
-
 export async function processVideoWithGemini(
   videoBlob: Blob, 
   apiKey: string, 
   videoPath: string,
-  progressCallback?: (progress: number) => void
+  progressCallback?: (progress: number) => void,
+  categories: any[] = [],
+  clients: any[] = []
 ) {
   try {
     console.log('[gemini-unified] Starting unified video processing...', {
       blobSize: videoBlob.size,
       blobType: videoBlob.type,
-      videoPath
+      videoPath,
+      categoriesCount: categories.length,
+      clientsCount: clients.length
     });
     
     // Step 1: Upload video to Gemini (10% progress)
@@ -22,7 +25,7 @@ export async function processVideoWithGemini(
     
     // Step 3: Generate comprehensive analysis (80% progress when complete)
     progressCallback?.(0.6);
-    const analysisResult = await generateComprehensiveAnalysis(processedFile.uri, apiKey);
+    const analysisResult = await generateComprehensiveAnalysis(processedFile.uri, apiKey, categories, clients);
     
     // Step 4: Cleanup (100% progress)
     progressCallback?.(0.9);
@@ -165,46 +168,143 @@ async function waitForFileProcessing(
   throw new Error('File processing timeout');
 }
 
-async function generateComprehensiveAnalysis(fileUri: string, apiKey: string) {
+async function generateComprehensiveAnalysis(fileUri: string, apiKey: string, categories: any[] = [], clients: any[] = []) {
   console.log('[gemini-unified] Generating comprehensive analysis...');
   
+  // Build dynamic category list
+  const categoriesText = categories.length > 0 
+    ? categories.map(c => c.name_es || c.name).join(', ')
+    : 'Economía & Negocios, Política, Salud, Deportes, Entretenimiento, Crimen, Educación & Cultura, Ambiente, Ciencia & Tecnología, Religión, Tribunales, Gobierno, Comunidad, Accidentes, EE.UU. & Internacionales, Otras';
+
+  // Build dynamic clients list
+  const clientsText = clients.length > 0
+    ? clients.map(c => `${c.name} (${c.category})`).join(', ')
+    : 'Accidentes, Agencia de Gobierno, Ambiente, Ambiente & El Tiempo, Ciencia & Tecnología, Comunidad, Crimen, Deportes, Economía & Negocios, Educación & Cultura, EE.UU. & Internacionales, Entretenimiento, Gobierno, Otras, Política, Religión, Salud, Tribunales';
+
+  // Build client-keyword mapping
+  const keywordMapping = `
+**Accidentes:** tráfico, autopista, PR-52, heridas, choque
+**Agencia de Gobierno:** infraestructura, Naguabo, PROMESA, carreteras, servicios públicos
+**Ambiente:** conservación, bosques, reforestación, educación ambiental
+**Ambiente & El Tiempo:** tormenta tropical, lluvias, vientos, alerta
+**Ciencia & Tecnología:** científicos, Universidad de Puerto Rico, detección temprana, enfermedades tropicales
+**Comunidad:** Cruz Roja Americana, talleres, primeros auxilios, Hospital del Niño, recaudación de fondos
+**Crimen:** Policía, arresto, robos, San Juan, investigaciones
+**Deportes:** baloncesto, equipo nacional, torneo, Juegos Olímpicos, victoria
+**Economía & Negocios:** economía, recuperación, Coop de Seguros Múltiples, ingresos, Ford, vehículos
+**Educación & Cultura:** Departamento de Educación, currículo, historia, cultura, estudiantes
+**EE.UU. & Internacionales:** tensiones diplomáticas, Estados Unidos, China, negociaciones comerciales, repercusiones económicas
+**Entretenimiento:** Telemundo, serie, público puertorriqueño, actores
+**Gobierno:** Etica Gubernamental, investigación, irregularidades, fondos públicos, agencias gubernamentales
+**Otras:** organizaciones sin fines de lucro, campaña, concienciación, voluntariado, eventos, actividades
+**Política:** elecciones, candidatos, plataformas, propuestas, debate, temas económicos, temas sociales
+**Religión:** festividades, iglesias, eventos, actividades, feligreses
+**Salud:** enfermedades respiratorias, campañas de prevención, atención primaria, capacidad hospitalaria, medicamentos
+**Tribunales:** Tribunal Supremo, decisión, derechos civiles, precedente, organizaciones de derechos humanos`;
+
   const prompt = `
-  Analyze this TV news video comprehensively and provide a detailed JSON response. Focus on Puerto Rico/Caribbean content.
-  
-  Return ONLY valid JSON with this structure:
-  {
-    "transcription": "Complete spoken text transcription in Spanish",
-    "visual_analysis": "Detailed visual description in Spanish",
-    "segments": [
-      {
-        "headline": "News segment headline in Spanish",
-        "text": "Segment transcript in Spanish", 
-        "start": start_time_seconds,
-        "end": end_time_seconds,
-        "keywords": ["keyword1", "keyword2"]
-      }
-    ],
-    "keywords": ["main", "keywords", "in", "spanish"],
-    "summary": "Overall content summary in Spanish",
-    "analysis": {
-      "who": "Who was mentioned/involved",
-      "what": "What happened",
-      "when": "When it occurred", 
-      "where": "Where it took place",
-      "why": "Why it's significant"
-    },
-    "utterances": [
-      {
-        "start": start_time_milliseconds,
-        "end": end_time_milliseconds,
-        "text": "Spoken text segment",
-        "confidence": 0.95,
-        "speaker": "Speaker_0"
-      }
-    ]
-  }
-  
-  Ensure timestamps are accurate and segments are well-structured for TV news content.
+Eres un analista experto en contenido de TV. Tu tarea es analizar la siguiente transcripción de TV en español e identificar y separar el contenido publicitario del contenido regular del programa.
+
+IMPORTANTE - FORMATO DE RESPUESTA:
+Debes identificar y separar claramente cada sección de contenido, comenzando CADA SECCIÓN con uno de estos encabezados:
+
+[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
+o
+[TIPO DE CONTENIDO: PROGRAMA REGULAR]
+
+IDENTIFICACIÓN DE ANUNCIOS:
+Señales clave para identificar anuncios:
+- Menciones de precios, ofertas o descuentos
+- Llamadas a la acción ("llame ahora", "visite nuestra tienda", etc.)
+- Información de contacto (números de teléfono, direcciones)
+- Menciones repetidas de marcas o productos específicos
+- Lenguaje persuasivo o promocional
+
+PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
+1. Marca(s) o producto(s) anunciados
+2. Mensajes clave del anuncio
+3. Llamada a la acción (si existe)
+4. Tono del anuncio
+5. Duración aproximada
+
+PARA CADA SECCIÓN DE PROGRAMA REGULAR:
+1. Resumen del contenido (70-100 oraciones)
+   - Incluir desarrollo cronológico de los temas
+   - Destacar citas textuales relevantes
+   - Mencionar interacciones entre participantes si las hay
+   - Identificación de los participantes en la conversación (cuántos hablantes participan y si se pueden identificar sus roles o nombres) [utilizar los nombres específicos de los hablantes cuando estén disponibles]
+
+2. Temas principales tratados
+   - Listar temas por orden de importancia
+   - Incluir subtemas relacionados
+   - Señalar conexiones entre temas si existen
+
+3. Tono del contenido
+   - Estilo de la presentación (formal/informal)
+   - Tipo de lenguaje utilizado
+   - Enfoque del contenido (informativo/editorial/debate)
+
+4. Categorías aplicables de: ${categoriesText}
+   - Justificar la selección de cada categoría
+   - Indicar categoría principal y secundarias
+
+5. Presencia de personas o entidades relevantes mencionadas
+
+6. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}
+
+7. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
+${keywordMapping}
+
+Responde en español de manera concisa y profesional. Asegúrate de:
+1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
+2. Si es un anuncio, enfatizar las marcas, productos y llamadas a la acción
+3. Si es contenido regular, mantener el formato de análisis detallado
+4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
+5. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas como "SPEAKER A" o "SPEAKER B"
+
+IMPORTANTE - MANEJO DE HABLANTES:
+La transcripción incluye nombres específicos de hablantes (pueden ser nombres propios como "María", "Juan", etc., en lugar de etiquetas genéricas). Utiliza estos nombres específicos en tu análisis para:
+- Identificar diferentes personas y sus roles
+- Describir la dinámica de la conversación
+- Mencionar contribuciones específicas de cada participante
+- Proporcionar un análisis más personalizado y profesional
+
+Evita usar referencias genéricas como "hablante 1", "participante A", etc., cuando tengas nombres específicos disponibles.
+
+ADEMÁS, proporciona también un resumen estructurado en formato JSON con esta estructura:
+{
+  "transcription": "Transcripción completa del contenido en español",
+  "visual_analysis": "Descripción visual detallada en español",
+  "segments": [
+    {
+      "headline": "Titular del segmento en español",
+      "text": "Transcripción del segmento en español", 
+      "start": tiempo_inicio_segundos,
+      "end": tiempo_fin_segundos,
+      "keywords": ["palabra1", "palabra2"]
+    }
+  ],
+  "keywords": ["principales", "palabras", "clave", "en", "español"],
+  "summary": "Resumen general del contenido en español",
+  "analysis": {
+    "who": "Quién fue mencionado/involucrado",
+    "what": "Qué ocurrió",
+    "when": "Cuándo ocurrió", 
+    "where": "Dónde tuvo lugar",
+    "why": "Por qué es significativo"
+  },
+  "utterances": [
+    {
+      "start": tiempo_inicio_milisegundos,
+      "end": tiempo_fin_milisegundos,
+      "text": "Segmento de texto hablado",
+      "confidence": 0.95,
+      "speaker": "Speaker_0"
+    }
+  ]
+}
+
+Asegúrate de que los timestamps sean precisos y los segmentos estén bien estructurados para contenido de noticias de TV.
   `;
 
   const requestBody = {
@@ -265,15 +365,25 @@ async function generateComprehensiveAnalysis(fileUri: string, apiKey: string) {
       console.log('[gemini-unified] Analysis completed, parsing JSON...');
       
       try {
-        const cleanJson = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const parsedResult = JSON.parse(cleanJson);
-        
-        // Validate required fields
-        if (!parsedResult.transcription && !parsedResult.summary) {
-          throw new Error('Parsed result missing required fields');
+        // Extract JSON from the response (it should be at the end)
+        const jsonMatch = analysisText.match(/```json\n?([\s\S]*?)\n?```/);
+        if (jsonMatch) {
+          const cleanJson = jsonMatch[1].trim();
+          const parsedResult = JSON.parse(cleanJson);
+          
+          // Add the full analysis text as additional context
+          parsedResult.full_analysis = analysisText;
+          
+          // Validate required fields
+          if (!parsedResult.transcription && !parsedResult.summary) {
+            throw new Error('Parsed result missing required fields');
+          }
+          
+          return parsedResult;
+        } else {
+          // If no JSON found, create structure from text
+          return createFallbackStructure(analysisText);
         }
-        
-        return parsedResult;
         
       } catch (parseError) {
         console.warn('[gemini-unified] JSON parse failed, using fallback structure:', parseError);
@@ -318,7 +428,8 @@ function createFallbackStructure(rawText: string) {
       text: rawText.substring(0, 500) || "Contenido procesado",
       confidence: 0.85,
       speaker: "Speaker_0"
-    }]
+    }],
+    full_analysis: rawText
   };
 }
 

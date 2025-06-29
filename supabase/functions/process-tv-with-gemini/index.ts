@@ -78,6 +78,33 @@ serve(async (req) => {
       }
     }
 
+    // Step 3.5: Fetch categories and clients for dynamic prompt
+    console.log(`[${requestId}] Fetching categories and clients for dynamic prompt...`);
+    let categories = [];
+    let clients = [];
+    
+    try {
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('name_es, name_en');
+      
+      if (!categoriesError && categoriesData) {
+        categories = categoriesData;
+        console.log(`[${requestId}] Fetched ${categories.length} categories`);
+      }
+      
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
+        .select('name, category, keywords');
+      
+      if (!clientsError && clientsData) {
+        clients = clientsData;
+        console.log(`[${requestId}] Fetched ${clients.length} clients`);
+      }
+    } catch (fetchError) {
+      console.warn(`[${requestId}] Failed to fetch categories/clients, using defaults:`, fetchError);
+    }
+
     // Step 4: Update initial processing status
     if (transcriptionId) {
       await updateTranscriptionRecord(supabase, transcriptionId, {
@@ -112,8 +139,8 @@ serve(async (req) => {
       });
     }
 
-    // Step 7: Process video with unified Gemini workflow
-    console.log(`[${requestId}] Starting unified video processing...`);
+    // Step 7: Process video with unified Gemini workflow (now with dynamic data)
+    console.log(`[${requestId}] Starting unified video processing with dynamic prompt...`);
     const result = await processVideoWithGemini(
       videoBlob, 
       geminiApiKey, 
@@ -128,7 +155,9 @@ serve(async (req) => {
             progress: progressPercent
           }).catch(err => console.warn(`[${requestId}] Progress update failed:`, err));
         }
-      }
+      },
+      categories,
+      clients
     );
 
     console.log(`[${requestId}] Processing completed, updating database...`);
@@ -148,6 +177,8 @@ serve(async (req) => {
         analysis_donde: result.analysis?.where,
         analysis_porque: result.analysis?.why,
         analysis_keywords: result.keywords || [],
+        // Store the full comprehensive analysis
+        analysis_content_summary: result.full_analysis || result.summary,
         updated_at: new Date().toISOString()
       });
       console.log(`[${requestId}] Database updated with results`);
@@ -165,6 +196,7 @@ serve(async (req) => {
         summary: result.summary || 'Análisis completado',
         analysis: result.analysis || {},
         utterances: result.utterances || [],
+        full_analysis: result.full_analysis || '',
         success: true,
         requestId
       }),
