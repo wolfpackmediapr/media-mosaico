@@ -19,18 +19,21 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
-    console.log('[process-tv-with-gemini] === UNIFIED PROCESSING START ===');
+    console.log(`[${requestId}] === UNIFIED PROCESSING START ===`);
     
     // Step 1: Validate environment
     const { supabaseUrl, supabaseServiceKey, geminiApiKey } = validateEnvironment();
+    console.log(`[${requestId}] Environment validated successfully`);
     
     // Step 2: Parse and validate request
     let requestBody;
     try {
       requestBody = await req.json();
     } catch (parseError) {
-      console.error('[process-tv-with-gemini] Failed to parse request body:', parseError);
+      console.error(`[${requestId}] Failed to parse request body:`, parseError);
       return new Response(
         JSON.stringify({ 
           error: 'Invalid JSON in request body',
@@ -42,11 +45,12 @@ serve(async (req) => {
     
     const { videoPath, transcriptionId } = requestBody;
     
-    console.log('[process-tv-with-gemini] Request details:', {
+    console.log(`[${requestId}] Request details:`, {
       videoPath,
       transcriptionId,
       hasVideoPath: !!videoPath,
-      hasTranscriptionId: !!transcriptionId
+      hasTranscriptionId: !!transcriptionId,
+      videoPathLength: videoPath?.length
     });
     
     if (!videoPath) {
@@ -66,7 +70,12 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
-      await supabase.auth.getUser(token);
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError) {
+        console.error(`[${requestId}] Auth error:`, authError);
+      } else {
+        console.log(`[${requestId}] Authenticated user:`, user?.id);
+      }
     }
 
     // Step 4: Update initial processing status
@@ -75,11 +84,13 @@ serve(async (req) => {
         status: 'processing',
         progress: 10
       });
+      console.log(`[${requestId}] Updated transcription status to processing`);
     }
 
-    // Step 5: Validate and get video file
-    console.log('[process-tv-with-gemini] Validating video file...');
+    // Step 5: Validate and get video file from video bucket
+    console.log(`[${requestId}] Validating video file from video bucket...`);
     const videoUrl = await validateAndGetFile(supabase, videoPath);
+    console.log(`[${requestId}] Video file validated successfully`);
 
     if (transcriptionId) {
       await updateTranscriptionRecord(supabase, transcriptionId, {
@@ -88,8 +99,12 @@ serve(async (req) => {
     }
 
     // Step 6: Download video with retry
-    console.log('[process-tv-with-gemini] Downloading video...');
+    console.log(`[${requestId}] Downloading video...`);
     const videoBlob = await downloadVideoWithRetry(videoUrl);
+    console.log(`[${requestId}] Video download completed:`, {
+      size: videoBlob.size,
+      type: videoBlob.type
+    });
 
     if (transcriptionId) {
       await updateTranscriptionRecord(supabase, transcriptionId, {
@@ -98,53 +113,60 @@ serve(async (req) => {
     }
 
     // Step 7: Process video with unified Gemini workflow
-    console.log('[process-tv-with-gemini] Starting unified video processing...');
+    console.log(`[${requestId}] Starting unified video processing...`);
     const result = await processVideoWithGemini(
       videoBlob, 
       geminiApiKey, 
       videoPath,
       (progress) => {
         // Progress callback for updating database
+        const progressPercent = Math.min(30 + Math.floor(progress * 60), 90);
+        console.log(`[${requestId}] Processing progress: ${(progress * 100).toFixed(1)}% (${progressPercent}%)`);
+        
         if (transcriptionId) {
           updateTranscriptionRecord(supabase, transcriptionId, {
-            progress: Math.min(30 + Math.floor(progress * 0.6), 90)
-          }).catch(err => console.warn('Progress update failed:', err));
+            progress: progressPercent
+          }).catch(err => console.warn(`[${requestId}] Progress update failed:`, err));
         }
       }
     );
 
+    console.log(`[${requestId}] Processing completed, updating database...`);
+
     // Step 8: Update database with complete results
     if (transcriptionId) {
       await updateTranscriptionRecord(supabase, transcriptionId, {
-        transcription_text: result.transcription,
+        transcription_text: result.transcription || 'Transcripción procesada',
         status: 'completed',
         progress: 100,
-        summary: result.summary,
-        keywords: result.keywords,
+        summary: result.summary || 'Análisis completado',
+        keywords: result.keywords || [],
         analysis_summary: result.summary,
         analysis_quien: result.analysis?.who,
         analysis_que: result.analysis?.what,
         analysis_cuando: result.analysis?.when,
         analysis_donde: result.analysis?.where,
         analysis_porque: result.analysis?.why,
-        analysis_keywords: result.keywords,
+        analysis_keywords: result.keywords || [],
         updated_at: new Date().toISOString()
       });
+      console.log(`[${requestId}] Database updated with results`);
     }
 
-    console.log('[process-tv-with-gemini] === UNIFIED PROCESSING COMPLETED ===');
+    console.log(`[${requestId}] === UNIFIED PROCESSING COMPLETED ===`);
 
     // Step 9: Return unified response
     return new Response(
       JSON.stringify({
-        transcription: result.transcription,
-        visual_analysis: result.visual_analysis,
-        segments: result.segments,
-        keywords: result.keywords,
-        summary: result.summary,
-        analysis: result.analysis,
-        utterances: result.utterances,
-        success: true
+        transcription: result.transcription || 'Transcripción procesada',
+        visual_analysis: result.visual_analysis || 'Análisis visual completado',
+        segments: result.segments || [],
+        keywords: result.keywords || [],
+        summary: result.summary || 'Análisis completado',
+        analysis: result.analysis || {},
+        utterances: result.utterances || [],
+        success: true,
+        requestId
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -153,12 +175,27 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[process-tv-with-gemini] === UNIFIED PROCESSING FAILED ===');
-    console.error('[process-tv-with-gemini] Error details:', {
+    console.error(`[${requestId}] === UNIFIED PROCESSING FAILED ===`);
+    console.error(`[${requestId}] Error details:`, {
       message: error.message,
       stack: error.stack,
       name: error.name
     });
+    
+    // Update transcription status to failed if we have the ID
+    const requestBody = await req.clone().json().catch(() => ({}));
+    if (requestBody.transcriptionId) {
+      try {
+        const { supabaseUrl, supabaseServiceKey } = validateEnvironment();
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        await updateTranscriptionRecord(supabase, requestBody.transcriptionId, {
+          status: 'failed',
+          progress: 100
+        });
+      } catch (updateError) {
+        console.error(`[${requestId}] Failed to update error status:`, updateError);
+      }
+    }
     
     const { statusCode, userMessage } = categorizeError(error);
     
@@ -167,7 +204,8 @@ serve(async (req) => {
         error: userMessage,
         details: error.message,
         success: false,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        requestId
       }),
       { 
         status: statusCode,

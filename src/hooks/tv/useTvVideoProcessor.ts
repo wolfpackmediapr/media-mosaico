@@ -47,14 +47,14 @@ export const useTvVideoProcessor = () => {
         description: "Subiendo video y preparando análisis..."
       });
 
-      // Upload file to storage
-      console.log('[TvVideoProcessor] Uploading file to storage');
+      // Upload file to video storage bucket
+      console.log('[TvVideoProcessor] Uploading file to video storage bucket');
       const timestamp = Date.now();
       const sanitizedFileName = file.name.replace(/\s+/g, '_');
       const fileName = `${user.id}/${timestamp}_${sanitizedFileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('media')
+        .from('video')
         .upload(fileName, file, {
           cacheControl: '3600',
           upsert: false
@@ -65,6 +65,7 @@ export const useTvVideoProcessor = () => {
         throw new Error("Error al subir el archivo: " + uploadError.message);
       }
 
+      console.log('[TvVideoProcessor] File uploaded to video bucket:', fileName);
       setProgress(10);
 
       // Create TV transcription record
@@ -87,12 +88,12 @@ export const useTvVideoProcessor = () => {
         description: "Analizando contenido con IA avanzada..."
       });
 
-      // Call unified processing function
+      // Call unified processing function with correct path format
       console.log('[TvVideoProcessor] Calling unified processing function');
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-gemini', {
           body: { 
-            videoPath: fileName,
+            videoPath: fileName, // This now uses the correct userId/filename format
             transcriptionId: tvTranscription.id
           }
         });
@@ -104,7 +105,7 @@ export const useTvVideoProcessor = () => {
 
       if (!result?.success) {
         console.error('[TvVideoProcessor] Processing failed:', result);
-        throw new Error('Video processing failed');
+        throw new Error(result?.error || 'Video processing failed');
       }
 
       // Set all results from unified response

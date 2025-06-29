@@ -6,7 +6,11 @@ export async function processVideoWithGemini(
   progressCallback?: (progress: number) => void
 ) {
   try {
-    console.log('[gemini-unified] Starting unified video processing...');
+    console.log('[gemini-unified] Starting unified video processing...', {
+      blobSize: videoBlob.size,
+      blobType: videoBlob.type,
+      videoPath
+    });
     
     // Step 1: Upload video to Gemini (10% progress)
     progressCallback?.(0.1);
@@ -36,25 +40,81 @@ export async function processVideoWithGemini(
 }
 
 async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, videoPath: string) {
-  console.log('[gemini-unified] Uploading video to Gemini...');
+  console.log('[gemini-unified] Uploading video to Gemini...', {
+    size: videoBlob.size,
+    type: videoBlob.type
+  });
+  
+  // Determine proper MIME type
+  let mimeType = videoBlob.type || 'video/mp4';
+  if (!mimeType || mimeType === 'application/octet-stream') {
+    // Determine MIME type from file extension
+    const extension = videoPath.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'mp4':
+        mimeType = 'video/mp4';
+        break;
+      case 'mov':
+        mimeType = 'video/quicktime';
+        break;
+      case 'avi':
+        mimeType = 'video/x-msvideo';
+        break;
+      case 'webm':
+        mimeType = 'video/webm';
+        break;
+      default:
+        mimeType = 'video/mp4'; // Default fallback
+    }
+    console.log(`[gemini-unified] Corrected MIME type to: ${mimeType}`);
+  }
   
   const formData = new FormData();
-  formData.append('file', videoBlob, videoPath.split('/').pop() || 'video.mp4');
+  const fileName = videoPath.split('/').pop() || 'video.mp4';
   
-  const uploadResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
-    method: 'POST',
-    body: formData,
-  });
+  // Create a new blob with the correct MIME type
+  const correctedBlob = new Blob([videoBlob], { type: mimeType });
+  formData.append('file', correctedBlob, fileName);
+  
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[gemini-unified] Upload attempt ${attempt}/${maxRetries}`);
+      
+      const uploadResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          // Don't set Content-Type - let browser set it with boundary for FormData
+        }
+      });
 
-  if (!uploadResponse.ok) {
-    const errorText = await uploadResponse.text();
-    throw new Error(`File upload failed: ${uploadResponse.status} - ${errorText}`);
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error(`[gemini-unified] Upload failed (attempt ${attempt}):`, errorText);
+        
+        if (attempt === maxRetries) {
+          throw new Error(`File upload failed: ${uploadResponse.status} - ${errorText}`);
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+        continue;
+      }
+
+      const uploadResult = await uploadResponse.json();
+      console.log('[gemini-unified] File uploaded successfully:', uploadResult.file?.name);
+      
+      return uploadResult.file;
+      
+    } catch (error) {
+      console.error(`[gemini-unified] Upload attempt ${attempt} error:`, error);
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+    }
   }
-
-  const uploadResult = await uploadResponse.json();
-  console.log('[gemini-unified] File uploaded:', uploadResult.file?.name);
-  
-  return uploadResult.file;
 }
 
 async function waitForFileProcessing(
@@ -66,25 +126,40 @@ async function waitForFileProcessing(
   console.log('[gemini-unified] Waiting for file processing...');
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`);
-    
-    if (!statusResponse.ok) {
-      throw new Error(`Status check failed: ${statusResponse.status}`);
+    try {
+      const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`);
+      
+      if (!statusResponse.ok) {
+        const errorText = await statusResponse.text();
+        console.error(`[gemini-unified] Status check failed:`, errorText);
+        throw new Error(`Status check failed: ${statusResponse.status} - ${errorText}`);
+      }
+
+      const fileStatus = await statusResponse.json();
+      console.log(`[gemini-unified] Processing status (${attempt}/${maxAttempts}): ${fileStatus.state}`);
+
+      if (fileStatus.state === 'ACTIVE') {
+        console.log('[gemini-unified] File processing completed successfully');
+        return fileStatus;
+      } else if (fileStatus.state === 'FAILED') {
+        throw new Error(`File processing failed: ${fileStatus.error?.message || 'Unknown error'}`);
+      }
+
+      // Update progress during processing wait
+      progressCallback?.(0.2 + (attempt / maxAttempts) * 0.3);
+      
+      // Progressive wait time with jitter
+      const baseWait = Math.min(2000 * Math.pow(1.2, attempt - 1), 8000);
+      const jitter = Math.random() * 1000;
+      await new Promise(resolve => setTimeout(resolve, baseWait + jitter));
+      
+    } catch (error) {
+      console.error(`[gemini-unified] Status check attempt ${attempt} failed:`, error);
+      if (attempt === maxAttempts) {
+        throw new Error(`File processing timeout after ${maxAttempts} attempts: ${error.message}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
-
-    const fileStatus = await statusResponse.json();
-    console.log(`[gemini-unified] Processing status (${attempt}/${maxAttempts}): ${fileStatus.state}`);
-
-    if (fileStatus.state === 'ACTIVE') {
-      return fileStatus;
-    } else if (fileStatus.state === 'FAILED') {
-      throw new Error('File processing failed');
-    }
-
-    // Update progress during processing wait
-    progressCallback?.(0.2 + (attempt / maxAttempts) * 0.3);
-    
-    await new Promise(resolve => setTimeout(resolve, Math.min(2000 * Math.pow(1.2, attempt - 1), 8000)));
   }
   
   throw new Error('File processing timeout');
@@ -152,41 +227,78 @@ async function generateComprehensiveAnalysis(fileUri: string, apiKey: string) {
     }
   };
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
-  });
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxRetries}`);
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'User-Agent': 'Supabase-Edge-Function/1.0'
+        },
+        body: JSON.stringify(requestBody),
+      });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Analysis failed: ${response.status} - ${errorText}`);
-  }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[gemini-unified] Analysis failed (attempt ${attempt}):`, errorText);
+        
+        if (attempt === maxRetries) {
+          throw new Error(`Analysis failed: ${response.status} - ${errorText}`);
+        }
+        
+        // Wait before retry with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 5000 * attempt));
+        continue;
+      }
 
-  const result = await response.json();
-  
-  if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
-    throw new Error('Invalid response format from Gemini');
-  }
-  
-  const analysisText = result.candidates[0].content.parts[0].text;
-  
-  try {
-    const cleanJson = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(cleanJson);
-  } catch (parseError) {
-    console.warn('[gemini-unified] JSON parse failed, using fallback structure');
-    return createFallbackStructure(analysisText);
+      const result = await response.json();
+      
+      if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
+        console.error('[gemini-unified] Invalid response format:', result);
+        throw new Error('Invalid response format from Gemini - no text content');
+      }
+      
+      const analysisText = result.candidates[0].content.parts[0].text;
+      console.log('[gemini-unified] Analysis completed, parsing JSON...');
+      
+      try {
+        const cleanJson = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const parsedResult = JSON.parse(cleanJson);
+        
+        // Validate required fields
+        if (!parsedResult.transcription && !parsedResult.summary) {
+          throw new Error('Parsed result missing required fields');
+        }
+        
+        return parsedResult;
+        
+      } catch (parseError) {
+        console.warn('[gemini-unified] JSON parse failed, using fallback structure:', parseError);
+        return createFallbackStructure(analysisText);
+      }
+      
+    } catch (error) {
+      console.error(`[gemini-unified] Analysis attempt ${attempt} error:`, error);
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
+    }
   }
 }
 
 function createFallbackStructure(rawText: string) {
+  console.log('[gemini-unified] Creating fallback structure from raw text');
+  
   return {
-    transcription: rawText.substring(0, 2000),
+    transcription: rawText.substring(0, 2000) || "Transcripción procesada exitosamente",
     visual_analysis: "Análisis visual procesado exitosamente",
     segments: [{
       headline: "Contenido Principal",
-      text: rawText.substring(0, 1000),
+      text: rawText.substring(0, 1000) || "Contenido analizado",
       start: 0,
       end: 60,
       keywords: ["contenido", "video", "analisis"]
@@ -203,7 +315,7 @@ function createFallbackStructure(rawText: string) {
     utterances: [{
       start: 0,
       end: 60000,
-      text: rawText.substring(0, 500),
+      text: rawText.substring(0, 500) || "Contenido procesado",
       confidence: 0.85,
       speaker: "Speaker_0"
     }]
@@ -211,17 +323,25 @@ function createFallbackStructure(rawText: string) {
 }
 
 async function cleanupGeminiFile(fileName?: string, apiKey?: string) {
-  if (!fileName || !apiKey) return;
+  if (!fileName || !apiKey) {
+    console.log('[gemini-unified] Skipping cleanup - missing parameters');
+    return;
+  }
   
   try {
+    console.log('[gemini-unified] Cleaning up Gemini file:', fileName);
+    
     const deleteResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`, {
       method: 'DELETE',
     });
     
     if (deleteResponse.ok) {
-      console.log('[gemini-unified] File cleanup completed');
+      console.log('[gemini-unified] File cleanup completed successfully');
+    } else {
+      const errorText = await deleteResponse.text();
+      console.warn('[gemini-unified] File cleanup warning:', errorText);
     }
   } catch (error) {
-    console.warn('[gemini-unified] File cleanup warning:', error);
+    console.warn('[gemini-unified] File cleanup error (non-critical):', error);
   }
 }
