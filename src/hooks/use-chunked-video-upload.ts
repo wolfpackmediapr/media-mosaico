@@ -563,53 +563,15 @@ export const useChunkedVideoUpload = () => {
         throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
       }
 
-      // Trigger processing for small file (same as large files)
-      try {
-        console.log('Starting processing for small file:', transcriptionData.id);
-        
-        // Update status to processing
-        await supabase
-          .from('tv_transcriptions')
-          .update({ status: 'processing' })
-          .eq('id', transcriptionData.id);
-
-        // Call the processing edge function
-        const { error: processingError } = await supabase.functions.invoke('process-tv-with-gemini', {
-          body: { 
-            transcriptionId: transcriptionData.id,
-            videoPath: fileName
-          }
-        });
-
-        if (processingError) {
-          console.error('Error starting processing:', processingError);
-          // Update status back to uploaded if processing fails to start
-          await supabase
-            .from('tv_transcriptions')
-            .update({ status: 'uploaded' })
-            .eq('id', transcriptionData.id);
-          
-          toast.error("Error iniciando procesamiento", {
-            description: "El archivo se subió correctamente pero falló al iniciar el procesamiento."
-          });
-        } else {
-          console.log('Processing started successfully for small file');
-          toast.success("Archivo subido y procesamiento iniciado", {
-            description: "El archivo se está procesando para transcripción y análisis."
-          });
-        }
-      } catch (error) {
-        console.error('Error in processing trigger:', error);
-        toast.error("Error iniciando procesamiento", {
-          description: "El archivo se subió correctamente pero falló al iniciar el procesamiento."
-        });
-      }
-
       // Clean up session
       removeSession(session.sessionId);
       
       const preview = URL.createObjectURL(file);
       console.log('Edge function upload completed successfully');
+      
+      toast.success("Archivo subido exitosamente", {
+        description: "El archivo ha sido procesado correctamente."
+      });
       
       return { fileName, preview };
 
