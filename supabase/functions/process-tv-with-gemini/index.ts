@@ -14,38 +14,120 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Helper function to process chunked video files for audio extraction
-async function processChunksForAudio(supabase: any, manifest: any, requestId: string): Promise<Blob> {
-  console.log(`[${requestId}] Processing ${manifest.total_chunks} chunks for audio extraction...`);
+// Helper function to process chunked video files with memory optimization
+async function processChunksOptimized(supabase: any, manifest: any, requestId: string): Promise<Blob> {
+  console.log(`[${requestId}] Processing ${manifest.total_chunks} chunks with memory optimization...`);
   
   const chunkOrder = manifest.chunk_order;
-  const chunks: Uint8Array[] = [];
+  const MAX_MEMORY_SIZE = 100 * 1024 * 1024; // 100MB memory limit
+  const totalExpectedSize = manifest.total_size || 0;
   
-  // Download all chunks sequentially to avoid memory issues
-  for (let i = 0; i < chunkOrder.length; i++) {
-    const chunkInfo = chunkOrder[i];
-    console.log(`[${requestId}] Downloading chunk ${i + 1}/${chunkOrder.length}...`);
-    
-    const { data: chunkBlob, error } = await supabase.storage
-      .from('video')
-      .download(chunkInfo.path);
-    
-    if (error || !chunkBlob) {
-      console.error(`[${requestId}] Failed to download chunk ${i}:`, error);
-      throw new Error(`Failed to download chunk ${i}: ${error?.message || 'Unknown error'}`);
-    }
-    
-    // Convert blob to array buffer and then to Uint8Array
-    const arrayBuffer = await chunkBlob.arrayBuffer();
-    chunks.push(new Uint8Array(arrayBuffer));
+  console.log(`[${requestId}] Chunk processing details:`, {
+    totalChunks: chunkOrder.length,
+    expectedSize: totalExpectedSize,
+    memoryLimit: MAX_MEMORY_SIZE
+  });
+  
+  // If file is too large, use streaming approach with ReadableStream
+  if (totalExpectedSize > MAX_MEMORY_SIZE) {
+    console.log(`[${requestId}] File too large (${totalExpectedSize} bytes), using streaming approach...`);
+    return createStreamingVideoBlob(supabase, chunkOrder, manifest, requestId);
   }
   
-  console.log(`[${requestId}] All chunks downloaded, reassembling for processing...`);
+  // For smaller files, use optimized batch processing
+  return createBatchedVideoBlob(supabase, chunkOrder, manifest, requestId);
+}
+
+// Create video blob using streaming for very large files
+async function createStreamingVideoBlob(supabase: any, chunkOrder: any[], manifest: any, requestId: string): Promise<Blob> {
+  console.log(`[${requestId}] Creating streaming video blob...`);
+  
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        for (let i = 0; i < chunkOrder.length; i++) {
+          const chunkInfo = chunkOrder[i];
+          console.log(`[${requestId}] Streaming chunk ${i + 1}/${chunkOrder.length}...`);
+          
+          const { data: chunkBlob, error } = await supabase.storage
+            .from('video')
+            .download(chunkInfo.path);
+          
+          if (error || !chunkBlob) {
+            controller.error(new Error(`Failed to download chunk ${i}: ${error?.message || 'Unknown error'}`));
+            return;
+          }
+          
+          // Stream chunk data
+          const arrayBuffer = await chunkBlob.arrayBuffer();
+          controller.enqueue(new Uint8Array(arrayBuffer));
+          
+          // Force garbage collection hint
+          if (globalThis.gc) {
+            globalThis.gc();
+          }
+        }
+        controller.close();
+      } catch (error) {
+        controller.error(error);
+      }
+    }
+  });
+  
+  // Convert stream to blob
+  const response = new Response(stream);
+  return response.blob();
+}
+
+// Create video blob using batched processing for moderate files
+async function createBatchedVideoBlob(supabase: any, chunkOrder: any[], manifest: any, requestId: string): Promise<Blob> {
+  console.log(`[${requestId}] Creating batched video blob...`);
+  
+  const BATCH_SIZE = 5; // Process 5 chunks at a time
+  const chunks: Uint8Array[] = [];
+  
+  for (let batchStart = 0; batchStart < chunkOrder.length; batchStart += BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, chunkOrder.length);
+    console.log(`[${requestId}] Processing batch ${Math.floor(batchStart / BATCH_SIZE) + 1}/${Math.ceil(chunkOrder.length / BATCH_SIZE)} (chunks ${batchStart + 1}-${batchEnd})...`);
+    
+    // Download batch of chunks
+    const batchPromises = [];
+    for (let i = batchStart; i < batchEnd; i++) {
+      const chunkInfo = chunkOrder[i];
+      batchPromises.push(
+        supabase.storage
+          .from('video')
+          .download(chunkInfo.path)
+          .then(({ data, error }) => {
+            if (error || !data) {
+              throw new Error(`Failed to download chunk ${i}: ${error?.message || 'Unknown error'}`);
+            }
+            return { index: i, data };
+          })
+      );
+    }
+    
+    // Wait for batch completion
+    const batchResults = await Promise.all(batchPromises);
+    
+    // Process batch results in order
+    for (const result of batchResults.sort((a, b) => a.index - b.index)) {
+      const arrayBuffer = await result.data.arrayBuffer();
+      chunks.push(new Uint8Array(arrayBuffer));
+    }
+    
+    // Force garbage collection hint after each batch
+    if (globalThis.gc) {
+      globalThis.gc();
+    }
+  }
+  
+  console.log(`[${requestId}] All batches processed, creating final blob...`);
   
   // Calculate total size
   const totalSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   
-  // Create combined array
+  // Create combined array efficiently
   const combined = new Uint8Array(totalSize);
   let offset = 0;
   
@@ -54,10 +136,13 @@ async function processChunksForAudio(supabase: any, manifest: any, requestId: st
     offset += chunk.length;
   }
   
+  // Clear chunks array to free memory
+  chunks.length = 0;
+  
   // Create blob for processing
   const reassembledBlob = new Blob([combined], { type: manifest.mime_type || 'video/mp4' });
   
-  console.log(`[${requestId}] Chunk reassembly completed:`, {
+  console.log(`[${requestId}] Optimized chunk processing completed:`, {
     totalChunks: chunkOrder.length,
     totalSize: reassembledBlob.size,
     type: reassembledBlob.type
@@ -187,8 +272,8 @@ serve(async (req) => {
       
       console.log(`[${requestId}] Found chunk manifest with ${manifest.total_chunks} chunks`);
       
-      // Process chunks for audio extraction (without reassembly)
-      videoBlob = await processChunksForAudio(supabase, manifest, requestId);
+      // Process chunks with memory optimization
+      videoBlob = await processChunksOptimized(supabase, manifest, requestId);
       
     } else {
       // Handle regular assembled video files
@@ -290,8 +375,14 @@ serve(async (req) => {
     console.error(`[${requestId}] Error details:`, {
       message: error.message,
       stack: error.stack,
-      name: error.name
+      name: error.name,
+      isMemoryError: error.message?.includes('memory') || error.message?.includes('OOM') || error.name === 'RangeError'
     });
+    
+    // Log memory-specific guidance
+    if (error.message?.includes('memory') || error.message?.includes('OOM') || error.name === 'RangeError') {
+      console.error(`[${requestId}] MEMORY ERROR DETECTED - File may be too large for processing`);
+    }
     
     // Update transcription status to failed if we have the ID
     const requestBody = await req.clone().json().catch(() => ({}));
