@@ -101,6 +101,8 @@ export type Database = {
           file_name: string
           file_size: number
           id: string
+          manifest_created: boolean | null
+          playback_type: string | null
           session_id: string
           status: string | null
           total_chunks: number
@@ -113,6 +115,8 @@ export type Database = {
           file_name: string
           file_size: number
           id?: string
+          manifest_created?: boolean | null
+          playback_type?: string | null
           session_id: string
           status?: string | null
           total_chunks: number
@@ -125,6 +129,8 @@ export type Database = {
           file_name?: string
           file_size?: number
           id?: string
+          manifest_created?: boolean | null
+          playback_type?: string | null
           session_id?: string
           status?: string | null
           total_chunks?: number
@@ -1810,6 +1816,56 @@ export type Database = {
           username?: string
         }
         Relationships: []
+      }
+      video_chunk_manifests: {
+        Row: {
+          chunk_order: Json
+          created_at: string
+          duration: number | null
+          file_name: string
+          id: string
+          mime_type: string | null
+          session_id: string
+          total_chunks: number
+          total_size: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chunk_order: Json
+          created_at?: string
+          duration?: number | null
+          file_name: string
+          id?: string
+          mime_type?: string | null
+          session_id: string
+          total_chunks: number
+          total_size: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chunk_order?: Json
+          created_at?: string
+          duration?: number | null
+          file_name?: string
+          id?: string
+          mime_type?: string | null
+          session_id?: string
+          total_chunks?: number
+          total_size?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_chunk_manifests_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chunked_upload_sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
       }
       videos: {
         Row: {

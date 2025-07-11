@@ -14,6 +14,58 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper function to process chunked video files for audio extraction
+async function processChunksForAudio(supabase: any, manifest: any, requestId: string): Promise<Blob> {
+  console.log(`[${requestId}] Processing ${manifest.total_chunks} chunks for audio extraction...`);
+  
+  const chunkOrder = manifest.chunk_order;
+  const chunks: Uint8Array[] = [];
+  
+  // Download all chunks sequentially to avoid memory issues
+  for (let i = 0; i < chunkOrder.length; i++) {
+    const chunkInfo = chunkOrder[i];
+    console.log(`[${requestId}] Downloading chunk ${i + 1}/${chunkOrder.length}...`);
+    
+    const { data: chunkBlob, error } = await supabase.storage
+      .from('video')
+      .download(chunkInfo.path);
+    
+    if (error || !chunkBlob) {
+      console.error(`[${requestId}] Failed to download chunk ${i}:`, error);
+      throw new Error(`Failed to download chunk ${i}: ${error?.message || 'Unknown error'}`);
+    }
+    
+    // Convert blob to array buffer and then to Uint8Array
+    const arrayBuffer = await chunkBlob.arrayBuffer();
+    chunks.push(new Uint8Array(arrayBuffer));
+  }
+  
+  console.log(`[${requestId}] All chunks downloaded, reassembling for processing...`);
+  
+  // Calculate total size
+  const totalSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  
+  // Create combined array
+  const combined = new Uint8Array(totalSize);
+  let offset = 0;
+  
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.length;
+  }
+  
+  // Create blob for processing
+  const reassembledBlob = new Blob([combined], { type: manifest.mime_type || 'video/mp4' });
+  
+  console.log(`[${requestId}] Chunk reassembly completed:`, {
+    totalChunks: chunkOrder.length,
+    totalSize: reassembledBlob.size,
+    type: reassembledBlob.type
+  });
+  
+  return reassembledBlob;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -114,21 +166,48 @@ serve(async (req) => {
       console.log(`[${requestId}] Updated transcription status to processing`);
     }
 
-    // Step 5: Validate and get video file from video bucket
-    console.log(`[${requestId}] Validating video file from video bucket...`);
-    const videoUrl = await validateAndGetFile(supabase, videoPath);
-    console.log(`[${requestId}] Video file validated successfully`);
+    // Step 5: Handle chunked vs assembled video files
+    let videoBlob;
+    
+    if (videoPath.startsWith('chunked:')) {
+      // Handle chunked video files
+      const sessionId = videoPath.replace('chunked:', '');
+      console.log(`[${requestId}] Processing chunked video with session ID: ${sessionId}`);
+      
+      // Get chunk manifest
+      const { data: manifest, error: manifestError } = await supabase
+        .from('video_chunk_manifests')
+        .select('*')
+        .eq('session_id', sessionId)
+        .single();
+      
+      if (manifestError || !manifest) {
+        throw new Error(`Failed to load chunk manifest for session: ${sessionId}`);
+      }
+      
+      console.log(`[${requestId}] Found chunk manifest with ${manifest.total_chunks} chunks`);
+      
+      // Process chunks for audio extraction (without reassembly)
+      videoBlob = await processChunksForAudio(supabase, manifest, requestId);
+      
+    } else {
+      // Handle regular assembled video files
+      console.log(`[${requestId}] Processing assembled video file from video bucket...`);
+      const videoUrl = await validateAndGetFile(supabase, videoPath);
+      console.log(`[${requestId}] Video file validated successfully`);
+      
+      if (transcriptionId) {
+        await updateTranscriptionRecord(supabase, transcriptionId, {
+          progress: 20
+        });
+      }
 
-    if (transcriptionId) {
-      await updateTranscriptionRecord(supabase, transcriptionId, {
-        progress: 20
-      });
+      // Download video with retry
+      console.log(`[${requestId}] Downloading video...`);
+      videoBlob = await downloadVideoWithRetry(videoUrl);
     }
-
-    // Step 6: Download video with retry
-    console.log(`[${requestId}] Downloading video...`);
-    const videoBlob = await downloadVideoWithRetry(videoUrl);
-    console.log(`[${requestId}] Video download completed:`, {
+    
+    console.log(`[${requestId}] Video processing prepared:`, {
       size: videoBlob.size,
       type: videoBlob.type
     });

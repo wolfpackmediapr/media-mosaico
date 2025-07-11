@@ -93,7 +93,12 @@ const TvVideoUploader = ({
   const getProgressText = () => {
     if (isChunkedUploading && totalChunks > 0) {
       if (uploadProgress >= 100 && chunkProgress >= 100) {
-        if (useClientAssembly) {
+        // Determine file size to show appropriate message
+        const fileSizeMB = selectedFiles.length > 0 ? selectedFiles[0].size / (1024 * 1024) : 0;
+        
+        if (fileSizeMB > 50) {
+          return "Creando manifiesto de fragmentos para archivo grande...";
+        } else if (useClientAssembly) {
           return "Archivo grande detectado. Ensamblando en el navegador para mejor rendimiento...";
         } else {
           return "Procesando archivo en el servidor... Esto puede tomar unos minutos.";
@@ -105,7 +110,7 @@ const TvVideoUploader = ({
   };
 
   const getFileSizeLimit = () => {
-    return "Archivos de video de cualquier tamaño (>50MB se procesan en el navegador)";
+    return "Archivos de video de cualquier tamaño (>50MB almacenados como fragmentos)";
   };
 
   return (

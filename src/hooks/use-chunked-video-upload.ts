@@ -18,6 +18,8 @@ interface UploadSession {
   totalChunks: number;
   uploadedChunks: number;
   chunks: ChunkProgress[];
+  manifestCreated?: boolean;
+  playbackType?: 'assembled' | 'chunked';
 }
 
 const sanitizeFileName = (fileName: string) => {
@@ -259,9 +261,9 @@ export const useChunkedVideoUpload = () => {
       const isLargeFile = file.size > LARGE_FILE_THRESHOLD;
 
       if (isLargeFile) {
-        // Large files: Use client-side reassembly
-        console.log(`Starting client-side reassembly for ${fileSizeMB.toFixed(1)}MB file...`);
-        return await assembleFileClientSide(session, file, fileName);
+        // Large files: Create chunk manifest instead of reassembling
+        console.log(`Creating chunk manifest for ${fileSizeMB.toFixed(1)}MB file...`);
+        return await createChunkManifest(session, file, fileName);
       } else {
         // Small files: Use edge function reassembly
         console.log(`Starting edge function reassembly for ${fileSizeMB.toFixed(1)}MB file...`);
@@ -280,7 +282,92 @@ export const useChunkedVideoUpload = () => {
     }
   };
 
-  // Client-side reassembly for large files
+  // Create chunk manifest for large files
+  const createChunkManifest = async (session: UploadSession, file: File, fileName: string) => {
+    try {
+      console.log('Creating chunk manifest for large file...');
+      
+      // Prepare chunk information
+      const chunkOrder = [];
+      for (let i = 0; i < session.totalChunks; i++) {
+        const chunkPath = `chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`;
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunkSize = end - start;
+        
+        chunkOrder.push({
+          index: i,
+          path: chunkPath,
+          size: chunkSize,
+          start,
+          end
+        });
+      }
+
+      // Create chunk manifest in database
+      const { data: manifestData, error: manifestError } = await supabase
+        .from('video_chunk_manifests')
+        .insert({
+          session_id: session.sessionId,
+          file_name: fileName,
+          total_size: file.size,
+          total_chunks: session.totalChunks,
+          chunk_order: chunkOrder,
+          mime_type: file.type,
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        })
+        .select()
+        .single();
+
+      if (manifestError) {
+        throw new Error(`Failed to create chunk manifest: ${manifestError.message}`);
+      }
+
+      // Update session to mark as chunked playback type
+      await supabase
+        .from('chunked_upload_sessions')
+        .update({ 
+          status: 'completed',
+          manifest_created: true,
+          playback_type: 'chunked'
+        })
+        .eq('session_id', session.sessionId);
+
+      // Create transcription record with chunked reference
+      const { data: transcriptionData, error: transcriptionError } = await supabase
+        .from('tv_transcriptions')
+        .insert({
+          original_file_path: `chunked:${session.sessionId}`, // Special prefix for chunked files
+          audio_file_path: `chunked:${session.sessionId}`,
+          status: 'uploaded'
+        })
+        .select()
+        .single();
+
+      if (transcriptionError) {
+        console.error('Error creating transcription record:', transcriptionError);
+        throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
+      }
+
+      // Clean up session
+      removeSession(session.sessionId);
+      
+      const preview = URL.createObjectURL(file);
+      console.log('Chunk manifest created successfully');
+      
+      toast.success("Archivo subido exitosamente", {
+        description: "El archivo grande ha sido almacenado como chunks para reproducción optimizada."
+      });
+      
+      return { fileName: `chunked:${session.sessionId}`, preview };
+      
+    } catch (error) {
+      console.error('Chunk manifest creation failed:', error);
+      throw new Error(`Chunk manifest creation failed: ${error.message}`);
+    }
+  };
+
+  // Client-side reassembly for large files (kept as fallback)
   const assembleFileClientSide = async (session: UploadSession, file: File, fileName: string) => {
     try {
       console.log('Starting client-side streaming reassembly...');
