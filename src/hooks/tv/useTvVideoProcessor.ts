@@ -47,47 +47,106 @@ export const useTvVideoProcessor = () => {
       if (authError) throw new Error('Authentication required');
       if (!user) throw new Error('Please log in to process videos');
 
-      setProgress(5);
-      toast.info("Iniciando procesamiento", {
-        description: "Subiendo video y preparando análisis..."
-      });
+      // Check if file was already uploaded via chunks
+      const sanitizedFileName = file.name.replace(/\s+/g, '_').toLowerCase();
+      
+      // Look for existing transcription record that matches this file
+      console.log('[TvVideoProcessor] Checking for existing chunked upload...');
+      const { data: existingTranscriptions, error: searchError } = await supabase
+        .from('tv_transcriptions')
+        .select('id, original_file_path, status')
+        .eq('user_id', user.id)
+        .or(`original_file_path.like.%${sanitizedFileName},original_file_path.like.chunked:%`)
+        .order('created_at', { ascending: false })
+        .limit(10);
 
-      // Upload file to video storage bucket
-      console.log('[TvVideoProcessor] Uploading file to video storage bucket');
-      const timestamp = Date.now();
-      const sanitizedFileName = file.name.replace(/\s+/g, '_');
-      const fileName = `${user.id}/${timestamp}_${sanitizedFileName}`;
+      if (searchError) {
+        console.error('[TvVideoProcessor] Error searching for existing transcriptions:', searchError);
+      }
 
-      const { error: uploadError } = await supabase.storage
-        .from('video')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
+      let existingTranscription = null;
+      let fileName = '';
+      let skipUpload = false;
+
+      // Check if any existing transcription matches this file
+      if (existingTranscriptions && existingTranscriptions.length > 0) {
+        for (const transcription of existingTranscriptions) {
+          const path = transcription.original_file_path;
+          
+          // Check for chunked files or files with same name
+          if (path.includes(sanitizedFileName) || path.startsWith('chunked:')) {
+            existingTranscription = transcription;
+            fileName = path;
+            skipUpload = true;
+            console.log('[TvVideoProcessor] Found existing chunked upload:', {
+              transcriptionId: transcription.id,
+              originalPath: path,
+              status: transcription.status
+            });
+            break;
+          }
+        }
+      }
+
+      if (skipUpload && existingTranscription) {
+        // File was already uploaded via chunks, skip upload step
+        console.log('[TvVideoProcessor] Skipping upload - using existing chunked file');
+        setProgress(15);
+        setTranscriptionId(existingTranscription.id);
+        
+        toast.info("Archivo ya subido", {
+          description: "Validando y preparando video..."
         });
 
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-        throw new Error("Error al subir el archivo: " + uploadError.message);
+        // Update transcription status to processing
+        await TvTranscriptionService.updateTranscription(existingTranscription.id, {
+          status: 'processing',
+          progress: 15
+        });
+      } else {
+        // Regular upload flow for new files
+        setProgress(5);
+        toast.info("Iniciando procesamiento", {
+          description: "Subiendo video y preparando análisis..."
+        });
+
+        // Upload file to video storage bucket
+        console.log('[TvVideoProcessor] Uploading file to video storage bucket');
+        const timestamp = Date.now();
+        const sanitizedFileNameForUpload = file.name.replace(/\s+/g, '_');
+        fileName = `${user.id}/${timestamp}_${sanitizedFileNameForUpload}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('video')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          throw new Error("Error al subir el archivo: " + uploadError.message);
+        }
+
+        console.log('[TvVideoProcessor] File uploaded to video bucket:', fileName);
+        setProgress(10);
+
+        // Create TV transcription record
+        console.log('[TvVideoProcessor] Creating TV transcription record');
+        const tvTranscription = await TvTranscriptionService.createTranscription({
+          original_file_path: fileName,
+          status: 'processing',
+          progress: 10
+        });
+
+        if (!tvTranscription) {
+          throw new Error('Failed to create transcription record');
+        }
+
+        console.log('[TvVideoProcessor] Created TV transcription:', tvTranscription.id);
+        setTranscriptionId(tvTranscription.id);
+        setProgress(15);
       }
-
-      console.log('[TvVideoProcessor] File uploaded to video bucket:', fileName);
-      setProgress(10);
-
-      // Create TV transcription record
-      console.log('[TvVideoProcessor] Creating TV transcription record');
-      const tvTranscription = await TvTranscriptionService.createTranscription({
-        original_file_path: fileName,
-        status: 'processing',
-        progress: 10
-      });
-
-      if (!tvTranscription) {
-        throw new Error('Failed to create transcription record');
-      }
-
-      console.log('[TvVideoProcessor] Created TV transcription:', tvTranscription.id);
-      setTranscriptionId(tvTranscription.id);
-      setProgress(15);
 
       toast.info("Procesando video", {
         description: "Analizando contenido con IA avanzada..."
@@ -99,7 +158,7 @@ export const useTvVideoProcessor = () => {
         .invoke('process-tv-with-gemini', {
           body: { 
             videoPath: fileName,
-            transcriptionId: tvTranscription.id
+            transcriptionId: existingTranscription?.id || transcriptionId
           }
         });
 
