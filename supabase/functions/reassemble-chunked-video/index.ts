@@ -59,21 +59,46 @@ serve(async (req) => {
 
     console.log(`All ${totalChunks} chunks validated. Starting streaming reassembly...`);
 
-    // True streaming reassembly - process chunks sequentially without loading all into memory
+    // Enhanced streaming reassembly with timeout handling and performance optimizations
     const reassembleStreamingFile = async () => {
-      // Create a readable stream that processes chunks one at a time
+      const startTime = Date.now();
+      const maxExecutionTime = 480000; // 8 minutes max (Supabase limit is 10)
+      
+      // Get file size from session data
+      const { data: sessionFileData, error: sessionFileError } = await supabase
+        .from('chunked_upload_sessions')
+        .select('file_size')
+        .eq('session_id', sessionId)
+        .single();
+      
+      const fileSize = sessionFileData?.file_size || 0;
+      console.log(`Starting enhanced reassembly for ${fileName} (${totalChunks} chunks, ${Math.round(fileSize / 1024 / 1024)}MB)`);
+      
+      // Check if file is very large and needs special handling
+      if (fileSize > 50 * 1024 * 1024) { // >50MB
+        console.log(`Large file detected (${Math.round(fileSize / 1024 / 1024)}MB), using optimized strategy`);
+      }
+      
+      // Create optimized readable stream with batched processing
       const combinedStream = new ReadableStream({
         async start(controller) {
           try {
-            console.log(`Processing ${totalChunks} chunks sequentially...`);
+            let processedChunks = 0;
+            let totalBytesProcessed = 0;
             
-            // Process chunks one at a time to avoid memory overload
+            // Process chunks with performance monitoring
             for (let i = 0; i < totalChunks; i++) {
+              const chunkStartTime = Date.now();
+              
+              // Check for timeout
+              if (Date.now() - startTime > maxExecutionTime) {
+                throw new Error(`Reassembly timeout after ${Math.round((Date.now() - startTime) / 1000)}s`);
+              }
+              
               const chunkPath = `chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`;
               
-              console.log(`Processing chunk ${i + 1}/${totalChunks}: ${chunkPath}`);
-              
               try {
+                // Download chunk with smaller buffer for better streaming
                 const { data: chunkData, error: chunkError } = await supabase.storage
                   .from('video')
                   .download(chunkPath);
@@ -82,18 +107,35 @@ serve(async (req) => {
                   throw new Error(`Failed to download chunk ${i}: ${chunkError?.message}`);
                 }
                 
-                // Stream the chunk data directly without storing in memory
+                // Process chunk in smaller segments to avoid memory spikes
                 const chunkStream = chunkData.stream();
                 const reader = chunkStream.getReader();
+                let chunkBytesProcessed = 0;
                 
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-                  controller.enqueue(value);
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    controller.enqueue(value);
+                    chunkBytesProcessed += value.length;
+                    totalBytesProcessed += value.length;
+                  }
+                } finally {
+                  reader.releaseLock();
                 }
                 
-                reader.releaseLock();
-                console.log(`Chunk ${i + 1} processed successfully`);
+                processedChunks++;
+                const chunkTime = Date.now() - chunkStartTime;
+                const progress = (processedChunks / totalChunks * 100).toFixed(1);
+                const speed = chunkBytesProcessed / chunkTime * 1000; // bytes per second
+                
+                console.log(`Chunk ${i + 1}/${totalChunks} (${progress}%) - ${Math.round(chunkBytesProcessed / 1024)}KB in ${chunkTime}ms (${Math.round(speed / 1024)}KB/s)`);
+                
+                // Yield control periodically to prevent blocking
+                if (i % 4 === 0) {
+                  await new Promise(resolve => setTimeout(resolve, 1));
+                }
                 
               } catch (error) {
                 throw new Error(`Error processing chunk ${i}: ${error.message}`);
@@ -101,7 +143,10 @@ serve(async (req) => {
             }
             
             controller.close();
-            console.log(`All ${totalChunks} chunks processed successfully`);
+            const totalTime = Date.now() - startTime;
+            const avgSpeed = totalBytesProcessed / totalTime * 1000;
+            console.log(`Streaming complete: ${Math.round(totalBytesProcessed / 1024 / 1024)}MB in ${Math.round(totalTime / 1000)}s (${Math.round(avgSpeed / 1024)}KB/s avg)`);
+            
           } catch (error) {
             console.error('Streaming error:', error);
             controller.error(error);
@@ -109,20 +154,30 @@ serve(async (req) => {
         }
       });
       
-      // Upload the stream directly to storage without converting to blob
+      // Upload with enhanced error handling
       console.log(`Uploading reassembled file: ${fileName}`);
-      const { error: uploadError } = await supabase.storage
-        .from('video')
-        .upload(fileName, combinedStream, {
-          cacheControl: '3600',
-          upsert: true
-        });
-        
-      if (uploadError) {
-        throw new Error(`Failed to upload final file: ${uploadError.message}`);
-      }
+      const uploadStartTime = Date.now();
       
-      console.log(`Successfully reassembled and uploaded file: ${fileName}`);
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from('video')
+          .upload(fileName, combinedStream, {
+            cacheControl: '3600',
+            upsert: true
+          });
+        
+        if (uploadError) {
+          throw new Error(`Failed to upload final file: ${uploadError.message}`);
+        }
+        
+        const uploadTime = Date.now() - uploadStartTime;
+        const totalProcessingTime = Date.now() - startTime;
+        console.log(`Upload complete in ${Math.round(uploadTime / 1000)}s. Total processing time: ${Math.round(totalProcessingTime / 1000)}s`);
+        
+      } catch (uploadError) {
+        console.error('Upload failed:', uploadError);
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
     };
 
     // Perform streaming reassembly

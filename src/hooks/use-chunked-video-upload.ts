@@ -243,27 +243,58 @@ export const useChunkedVideoUpload = () => {
         return { fileName, preview };
       }
 
-      // Validate session completion with simple function call (no complex reassembly)
+      // Enhanced reassembly with timeout handling for large files
       try {
-        console.log('Validating upload completion...');
+        console.log('Starting file reassembly...');
         
-        const { data, error } = await supabase.functions.invoke('reassemble-chunked-video', {
+        // Calculate timeout based on file size
+        const fileSizeMB = file.size / 1024 / 1024;
+        const timeoutMs = fileSizeMB > 100 ? 600000 : // 10 minutes for very large files
+                         fileSizeMB > 50 ? 480000 :   // 8 minutes for large files
+                         300000;                      // 5 minutes for smaller files
+        
+        console.log(`Using ${Math.round(timeoutMs / 1000)}s timeout for ${fileSizeMB.toFixed(1)}MB file`);
+        
+        // Create timeout promise
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`File reassembly timeout after ${Math.round(timeoutMs / 1000)}s - file may be too large for processing`));
+          }, timeoutMs);
+        });
+        
+        // Create reassembly promise
+        const reassemblyPromise = supabase.functions.invoke('reassemble-chunked-video', {
           body: {
             sessionId: session.sessionId,
             fileName: fileName,
             totalChunks: chunks
           }
         });
+        
+        // Race between reassembly and timeout
+        const { data, error } = await Promise.race([
+          reassemblyPromise,
+          timeoutPromise
+        ]) as any;
 
         if (error) {
-          throw new Error(`Validation error: ${error.message}`);
+          console.error('Reassembly error:', error);
+          throw new Error(`Reassembly error: ${error.message}`);
         }
 
         if (!data?.success) {
-          throw new Error(data?.error || 'Upload validation failed');
+          const errorMsg = data?.error || 'File reassembly failed';
+          console.error('Reassembly failed:', errorMsg);
+          
+          // Better error messages for common issues
+          if (errorMsg.includes('timeout') || errorMsg.includes('Timeout')) {
+            throw new Error('File is too large for processing. Please try a smaller file or contact support.');
+          }
+          
+          throw new Error(errorMsg);
         }
 
-        console.log('Upload validation successful:', data);
+        console.log('File reassembly successful:', data);
 
         // Create transcription record
         const { data: transcriptionData, error: transcriptionError } = await supabase
