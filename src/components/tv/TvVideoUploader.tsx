@@ -71,10 +71,7 @@ const TvVideoUploader = ({
       const result = await uploadFileChunked(file);
       
       if (result) {
-        const uploadedFile = Object.assign(file, { 
-          preview: result.preview,
-          isChunkedUpload: true 
-        });
+        const uploadedFile = Object.assign(file, { preview: result.preview });
         uploadedFiles.push(uploadedFile);
       }
     }

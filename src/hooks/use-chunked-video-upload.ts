@@ -346,53 +346,15 @@ export const useChunkedVideoUpload = () => {
         throw new Error('Failed to create transcription record');
       }
 
-      // Trigger processing for chunked file
-      try {
-        console.log('Starting processing for chunked file:', transcriptionData.id);
-        
-        // Update status to processing
-        await supabase
-          .from('tv_transcriptions')
-          .update({ status: 'processing' })
-          .eq('id', transcriptionData.id);
-
-        // Call the processing edge function
-        const { error: processingError } = await supabase.functions.invoke('process-tv-with-gemini', {
-          body: { 
-            transcriptionId: transcriptionData.id,
-            videoPath: `chunked:${session.sessionId}`
-          }
-        });
-
-        if (processingError) {
-          console.error('Error starting processing:', processingError);
-          // Update status back to uploaded if processing fails to start
-          await supabase
-            .from('tv_transcriptions')
-            .update({ status: 'uploaded' })
-            .eq('id', transcriptionData.id);
-          
-          toast.error("Error iniciando procesamiento", {
-            description: "El archivo se subió correctamente pero falló al iniciar el procesamiento."
-          });
-        } else {
-          console.log('Processing started successfully for chunked file');
-          toast.success("Archivo subido y procesamiento iniciado", {
-            description: "El archivo grande se está procesando para transcripción y análisis."
-          });
-        }
-      } catch (error) {
-        console.error('Error in processing trigger:', error);
-        toast.error("Error iniciando procesamiento", {
-          description: "El archivo se subió correctamente pero falló al iniciar el procesamiento."
-        });
-      }
-
       // Clean up session
       removeSession(session.sessionId);
       
       const preview = URL.createObjectURL(file);
       console.log('Chunk manifest created successfully');
+      
+      toast.success("Archivo subido exitosamente", {
+        description: "El archivo grande ha sido almacenado como chunks para reproducción optimizada."
+      });
       
       return { fileName: `chunked:${session.sessionId}`, preview };
       

@@ -5,7 +5,6 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface UploadedFile extends File {
   preview?: string;
-  isChunkedUpload?: boolean;
 }
 
 export const usePersistentVideoState = () => {

@@ -4,7 +4,6 @@ import VideoFileItem from "./VideoFileItem";
 
 interface UploadedFile extends File {
   preview?: string;
-  isChunkedUpload?: boolean;
 }
 
 interface VideoPreviewProps {
