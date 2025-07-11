@@ -95,6 +95,45 @@ export type Database = {
         }
         Relationships: []
       }
+      chunked_upload_sessions: {
+        Row: {
+          created_at: string | null
+          file_name: string
+          file_size: number
+          id: string
+          session_id: string
+          status: string | null
+          total_chunks: number
+          updated_at: string | null
+          uploaded_chunks: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_name: string
+          file_size: number
+          id?: string
+          session_id: string
+          status?: string | null
+          total_chunks: number
+          updated_at?: string | null
+          uploaded_chunks?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string
+          file_size?: number
+          id?: string
+          session_id?: string
+          status?: string | null
+          total_chunks?: number
+          updated_at?: string | null
+          uploaded_chunks?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       client_alerts: {
         Row: {
           client_id: string | null
