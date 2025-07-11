@@ -88,21 +88,21 @@ const VideoFileItem = ({
         {file.isChunkedUpload ? (
           <div className="w-full p-3 bg-muted rounded-md text-center">
             <p className="text-sm font-medium text-muted-foreground">
-              ✅ Archivo grande procesado automáticamente
+              ✅ Archivo procesado automáticamente
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Este archivo se subió por fragmentos y ya está siendo procesado
+              Este archivo se procesó automáticamente al subirlo
             </p>
           </div>
         ) : (
-          <Button
-            className="w-full relative"
-            onClick={() => onProcess(file)}
-            disabled={isProcessing}
-            variant={progress === 100 ? "secondary" : "default"}
-          >
-            {getButtonText()}
-          </Button>
+          <div className="w-full p-3 bg-muted rounded-md text-center">
+            <p className="text-sm font-medium text-muted-foreground">
+              ✅ Archivo procesado automáticamente
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Este archivo se procesó automáticamente al subirlo
+            </p>
+          </div>
         )}
       </div>
     </div>
