@@ -5,6 +5,7 @@ import { toast } from "sonner";
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB limit for TV uploads
 const MAX_RETRIES = 3;
+const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100MB - use adaptive strategy
 
 interface ChunkProgress {
   index: number;
@@ -219,21 +220,31 @@ export const useChunkedVideoUpload = () => {
       console.log('All chunks uploaded, reassembling file...');
       setChunkProgress(100);
 
-      // Call the edge function to reassemble the file with retry logic
+      // Call the edge function to reassemble the file with adaptive retry logic
       let reassemblyRetries = 0;
-      const MAX_REASSEMBLY_RETRIES = 3;
+      const MAX_REASSEMBLY_RETRIES = file.size > LARGE_FILE_THRESHOLD ? 5 : 3; // More retries for large files
+      const REASSEMBLY_TIMEOUT = 60000; // 60 seconds timeout
       
       while (reassemblyRetries < MAX_REASSEMBLY_RETRIES) {
         try {
           console.log(`Attempting reassembly (attempt ${reassemblyRetries + 1}/${MAX_REASSEMBLY_RETRIES})...`);
           
-          const { data, error } = await supabase.functions.invoke('reassemble-chunked-video', {
+          // Create a timeout promise for the reassembly request
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Reassembly timeout')), REASSEMBLY_TIMEOUT);
+          });
+          
+          const reassemblyPromise = supabase.functions.invoke('reassemble-chunked-video', {
             body: {
               sessionId: session.sessionId,
               fileName: fileName,
               totalChunks: chunks
             }
           });
+          
+          // Race between the reassembly and timeout
+          const result = await Promise.race([reassemblyPromise, timeoutPromise]) as any;
+          const { data, error } = result;
 
           if (error) {
             throw new Error(`Edge function error: ${error.message}`);

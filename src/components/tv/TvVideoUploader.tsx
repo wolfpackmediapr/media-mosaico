@@ -98,7 +98,10 @@ const TvVideoUploader = ({
 
   const getProgressText = () => {
     if (isChunkedUploading && totalChunks > 0) {
-      return `Subiendo fragmento ${chunkProgress}/${totalChunks} - ${uploadProgress.toFixed(0)}% completado`;
+      if (uploadProgress >= 100 && chunkProgress >= 100) {
+        return "Procesando archivo... Esto puede tomar unos minutos para archivos grandes.";
+      }
+      return `Subiendo fragmento ${Math.round(chunkProgress)}/${totalChunks} - ${uploadProgress.toFixed(0)}% completado`;
     }
     return `${uploadProgress.toFixed(0)}% completado`;
   };

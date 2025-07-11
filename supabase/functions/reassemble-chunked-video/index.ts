@@ -35,80 +35,70 @@ serve(async (req) => {
       console.warn('Warning: Could not update session status:', sessionUpdateError);
     }
 
-    // Download chunks in parallel batches to avoid memory overload
-    const BATCH_SIZE = 5; // Process 5 chunks at a time
-    const chunkDataArray: Uint8Array[] = new Array(totalChunks);
+    // Use streaming approach to avoid loading entire file into memory
+    console.log(`Starting streaming reassembly for ${totalChunks} chunks...`);
     
-    console.log(`Downloading ${totalChunks} chunks in batches of ${BATCH_SIZE}...`);
-    
-    for (let batchStart = 0; batchStart < totalChunks; batchStart += BATCH_SIZE) {
-      const batchEnd = Math.min(batchStart + BATCH_SIZE, totalChunks);
-      console.log(`Processing batch ${Math.floor(batchStart / BATCH_SIZE) + 1}: chunks ${batchStart}-${batchEnd - 1}`);
-      
-      // Download batch in parallel
-      const batchPromises = [];
-      for (let i = batchStart; i < batchEnd; i++) {
-        const chunkFileName = `chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`;
-        batchPromises.push(
-          supabase.storage.from('video').download(chunkFileName).then(result => ({ index: i, result }))
-        );
-      }
-      
-      const batchResults = await Promise.allSettled(batchPromises);
-      
-      // Process batch results
-      for (const promiseResult of batchResults) {
-        if (promiseResult.status === 'fulfilled') {
-          const { index, result } = promiseResult.value;
-          const { data: chunkData, error: downloadError } = result;
+    // Create a streaming upload using readable stream
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          let totalSize = 0;
           
-          if (downloadError) {
-            throw new Error(`Failed to download chunk ${index}: ${downloadError.message}`);
+          // Stream chunks one by one to avoid memory overload
+          for (let i = 0; i < totalChunks; i++) {
+            const chunkFileName = `chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`;
+            
+            console.log(`Streaming chunk ${i + 1}/${totalChunks}...`);
+            
+            // Download chunk
+            const { data: chunkData, error: downloadError } = await supabase.storage
+              .from('video')
+              .download(chunkFileName);
+            
+            if (downloadError) {
+              controller.error(new Error(`Failed to download chunk ${i}: ${downloadError.message}`));
+              return;
+            }
+            
+            if (!chunkData) {
+              controller.error(new Error(`Chunk ${i} data is null`));
+              return;
+            }
+            
+            // Convert to array buffer and stream it
+            const arrayBuffer = await chunkData.arrayBuffer();
+            const chunkBytes = new Uint8Array(arrayBuffer);
+            totalSize += chunkBytes.length;
+            
+            // Enqueue the chunk data
+            controller.enqueue(chunkBytes);
+            
+            // Log progress every 10 chunks to reduce log noise
+            if (i % 10 === 0 || i === totalChunks - 1) {
+              console.log(`Streamed ${i + 1}/${totalChunks} chunks (${Math.round(((i + 1) / totalChunks) * 100)}%)`);
+            }
           }
           
-          if (!chunkData) {
-            throw new Error(`Chunk ${index} data is null`);
-          }
-          
-          const arrayBuffer = await chunkData.arrayBuffer();
-          chunkDataArray[index] = new Uint8Array(arrayBuffer);
-        } else {
-          throw new Error(`Failed to download chunk in batch: ${promiseResult.reason}`);
+          console.log(`Streaming complete. Total size: ${totalSize} bytes`);
+          controller.close();
+        } catch (error) {
+          console.error('Error in streaming:', error);
+          controller.error(error);
         }
       }
-    }
+    });
 
-    console.log(`Downloaded all ${totalChunks} chunks, calculating total size...`);
-
-    // Calculate total size without keeping all chunks in memory
-    const totalSize = chunkDataArray.reduce((sum, chunk) => sum + chunk.length, 0);
-    console.log(`Total reassembled file size: ${totalSize} bytes`);
-
-    // Stream reassembly to reduce memory usage
-    console.log(`Creating reassembled file of ${totalSize} bytes...`);
-    const reassembledFile = new Uint8Array(totalSize);
-    let offset = 0;
+    // Convert stream to blob for upload
+    console.log(`Converting stream to file for upload: ${fileName}`);
+    const response = new Response(stream);
+    const fileBlob = await response.blob();
     
-    for (let i = 0; i < totalChunks; i++) {
-      const chunk = chunkDataArray[i];
-      reassembledFile.set(chunk, offset);
-      offset += chunk.length;
-      
-      // Clear chunk from memory immediately after use
-      chunkDataArray[i] = null as any;
-      
-      // Log progress every 20 chunks
-      if (i % 20 === 0 || i === totalChunks - 1) {
-        console.log(`Reassembled ${i + 1}/${totalChunks} chunks (${Math.round(((i + 1) / totalChunks) * 100)}%)`);
-      }
-    }
-
-    console.log(`Reassembled file complete, uploading to final location: ${fileName}`);
+    console.log(`File blob created (${fileBlob.size} bytes), uploading to storage...`);
 
     // Upload the reassembled file
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('video')
-      .upload(fileName, reassembledFile, {
+      .upload(fileName, fileBlob, {
         cacheControl: '3600',
         upsert: true
       });
@@ -158,7 +148,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         fileName: fileName,
-        fileSize: totalSize
+        fileSize: fileBlob.size
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
