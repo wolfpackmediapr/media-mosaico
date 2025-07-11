@@ -220,31 +220,57 @@ export const useChunkedVideoUpload = () => {
       console.log('All chunks uploaded, reassembling file...');
       setChunkProgress(100);
 
+      // Check session status before attempting reassembly
+      const { data: sessionCheck } = await supabase
+        .from('chunked_upload_sessions')
+        .select('status')
+        .eq('session_id', session.sessionId)
+        .single();
+
+      if (sessionCheck?.status === 'completed') {
+        console.log('Session already completed, skipping reassembly');
+        
+        // Clean up local session
+        removeSession(session.sessionId);
+        
+        const preview = URL.createObjectURL(file);
+        toast.success("Archivo subido exitosamente", {
+          description: "El archivo grande ha sido procesado correctamente."
+        });
+        
+        return { fileName, preview };
+      }
+
       // Call the edge function to reassemble the file with adaptive retry logic
       let reassemblyRetries = 0;
-      const MAX_REASSEMBLY_RETRIES = file.size > LARGE_FILE_THRESHOLD ? 5 : 3; // More retries for large files
+      const MAX_REASSEMBLY_RETRIES = file.size > LARGE_FILE_THRESHOLD ? 3 : 2; // Reduced retries
       const REASSEMBLY_TIMEOUT = 60000; // 60 seconds timeout
       
       while (reassemblyRetries < MAX_REASSEMBLY_RETRIES) {
         try {
           console.log(`Attempting reassembly (attempt ${reassemblyRetries + 1}/${MAX_REASSEMBLY_RETRIES})...`);
           
-          // Create a timeout promise for the reassembly request
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Reassembly timeout')), REASSEMBLY_TIMEOUT);
-          });
+          // Check session status before each retry
+          if (reassemblyRetries > 0) {
+            const { data: retrySessionCheck } = await supabase
+              .from('chunked_upload_sessions')
+              .select('status')
+              .eq('session_id', session.sessionId)
+              .single();
+
+            if (retrySessionCheck?.status === 'completed') {
+              console.log('Session completed during retry, stopping retries');
+              break;
+            }
+          }
           
-          const reassemblyPromise = supabase.functions.invoke('reassemble-chunked-video', {
+          const { data, error } = await supabase.functions.invoke('reassemble-chunked-video', {
             body: {
               sessionId: session.sessionId,
               fileName: fileName,
               totalChunks: chunks
             }
           });
-          
-          // Race between the reassembly and timeout
-          const result = await Promise.race([reassemblyPromise, timeoutPromise]) as any;
-          const { data, error } = result;
 
           if (error) {
             throw new Error(`Edge function error: ${error.message}`);
@@ -288,28 +314,42 @@ export const useChunkedVideoUpload = () => {
           reassemblyRetries++;
           console.error(`Reassembly attempt ${reassemblyRetries} failed:`, error);
           
-          if (reassemblyRetries >= MAX_REASSEMBLY_RETRIES) {
-            // If all reassembly attempts failed, clean up chunks and throw error
-            console.error('All reassembly attempts failed, cleaning up...');
-            try {
-              // Clean up uploaded chunks
-              for (let i = 0; i < chunks; i++) {
-                const chunkFileName = `chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`;
-                await supabase.storage.from('video').remove([chunkFileName]);
-              }
-            } catch (cleanupError) {
-              console.warn('Error during cleanup:', cleanupError);
+          // Check if error is non-retryable
+          const errorMessage = error.message || '';
+          const isNonRetryable = errorMessage.includes('Chunks not found') || 
+                                errorMessage.includes('already completed') ||
+                                errorMessage.includes('already assembled');
+          
+          if (isNonRetryable) {
+            console.log('Non-retryable error detected, stopping retries');
+            // Session might be completed or chunks cleaned up, check status
+            const { data: finalCheck } = await supabase
+              .from('chunked_upload_sessions')
+              .select('status')
+              .eq('session_id', session.sessionId)
+              .single();
+
+            if (finalCheck?.status === 'completed') {
+              console.log('Session was completed, treating as success');
+              removeSession(session.sessionId);
+              const preview = URL.createObjectURL(file);
+              toast.success("Archivo subido exitosamente", {
+                description: "El archivo grande ha sido procesado correctamente."
+              });
+              return { fileName, preview };
             }
-            
+          }
+          
+          if (reassemblyRetries >= MAX_REASSEMBLY_RETRIES) {
             toast.error("Error al procesar archivo", {
-              description: `No se pudo procesar el archivo después de ${MAX_REASSEMBLY_RETRIES} intentos. Intenta nuevamente.`
+              description: `No se pudo procesar el archivo después de ${MAX_REASSEMBLY_RETRIES} intentos. El archivo puede haberse subido correctamente.`
             });
             
             throw new Error(`Failed to reassemble file after ${MAX_REASSEMBLY_RETRIES} attempts: ${error.message}`);
           }
           
-          // Wait before retrying (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, reassemblyRetries - 1)));
+          // Wait before retrying (shorter backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * reassemblyRetries));
         }
       }
 

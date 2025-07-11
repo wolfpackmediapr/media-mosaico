@@ -11,8 +11,10 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let requestBody = null;
   try {
-    const { sessionId, fileName, totalChunks } = await req.json();
+    requestBody = await req.json();
+    const { sessionId, fileName, totalChunks } = requestBody;
 
     if (!sessionId || !fileName || !totalChunks) {
       throw new Error('Missing required parameters: sessionId, fileName, or totalChunks');
@@ -24,6 +26,37 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    // Check if session is already completed
+    const { data: sessionData, error: sessionCheckError } = await supabase
+      .from('chunked_upload_sessions')
+      .select('status')
+      .eq('session_id', sessionId)
+      .single();
+
+    if (sessionCheckError) {
+      console.warn('Could not check session status:', sessionCheckError);
+    } else if (sessionData?.status === 'completed') {
+      console.log(`Session ${sessionId} already completed, returning success`);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          fileName: fileName,
+          message: 'File already assembled'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate chunks exist before processing
+    const firstChunk = `chunks/${sessionId}/chunk_0000`;
+    const { data: firstChunkCheck, error: chunkCheckError } = await supabase.storage
+      .from('video')
+      .download(firstChunk);
+
+    if (chunkCheckError || !firstChunkCheck) {
+      throw new Error(`Chunks not found for session ${sessionId}. They may have been cleaned up already.`);
+    }
 
     // Update session status to processing
     const { error: sessionUpdateError } = await supabase
@@ -158,8 +191,7 @@ serve(async (req) => {
     
     // Try to update session status to failed
     try {
-      const { sessionId } = await req.json().catch(() => ({}));
-      if (sessionId) {
+      if (requestBody?.sessionId) {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
         const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -167,16 +199,20 @@ serve(async (req) => {
         await supabase
           .from('chunked_upload_sessions')
           .update({ status: 'failed' })
-          .eq('session_id', sessionId);
+          .eq('session_id', requestBody.sessionId);
       }
     } catch (sessionError) {
       console.warn('Could not update session status to failed:', sessionError);
     }
     
+    // Determine if error is retryable
+    const isRetryable = !error.message?.includes('Chunks not found') && 
+                       !error.message?.includes('already completed');
+    
     return new Response(
       JSON.stringify({ 
         error: error.message || 'An error occurred during file reassembly',
-        retryable: true
+        retryable: isRetryable
       }),
       { 
         status: 500,
