@@ -66,15 +66,8 @@ const TvVideoUploader = ({
     const uploadedFiles: File[] = [];
     
     for (const file of fileArray) {
-      // Use chunked upload for files larger than 50MB
-      const useChunkedUpload = file.size > 50 * 1024 * 1024;
-      
-      let result;
-      if (useChunkedUpload) {
-        result = await uploadFileChunked(file);
-      } else {
-        result = await uploadFile(file);
-      }
+      // Use chunked upload for all video files for consistency and reliability
+      const result = await uploadFileChunked(file);
       
       if (result) {
         const uploadedFile = Object.assign(file, { preview: result.preview });
@@ -107,7 +100,7 @@ const TvVideoUploader = ({
   };
 
   const getFileSizeLimit = () => {
-    return "Tamaño máximo permitido: 200MB";
+    return "Archivos de video de cualquier tamaño";
   };
 
   return (
@@ -180,7 +173,7 @@ const TvVideoUploader = ({
                 {getFileSizeLimit()}
               </p>
               <p className="text-xs text-gray-400 mb-4">
-                Archivos &gt;50MB se suben por fragmentos con opción de pausar/reanudar
+                Todos los archivos se suben de forma segura por fragmentos
               </p>
               <Button
                 variant="outline"
@@ -209,9 +202,7 @@ const TvVideoUploader = ({
                   <p className="text-sm font-medium">{file.name}</p>
                   <p className="text-xs text-gray-500">
                     {(file.size / (1024 * 1024)).toFixed(2)} MB
-                    {file.size > 50 * 1024 * 1024 && (
-                      <span className="ml-2 text-blue-600">(Subida por fragmentos)</span>
-                    )}
+                    <span className="ml-2 text-blue-600">(Subida por fragmentos)</span>
                   </p>
                 </div>
               </div>

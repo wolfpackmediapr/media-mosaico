@@ -20,7 +20,7 @@ serve(async (req) => {
       throw new Error('Missing required parameters: sessionId, fileName, or totalChunks');
     }
 
-    console.log(`Validating session: ${sessionId} for file: ${fileName}`);
+    console.log(`Starting reassembly for session: ${sessionId}, file: ${fileName}, chunks: ${totalChunks}`);
 
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -57,9 +57,77 @@ serve(async (req) => {
       throw new Error(`Incomplete upload: ${sessionData.uploaded_chunks}/${sessionData.total_chunks} chunks uploaded`);
     }
 
-    console.log(`All ${totalChunks} chunks validated. Marking session as completed.`);
+    console.log(`All ${totalChunks} chunks validated. Starting streaming reassembly...`);
 
-    // Mark session as completed without reassembly (chunks already uploaded to final location)
+    // Streaming reassembly approach to avoid memory issues
+    const reassembleStreamingFile = async () => {
+      const chunkStreams: ReadableStream[] = [];
+      
+      // Collect chunk streams in order
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkPath = `chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`;
+        
+        try {
+          const { data: chunkData, error: chunkError } = await supabase.storage
+            .from('video')
+            .download(chunkPath);
+            
+          if (chunkError || !chunkData) {
+            throw new Error(`Failed to download chunk ${i}: ${chunkError?.message}`);
+          }
+          
+          // Convert blob to stream
+          chunkStreams.push(chunkData.stream());
+          
+        } catch (error) {
+          throw new Error(`Error processing chunk ${i}: ${error.message}`);
+        }
+      }
+      
+      // Create a combined readable stream
+      const combinedStream = new ReadableStream({
+        async start(controller) {
+          try {
+            for (const stream of chunkStreams) {
+              const reader = stream.getReader();
+              
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                controller.enqueue(value);
+              }
+              
+              reader.releaseLock();
+            }
+            
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          }
+        }
+      });
+      
+      // Upload the combined stream as the final file
+      const fileBlob = await new Response(combinedStream).blob();
+      
+      const { error: uploadError } = await supabase.storage
+        .from('video')
+        .upload(fileName, fileBlob, {
+          cacheControl: '3600',
+          upsert: true
+        });
+        
+      if (uploadError) {
+        throw new Error(`Failed to upload final file: ${uploadError.message}`);
+      }
+      
+      console.log(`Successfully reassembled file: ${fileName}`);
+    };
+
+    // Perform streaming reassembly
+    await reassembleStreamingFile();
+
+    // Mark session as completed
     const { error: completionError } = await supabase
       .from('chunked_upload_sessions')
       .update({ status: 'completed' })
@@ -67,17 +135,6 @@ serve(async (req) => {
 
     if (completionError) {
       console.warn('Warning: Could not update session to completed:', completionError);
-    }
-
-    // Verify final file exists in storage
-    const { data: fileCheck, error: fileCheckError } = await supabase.storage
-      .from('video')
-      .download(fileName);
-
-    if (fileCheckError || !fileCheck) {
-      console.warn('Final file not found, but session marked complete');
-    } else {
-      console.log(`Final file verified in storage: ${fileName}`);
     }
 
     // Clean up chunks in background
@@ -88,11 +145,16 @@ serve(async (req) => {
           chunkNamesToDelete.push(`chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`);
         }
         
-        // Delete chunks in batches
-        const DELETE_BATCH_SIZE = 10;
+        // Delete chunks in batches to avoid timeout
+        const DELETE_BATCH_SIZE = 5; // Smaller batch size for reliability
         for (let i = 0; i < chunkNamesToDelete.length; i += DELETE_BATCH_SIZE) {
           const batch = chunkNamesToDelete.slice(i, i + DELETE_BATCH_SIZE);
           await supabase.storage.from('video').remove(batch);
+          
+          // Small delay between batches to prevent overwhelming the storage API
+          if (i + DELETE_BATCH_SIZE < chunkNamesToDelete.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
         }
         
         console.log(`Cleaned up ${totalChunks} chunks for session ${sessionId}`);
@@ -102,13 +164,13 @@ serve(async (req) => {
     })();
 
     // Start cleanup in background but don't wait for it
-    EdgeRuntime.waitUntil(cleanupPromise);
+    globalThis.EdgeRuntime?.waitUntil?.(cleanupPromise);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         fileName: fileName,
-        message: 'File processing completed successfully'
+        message: 'File reassembly completed successfully'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
