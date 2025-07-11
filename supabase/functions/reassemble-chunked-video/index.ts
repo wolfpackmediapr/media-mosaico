@@ -59,60 +59,61 @@ serve(async (req) => {
 
     console.log(`All ${totalChunks} chunks validated. Starting streaming reassembly...`);
 
-    // Streaming reassembly approach to avoid memory issues
+    // True streaming reassembly - process chunks sequentially without loading all into memory
     const reassembleStreamingFile = async () => {
-      const chunkStreams: ReadableStream[] = [];
-      
-      // Collect chunk streams in order
-      for (let i = 0; i < totalChunks; i++) {
-        const chunkPath = `chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`;
-        
-        try {
-          const { data: chunkData, error: chunkError } = await supabase.storage
-            .from('video')
-            .download(chunkPath);
-            
-          if (chunkError || !chunkData) {
-            throw new Error(`Failed to download chunk ${i}: ${chunkError?.message}`);
-          }
-          
-          // Convert blob to stream
-          chunkStreams.push(chunkData.stream());
-          
-        } catch (error) {
-          throw new Error(`Error processing chunk ${i}: ${error.message}`);
-        }
-      }
-      
-      // Create a combined readable stream
+      // Create a readable stream that processes chunks one at a time
       const combinedStream = new ReadableStream({
         async start(controller) {
           try {
-            for (const stream of chunkStreams) {
-              const reader = stream.getReader();
+            console.log(`Processing ${totalChunks} chunks sequentially...`);
+            
+            // Process chunks one at a time to avoid memory overload
+            for (let i = 0; i < totalChunks; i++) {
+              const chunkPath = `chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`;
               
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                controller.enqueue(value);
+              console.log(`Processing chunk ${i + 1}/${totalChunks}: ${chunkPath}`);
+              
+              try {
+                const { data: chunkData, error: chunkError } = await supabase.storage
+                  .from('video')
+                  .download(chunkPath);
+                  
+                if (chunkError || !chunkData) {
+                  throw new Error(`Failed to download chunk ${i}: ${chunkError?.message}`);
+                }
+                
+                // Stream the chunk data directly without storing in memory
+                const chunkStream = chunkData.stream();
+                const reader = chunkStream.getReader();
+                
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  controller.enqueue(value);
+                }
+                
+                reader.releaseLock();
+                console.log(`Chunk ${i + 1} processed successfully`);
+                
+              } catch (error) {
+                throw new Error(`Error processing chunk ${i}: ${error.message}`);
               }
-              
-              reader.releaseLock();
             }
             
             controller.close();
+            console.log(`All ${totalChunks} chunks processed successfully`);
           } catch (error) {
+            console.error('Streaming error:', error);
             controller.error(error);
           }
         }
       });
       
-      // Upload the combined stream as the final file
-      const fileBlob = await new Response(combinedStream).blob();
-      
+      // Upload the stream directly to storage without converting to blob
+      console.log(`Uploading reassembled file: ${fileName}`);
       const { error: uploadError } = await supabase.storage
         .from('video')
-        .upload(fileName, fileBlob, {
+        .upload(fileName, combinedStream, {
           cacheControl: '3600',
           upsert: true
         });
@@ -121,7 +122,7 @@ serve(async (req) => {
         throw new Error(`Failed to upload final file: ${uploadError.message}`);
       }
       
-      console.log(`Successfully reassembled file: ${fileName}`);
+      console.log(`Successfully reassembled and uploaded file: ${fileName}`);
     };
 
     // Perform streaming reassembly
