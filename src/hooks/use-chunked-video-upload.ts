@@ -5,7 +5,7 @@ import { toast } from "sonner";
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB limit for TV uploads
 const MAX_RETRIES = 3;
-const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100MB - use adaptive strategy
+const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024; // 50MB - use progressive upload strategy
 
 interface ChunkProgress {
   index: number;
@@ -164,58 +164,176 @@ export const useChunkedVideoUpload = () => {
       
       console.log(`Continuing upload: ${fileName}, chunks: ${chunks}, uploaded: ${session.uploadedChunks}`);
 
-      // Upload remaining chunks
-      for (let i = session.uploadedChunks; i < chunks; i++) {
-        if (isPaused) {
-          console.log('Upload paused');
-          break;
+      // Choose upload strategy based on file size
+      const useProgressiveUpload = file.size >= LARGE_FILE_THRESHOLD;
+      
+      if (useProgressiveUpload) {
+        console.log(`Using progressive upload strategy for ${(file.size / (1024 * 1024)).toFixed(1)}MB file`);
+        
+        // Progressive upload: chunks go directly to final location with resumable upload
+        for (let i = session.uploadedChunks; i < chunks; i++) {
+          if (isPaused) {
+            console.log('Upload paused');
+            break;
+          }
+
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+          
+          // Upload directly to final file location using resumable upload
+          const chunkFileName = `${fileName}_chunk_${i}`;
+
+          let retries = 0;
+          while (retries < MAX_RETRIES) {
+            try {
+              setChunkProgress((i / chunks) * 100);
+              
+              // Use resumable upload for large file chunks
+              const { error } = await supabase.storage
+                .from('video')
+                .upload(chunkFileName, chunk, {
+                  cacheControl: '3600',
+                  upsert: true
+                });
+
+              if (error) {
+                throw error;
+              }
+
+              console.log(`Uploaded progressive chunk ${i + 1}/${chunks}`);
+              
+              // Update session progress
+              session.uploadedChunks = i + 1;
+              updateSession(session);
+              
+              // Update database session progress
+              await supabase
+                .from('chunked_upload_sessions')
+                .update({ uploaded_chunks: session.uploadedChunks })
+                .eq('session_id', session.sessionId);
+              
+              setUploadProgress(session.uploadedChunks / session.totalChunks);
+              break;
+            } catch (error) {
+              retries++;
+              console.error(`Error uploading progressive chunk ${i} (attempt ${retries}):`, error);
+              
+              if (retries >= MAX_RETRIES) {
+                throw new Error(`Failed to upload chunk ${i} after ${MAX_RETRIES} attempts: ${error}`);
+              }
+              
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+            }
+          }
         }
-
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        const chunkFileName = `chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`;
-
-        let retries = 0;
-        while (retries < MAX_RETRIES) {
+        
+        // For progressive upload, reassemble chunks into final file
+        if (!isPaused && session.uploadedChunks === chunks) {
+          console.log('Reassembling progressive chunks into final file...');
+          
           try {
-            setChunkProgress((i / chunks) * 100);
+            // Download and collect all chunks
+            const chunkBlobs: Blob[] = [];
             
-            const { error } = await supabase.storage
+            for (let i = 0; i < chunks; i++) {
+              const chunkFileName = `${fileName}_chunk_${i}`;
+              const { data: chunkData, error: downloadError } = await supabase.storage
+                .from('video')
+                .download(chunkFileName);
+                
+              if (downloadError || !chunkData) {
+                throw new Error(`Failed to download chunk ${i}: ${downloadError?.message}`);
+              }
+              
+              chunkBlobs.push(chunkData);
+            }
+            
+            // Create final file
+            const finalFileBlob = new Blob(chunkBlobs, { type: file.type });
+            
+            // Upload final file
+            const { error: finalUploadError } = await supabase.storage
               .from('video')
-              .upload(chunkFileName, chunk, {
+              .upload(fileName, finalFileBlob, {
                 cacheControl: '3600',
                 upsert: true
               });
-
-            if (error) {
-              throw error;
+              
+            if (finalUploadError) {
+              throw new Error(`Failed to create final file: ${finalUploadError.message}`);
             }
-
-            console.log(`Uploaded chunk ${i + 1}/${chunks}`);
             
-            // Update session progress in both local storage and database
-            session.uploadedChunks = i + 1;
-            updateSession(session);
+            // Clean up chunk files
+            const chunkNamesToDelete = [];
+            for (let i = 0; i < chunks; i++) {
+              chunkNamesToDelete.push(`${fileName}_chunk_${i}`);
+            }
             
-            // Update database session progress
-            await supabase
-              .from('chunked_upload_sessions')
-              .update({ uploaded_chunks: session.uploadedChunks })
-              .eq('session_id', session.sessionId);
+            await supabase.storage.from('video').remove(chunkNamesToDelete);
+            console.log('Progressive upload completed and chunks cleaned up');
             
-            setUploadProgress(session.uploadedChunks / session.totalChunks);
+          } catch (reassemblyError) {
+            console.error('Error during progressive reassembly:', reassemblyError);
+            throw new Error(`Progressive reassembly failed: ${reassemblyError.message}`);
+          }
+        }
+        
+      } else {
+        // Standard chunked upload for smaller files
+        for (let i = session.uploadedChunks; i < chunks; i++) {
+          if (isPaused) {
+            console.log('Upload paused');
             break;
-          } catch (error) {
-            retries++;
-            console.error(`Error uploading chunk ${i} (attempt ${retries}):`, error);
-            
-            if (retries >= MAX_RETRIES) {
-              throw new Error(`Failed to upload chunk ${i} after ${MAX_RETRIES} attempts: ${error}`);
+          }
+
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+          const chunkFileName = `chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`;
+
+          let retries = 0;
+          while (retries < MAX_RETRIES) {
+            try {
+              setChunkProgress((i / chunks) * 100);
+              
+              const { error } = await supabase.storage
+                .from('video')
+                .upload(chunkFileName, chunk, {
+                  cacheControl: '3600',
+                  upsert: true
+                });
+
+              if (error) {
+                throw error;
+              }
+
+              console.log(`Uploaded chunk ${i + 1}/${chunks}`);
+              
+              // Update session progress in both local storage and database
+              session.uploadedChunks = i + 1;
+              updateSession(session);
+              
+              // Update database session progress
+              await supabase
+                .from('chunked_upload_sessions')
+                .update({ uploaded_chunks: session.uploadedChunks })
+                .eq('session_id', session.sessionId);
+              
+              setUploadProgress(session.uploadedChunks / session.totalChunks);
+              break;
+            } catch (error) {
+              retries++;
+              console.error(`Error uploading chunk ${i} (attempt ${retries}):`, error);
+              
+              if (retries >= MAX_RETRIES) {
+                throw new Error(`Failed to upload chunk ${i} after ${MAX_RETRIES} attempts: ${error}`);
+              }
+              
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000 * retries));
             }
-            
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, 1000 * retries));
           }
         }
       }
@@ -225,23 +343,41 @@ export const useChunkedVideoUpload = () => {
         return null;
       }
 
-      console.log('All chunks uploaded, reassembling file...');
+      console.log('All chunks uploaded, finalizing upload...');
       setChunkProgress(100);
 
-      // Check session status before attempting reassembly
-      const { data: sessionCheck } = await supabase
-        .from('chunked_upload_sessions')
-        .select('status')
-        .eq('session_id', session.sessionId)
-        .single();
-
-      if (sessionCheck?.status === 'completed') {
-        console.log('Session already completed, skipping reassembly');
+      // Check if this was a progressive upload (no edge function needed)
+      if (useProgressiveUpload) {
+        console.log('Progressive upload completed, finalizing...');
         
-        // Clean up local session
+        // Mark session as completed
+        await supabase
+          .from('chunked_upload_sessions')
+          .update({ status: 'completed' })
+          .eq('session_id', session.sessionId);
+
+        // Create transcription record
+        const { data: transcriptionData, error: transcriptionError } = await supabase
+          .from('tv_transcriptions')
+          .insert({
+            original_file_path: fileName,
+            audio_file_path: fileName,
+            status: 'uploaded'
+          })
+          .select()
+          .single();
+
+        if (transcriptionError) {
+          console.error('Error creating transcription record:', transcriptionError);
+          throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
+        }
+
+        // Clean up session
         removeSession(session.sessionId);
         
         const preview = URL.createObjectURL(file);
+        console.log('Progressive upload completed successfully');
+        
         toast.success("Archivo subido exitosamente", {
           description: "El archivo grande ha sido procesado correctamente."
         });
@@ -249,141 +385,102 @@ export const useChunkedVideoUpload = () => {
         return { fileName, preview };
       }
 
-      // Call the edge function to reassemble the file with adaptive retry logic
-      let reassemblyRetries = 0;
-      const MAX_REASSEMBLY_RETRIES = 2; // Reduced retries since we check session status
-      const REASSEMBLY_TIMEOUT = file.size > LARGE_FILE_THRESHOLD ? 120000 : 60000; // Adaptive timeout
-      
-      while (reassemblyRetries < MAX_REASSEMBLY_RETRIES) {
-        try {
-          console.log(`Attempting reassembly (attempt ${reassemblyRetries + 1}/${MAX_REASSEMBLY_RETRIES})...`);
-          
-          // Check session status before each retry
-          if (reassemblyRetries > 0) {
-            const { data: retrySessionCheck } = await supabase
-              .from('chunked_upload_sessions')
-              .select('status')
-              .eq('session_id', session.sessionId)
-              .single();
+      // For standard chunked uploads, validate completion only (no reassembly)
+      const { data: sessionCheck } = await supabase
+        .from('chunked_upload_sessions')
+        .select('status, uploaded_chunks, total_chunks')
+        .eq('session_id', session.sessionId)
+        .single();
 
-            if (retrySessionCheck?.status === 'completed') {
-              console.log('Session completed during retry, stopping retries');
-              break;
-            }
+      if (sessionCheck?.status === 'completed') {
+        console.log('Session already completed');
+        
+        // Clean up local session
+        removeSession(session.sessionId);
+        
+        const preview = URL.createObjectURL(file);
+        toast.success("Archivo subido exitosamente", {
+          description: "El archivo ha sido procesado correctamente."
+        });
+        
+        return { fileName, preview };
+      }
+
+      // Validate session completion with simple function call (no complex reassembly)
+      try {
+        console.log('Validating upload completion...');
+        
+        const { data, error } = await supabase.functions.invoke('reassemble-chunked-video', {
+          body: {
+            sessionId: session.sessionId,
+            fileName: fileName,
+            totalChunks: chunks
           }
-          
-          // Use Promise.race for timeout handling
-          const reassemblyPromise = supabase.functions.invoke('reassemble-chunked-video', {
-            body: {
-              sessionId: session.sessionId,
-              fileName: fileName,
-              totalChunks: chunks
-            }
-          });
-          
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Reassembly timeout')), REASSEMBLY_TIMEOUT);
-          });
-          
-          const { data, error } = await Promise.race([reassemblyPromise, timeoutPromise]) as any;
+        });
 
-          if (error) {
-            throw new Error(`Edge function error: ${error.message}`);
-          }
-
-          if (!data?.success) {
-            throw new Error(data?.error || 'Unknown error occurred during file reassembly');
-          }
-
-          console.log('File reassembled successfully:', data);
-
-          // Create transcription record
-          const { data: transcriptionData, error: transcriptionError } = await supabase
-            .from('tv_transcriptions')
-            .insert({
-              original_file_path: fileName,
-              audio_file_path: fileName,
-              status: 'uploaded'
-            })
-            .select()
-            .single();
-
-          if (transcriptionError) {
-            console.error('Error creating transcription record:', transcriptionError);
-            throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
-          }
-
-          // Clean up session
-          removeSession(session.sessionId);
-          
-          const preview = URL.createObjectURL(file);
-          console.log('Upload completed successfully');
-          
-          toast.success("Archivo subido exitosamente", {
-            description: "El archivo grande ha sido procesado correctamente."
-          });
-          
-          return { fileName, preview };
-
-        } catch (error) {
-          reassemblyRetries++;
-          console.error(`Reassembly attempt ${reassemblyRetries} failed:`, error);
-          
-          // Check if error is non-retryable
-          const errorMessage = error.message || '';
-          const isNonRetryable = errorMessage.includes('Chunks not found') || 
-                                errorMessage.includes('already completed') ||
-                                errorMessage.includes('already assembled');
-          
-          if (isNonRetryable) {
-            console.log('Non-retryable error detected, stopping retries');
-            // Session might be completed or chunks cleaned up, check status
-            const { data: finalCheck } = await supabase
-              .from('chunked_upload_sessions')
-              .select('status')
-              .eq('session_id', session.sessionId)
-              .single();
-
-            if (finalCheck?.status === 'completed') {
-              console.log('Session was completed, treating as success');
-              removeSession(session.sessionId);
-              const preview = URL.createObjectURL(file);
-              toast.success("Archivo subido exitosamente", {
-                description: "El archivo grande ha sido procesado correctamente."
-              });
-              return { fileName, preview };
-            }
-          }
-          
-          if (reassemblyRetries >= MAX_REASSEMBLY_RETRIES) {
-            // Final check before giving up
-            const { data: finalCheck } = await supabase
-              .from('chunked_upload_sessions')
-              .select('status')
-              .eq('session_id', session.sessionId)
-              .single();
-
-            if (finalCheck?.status === 'completed') {
-              console.log('Session completed during final check, treating as success');
-              removeSession(session.sessionId);
-              const preview = URL.createObjectURL(file);
-              toast.success("Archivo subido exitosamente", {
-                description: "El archivo grande ha sido procesado correctamente."
-              });
-              return { fileName, preview };
-            }
-            
-            toast.error("Error al procesar archivo", {
-              description: `No se pudo procesar el archivo después de ${MAX_REASSEMBLY_RETRIES} intentos. El archivo puede haberse subido correctamente.`
-            });
-            
-            throw new Error(`Failed to reassemble file after ${MAX_REASSEMBLY_RETRIES} attempts: ${error.message}`);
-          }
-          
-          // Exponential backoff with jitter
-          const backoffTime = Math.min(1000 * Math.pow(2, reassemblyRetries) + Math.random() * 1000, 10000);
-          await new Promise(resolve => setTimeout(resolve, backoffTime));
+        if (error) {
+          throw new Error(`Validation error: ${error.message}`);
         }
+
+        if (!data?.success) {
+          throw new Error(data?.error || 'Upload validation failed');
+        }
+
+        console.log('Upload validation successful:', data);
+
+        // Create transcription record
+        const { data: transcriptionData, error: transcriptionError } = await supabase
+          .from('tv_transcriptions')
+          .insert({
+            original_file_path: fileName,
+            audio_file_path: fileName,
+            status: 'uploaded'
+          })
+          .select()
+          .single();
+
+        if (transcriptionError) {
+          console.error('Error creating transcription record:', transcriptionError);
+          throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
+        }
+
+        // Clean up session
+        removeSession(session.sessionId);
+        
+        const preview = URL.createObjectURL(file);
+        console.log('Upload completed successfully');
+        
+        toast.success("Archivo subido exitosamente", {
+          description: "El archivo ha sido procesado correctamente."
+        });
+        
+        return { fileName, preview };
+
+      } catch (error) {
+        console.error('Upload validation failed:', error);
+        
+        // Final status check before failing
+        const { data: finalCheck } = await supabase
+          .from('chunked_upload_sessions')
+          .select('status')
+          .eq('session_id', session.sessionId)
+          .single();
+
+        if (finalCheck?.status === 'completed') {
+          console.log('Session was completed despite validation error');
+          removeSession(session.sessionId);
+          const preview = URL.createObjectURL(file);
+          toast.success("Archivo subido exitosamente", {
+            description: "El archivo ha sido procesado correctamente."
+          });
+          return { fileName, preview };
+        }
+        
+        toast.error("Error al validar archivo", {
+          description: "No se pudo validar la subida del archivo. Por favor, verifica si se subió correctamente."
+        });
+        
+        throw new Error(`Upload validation failed: ${error.message}`);
       }
 
       return null; // Should never reach here
