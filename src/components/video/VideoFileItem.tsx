@@ -8,6 +8,7 @@ import VideoPlayer from "./VideoPlayer";
 interface UploadedFile extends File {
   preview?: string;
   filePath?: string;
+  isChunkedUpload?: boolean;
 }
 
 interface VideoFileItemProps {
@@ -84,14 +85,25 @@ const VideoFileItem = ({
             </p>
           </div>
         )}
-        <Button
-          className="w-full relative"
-          onClick={() => onProcess(file)}
-          disabled={isProcessing}
-          variant={progress === 100 ? "secondary" : "default"}
-        >
-          {getButtonText()}
-        </Button>
+        {file.isChunkedUpload ? (
+          <div className="w-full p-3 bg-muted rounded-md text-center">
+            <p className="text-sm font-medium text-muted-foreground">
+              ✅ Archivo grande procesado automáticamente
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Este archivo se subió por fragmentos y ya está siendo procesado
+            </p>
+          </div>
+        ) : (
+          <Button
+            className="w-full relative"
+            onClick={() => onProcess(file)}
+            disabled={isProcessing}
+            variant={progress === 100 ? "secondary" : "default"}
+          >
+            {getButtonText()}
+          </Button>
+        )}
       </div>
     </div>
   );

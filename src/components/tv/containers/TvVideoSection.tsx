@@ -5,6 +5,7 @@ import VideoPreview from "@/components/video/VideoPreview";
 
 interface UploadedFile extends File {
   preview?: string;
+  isChunkedUpload?: boolean;
 }
 
 interface TvVideoSectionProps {
