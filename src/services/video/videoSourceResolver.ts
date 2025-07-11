@@ -14,6 +14,11 @@ export interface VideoSource {
  */
 export const resolveVideoSource = async (filePath: string): Promise<VideoSource> => {
   try {
+    // Skip resolution for blob URLs (local previews)
+    if (filePath.startsWith('blob:')) {
+      return { type: 'assembled', path: filePath, isAvailable: false };
+    }
+    
     // Check if this is a chunked file reference
     if (filePath.startsWith('chunked:')) {
       const sessionId = filePath.replace('chunked:', '');

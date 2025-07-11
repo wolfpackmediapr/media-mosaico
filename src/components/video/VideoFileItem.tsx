@@ -3,6 +3,7 @@ import { FileVideo, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { EnhancedVideoPlayer } from "./EnhancedVideoPlayer";
+import VideoPlayer from "./VideoPlayer";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -67,7 +68,11 @@ const VideoFileItem = ({
       </div>
 
       {file.preview && (
-        <EnhancedVideoPlayer src={file.preview} />
+        <VideoPlayer src={file.preview} className="h-48" />
+      )}
+
+      {file.filePath && !file.preview && (
+        <EnhancedVideoPlayer src={file.filePath} className="h-48" />
       )}
 
       <div className="space-y-2">
