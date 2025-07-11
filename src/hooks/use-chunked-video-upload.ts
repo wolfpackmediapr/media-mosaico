@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 const MAX_RETRIES = 3;
+const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024; // 50MB threshold for client-side reassembly
 
 interface ChunkProgress {
   index: number;
@@ -32,6 +33,7 @@ export const useChunkedVideoUpload = () => {
   const [chunkProgress, setChunkProgress] = useState<number>(0);
   const [totalChunks, setTotalChunks] = useState<number>(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [useClientAssembly, setUseClientAssembly] = useState(false);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentSessionRef = useRef<UploadSession | null>(null);
@@ -71,6 +73,16 @@ export const useChunkedVideoUpload = () => {
       setIsUploading(true);
       setUploadProgress(0);
       setIsPaused(false);
+
+      // Determine upload strategy based on file size
+      const isLargeFile = file.size > LARGE_FILE_THRESHOLD;
+      setUseClientAssembly(isLargeFile);
+      
+      if (isLargeFile) {
+        console.log(`Large file detected (${Math.round(file.size / 1024 / 1024)}MB) - using client-side reassembly`);
+      } else {
+        console.log(`Small file detected (${Math.round(file.size / 1024 / 1024)}MB) - using edge function reassembly`);
+      }
 
       const sanitizedFileName = sanitizeFileName(file.name);
       const fileName = `${user.id}/${Date.now()}_${sanitizedFileName}`;
@@ -221,8 +233,7 @@ export const useChunkedVideoUpload = () => {
       console.log('All chunks uploaded, finalizing upload...');
       setChunkProgress(100);
 
-      // All files now use the same chunked upload strategy
-      // Call edge function for validation and reassembly
+      // Check if session already completed
       const { data: sessionCheck } = await supabase
         .from('chunked_upload_sessions')
         .select('status, uploaded_chunks, total_chunks')
@@ -243,112 +254,18 @@ export const useChunkedVideoUpload = () => {
         return { fileName, preview };
       }
 
-      // Enhanced reassembly with timeout handling for large files
-      try {
-        console.log('Starting file reassembly...');
-        
-        // Calculate timeout based on file size
-        const fileSizeMB = file.size / 1024 / 1024;
-        const timeoutMs = fileSizeMB > 100 ? 600000 : // 10 minutes for very large files
-                         fileSizeMB > 50 ? 480000 :   // 8 minutes for large files
-                         300000;                      // 5 minutes for smaller files
-        
-        console.log(`Using ${Math.round(timeoutMs / 1000)}s timeout for ${fileSizeMB.toFixed(1)}MB file`);
-        
-        // Create timeout promise
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`File reassembly timeout after ${Math.round(timeoutMs / 1000)}s - file may be too large for processing`));
-          }, timeoutMs);
-        });
-        
-        // Create reassembly promise
-        const reassemblyPromise = supabase.functions.invoke('reassemble-chunked-video', {
-          body: {
-            sessionId: session.sessionId,
-            fileName: fileName,
-            totalChunks: chunks
-          }
-        });
-        
-        // Race between reassembly and timeout
-        const { data, error } = await Promise.race([
-          reassemblyPromise,
-          timeoutPromise
-        ]) as any;
+      // Use different strategies based on file size
+      const fileSizeMB = file.size / 1024 / 1024;
+      const isLargeFile = file.size > LARGE_FILE_THRESHOLD;
 
-        if (error) {
-          console.error('Reassembly error:', error);
-          throw new Error(`Reassembly error: ${error.message}`);
-        }
-
-        if (!data?.success) {
-          const errorMsg = data?.error || 'File reassembly failed';
-          console.error('Reassembly failed:', errorMsg);
-          
-          // Better error messages for common issues
-          if (errorMsg.includes('timeout') || errorMsg.includes('Timeout')) {
-            throw new Error('File is too large for processing. Please try a smaller file or contact support.');
-          }
-          
-          throw new Error(errorMsg);
-        }
-
-        console.log('File reassembly successful:', data);
-
-        // Create transcription record
-        const { data: transcriptionData, error: transcriptionError } = await supabase
-          .from('tv_transcriptions')
-          .insert({
-            original_file_path: fileName,
-            audio_file_path: fileName,
-            status: 'uploaded'
-          })
-          .select()
-          .single();
-
-        if (transcriptionError) {
-          console.error('Error creating transcription record:', transcriptionError);
-          throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
-        }
-
-        // Clean up session
-        removeSession(session.sessionId);
-        
-        const preview = URL.createObjectURL(file);
-        console.log('Upload completed successfully');
-        
-        toast.success("Archivo subido exitosamente", {
-          description: "El archivo ha sido procesado correctamente."
-        });
-        
-        return { fileName, preview };
-
-      } catch (error) {
-        console.error('Upload validation failed:', error);
-        
-        // Final status check before failing
-        const { data: finalCheck } = await supabase
-          .from('chunked_upload_sessions')
-          .select('status')
-          .eq('session_id', session.sessionId)
-          .single();
-
-        if (finalCheck?.status === 'completed') {
-          console.log('Session was completed despite validation error');
-          removeSession(session.sessionId);
-          const preview = URL.createObjectURL(file);
-          toast.success("Archivo subido exitosamente", {
-            description: "El archivo ha sido procesado correctamente."
-          });
-          return { fileName, preview };
-        }
-        
-        toast.error("Error al validar archivo", {
-          description: "No se pudo validar la subida del archivo. Por favor, verifica si se subió correctamente."
-        });
-        
-        throw new Error(`Upload validation failed: ${error.message}`);
+      if (isLargeFile) {
+        // Large files: Use client-side reassembly
+        console.log(`Starting client-side reassembly for ${fileSizeMB.toFixed(1)}MB file...`);
+        return await assembleFileClientSide(session, file, fileName);
+      } else {
+        // Small files: Use edge function reassembly
+        console.log(`Starting edge function reassembly for ${fileSizeMB.toFixed(1)}MB file...`);
+        return await assembleFileEdgeFunction(session, file, fileName, chunks);
       }
 
       return null; // Should never reach here
@@ -363,12 +280,210 @@ export const useChunkedVideoUpload = () => {
     }
   };
 
+  // Client-side reassembly for large files
+  const assembleFileClientSide = async (session: UploadSession, file: File, fileName: string) => {
+    try {
+      console.log('Starting client-side streaming reassembly...');
+      
+      // Create a streaming approach to avoid memory issues
+      const chunks: Blob[] = [];
+      
+      for (let i = 0; i < session.totalChunks; i++) {
+        const chunkPath = `chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`;
+        
+        try {
+          const { data: chunkBlob, error: chunkError } = await supabase.storage
+            .from('video')
+            .download(chunkPath);
+            
+          if (chunkError || !chunkBlob) {
+            throw new Error(`Failed to download chunk ${i}: ${chunkError?.message}`);
+          }
+          
+          chunks.push(chunkBlob);
+          
+          // Update progress during download
+          const downloadProgress = ((i + 1) / session.totalChunks) * 50; // First half of progress
+          setUploadProgress(downloadProgress / 100);
+          
+        } catch (error) {
+          console.error(`Error downloading chunk ${i}:`, error);
+          throw new Error(`Failed to download chunk ${i}: ${error.message}`);
+        }
+      }
+      
+      console.log('All chunks downloaded, assembling final file...');
+      
+      // Assemble file from chunks
+      const assembledFile = new Blob(chunks, { type: file.type });
+      
+      // Upload final assembled file
+      console.log('Uploading assembled file...');
+      const { error: uploadError } = await supabase.storage
+        .from('video')
+        .upload(fileName, assembledFile, {
+          cacheControl: '3600',
+          upsert: true
+        });
+        
+      if (uploadError) {
+        throw new Error(`Failed to upload assembled file: ${uploadError.message}`);
+      }
+      
+      // Clean up chunks
+      console.log('Cleaning up chunks...');
+      const chunkNamesToDelete = [];
+      for (let i = 0; i < session.totalChunks; i++) {
+        chunkNamesToDelete.push(`chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`);
+      }
+      
+      await supabase.storage.from('video').remove(chunkNamesToDelete);
+      
+      // Create transcription record
+      const { data: transcriptionData, error: transcriptionError } = await supabase
+        .from('tv_transcriptions')
+        .insert({
+          original_file_path: fileName,
+          audio_file_path: fileName,
+          status: 'uploaded'
+        })
+        .select()
+        .single();
+
+      if (transcriptionError) {
+        console.error('Error creating transcription record:', transcriptionError);
+        throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
+      }
+
+      // Mark session as completed
+      await supabase
+        .from('chunked_upload_sessions')
+        .update({ status: 'completed' })
+        .eq('session_id', session.sessionId);
+
+      // Clean up session
+      removeSession(session.sessionId);
+      
+      const preview = URL.createObjectURL(file);
+      console.log('Client-side assembly completed successfully');
+      
+      toast.success("Archivo subido exitosamente", {
+        description: "El archivo ha sido procesado correctamente mediante ensamblaje del lado del cliente."
+      });
+      
+      return { fileName, preview };
+      
+    } catch (error) {
+      console.error('Client-side assembly failed:', error);
+      throw new Error(`Client-side assembly failed: ${error.message}`);
+    }
+  };
+
+  // Edge function reassembly for small files
+  const assembleFileEdgeFunction = async (session: UploadSession, file: File, fileName: string, chunks: number) => {
+    try {
+      console.log('Starting edge function reassembly...');
+      
+      // Calculate timeout for small files only
+      const fileSizeMB = file.size / 1024 / 1024;
+      const timeoutMs = 300000; // 5 minutes for small files
+      
+      console.log(`Using ${Math.round(timeoutMs / 1000)}s timeout for ${fileSizeMB.toFixed(1)}MB file`);
+      
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Edge function timeout after ${Math.round(timeoutMs / 1000)}s`));
+        }, timeoutMs);
+      });
+      
+      // Create reassembly promise
+      const reassemblyPromise = supabase.functions.invoke('reassemble-chunked-video', {
+        body: {
+          sessionId: session.sessionId,
+          fileName: fileName,
+          totalChunks: chunks
+        }
+      });
+      
+      // Race between reassembly and timeout
+      const { data, error } = await Promise.race([
+        reassemblyPromise,
+        timeoutPromise
+      ]) as any;
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(`Edge function error: ${error.message}`);
+      }
+
+      if (!data?.success) {
+        const errorMsg = data?.error || 'Edge function reassembly failed';
+        console.error('Edge function failed:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      console.log('Edge function reassembly successful:', data);
+
+      // Create transcription record
+      const { data: transcriptionData, error: transcriptionError } = await supabase
+        .from('tv_transcriptions')
+        .insert({
+          original_file_path: fileName,
+          audio_file_path: fileName,
+          status: 'uploaded'
+        })
+        .select()
+        .single();
+
+      if (transcriptionError) {
+        console.error('Error creating transcription record:', transcriptionError);
+        throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
+      }
+
+      // Clean up session
+      removeSession(session.sessionId);
+      
+      const preview = URL.createObjectURL(file);
+      console.log('Edge function upload completed successfully');
+      
+      toast.success("Archivo subido exitosamente", {
+        description: "El archivo ha sido procesado correctamente."
+      });
+      
+      return { fileName, preview };
+
+    } catch (error) {
+      console.error('Edge function assembly failed:', error);
+      
+      // Final status check before failing
+      const { data: finalCheck } = await supabase
+        .from('chunked_upload_sessions')
+        .select('status')
+        .eq('session_id', session.sessionId)
+        .single();
+
+      if (finalCheck?.status === 'completed') {
+        console.log('Session was completed despite validation error');
+        removeSession(session.sessionId);
+        const preview = URL.createObjectURL(file);
+        toast.success("Archivo subido exitosamente", {
+          description: "El archivo ha sido procesado correctamente."
+        });
+        return { fileName, preview };
+      }
+      
+      throw new Error(`Edge function assembly failed: ${error.message}`);
+    }
+  };
+
   return {
     isUploading,
     uploadProgress,
     chunkProgress,
     totalChunks,
     isPaused,
+    useClientAssembly,
     uploadFileChunked,
     pauseUpload,
     resumeUpload,

@@ -29,6 +29,7 @@ const TvVideoUploader = ({
     chunkProgress,
     totalChunks,
     isPaused,
+    useClientAssembly,
     uploadFileChunked,
     pauseUpload,
     resumeUpload
@@ -92,7 +93,11 @@ const TvVideoUploader = ({
   const getProgressText = () => {
     if (isChunkedUploading && totalChunks > 0) {
       if (uploadProgress >= 100 && chunkProgress >= 100) {
-        return "Procesando archivo... Esto puede tomar unos minutos para archivos grandes.";
+        if (useClientAssembly) {
+          return "Archivo grande detectado. Ensamblando en el navegador para mejor rendimiento...";
+        } else {
+          return "Procesando archivo en el servidor... Esto puede tomar unos minutos.";
+        }
       }
       return `Subiendo fragmento ${Math.round(chunkProgress)}/${totalChunks} - ${uploadProgress.toFixed(0)}% completado`;
     }
@@ -100,7 +105,7 @@ const TvVideoUploader = ({
   };
 
   const getFileSizeLimit = () => {
-    return "Archivos de video de cualquier tamaño";
+    return "Archivos de video de cualquier tamaño (>50MB se procesan en el navegador)";
   };
 
   return (
@@ -124,7 +129,10 @@ const TvVideoUploader = ({
           {isUploading ? (
             <div className="space-y-4">
               <p className="text-sm text-gray-500">
-                {isChunkedUploading ? "Subiendo archivo grande..." : "Subiendo archivo..."}
+                {isChunkedUploading 
+                  ? (useClientAssembly ? "Subiendo archivo grande (procesamiento en navegador)..." : "Subiendo archivo...")
+                  : "Subiendo archivo..."
+                }
               </p>
               <Progress value={uploadProgress} className="w-full h-2" />
               <p className="text-xs text-gray-500">{getProgressText()}</p>

@@ -72,12 +72,15 @@ serve(async (req) => {
         .single();
       
       const fileSize = sessionFileData?.file_size || 0;
-      console.log(`Starting enhanced reassembly for ${fileName} (${totalChunks} chunks, ${Math.round(fileSize / 1024 / 1024)}MB)`);
+      const fileSizeMB = Math.round(fileSize / 1024 / 1024);
+      console.log(`Starting enhanced reassembly for ${fileName} (${totalChunks} chunks, ${fileSizeMB}MB)`);
       
-      // Check if file is very large and needs special handling
+      // Reject files larger than 50MB for edge function processing
       if (fileSize > 50 * 1024 * 1024) { // >50MB
-        console.log(`Large file detected (${Math.round(fileSize / 1024 / 1024)}MB), using optimized strategy`);
+        throw new Error(`File too large for edge function processing (${fileSizeMB}MB > 50MB limit). Use client-side assembly instead.`);
       }
+      
+      console.log(`Processing small file (${fileSizeMB}MB) with optimized edge function strategy`);
       
       // Create optimized readable stream with batched processing
       const combinedStream = new ReadableStream({
