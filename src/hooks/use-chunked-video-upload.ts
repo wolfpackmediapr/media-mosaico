@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { TvTranscriptionService } from "@/services/tv/tvTranscriptionService";
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 const MAX_RETRIES = 3;
@@ -334,19 +335,15 @@ export const useChunkedVideoUpload = () => {
         .eq('session_id', session.sessionId);
 
       // Create transcription record with chunked reference
-      const { data: transcriptionData, error: transcriptionError } = await supabase
-        .from('tv_transcriptions')
-        .insert({
-          original_file_path: `chunked:${session.sessionId}`, // Special prefix for chunked files
-          audio_file_path: `chunked:${session.sessionId}`,
-          status: 'uploaded'
-        })
-        .select()
-        .single();
+      const transcriptionData = await TvTranscriptionService.createTranscription({
+        original_file_path: `chunked:${session.sessionId}`, // Special prefix for chunked files
+        audio_file_path: `chunked:${session.sessionId}`,
+        status: 'uploaded'
+      });
 
-      if (transcriptionError) {
-        console.error('Error creating transcription record:', transcriptionError);
-        throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
+      if (!transcriptionData) {
+        console.error('Error creating transcription record');
+        throw new Error('Failed to create transcription record');
       }
 
       // Clean up session
