@@ -50,42 +50,59 @@ export const useTvVideoProcessor = () => {
       // Check if file was already uploaded via chunks
       const sanitizedFileName = file.name.replace(/\s+/g, '_').toLowerCase();
       
-      // Look for existing transcription record that matches this file
-      console.log('[TvVideoProcessor] Checking for existing chunked upload...');
-      const { data: existingTranscriptions, error: searchError } = await supabase
-        .from('tv_transcriptions')
-        .select('id, original_file_path, status')
+      // Look for existing chunked upload sessions for this specific file
+      console.log('[TvVideoProcessor] Checking for existing chunked upload sessions...');
+      const { data: chunkSessions, error: sessionError } = await supabase
+        .from('chunked_upload_sessions')
+        .select('id, session_id, file_name, file_size, status')
         .eq('user_id', user.id)
-        .or(`original_file_path.like.%${sanitizedFileName},original_file_path.like.chunked:%`)
+        .eq('file_name', file.name)
+        .eq('file_size', file.size)
+        .eq('status', 'completed')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(1);
 
-      if (searchError) {
-        console.error('[TvVideoProcessor] Error searching for existing transcriptions:', searchError);
+      if (sessionError) {
+        console.error('[TvVideoProcessor] Error searching for chunk sessions:', sessionError);
       }
 
       let existingTranscription = null;
       let fileName = '';
       let skipUpload = false;
 
-      // Check if any existing transcription matches this file
-      if (existingTranscriptions && existingTranscriptions.length > 0) {
-        for (const transcription of existingTranscriptions) {
-          const path = transcription.original_file_path;
-          
-          // Check for chunked files or files with same name
-          if (path.includes(sanitizedFileName) || path.startsWith('chunked:')) {
-            existingTranscription = transcription;
-            fileName = path;
-            skipUpload = true;
-            console.log('[TvVideoProcessor] Found existing chunked upload:', {
-              transcriptionId: transcription.id,
-              originalPath: path,
-              status: transcription.status
-            });
-            break;
-          }
+      // Only skip upload if we find a valid chunked upload session for this exact file
+      if (chunkSessions && chunkSessions.length > 0) {
+        const chunkSession = chunkSessions[0];
+        console.log('[TvVideoProcessor] Found chunked upload session:', chunkSession);
+        
+        // Look for transcription with chunked path matching this session
+        const { data: chunkedTranscriptions, error: searchError } = await supabase
+          .from('tv_transcriptions')
+          .select('id, original_file_path, status')
+          .eq('user_id', user.id)
+          .like('original_file_path', `chunked:${chunkSession.session_id}%`)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (searchError) {
+          console.error('[TvVideoProcessor] Error searching for chunked transcriptions:', searchError);
         }
+
+        if (chunkedTranscriptions && chunkedTranscriptions.length > 0) {
+          existingTranscription = chunkedTranscriptions[0];
+          fileName = existingTranscription.original_file_path;
+          skipUpload = true;
+          console.log('[TvVideoProcessor] Found existing chunked transcription:', {
+            transcriptionId: existingTranscription.id,
+            originalPath: fileName,
+            status: existingTranscription.status,
+            sessionId: chunkSession.session_id
+          });
+        } else {
+          console.log('[TvVideoProcessor] No transcription found for chunked session, will proceed with regular upload');
+        }
+      } else {
+        console.log('[TvVideoProcessor] No completed chunked upload found for this file, proceeding with regular upload');
       }
 
       if (skipUpload && existingTranscription) {
