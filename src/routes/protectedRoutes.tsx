@@ -21,6 +21,10 @@ export const createProtectedRoute = (Component: React.LazyExoticComponent<() => 
  */
 export const protectedRoutes: RouteObject[] = [
   {
+    path: "radio",
+    element: createProtectedRoute(lazyRoutes.Radio)
+  },
+  {
     path: "tv",
     element: createProtectedRoute(lazyRoutes.Tv)
   },
