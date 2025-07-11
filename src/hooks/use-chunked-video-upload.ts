@@ -112,6 +112,7 @@ export const useChunkedVideoUpload = () => {
           user_id: user.id,
           file_name: fileName,
           total_chunks: chunks,
+          uploaded_chunks: 0,
           file_size: file.size,
           status: 'in_progress'
         });
@@ -193,9 +194,16 @@ export const useChunkedVideoUpload = () => {
 
             console.log(`Uploaded chunk ${i + 1}/${chunks}`);
             
-            // Update session progress
+            // Update session progress in both local storage and database
             session.uploadedChunks = i + 1;
             updateSession(session);
+            
+            // Update database session progress
+            await supabase
+              .from('chunked_upload_sessions')
+              .update({ uploaded_chunks: session.uploadedChunks })
+              .eq('session_id', session.sessionId);
+            
             setUploadProgress(session.uploadedChunks / session.totalChunks);
             break;
           } catch (error) {
@@ -243,8 +251,8 @@ export const useChunkedVideoUpload = () => {
 
       // Call the edge function to reassemble the file with adaptive retry logic
       let reassemblyRetries = 0;
-      const MAX_REASSEMBLY_RETRIES = file.size > LARGE_FILE_THRESHOLD ? 3 : 2; // Reduced retries
-      const REASSEMBLY_TIMEOUT = 60000; // 60 seconds timeout
+      const MAX_REASSEMBLY_RETRIES = 2; // Reduced retries since we check session status
+      const REASSEMBLY_TIMEOUT = file.size > LARGE_FILE_THRESHOLD ? 120000 : 60000; // Adaptive timeout
       
       while (reassemblyRetries < MAX_REASSEMBLY_RETRIES) {
         try {
@@ -264,13 +272,20 @@ export const useChunkedVideoUpload = () => {
             }
           }
           
-          const { data, error } = await supabase.functions.invoke('reassemble-chunked-video', {
+          // Use Promise.race for timeout handling
+          const reassemblyPromise = supabase.functions.invoke('reassemble-chunked-video', {
             body: {
               sessionId: session.sessionId,
               fileName: fileName,
               totalChunks: chunks
             }
           });
+          
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Reassembly timeout')), REASSEMBLY_TIMEOUT);
+          });
+          
+          const { data, error } = await Promise.race([reassemblyPromise, timeoutPromise]) as any;
 
           if (error) {
             throw new Error(`Edge function error: ${error.message}`);
@@ -341,6 +356,23 @@ export const useChunkedVideoUpload = () => {
           }
           
           if (reassemblyRetries >= MAX_REASSEMBLY_RETRIES) {
+            // Final check before giving up
+            const { data: finalCheck } = await supabase
+              .from('chunked_upload_sessions')
+              .select('status')
+              .eq('session_id', session.sessionId)
+              .single();
+
+            if (finalCheck?.status === 'completed') {
+              console.log('Session completed during final check, treating as success');
+              removeSession(session.sessionId);
+              const preview = URL.createObjectURL(file);
+              toast.success("Archivo subido exitosamente", {
+                description: "El archivo grande ha sido procesado correctamente."
+              });
+              return { fileName, preview };
+            }
+            
             toast.error("Error al procesar archivo", {
               description: `No se pudo procesar el archivo después de ${MAX_REASSEMBLY_RETRIES} intentos. El archivo puede haberse subido correctamente.`
             });
@@ -348,8 +380,9 @@ export const useChunkedVideoUpload = () => {
             throw new Error(`Failed to reassemble file after ${MAX_REASSEMBLY_RETRIES} attempts: ${error.message}`);
           }
           
-          // Wait before retrying (shorter backoff)
-          await new Promise(resolve => setTimeout(resolve, 1000 * reassemblyRetries));
+          // Exponential backoff with jitter
+          const backoffTime = Math.min(1000 * Math.pow(2, reassemblyRetries) + Math.random() * 1000, 10000);
+          await new Promise(resolve => setTimeout(resolve, backoffTime));
         }
       }
 
