@@ -16,6 +16,7 @@ interface UploadSession {
   sessionId: string;
   fileName: string;
   totalChunks: number;
+  uploadedChunks: number;
   chunks: ChunkProgress[];
 }
 
@@ -89,6 +90,7 @@ export const useChunkedVideoUpload = () => {
         sessionId,
         fileName,
         totalChunks: chunks,
+        uploadedChunks: 0,
         chunks: Array.from({ length: chunks }, (_, index) => ({
           index,
           uploaded: false,
@@ -98,12 +100,27 @@ export const useChunkedVideoUpload = () => {
 
       currentSessionRef.current = session;
 
-      // Store session in localStorage for resume capability
+      // Store session in localStorage and database for resume capability
       localStorage.setItem(`upload_session_${sessionId}`, JSON.stringify(session));
+      
+      // Track session in database
+      const { error: sessionError } = await supabase
+        .from('chunked_upload_sessions')
+        .insert({
+          session_id: sessionId,
+          user_id: user.id,
+          file_name: fileName,
+          total_chunks: chunks,
+          file_size: file.size,
+          status: 'in_progress'
+        });
 
-      await continueChunkedUpload(session, file);
+      if (sessionError) {
+        console.warn('Could not track session in database:', sessionError);
+      }
 
-      return { fileName, preview: URL.createObjectURL(file) };
+      const result = await continueChunkedUpload(session, file);
+      return result;
     } catch (error) {
       console.error('Error uploading file:', error);
       if (error instanceof Error && error.name !== 'AbortError') {
@@ -119,127 +136,181 @@ export const useChunkedVideoUpload = () => {
     }
   };
 
+  const updateSession = (session: UploadSession) => {
+    localStorage.setItem(`upload_session_${session.sessionId}`, JSON.stringify(session));
+  };
+
+  const removeSession = (sessionId: string) => {
+    localStorage.removeItem(`upload_session_${sessionId}`);
+  };
+
   const continueChunkedUpload = async (session: UploadSession, file?: File) => {
-    if (!file && !currentSessionRef.current) {
-      toast.error("Error", { description: "No se pudo continuar la subida. Archivo no encontrado." });
-      return;
+    if (!file) {
+      console.error('File is required for chunked upload');
+      return null;
     }
 
-    const uploadFile = file || currentSessionRef.current;
-    if (!uploadFile) return;
-
-    abortControllerRef.current = new AbortController();
-
     try {
-      // Upload chunks
-      for (let i = 0; i < session.totalChunks; i++) {
-        if (isPaused || abortControllerRef.current.signal.aborted) {
-          return;
+      setIsUploading(true);
+      setUploadProgress(session.uploadedChunks / session.totalChunks);
+      setChunkProgress(0);
+      setTotalChunks(session.totalChunks);
+      setIsPaused(false);
+
+      const fileName = sanitizeFileName(session.fileName);
+      const chunks = Math.ceil(file.size / CHUNK_SIZE);
+      
+      console.log(`Continuing upload: ${fileName}, chunks: ${chunks}, uploaded: ${session.uploadedChunks}`);
+
+      // Upload remaining chunks
+      for (let i = session.uploadedChunks; i < chunks; i++) {
+        if (isPaused) {
+          console.log('Upload paused');
+          break;
         }
 
-        const chunk = session.chunks[i];
-        if (chunk.uploaded) {
-          setChunkProgress(i + 1);
-          setUploadProgress(((i + 1) / session.totalChunks) * 90); // Reserve 10% for reassembly
-          continue;
-        }
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        const chunkFileName = `chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`;
 
-        let uploadSuccess = false;
-        let retryCount = 0;
-
-        while (!uploadSuccess && retryCount < MAX_RETRIES && !isPaused) {
+        let retries = 0;
+        while (retries < MAX_RETRIES) {
           try {
-            const start = i * CHUNK_SIZE;
-            const end = Math.min(start + CHUNK_SIZE, (file as File).size);
-            const chunkBlob = (file as File).slice(start, end);
+            setChunkProgress((i / chunks) * 100);
             
-            const chunkFileName = `chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`;
-
-            const { error: uploadError } = await supabase.storage
+            const { error } = await supabase.storage
               .from('video')
-              .upload(chunkFileName, chunkBlob, {
+              .upload(chunkFileName, chunk, {
                 cacheControl: '3600',
                 upsert: true
               });
 
-            if (uploadError) {
-              throw uploadError;
+            if (error) {
+              throw error;
             }
 
-            // Mark chunk as uploaded
-            chunk.uploaded = true;
-            session.chunks[i] = chunk;
-            localStorage.setItem(`upload_session_${session.sessionId}`, JSON.stringify(session));
-
-            setChunkProgress(i + 1);
-            setUploadProgress(((i + 1) / session.totalChunks) * 90);
-            uploadSuccess = true;
-
+            console.log(`Uploaded chunk ${i + 1}/${chunks}`);
+            
+            // Update session progress
+            session.uploadedChunks = i + 1;
+            updateSession(session);
+            setUploadProgress(session.uploadedChunks / session.totalChunks);
+            break;
           } catch (error) {
-            retryCount++;
-            chunk.retries = retryCount;
-            console.warn(`Chunk ${i} upload failed, retry ${retryCount}:`, error);
+            retries++;
+            console.error(`Error uploading chunk ${i} (attempt ${retries}):`, error);
             
-            if (retryCount >= MAX_RETRIES) {
-              throw new Error(`Error subiendo el fragmento ${i + 1}/${session.totalChunks}. Intenta reanudar la subida.`);
+            if (retries >= MAX_RETRIES) {
+              throw new Error(`Failed to upload chunk ${i} after ${MAX_RETRIES} attempts: ${error}`);
             }
             
-            // Wait before retry (exponential backoff)
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000 * retries));
           }
         }
       }
 
       if (isPaused) {
-        return;
+        console.log('Upload was paused');
+        return null;
       }
 
-      // Reassemble chunks on the server
-      setUploadProgress(95);
-      const { data, error: reassembleError } = await supabase.functions.invoke('reassemble-chunked-video', {
-        body: {
-          sessionId: session.sessionId,
-          fileName: session.fileName,
-          totalChunks: session.totalChunks
-        }
-      });
+      console.log('All chunks uploaded, reassembling file...');
+      setChunkProgress(100);
 
-      if (reassembleError) {
-        throw new Error('Error al procesar el archivo. Intenta nuevamente.');
-      }
-
-      // Create transcription record
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { error: dbError } = await supabase
-          .from('transcriptions')
-          .insert({
-            user_id: user.id,
-            original_file_path: session.fileName,
-            status: 'pending',
-            channel: 'Canal Example',
-            program: 'Programa Example',
-            category: 'Noticias',
-            broadcast_time: new Date().toISOString(),
-            keywords: ['ejemplo', 'prueba']
+      // Call the edge function to reassemble the file with retry logic
+      let reassemblyRetries = 0;
+      const MAX_REASSEMBLY_RETRIES = 3;
+      
+      while (reassemblyRetries < MAX_REASSEMBLY_RETRIES) {
+        try {
+          console.log(`Attempting reassembly (attempt ${reassemblyRetries + 1}/${MAX_REASSEMBLY_RETRIES})...`);
+          
+          const { data, error } = await supabase.functions.invoke('reassemble-chunked-video', {
+            body: {
+              sessionId: session.sessionId,
+              fileName: fileName,
+              totalChunks: chunks
+            }
           });
 
-        if (dbError) throw dbError;
+          if (error) {
+            throw new Error(`Edge function error: ${error.message}`);
+          }
+
+          if (!data?.success) {
+            throw new Error(data?.error || 'Unknown error occurred during file reassembly');
+          }
+
+          console.log('File reassembled successfully:', data);
+
+          // Create transcription record
+          const { data: transcriptionData, error: transcriptionError } = await supabase
+            .from('tv_transcriptions')
+            .insert({
+              original_file_path: fileName,
+              audio_file_path: fileName,
+              status: 'uploaded'
+            })
+            .select()
+            .single();
+
+          if (transcriptionError) {
+            console.error('Error creating transcription record:', transcriptionError);
+            throw new Error(`Failed to create transcription record: ${transcriptionError.message}`);
+          }
+
+          // Clean up session
+          removeSession(session.sessionId);
+          
+          const preview = URL.createObjectURL(file);
+          console.log('Upload completed successfully');
+          
+          toast.success("Archivo subido exitosamente", {
+            description: "El archivo grande ha sido procesado correctamente."
+          });
+          
+          return { fileName, preview };
+
+        } catch (error) {
+          reassemblyRetries++;
+          console.error(`Reassembly attempt ${reassemblyRetries} failed:`, error);
+          
+          if (reassemblyRetries >= MAX_REASSEMBLY_RETRIES) {
+            // If all reassembly attempts failed, clean up chunks and throw error
+            console.error('All reassembly attempts failed, cleaning up...');
+            try {
+              // Clean up uploaded chunks
+              for (let i = 0; i < chunks; i++) {
+                const chunkFileName = `chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`;
+                await supabase.storage.from('video').remove([chunkFileName]);
+              }
+            } catch (cleanupError) {
+              console.warn('Error during cleanup:', cleanupError);
+            }
+            
+            toast.error("Error al procesar archivo", {
+              description: `No se pudo procesar el archivo después de ${MAX_REASSEMBLY_RETRIES} intentos. Intenta nuevamente.`
+            });
+            
+            throw new Error(`Failed to reassemble file after ${MAX_REASSEMBLY_RETRIES} attempts: ${error.message}`);
+          }
+          
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, reassemblyRetries - 1)));
+        }
       }
 
-      setUploadProgress(100);
-      
-      // Clean up session
-      localStorage.removeItem(`upload_session_${session.sessionId}`);
-      currentSessionRef.current = null;
-
-      toast.success("Archivo subido exitosamente", {
-        description: "El archivo grande ha sido procesado correctamente."
-      });
-
+      return null; // Should never reach here
     } catch (error) {
-      console.error('Error in chunked upload:', error);
+      console.error('Chunked upload error:', error);
       throw error;
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      setChunkProgress(0);
+      setTotalChunks(0);
     }
   };
 
