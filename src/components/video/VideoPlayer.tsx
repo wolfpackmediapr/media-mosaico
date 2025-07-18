@@ -179,8 +179,8 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
   return (
     <div 
       className={cn(
-        "relative group", 
-        isSticky ? "fixed bottom-4 right-4 w-72 z-50 shadow-lg rounded-lg" : "",
+        "relative group overflow-hidden rounded-lg", 
+        isSticky ? "fixed bottom-4 right-4 w-72 z-50 shadow-lg" : "",
         className
       )}
       ref={stickyRef}
@@ -203,7 +203,8 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
         onClick={togglePlay}
       />
       
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto">
         <div className="space-y-2">
           {/* Progress bar */}
           <Slider
@@ -289,6 +290,7 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
                 <Maximize className="h-4 w-4" />
               )}
             </Button>
+            </div>
           </div>
         </div>
       </div>
