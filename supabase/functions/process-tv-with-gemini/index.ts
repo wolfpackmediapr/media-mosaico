@@ -39,27 +39,37 @@ async function uploadChunksDirectlyToGemini(supabase: any, chunkOrder: any[], ma
   const fileName = manifest.file_name || 'video.mp4';
   const mimeType = manifest.mime_type || 'video/mp4';
   
+  // Validate required data
+  if (!manifest.total_size || manifest.total_size <= 0) {
+    throw new Error('Invalid manifest: missing or invalid total_size');
+  }
+  
   console.log(`[${requestId}] Initializing resumable upload session...`);
   
-  // Start resumable upload session
-  const initResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'X-Goog-Upload-Protocol': 'resumable',
-      'X-Goog-Upload-Command': 'start',
-      'X-Goog-Upload-Header-Content-Length': manifest.total_size.toString(),
-      'X-Goog-Upload-Header-Content-Type': mimeType,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      file: {
-        display_name: fileName
-      }
-    })
-  });
+  // Start resumable upload session with better error handling
+  let initResponse;
+  try {
+    initResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': manifest.total_size.toString(),
+        'X-Goog-Upload-Header-Content-Type': mimeType,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        file: {
+          display_name: fileName
+        }
+      })
+    });
+  } catch (fetchError) {
+    throw new Error(`Network error initializing Gemini upload: ${fetchError.message}`);
+  }
 
   if (!initResponse.ok) {
-    const errorText = await initResponse.text();
+    const errorText = await initResponse.text().catch(() => 'Unknown error');
     throw new Error(`Failed to initialize resumable upload: ${initResponse.status} - ${errorText}`);
   }
 
@@ -243,16 +253,31 @@ serve(async (req) => {
   }
 
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  let requestBody: any = {}; // Initialize to avoid scope issues
   
   try {
     console.log(`[${requestId}] === UNIFIED PROCESSING START ===`);
     
-    // Step 1: Validate environment
-    const { supabaseUrl, supabaseServiceKey, geminiApiKey } = validateEnvironment();
-    console.log(`[${requestId}] Environment validated successfully`);
+    // Step 1: Validate environment (wrap in try-catch for better error handling)
+    let supabaseUrl, supabaseServiceKey, geminiApiKey;
+    try {
+      const env = validateEnvironment();
+      supabaseUrl = env.supabaseUrl;
+      supabaseServiceKey = env.supabaseServiceKey;
+      geminiApiKey = env.geminiApiKey;
+      console.log(`[${requestId}] Environment validated successfully`);
+    } catch (envError) {
+      console.error(`[${requestId}] Environment validation failed:`, envError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Server configuration error',
+          success: false 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Step 2: Parse and validate request
-    let requestBody;
     try {
       requestBody = await req.json();
     } catch (parseError) {
@@ -345,18 +370,36 @@ serve(async (req) => {
       const sessionId = videoPath.replace('chunked:', '');
       console.log(`[${requestId}] Processing chunked video with session ID: ${sessionId}`);
       
-      // Get chunk manifest
-      const { data: manifest, error: manifestError } = await supabase
-        .from('video_chunk_manifests')
-        .select('*')
-        .eq('session_id', sessionId)
-        .single();
-      
-      if (manifestError || !manifest) {
-        throw new Error(`Failed to load chunk manifest for session: ${sessionId}`);
+      // Get chunk manifest with better error handling
+      let manifest;
+      try {
+        const { data: manifestData, error: manifestError } = await supabase
+          .from('video_chunk_manifests')
+          .select('*')
+          .eq('session_id', sessionId)
+          .single();
+        
+        if (manifestError) {
+          console.error(`[${requestId}] Manifest query error:`, manifestError);
+          throw new Error(`Failed to load chunk manifest for session: ${sessionId} - ${manifestError.message}`);
+        }
+        
+        if (!manifestData) {
+          throw new Error(`No chunk manifest found for session: ${sessionId}`);
+        }
+        
+        manifest = manifestData;
+        console.log(`[${requestId}] Found chunk manifest with ${manifest.total_chunks} chunks`);
+        
+        // Validate manifest structure
+        if (!manifest.chunk_order || !Array.isArray(manifest.chunk_order)) {
+          throw new Error(`Invalid chunk manifest structure for session: ${sessionId}`);
+        }
+        
+      } catch (manifestError) {
+        console.error(`[${requestId}] Manifest processing failed:`, manifestError);
+        throw new Error(`Chunk manifest error: ${manifestError.message}`);
       }
-      
-      console.log(`[${requestId}] Found chunk manifest with ${manifest.total_chunks} chunks`);
       
       if (transcriptionId) {
         await updateTranscriptionRecord(supabase, transcriptionId, {
@@ -366,7 +409,13 @@ serve(async (req) => {
 
       // Process chunks directly to Gemini without memory reassembly
       console.log(`[${requestId}] Starting direct chunk processing to avoid memory issues...`);
-      const uploadedFile = await processChunksDirectly(supabase, manifest, requestId, geminiApiKey);
+      let uploadedFile;
+      try {
+        uploadedFile = await processChunksDirectly(supabase, manifest, requestId, geminiApiKey);
+      } catch (chunkError) {
+        console.error(`[${requestId}] Chunk processing failed:`, chunkError);
+        throw new Error(`Chunk processing error: ${chunkError.message}`);
+      }
       
       if (transcriptionId) {
         await updateTranscriptionRecord(supabase, transcriptionId, {
@@ -502,9 +551,8 @@ serve(async (req) => {
       console.error(`[${requestId}] MEMORY ERROR DETECTED - File may be too large for processing`);
     }
     
-    // Update transcription status to failed if we have the ID
-    const requestBody = await req.clone().json().catch(() => ({}));
-    if (requestBody.transcriptionId) {
+    // Update transcription status to failed if we have the ID (use already parsed requestBody)
+    if (requestBody?.transcriptionId) {
       try {
         const { supabaseUrl, supabaseServiceKey } = validateEnvironment();
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -512,6 +560,7 @@ serve(async (req) => {
           status: 'failed',
           progress: 100
         });
+        console.log(`[${requestId}] Updated transcription status to failed`);
       } catch (updateError) {
         console.error(`[${requestId}] Failed to update error status:`, updateError);
       }
