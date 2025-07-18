@@ -14,25 +14,187 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Helper function to process chunked video files without memory reassembly
+// Helper function to process chunked video files with batch processing and monitoring
 async function processChunksDirectly(supabase: any, manifest: any, requestId: string, apiKey: string): Promise<any> {
   console.log(`[${requestId}] Processing ${manifest.total_chunks} chunks directly to Gemini...`);
   
   const chunkOrder = manifest.chunk_order;
   const totalExpectedSize = manifest.total_size || 0;
   
+  // Memory monitoring
+  const startMemory = Deno.memoryUsage ? Deno.memoryUsage() : null;
+  console.log(`[${requestId}] Initial memory usage:`, startMemory);
+  
   console.log(`[${requestId}] Chunk processing details:`, {
     totalChunks: chunkOrder.length,
     expectedSize: totalExpectedSize,
-    directUpload: true
+    directUpload: true,
+    chunkSize: Math.round(totalExpectedSize / chunkOrder.length / 1024 / 1024) + 'MB avg per chunk'
   });
   
-  // Use Gemini's resumable upload for large files to avoid memory issues
-  return await uploadChunksDirectlyToGemini(supabase, chunkOrder, manifest, apiKey, requestId);
+  // For very large files (>200MB), implement batch processing
+  const BATCH_SIZE = totalExpectedSize > 200 * 1024 * 1024 ? 5 : 10;
+  const MAX_RETRIES = 3;
+  
+  if (chunkOrder.length > BATCH_SIZE) {
+    console.log(`[${requestId}] Large file detected - using batch processing with size: ${BATCH_SIZE}`);
+    return await uploadChunksInBatches(supabase, chunkOrder, manifest, apiKey, requestId, BATCH_SIZE, MAX_RETRIES);
+  }
+  
+  // Use standard resumable upload for smaller files
+  return await uploadChunksDirectlyToGemini(supabase, chunkOrder, manifest, apiKey, requestId, MAX_RETRIES);
 }
 
-// Upload chunks directly to Gemini using resumable upload
-async function uploadChunksDirectlyToGemini(supabase: any, chunkOrder: any[], manifest: any, apiKey: string, requestId: string): Promise<any> {
+// Upload chunks in batches for very large files
+async function uploadChunksInBatches(supabase: any, chunkOrder: any[], manifest: any, apiKey: string, requestId: string, batchSize: number, maxRetries: number): Promise<any> {
+  console.log(`[${requestId}] Starting batch chunk upload to Gemini (batches of ${batchSize})...`);
+  
+  const fileName = manifest.file_name || 'video.mp4';
+  const mimeType = manifest.mime_type || 'video/mp4';
+  
+  // Initialize resumable upload session
+  console.log(`[${requestId}] Initializing resumable upload session for batch processing...`);
+  
+  const initResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'X-Goog-Upload-Protocol': 'resumable',
+      'X-Goog-Upload-Command': 'start',
+      'X-Goog-Upload-Header-Content-Length': manifest.total_size.toString(),
+      'X-Goog-Upload-Header-Content-Type': mimeType,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      file: { display_name: fileName }
+    })
+  });
+
+  if (!initResponse.ok) {
+    const errorText = await initResponse.text().catch(() => 'Unknown error');
+    throw new Error(`Failed to initialize batch upload: ${initResponse.status} - ${errorText}`);
+  }
+
+  const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
+  if (!uploadUrl) {
+    throw new Error('No upload URL received from Gemini for batch processing');
+  }
+
+  // Process chunks in batches with retry logic
+  let uploadedBytes = 0;
+  let lastUploadResponse;
+  const totalBatches = Math.ceil(chunkOrder.length / batchSize);
+  
+  for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    const startIdx = batchIndex * batchSize;
+    const endIdx = Math.min(startIdx + batchSize, chunkOrder.length);
+    const batchChunks = chunkOrder.slice(startIdx, endIdx);
+    
+    console.log(`[${requestId}] Processing batch ${batchIndex + 1}/${totalBatches} (chunks ${startIdx + 1}-${endIdx})...`);
+    
+    // Memory cleanup before batch
+    if (globalThis.gc) {
+      globalThis.gc();
+    }
+    
+    for (let i = 0; i < batchChunks.length; i++) {
+      const globalIndex = startIdx + i;
+      const chunkInfo = batchChunks[i];
+      
+      let uploadSuccess = false;
+      let lastError;
+      
+      // Retry logic for each chunk
+      for (let retry = 0; retry < maxRetries; retry++) {
+        try {
+          console.log(`[${requestId}] Uploading chunk ${globalIndex + 1}/${chunkOrder.length} (batch ${batchIndex + 1}, attempt ${retry + 1})...`);
+          
+          // Download chunk with timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+          
+          const { data: chunkBlob, error } = await supabase.storage
+            .from('video')
+            .download(chunkInfo.path);
+          
+          clearTimeout(timeoutId);
+          
+          if (error || !chunkBlob) {
+            throw new Error(`Failed to download chunk ${globalIndex}: ${error?.message || 'Unknown error'}`);
+          }
+          
+          // Upload chunk with proper size validation
+          const chunkSize = chunkBlob.size;
+          
+          // Gemini requires chunks to be multiples of 8MB except for the last chunk
+          if (globalIndex < chunkOrder.length - 1 && chunkSize % (8 * 1024 * 1024) !== 0) {
+            console.warn(`[${requestId}] Chunk ${globalIndex} size ${chunkSize} is not a multiple of 8MB`);
+          }
+          
+          const uploadResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Length': chunkSize.toString(),
+              'X-Goog-Upload-Offset': uploadedBytes.toString(),
+              'X-Goog-Upload-Command': globalIndex === chunkOrder.length - 1 ? 'upload, finalize' : 'upload'
+            },
+            body: chunkBlob,
+            signal: controller.signal
+          });
+
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
+          }
+
+          lastUploadResponse = uploadResponse;
+          uploadedBytes += chunkSize;
+          uploadSuccess = true;
+          break;
+          
+        } catch (error) {
+          lastError = error;
+          console.warn(`[${requestId}] Chunk ${globalIndex} upload attempt ${retry + 1} failed:`, error.message);
+          
+          if (retry < maxRetries - 1) {
+            // Exponential backoff
+            const waitTime = Math.min(1000 * Math.pow(2, retry), 10000);
+            console.log(`[${requestId}] Retrying chunk ${globalIndex} in ${waitTime}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          }
+        }
+      }
+      
+      if (!uploadSuccess) {
+        throw new Error(`Failed to upload chunk ${globalIndex} after ${maxRetries} attempts: ${lastError?.message}`);
+      }
+    }
+    
+    // Batch completed - log progress and memory status
+    const progress = Math.round((endIdx / chunkOrder.length) * 100);
+    const currentMemory = Deno.memoryUsage ? Deno.memoryUsage() : null;
+    console.log(`[${requestId}] Batch ${batchIndex + 1}/${totalBatches} completed (${progress}% total progress)`);
+    if (currentMemory) {
+      console.log(`[${requestId}] Memory usage: ${Math.round(currentMemory.heapUsed / 1024 / 1024)}MB`);
+    }
+    
+    // Small delay between batches to prevent rate limiting
+    if (batchIndex < totalBatches - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+
+  console.log(`[${requestId}] All batches uploaded to Gemini, getting file info...`);
+
+  if (!lastUploadResponse) {
+    throw new Error('No upload response received from batch processing');
+  }
+  
+  const finalResponse = await lastUploadResponse.json();
+  return finalResponse.file;
+}
+
+// Upload chunks directly to Gemini using resumable upload (standard method)
+async function uploadChunksDirectlyToGemini(supabase: any, chunkOrder: any[], manifest: any, apiKey: string, requestId: string, maxRetries: number = 3): Promise<any> {
   console.log(`[${requestId}] Starting direct chunk upload to Gemini...`);
   
   // Step 1: Initialize resumable upload session with Gemini
@@ -46,9 +208,12 @@ async function uploadChunksDirectlyToGemini(supabase: any, chunkOrder: any[], ma
   
   console.log(`[${requestId}] Initializing resumable upload session...`);
   
-  // Start resumable upload session with better error handling
+  // Start resumable upload session with timeout
   let initResponse;
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+    
     initResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -62,8 +227,11 @@ async function uploadChunksDirectlyToGemini(supabase: any, chunkOrder: any[], ma
         file: {
           display_name: fileName
         }
-      })
+      }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
   } catch (fetchError) {
     throw new Error(`Network error initializing Gemini upload: ${fetchError.message}`);
   }
@@ -78,51 +246,100 @@ async function uploadChunksDirectlyToGemini(supabase: any, chunkOrder: any[], ma
     throw new Error('No upload URL received from Gemini');
   }
 
-  console.log(`[${requestId}] Upload session initialized, streaming chunks...`);
+  console.log(`[${requestId}] Upload session initialized, streaming chunks with retry logic...`);
 
-  // Step 2: Stream chunks directly to Gemini
+  // Step 2: Stream chunks directly to Gemini with retry logic
   let uploadedBytes = 0;
   let lastUploadResponse;
   
   for (let i = 0; i < chunkOrder.length; i++) {
     const chunkInfo = chunkOrder[i];
-    console.log(`[${requestId}] Uploading chunk ${i + 1}/${chunkOrder.length} directly to Gemini...`);
+    let uploadSuccess = false;
+    let lastError;
     
-    // Download chunk from Supabase
-    const { data: chunkBlob, error } = await supabase.storage
-      .from('video')
-      .download(chunkInfo.path);
-    
-    if (error || !chunkBlob) {
-      throw new Error(`Failed to download chunk ${i}: ${error?.message || 'Unknown error'}`);
+    // Retry logic for each chunk
+    for (let retry = 0; retry < maxRetries; retry++) {
+      try {
+        console.log(`[${requestId}] Uploading chunk ${i + 1}/${chunkOrder.length} (attempt ${retry + 1})...`);
+        
+        // Download chunk from Supabase with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        
+        const { data: chunkBlob, error } = await supabase.storage
+          .from('video')
+          .download(chunkInfo.path);
+        
+        clearTimeout(timeoutId);
+        
+        if (error || !chunkBlob) {
+          throw new Error(`Failed to download chunk ${i}: ${error?.message || 'Unknown error'}`);
+        }
+        
+        // Upload chunk directly to Gemini with size validation
+        const chunkSize = chunkBlob.size;
+        
+        // Validate chunk size for Gemini requirements
+        if (i < chunkOrder.length - 1 && chunkSize % (8 * 1024 * 1024) !== 0) {
+          console.warn(`[${requestId}] Chunk ${i} size ${chunkSize} is not a multiple of 8MB`);
+        }
+        
+        const uploadController = new AbortController();
+        const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000); // 60s timeout for upload
+        
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Length': chunkSize.toString(),
+            'X-Goog-Upload-Offset': uploadedBytes.toString(),
+            'X-Goog-Upload-Command': i === chunkOrder.length - 1 ? 'upload, finalize' : 'upload'
+          },
+          body: chunkBlob,
+          signal: uploadController.signal
+        });
+        
+        clearTimeout(uploadTimeoutId);
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
+        }
+
+        lastUploadResponse = uploadResponse;
+        uploadedBytes += chunkSize;
+        uploadSuccess = true;
+        break;
+        
+      } catch (error) {
+        lastError = error;
+        console.warn(`[${requestId}] Chunk ${i} upload attempt ${retry + 1} failed:`, error.message);
+        
+        if (retry < maxRetries - 1) {
+          // Exponential backoff
+          const waitTime = Math.min(1000 * Math.pow(2, retry), 8000);
+          console.log(`[${requestId}] Retrying chunk ${i} in ${waitTime}ms...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
     }
     
-    // Upload chunk directly to Gemini
-    const chunkSize = chunkBlob.size;
-    const startByte = uploadedBytes;
-    const endByte = uploadedBytes + chunkSize - 1;
-    
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Length': chunkSize.toString(),
-        'X-Goog-Upload-Offset': startByte.toString(),
-        'X-Goog-Upload-Command': i === chunkOrder.length - 1 ? 'upload, finalize' : 'upload'
-      },
-      body: chunkBlob
-    });
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      throw new Error(`Failed to upload chunk ${i}: ${uploadResponse.status} - ${errorText}`);
+    if (!uploadSuccess) {
+      throw new Error(`Failed to upload chunk ${i} after ${maxRetries} attempts: ${lastError?.message}`);
     }
-
-    lastUploadResponse = uploadResponse;
-    uploadedBytes += chunkSize;
     
-    // Force garbage collection after each chunk
+    // Memory cleanup after each chunk
     if (globalThis.gc) {
       globalThis.gc();
+    }
+    
+    // Progress logging
+    if ((i + 1) % 5 === 0 || i === chunkOrder.length - 1) {
+      const progress = Math.round(((i + 1) / chunkOrder.length) * 100);
+      const currentMemory = Deno.memoryUsage ? Deno.memoryUsage() : null;
+      console.log(`[${requestId}] Upload progress: ${progress}% (${i + 1}/${chunkOrder.length} chunks)`);
+      if (currentMemory) {
+        console.log(`[${requestId}] Memory usage: ${Math.round(currentMemory.heapUsed / 1024 / 1024)}MB`);
+      }
     }
   }
 
