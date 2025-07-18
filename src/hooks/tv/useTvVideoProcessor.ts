@@ -48,19 +48,27 @@ export const useTvVideoProcessor = () => {
       if (!user) throw new Error('Please log in to process videos');
 
       // Check if file was already uploaded via chunks
-      const sanitizedFileName = file.name.replace(/\s+/g, '_').toLowerCase();
+      const normalizeFileName = (name: string) => {
+        return name
+          .toLowerCase()
+          .replace(/\s+/g, '_')
+          .replace(/[()]/g, '_')
+          .replace(/_+/g, '_')
+          .replace(/^_|_$/g, '');
+      };
       
-      // Look for existing chunked upload sessions for this specific file
+      const normalizedCurrentFile = normalizeFileName(file.name);
+      
+      // Look for existing chunked upload sessions with flexible matching
       console.log('[TvVideoProcessor] Checking for existing chunked upload sessions...');
       const { data: chunkSessions, error: sessionError } = await supabase
         .from('chunked_upload_sessions')
-        .select('id, session_id, file_name, file_size, status')
+        .select('id, session_id, file_name, file_size, status, created_at')
         .eq('user_id', user.id)
-        .eq('file_name', file.name)
         .eq('file_size', file.size)
         .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()) // Last hour
+        .order('created_at', { ascending: false });
 
       if (sessionError) {
         console.error('[TvVideoProcessor] Error searching for chunk sessions:', sessionError);
@@ -70,17 +78,30 @@ export const useTvVideoProcessor = () => {
       let fileName = '';
       let skipUpload = false;
 
-      // Only skip upload if we find a valid chunked upload session for this exact file
+      // Find the best matching chunked upload session
+      let matchingChunkSession = null;
       if (chunkSessions && chunkSessions.length > 0) {
-        const chunkSession = chunkSessions[0];
-        console.log('[TvVideoProcessor] Found chunked upload session:', chunkSession);
+        // Try to find exact match first, then fallback to normalized matching
+        matchingChunkSession = chunkSessions.find(session => 
+          normalizeFileName(session.file_name) === normalizedCurrentFile
+        ) || chunkSessions[0]; // Fallback to most recent if no exact match
         
+        console.log('[TvVideoProcessor] Found chunked upload session:', {
+          sessionId: matchingChunkSession.session_id,
+          originalFileName: matchingChunkSession.file_name,
+          normalizedStored: normalizeFileName(matchingChunkSession.file_name),
+          normalizedCurrent: normalizedCurrentFile,
+          isExactMatch: normalizeFileName(matchingChunkSession.file_name) === normalizedCurrentFile
+        });
+      }
+      
+      if (matchingChunkSession) {
         // Look for transcription with chunked path matching this session
         const { data: chunkedTranscriptions, error: searchError } = await supabase
           .from('tv_transcriptions')
           .select('id, original_file_path, status')
           .eq('user_id', user.id)
-          .like('original_file_path', `chunked:${chunkSession.session_id}%`)
+          .like('original_file_path', `chunked:${matchingChunkSession.session_id}%`)
           .order('created_at', { ascending: false })
           .limit(1);
 
@@ -96,7 +117,7 @@ export const useTvVideoProcessor = () => {
             transcriptionId: existingTranscription.id,
             originalPath: fileName,
             status: existingTranscription.status,
-            sessionId: chunkSession.session_id
+            sessionId: matchingChunkSession.session_id
           });
         } else {
           console.log('[TvVideoProcessor] No transcription found for chunked session, will proceed with regular upload');
