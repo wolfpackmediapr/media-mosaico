@@ -179,7 +179,7 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
   return (
     <div 
       className={cn(
-        "relative group overflow-hidden rounded-lg", 
+        "relative group rounded-lg", 
         isSticky ? "fixed bottom-4 right-4 w-72 z-50 shadow-lg" : "",
         className
       )}
