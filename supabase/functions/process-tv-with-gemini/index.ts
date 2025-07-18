@@ -14,141 +14,227 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Helper function to process chunked video files with memory optimization
-async function processChunksOptimized(supabase: any, manifest: any, requestId: string): Promise<Blob> {
-  console.log(`[${requestId}] Processing ${manifest.total_chunks} chunks with memory optimization...`);
+// Helper function to process chunked video files without memory reassembly
+async function processChunksDirectly(supabase: any, manifest: any, requestId: string, apiKey: string): Promise<any> {
+  console.log(`[${requestId}] Processing ${manifest.total_chunks} chunks directly to Gemini...`);
   
   const chunkOrder = manifest.chunk_order;
-  const MAX_MEMORY_SIZE = 100 * 1024 * 1024; // 100MB memory limit
   const totalExpectedSize = manifest.total_size || 0;
   
   console.log(`[${requestId}] Chunk processing details:`, {
     totalChunks: chunkOrder.length,
     expectedSize: totalExpectedSize,
-    memoryLimit: MAX_MEMORY_SIZE
+    directUpload: true
   });
   
-  // If file is too large, use streaming approach with ReadableStream
-  if (totalExpectedSize > MAX_MEMORY_SIZE) {
-    console.log(`[${requestId}] File too large (${totalExpectedSize} bytes), using streaming approach...`);
-    return createStreamingVideoBlob(supabase, chunkOrder, manifest, requestId);
-  }
-  
-  // For smaller files, use optimized batch processing
-  return createBatchedVideoBlob(supabase, chunkOrder, manifest, requestId);
+  // Use Gemini's resumable upload for large files to avoid memory issues
+  return await uploadChunksDirectlyToGemini(supabase, chunkOrder, manifest, apiKey, requestId);
 }
 
-// Create video blob using streaming for very large files
-async function createStreamingVideoBlob(supabase: any, chunkOrder: any[], manifest: any, requestId: string): Promise<Blob> {
-  console.log(`[${requestId}] Creating streaming video blob...`);
+// Upload chunks directly to Gemini using resumable upload
+async function uploadChunksDirectlyToGemini(supabase: any, chunkOrder: any[], manifest: any, apiKey: string, requestId: string): Promise<any> {
+  console.log(`[${requestId}] Starting direct chunk upload to Gemini...`);
   
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        for (let i = 0; i < chunkOrder.length; i++) {
-          const chunkInfo = chunkOrder[i];
-          console.log(`[${requestId}] Streaming chunk ${i + 1}/${chunkOrder.length}...`);
-          
-          const { data: chunkBlob, error } = await supabase.storage
-            .from('video')
-            .download(chunkInfo.path);
-          
-          if (error || !chunkBlob) {
-            controller.error(new Error(`Failed to download chunk ${i}: ${error?.message || 'Unknown error'}`));
-            return;
-          }
-          
-          // Stream chunk data
-          const arrayBuffer = await chunkBlob.arrayBuffer();
-          controller.enqueue(new Uint8Array(arrayBuffer));
-          
-          // Force garbage collection hint
-          if (globalThis.gc) {
-            globalThis.gc();
-          }
-        }
-        controller.close();
-      } catch (error) {
-        controller.error(error);
+  // Step 1: Initialize resumable upload session with Gemini
+  const fileName = manifest.file_name || 'video.mp4';
+  const mimeType = manifest.mime_type || 'video/mp4';
+  
+  console.log(`[${requestId}] Initializing resumable upload session...`);
+  
+  // Start resumable upload session
+  const initResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'X-Goog-Upload-Protocol': 'resumable',
+      'X-Goog-Upload-Command': 'start',
+      'X-Goog-Upload-Header-Content-Length': manifest.total_size.toString(),
+      'X-Goog-Upload-Header-Content-Type': mimeType,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      file: {
+        display_name: fileName
       }
-    }
+    })
   });
-  
-  // Convert stream to blob
-  const response = new Response(stream);
-  return response.blob();
-}
 
-// Create video blob using batched processing for moderate files
-async function createBatchedVideoBlob(supabase: any, chunkOrder: any[], manifest: any, requestId: string): Promise<Blob> {
-  console.log(`[${requestId}] Creating batched video blob...`);
+  if (!initResponse.ok) {
+    const errorText = await initResponse.text();
+    throw new Error(`Failed to initialize resumable upload: ${initResponse.status} - ${errorText}`);
+  }
+
+  const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
+  if (!uploadUrl) {
+    throw new Error('No upload URL received from Gemini');
+  }
+
+  console.log(`[${requestId}] Upload session initialized, streaming chunks...`);
+
+  // Step 2: Stream chunks directly to Gemini
+  let uploadedBytes = 0;
+  let lastUploadResponse;
   
-  const BATCH_SIZE = 5; // Process 5 chunks at a time
-  const chunks: Uint8Array[] = [];
-  
-  for (let batchStart = 0; batchStart < chunkOrder.length; batchStart += BATCH_SIZE) {
-    const batchEnd = Math.min(batchStart + BATCH_SIZE, chunkOrder.length);
-    console.log(`[${requestId}] Processing batch ${Math.floor(batchStart / BATCH_SIZE) + 1}/${Math.ceil(chunkOrder.length / BATCH_SIZE)} (chunks ${batchStart + 1}-${batchEnd})...`);
+  for (let i = 0; i < chunkOrder.length; i++) {
+    const chunkInfo = chunkOrder[i];
+    console.log(`[${requestId}] Uploading chunk ${i + 1}/${chunkOrder.length} directly to Gemini...`);
     
-    // Download batch of chunks
-    const batchPromises = [];
-    for (let i = batchStart; i < batchEnd; i++) {
-      const chunkInfo = chunkOrder[i];
-      batchPromises.push(
-        supabase.storage
-          .from('video')
-          .download(chunkInfo.path)
-          .then(({ data, error }) => {
-            if (error || !data) {
-              throw new Error(`Failed to download chunk ${i}: ${error?.message || 'Unknown error'}`);
-            }
-            return { index: i, data };
-          })
-      );
+    // Download chunk from Supabase
+    const { data: chunkBlob, error } = await supabase.storage
+      .from('video')
+      .download(chunkInfo.path);
+    
+    if (error || !chunkBlob) {
+      throw new Error(`Failed to download chunk ${i}: ${error?.message || 'Unknown error'}`);
     }
     
-    // Wait for batch completion
-    const batchResults = await Promise.all(batchPromises);
+    // Upload chunk directly to Gemini
+    const chunkSize = chunkBlob.size;
+    const startByte = uploadedBytes;
+    const endByte = uploadedBytes + chunkSize - 1;
     
-    // Process batch results in order
-    for (const result of batchResults.sort((a, b) => a.index - b.index)) {
-      const arrayBuffer = await result.data.arrayBuffer();
-      chunks.push(new Uint8Array(arrayBuffer));
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Length': chunkSize.toString(),
+        'X-Goog-Upload-Offset': startByte.toString(),
+        'X-Goog-Upload-Command': i === chunkOrder.length - 1 ? 'upload, finalize' : 'upload'
+      },
+      body: chunkBlob
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(`Failed to upload chunk ${i}: ${uploadResponse.status} - ${errorText}`);
     }
+
+    lastUploadResponse = uploadResponse;
+    uploadedBytes += chunkSize;
     
-    // Force garbage collection hint after each batch
+    // Force garbage collection after each chunk
     if (globalThis.gc) {
       globalThis.gc();
     }
   }
-  
-  console.log(`[${requestId}] All batches processed, creating final blob...`);
-  
-  // Calculate total size
-  const totalSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  
-  // Create combined array efficiently
-  const combined = new Uint8Array(totalSize);
-  let offset = 0;
-  
-  for (const chunk of chunks) {
-    combined.set(chunk, offset);
-    offset += chunk.length;
+
+  console.log(`[${requestId}] All chunks uploaded directly to Gemini, getting file info...`);
+
+  // Step 3: Get the final uploaded file info from the last response
+  if (!lastUploadResponse) {
+    throw new Error('No upload response received');
   }
   
-  // Clear chunks array to free memory
-  chunks.length = 0;
+  const finalResponse = await lastUploadResponse.json();
+  return finalResponse.file;
+}
+
+// Process already uploaded file with Gemini (for direct chunk uploads)
+async function processUploadedFileWithGemini(
+  uploadedFile: any, 
+  apiKey: string, 
+  videoPath: string,
+  progressCallback?: (progress: number) => void,
+  categories: any[] = [],
+  clients: any[] = []
+) {
+  try {
+    console.log('[gemini-unified] Processing already uploaded file...', {
+      fileName: uploadedFile.name,
+      displayName: uploadedFile.displayName,
+      videoPath,
+      categoriesCount: categories.length,
+      clientsCount: clients.length
+    });
+    
+    // Step 1: Wait for processing (30% progress when complete)
+    progressCallback?.(0.1);
+    const processedFile = await waitForFileProcessing(uploadedFile.name, apiKey, progressCallback);
+    
+    // Step 2: Generate comprehensive analysis (80% progress when complete)
+    progressCallback?.(0.5);
+    const analysisResult = await generateComprehensiveAnalysis(processedFile.uri, apiKey, categories, clients);
+    
+    // Step 3: Cleanup (100% progress)
+    progressCallback?.(0.9);
+    await cleanupGeminiFile(processedFile.name, apiKey);
+    
+    progressCallback?.(1.0);
+    console.log('[gemini-unified] Uploaded file processing completed successfully');
+    
+    return analysisResult;
+    
+  } catch (error) {
+    console.error('[gemini-unified] Uploaded file processing error:', error);
+    throw new Error(`Uploaded file processing failed: ${error.message}`);
+  }
+}
+
+// Import required functions from gemini-unified-processor.ts
+async function waitForFileProcessing(fileName: string, apiKey: string, progressCallback?: (progress: number) => void, maxAttempts = 30) {
+  console.log('[gemini-unified] Waiting for file processing...');
   
-  // Create blob for processing
-  const reassembledBlob = new Blob([combined], { type: manifest.mime_type || 'video/mp4' });
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`);
+      
+      if (!statusResponse.ok) {
+        const errorText = await statusResponse.text();
+        console.error(`[gemini-unified] Status check failed:`, errorText);
+        throw new Error(`Status check failed: ${statusResponse.status} - ${errorText}`);
+      }
+
+      const fileStatus = await statusResponse.json();
+      console.log(`[gemini-unified] Processing status (${attempt}/${maxAttempts}): ${fileStatus.state}`);
+
+      if (fileStatus.state === 'ACTIVE') {
+        console.log('[gemini-unified] File processing completed successfully');
+        return fileStatus;
+      } else if (fileStatus.state === 'FAILED') {
+        throw new Error(`File processing failed: ${fileStatus.error?.message || 'Unknown error'}`);
+      }
+
+      // Update progress during processing wait
+      progressCallback?.(0.1 + (attempt / maxAttempts) * 0.3);
+      
+      // Progressive wait time with jitter
+      const baseWait = Math.min(2000 * Math.pow(1.2, attempt - 1), 8000);
+      const jitter = Math.random() * 1000;
+      await new Promise(resolve => setTimeout(resolve, baseWait + jitter));
+      
+    } catch (error) {
+      console.error(`[gemini-unified] Status check attempt ${attempt} failed:`, error);
+      if (attempt === maxAttempts) {
+        throw new Error(`File processing timeout after ${maxAttempts} attempts: ${error.message}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
   
-  console.log(`[${requestId}] Optimized chunk processing completed:`, {
-    totalChunks: chunkOrder.length,
-    totalSize: reassembledBlob.size,
-    type: reassembledBlob.type
-  });
-  
-  return reassembledBlob;
+  throw new Error('File processing timeout');
+}
+
+async function generateComprehensiveAnalysis(fileUri: string, apiKey: string, categories: any[] = [], clients: any[] = []) {
+  // This function will be imported from gemini-unified-processor.ts
+  // For now, we'll call the external function
+  const { generateComprehensiveAnalysis: externalAnalysis } = await import('./gemini-unified-processor.ts');
+  return await externalAnalysis(fileUri, apiKey, categories, clients);
+}
+
+async function cleanupGeminiFile(fileName: string, apiKey: string) {
+  try {
+    console.log('[gemini-unified] Cleaning up Gemini file:', fileName);
+    
+    const deleteResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`, {
+      method: 'DELETE'
+    });
+    
+    if (!deleteResponse.ok) {
+      console.warn('[gemini-unified] Failed to cleanup file:', await deleteResponse.text());
+    } else {
+      console.log('[gemini-unified] File cleanup completed');
+    }
+  } catch (error) {
+    console.warn('[gemini-unified] Cleanup error (non-critical):', error);
+  }
 }
 
 serve(async (req) => {
@@ -252,10 +338,10 @@ serve(async (req) => {
     }
 
     // Step 5: Handle chunked vs assembled video files
-    let videoBlob;
+    let result;
     
     if (videoPath.startsWith('chunked:')) {
-      // Handle chunked video files
+      // Handle chunked video files with direct upload (no memory reassembly)
       const sessionId = videoPath.replace('chunked:', '');
       console.log(`[${requestId}] Processing chunked video with session ID: ${sessionId}`);
       
@@ -272,11 +358,43 @@ serve(async (req) => {
       
       console.log(`[${requestId}] Found chunk manifest with ${manifest.total_chunks} chunks`);
       
-      // Process chunks with memory optimization
-      videoBlob = await processChunksOptimized(supabase, manifest, requestId);
+      if (transcriptionId) {
+        await updateTranscriptionRecord(supabase, transcriptionId, {
+          progress: 20
+        });
+      }
+
+      // Process chunks directly to Gemini without memory reassembly
+      console.log(`[${requestId}] Starting direct chunk processing to avoid memory issues...`);
+      const uploadedFile = await processChunksDirectly(supabase, manifest, requestId, geminiApiKey);
+      
+      if (transcriptionId) {
+        await updateTranscriptionRecord(supabase, transcriptionId, {
+          progress: 40
+        });
+      }
+
+      // Wait for processing and analyze
+      result = await processUploadedFileWithGemini(
+        uploadedFile, 
+        geminiApiKey, 
+        videoPath,
+        (progress) => {
+          const progressPercent = Math.min(40 + Math.floor(progress * 50), 90);
+          console.log(`[${requestId}] Processing progress: ${(progress * 100).toFixed(1)}% (${progressPercent}%)`);
+          
+          if (transcriptionId) {
+            updateTranscriptionRecord(supabase, transcriptionId, {
+              progress: progressPercent
+            }).catch(err => console.warn(`[${requestId}] Progress update failed:`, err));
+          }
+        },
+        categories,
+        clients
+      );
       
     } else {
-      // Handle regular assembled video files
+      // Handle regular assembled video files with traditional method
       console.log(`[${requestId}] Processing assembled video file from video bucket...`);
       const videoUrl = await validateAndGetFile(supabase, videoPath);
       console.log(`[${requestId}] Video file validated successfully`);
@@ -289,40 +407,40 @@ serve(async (req) => {
 
       // Download video with retry
       console.log(`[${requestId}] Downloading video...`);
-      videoBlob = await downloadVideoWithRetry(videoUrl);
-    }
-    
-    console.log(`[${requestId}] Video processing prepared:`, {
-      size: videoBlob.size,
-      type: videoBlob.type
-    });
-
-    if (transcriptionId) {
-      await updateTranscriptionRecord(supabase, transcriptionId, {
-        progress: 30
+      const videoBlob = await downloadVideoWithRetry(videoUrl);
+      
+      console.log(`[${requestId}] Video processing prepared:`, {
+        size: videoBlob.size,
+        type: videoBlob.type
       });
-    }
 
-    // Step 7: Process video with unified Gemini workflow (now with dynamic data)
-    console.log(`[${requestId}] Starting unified video processing with dynamic prompt...`);
-    const result = await processVideoWithGemini(
-      videoBlob, 
-      geminiApiKey, 
-      videoPath,
-      (progress) => {
-        // Progress callback for updating database
-        const progressPercent = Math.min(30 + Math.floor(progress * 60), 90);
-        console.log(`[${requestId}] Processing progress: ${(progress * 100).toFixed(1)}% (${progressPercent}%)`);
-        
-        if (transcriptionId) {
-          updateTranscriptionRecord(supabase, transcriptionId, {
-            progress: progressPercent
-          }).catch(err => console.warn(`[${requestId}] Progress update failed:`, err));
-        }
-      },
-      categories,
-      clients
-    );
+      if (transcriptionId) {
+        await updateTranscriptionRecord(supabase, transcriptionId, {
+          progress: 30
+        });
+      }
+
+      // Process video with unified Gemini workflow
+      console.log(`[${requestId}] Starting unified video processing with dynamic prompt...`);
+      result = await processVideoWithGemini(
+        videoBlob, 
+        geminiApiKey, 
+        videoPath,
+        (progress) => {
+          // Progress callback for updating database
+          const progressPercent = Math.min(30 + Math.floor(progress * 60), 90);
+          console.log(`[${requestId}] Processing progress: ${(progress * 100).toFixed(1)}% (${progressPercent}%)`);
+          
+          if (transcriptionId) {
+            updateTranscriptionRecord(supabase, transcriptionId, {
+              progress: progressPercent
+            }).catch(err => console.warn(`[${requestId}] Progress update failed:`, err));
+          }
+        },
+        categories,
+        clients
+      );
+    }
 
     console.log(`[${requestId}] Processing completed, updating database...`);
 
