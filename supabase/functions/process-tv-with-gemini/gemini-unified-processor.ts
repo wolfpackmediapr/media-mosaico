@@ -335,11 +335,14 @@ Responde en español de manera concisa y profesional. Asegúrate de:
       // Parse the response to separate transcription and analysis
       const { transcription, analysis } = parseGeminiResponse(fullResponseText);
       
-      // Create a structured response with separated transcription and analysis
+      // Return the new structured format - analysis already contains content type markers
       return {
         transcription: transcription,
         visual_analysis: "Análisis visual procesado exitosamente",
-        segments: extractSegmentsFromAnalysis(analysis),
+        full_analysis: analysis, // This now contains properly formatted content with type markers
+        utterances: createUtterancesFromTranscription(transcription),
+        // Legacy fields for backward compatibility
+        segments: [],
         keywords: extractKeywordsFromAnalysis(analysis),
         summary: extractSummaryFromAnalysis(analysis),
         analysis: {
@@ -348,9 +351,7 @@ Responde en español de manera concisa y profesional. Asegúrate de:
           when: "Durante la transmisión",
           where: "Puerto Rico/Región Caribe",
           why: "Información noticiosa y publicitaria relevante"
-        },
-        utterances: createUtterancesFromTranscription(transcription),
-        full_analysis: analysis
+        }
       };
       
     } catch (error) {

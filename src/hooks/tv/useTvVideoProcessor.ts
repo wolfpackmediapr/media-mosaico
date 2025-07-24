@@ -215,6 +215,7 @@ export const useTvVideoProcessor = () => {
       setNewsSegments(result.segments || []);
       
       // NEW: Automatically set analysis results from Gemini processing
+      // Use full_analysis which should contain properly formatted content with type markers
       const analysisText = result.full_analysis || result.summary || '';
       setAnalysisResults(analysisText);
       console.log('[TvVideoProcessor] Analysis automatically populated:', {
