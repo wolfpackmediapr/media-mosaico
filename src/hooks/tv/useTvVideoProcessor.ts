@@ -30,7 +30,7 @@ export const useTvVideoProcessor = () => {
   const [transcriptionId, setTranscriptionId] = useState<string | null>(null);
   const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
   const [assemblyId, setAssemblyId] = useState<string | null>(null);
-  // Store analysis results from processing with proper type markers
+  // NEW: Store analysis results directly from processing
   const [analysisResults, setAnalysisResults] = useState<string>("");
 
   const processVideo = async (file: File) => {
@@ -214,19 +214,19 @@ export const useTvVideoProcessor = () => {
       setTranscriptionText(result.transcription || '');
       setNewsSegments(result.segments || []);
       
-      // Set analysis results from full_analysis which contains proper type markers
+      // NEW: Automatically set analysis results from Gemini processing
+      // Use full_analysis which should contain properly formatted content with type markers
       const analysisText = result.full_analysis || result.summary || '';
       setAnalysisResults(analysisText);
       console.log('[TvVideoProcessor] Analysis automatically populated:', {
         hasFullAnalysis: !!result.full_analysis,
         hasSummary: !!result.summary,
-        analysisLength: analysisText.length,
-        segmentsCount: result.segments?.length || 0
+        analysisLength: analysisText.length
       });
       
       setProgress(100);
 
-      // Create TranscriptionResult for compatibility with proper speaker names
+      // Create TranscriptionResult for compatibility
       if (result.utterances && Array.isArray(result.utterances)) {
         const mockTranscriptionResult: TranscriptionResult = {
           text: result.transcription,
@@ -243,6 +243,7 @@ export const useTvVideoProcessor = () => {
         setTranscriptionResult(mockTranscriptionResult);
       } else if (result.transcription) {
         // If no utterances but we have transcription text, let the editor handle speaker parsing
+        // This enables the same speaker functionality as Radio tab
         console.log('[TvVideoProcessor] No utterances from processing, will let editor parse speakers from text');
         setTranscriptionResult({
           text: result.transcription,
@@ -289,7 +290,7 @@ export const useTvVideoProcessor = () => {
     transcriptionId,
     newsSegments,
     assemblyId,
-    analysisResults, // Return analysis results with proper type markers
+    analysisResults, // NEW: Return analysis results
     processVideo,
     setTranscriptionText,
     setNewsSegments

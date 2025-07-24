@@ -1,349 +1,772 @@
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
-import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.1.3';
-import { updateTranscriptionRecord } from './database-utils.ts';
-import { parseAnalysisText } from './analysis-parser.ts';
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Comprehensive TV Analysis Prompt (the detailed one you had)
-function buildComprehensiveTvAnalysisPrompt(categories: string[], clients: Array<{name: string, keywords: string[]}>) {
-  const categoriesList = categories.length > 0 ? categories.join(', ') : 'Política, Economía, Deportes, Entretenimiento, Salud, Educación, Crimen, Ambiente, Tecnología, Gobierno, Religión, Comunidad';
+// Utility function to categorize errors
+function categorizeError(message: string): string {
+  if (message.includes('memory') || message.includes('heap')) {
+    return 'Error de memoria: El archivo es demasiado grande para procesar.';
+  } else if (message.includes('timeout')) {
+    return 'Tiempo de espera agotado: La operación tardó demasiado en completarse.';
+  } else if (message.includes('file size limit')) {
+    return 'Límite de tamaño de archivo excedido.';
+  } else {
+    return 'Error desconocido: Por favor, inténtalo de nuevo más tarde.';
+  }
+}
+
+// Function to upload video to Gemini File API
+async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{ uri: string; mimeType: string }> {
+  console.log('[gemini-unified] Uploading video to Gemini...', fileName);
   
-  const clientsList = clients.map(client => client.name).join(', ');
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  if (!geminiApiKey) {
+    throw new Error('Google Gemini API key not configured');
+  }
+
+  try {
+    // First, start resumable upload
+    const initResponse = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'X-Goog-Upload-Protocol': 'resumable',
+          'X-Goog-Upload-Command': 'start',
+          'X-Goog-Upload-Header-Content-Length': videoBlob.size.toString(),
+          'X-Goog-Upload-Header-Content-Type': 'video/mp4',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file: {
+            display_name: fileName
+          }
+        })
+      }
+    );
+
+    if (!initResponse.ok) {
+      throw new Error(`Failed to initialize upload: ${initResponse.status} ${initResponse.statusText}`);
+    }
+
+    const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
+    if (!uploadUrl) {
+      throw new Error('No upload URL received from Gemini');
+    }
+
+    // Upload the actual video data
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Length': videoBlob.size.toString(),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+      },
+      body: videoBlob
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to upload video: ${uploadResponse.status} ${uploadResponse.statusText}`);
+    }
+
+    const uploadResult = await uploadResponse.json();
+    console.log('[gemini-unified] Video uploaded successfully:', uploadResult.file?.name);
+
+    // Wait for processing to complete
+    const fileUri = uploadResult.file?.uri;
+    if (!fileUri) {
+      throw new Error('No file URI received from upload');
+    }
+
+    await waitForFileProcessing(uploadResult.file.name, geminiApiKey);
+
+    return {
+      uri: fileUri,
+      mimeType: 'video/mp4'
+    };
+  } catch (error) {
+    console.error('[gemini-unified] Video upload error:', error);
+    throw new Error(`Video upload failed: ${error.message}`);
+  }
+}
+
+// Function to wait for file processing by Gemini
+async function waitForFileProcessing(fileName: string, apiKey: string): Promise<void> {
+  console.log('[gemini-unified] Waiting for file processing...', fileName);
   
-  const clientKeywordMapping = clients.map(client => 
-    `**${client.name}:** ${client.keywords.join(', ')}`
-  ).join('\n');
+  const maxAttempts = 15; // Reduced attempts
+  const baseDelay = 3000; // 3 seconds
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      // Fixed the API URL - remove extra 'files/' prefix
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
 
-  return `Eres un analista experto en contenido de TV. Tu tarea es analizar la siguiente transcripción de TV en español e identificar y separar el contenido publicitario del contenido regular del programa.
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log(`[gemini-unified] File not ready yet, waiting... (attempt ${attempt})`);
+          await new Promise(resolve => setTimeout(resolve, baseDelay));
+          continue;
+        }
+        throw new Error(`Failed to check file status: ${response.status}`);
+      }
 
-IMPORTANTE - FORMATO DE RESPUESTA:
-Debes identificar y separar claramente cada sección de contenido, comenzando CADA SECCIÓN con uno de estos encabezados:
+      const fileInfo = await response.json();
+      console.log(`[gemini-unified] File status check ${attempt}:`, fileInfo.state);
 
-[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
-o
-[TIPO DE CONTENIDO: PROGRAMA REGULAR]
+      if (fileInfo.state === 'ACTIVE') {
+        console.log('[gemini-unified] File processing completed successfully');
+        return;
+      } else if (fileInfo.state === 'FAILED') {
+        throw new Error('File processing failed on Gemini side');
+      }
 
-IDENTIFICACIÓN DE ANUNCIOS:
-Señales clave para identificar anuncios:
-- Menciones de precios, ofertas o descuentos
-- Llamadas a la acción ("llame ahora", "visite nuestra tienda", etc.)
-- Información de contacto (números de teléfono, direcciones)
-- Menciones repetidas de marcas o productos específicos
-- Lenguaje persuasivo o promocional
+      // File is still processing, wait before next check
+      await new Promise(resolve => setTimeout(resolve, baseDelay));
+      
+    } catch (error) {
+      console.error(`[gemini-unified] File status check attempt ${attempt} failed:`, error);
+      if (attempt === maxAttempts) {
+        // Continue instead of throwing to allow processing with uploaded file
+        console.log('[gemini-unified] File processing timeout, continuing with analysis...');
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+}
 
-PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
+// Function to clean up Gemini file
+async function cleanupGeminiFile(fileName: string): Promise<void> {
+  console.log('[gemini-unified] Cleaning up Gemini file...', fileName);
+  
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  if (!geminiApiKey) {
+    console.error('[gemini-unified] No API key for cleanup');
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${geminiApiKey}`,
+      {
+        method: 'DELETE'
+      }
+    );
+
+    if (response.ok) {
+      console.log('[gemini-unified] File cleanup completed successfully');
+    } else {
+      console.error('[gemini-unified] File cleanup failed:', response.status);
+    }
+  } catch (error) {
+    console.error('[gemini-unified] File cleanup error:', error);
+  }
+}
+
+// Function to update database progress
+async function updateDatabaseProgress(transcriptionId: string, progress: number, status: string): Promise<void> {
+  console.log('[gemini-unified] Updating database progress...', {
+    transcriptionId,
+    progress,
+    status
+  });
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Supabase URL and service key are required');
+  }
+
+  const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
+  const { error } = await supabaseClient
+    .from('tv_transcriptions')
+    .update({ progress, status })
+    .eq('id', transcriptionId);
+
+  if (error) {
+    console.error('[gemini-unified] Database update error:', error);
+    throw new Error(`Database update failed: ${error.message}`);
+  }
+}
+
+async function generateComprehensiveAnalysis(
+  transcriptText: string, 
+  categories: any[], 
+  clients: any[]
+): Promise<string> {
+  console.log('[gemini-unified] Generating comprehensive analysis...');
+  
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  if (!geminiApiKey) {
+    throw new Error('Google Gemini API key not configured');
+  }
+
+  // Build TV-specific prompt
+  const prompt = `Analiza el siguiente contenido de TV y proporciona un análisis detallado en formato JSON:
+
+CATEGORÍAS DISPONIBLES: ${categories.map(c => c.name).join(', ')}
+CLIENTES DISPONIBLES: ${clients.map(c => c.name).join(', ')}
+
+CONTENIDO A ANALIZAR:
+${transcriptText}
+
+Responde ÚNICAMENTE con un objeto JSON válido con esta estructura:
+{
+  "summary": "Resumen ejecutivo del contenido",
+  "category": "Una de las categorías disponibles que mejor aplique",
+  "clients": ["Lista de clientes mencionados o relevantes"],
+  "keywords": ["palabras", "clave", "relevantes"],
+  "sentiment": "positivo/negativo/neutral",
+  "topics": ["temas", "principales", "discutidos"],
+  "mentions": {
+    "people": ["personas mencionadas"],
+    "organizations": ["organizaciones mencionadas"],
+    "locations": ["lugares mencionados"]
+  }
+}`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            topK: 32,
+            topP: 0.8,
+            maxOutputTokens: 4096,
+            responseMimeType: "application/json"
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.candidates || data.candidates.length === 0) {
+      throw new Error('No response from Gemini API');
+    }
+
+    return data.candidates[0].content.parts[0].text;
+  } catch (error) {
+    console.error('[gemini-unified] Analysis generation error:', error);
+    throw new Error(`Failed to generate analysis: ${error.message}`);
+  }
+}
+
+// Function to download video from Supabase storage with fallback reassembly
+async function downloadVideoFromSupabase(videoPath: string, sessionId?: string): Promise<Blob> {
+  console.log('[gemini-unified] Downloading video from Supabase storage...', videoPath);
+  
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Supabase credentials required for video download');
+  }
+
+  const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+  
+  try {
+    const { data, error } = await supabaseClient.storage
+      .from('video')
+      .download(videoPath);
+
+    if (error && sessionId) {
+      console.log('[gemini-unified] Assembled file not found, attempting fallback reassembly...');
+      
+      // Try to trigger reassembly if we have session info
+      const fileName = videoPath.split('/').pop() || 'video.mp4';
+      
+      // Get session info for reassembly
+      const { data: sessionData, error: sessionError } = await supabaseClient
+        .from('chunked_upload_sessions')
+        .select('total_chunks, status')
+        .eq('session_id', sessionId)
+        .single();
+      
+      if (!sessionError && sessionData) {
+        console.log('[gemini-unified] Found session data, triggering reassembly...');
+        
+        // Call reassembly function
+        const reassemblyResponse = await fetch(`${supabaseUrl}/functions/v1/reassemble-chunked-video`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            sessionId: sessionId,
+            fileName: fileName,
+            totalChunks: sessionData.total_chunks
+          })
+        });
+        
+        if (reassemblyResponse.ok) {
+          console.log('[gemini-unified] Reassembly completed, retrying download...');
+          
+          // Retry download after reassembly
+          const { data: retryData, error: retryError } = await supabaseClient.storage
+            .from('video')
+            .download(videoPath);
+          
+          if (!retryError && retryData) {
+            console.log('[gemini-unified] Video downloaded successfully after reassembly:', {
+              size: retryData.size,
+              type: retryData.type
+            });
+            return retryData;
+          }
+        }
+      }
+      
+      throw new Error(`Failed to download video after reassembly attempt: ${error.message}`);
+    }
+
+    if (error) {
+      throw new Error(`Failed to download video: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('No video data received from Supabase');
+    }
+
+    console.log('[gemini-unified] Video downloaded successfully:', {
+      size: data.size,
+      type: data.type
+    });
+
+    return data;
+  } catch (error) {
+    console.error('[gemini-unified] Video download error:', error);
+    throw new Error(`Video download failed: ${error.message}`);
+  }
+}
+
+// Function to process chunked upload with Gemini
+async function processChunkedUploadWithGemini(
+  sessionId: string,
+  displayName: string,
+  transcriptionId: string | null,
+  categories: any[],
+  clients: any[]
+): Promise<{
+  success: boolean;
+  transcription?: string;
+  segments?: any[];
+  full_analysis?: string;
+  summary?: string;
+  keywords?: string[];
+}> {
+  console.log('[gemini-unified] Processing chunked upload...', {
+    sessionId,
+    displayName,
+    videoPath: `chunked:${displayName}`,
+    categoriesCount: categories.length,
+    clientsCount: clients.length
+  });
+
+  try {
+    // Update progress
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 10, 'Downloading video...');
+    }
+
+    // For chunked uploads, we need to find the assembled file
+    const assembledFilePath = `${sessionId}/${displayName}`;
+    const videoBlob = await downloadVideoFromSupabase(assembledFilePath, sessionId);
+    
+    // Update progress
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
+    }
+
+    // Upload to Gemini and wait for processing
+    const fileInfo = await uploadVideoToGemini(videoBlob, displayName);
+    console.log('[gemini-unified] File processing completed successfully');
+
+    // Update progress
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 50, 'Generating comprehensive analysis...');
+    }
+
+    // Generate analysis with retry logic
+    let analysisResult = null;
+    const maxAttempts = 3;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
+        
+        const analysisResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      fileData: {
+                        mimeType: fileInfo.mimeType,
+                        fileUri: fileInfo.uri
+                      }
+                    },
+                    {
+                      text: buildTvAnalysisPrompt(categories, clients)
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                topK: 32,
+                topP: 0.8,
+                maxOutputTokens: 8192
+              }
+            })
+          }
+        );
+
+        if (!analysisResponse.ok) {
+          throw new Error(`Gemini API error: ${analysisResponse.status}`);
+        }
+
+        const analysisData = await analysisResponse.json();
+        if (!analysisData.candidates || analysisData.candidates.length === 0) {
+          throw new Error('No analysis response from Gemini');
+        }
+
+        analysisResult = analysisData.candidates[0].content.parts[0].text;
+        break;
+      } catch (error) {
+        console.error(`[gemini-unified] Analysis attempt ${attempt} failed:`, error);
+        if (attempt === maxAttempts) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+      }
+    }
+
+    console.log('[gemini-unified] Analysis completed successfully');
+
+    // Clean up file
+    await cleanupGeminiFile(displayName);
+    console.log('[gemini-unified] File cleanup completed successfully');
+
+    return {
+      success: true,
+      transcription: extractTranscriptionFromAnalysis(analysisResult),
+      segments: extractSegmentsFromAnalysis(analysisResult),
+      full_analysis: analysisResult,
+      summary: extractSummaryFromAnalysis(analysisResult),
+      keywords: extractKeywordsFromAnalysis(analysisResult)
+    };
+
+  } catch (error) {
+    console.error('[gemini-unified] Chunked upload processing error:', error);
+    throw new Error(`Chunked upload processing failed: ${error.message}`);
+  }
+}
+
+// Function to process assembled video with Gemini
+async function processAssembledVideoWithGemini(
+  videoPath: string,
+  transcriptionId: string | null,
+  categories: any[],
+  clients: any[]
+): Promise<{
+  success: boolean;
+  transcription?: string;
+  segments?: any[];
+  full_analysis?: string;
+  summary?: string;
+  keywords?: string[];
+}> {
+  console.log('[gemini-unified] Processing assembled video...', {
+    videoPath,
+    categoriesCount: categories.length,
+    clientsCount: clients.length
+  });
+
+  try {
+    // Update progress
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 10, 'Downloading video...');
+    }
+
+    // Download video from Supabase storage (extract sessionId if available)
+    const sessionId = videoPath.includes('/') ? videoPath.split('/')[0] : undefined;
+    const videoBlob = await downloadVideoFromSupabase(videoPath, sessionId);
+    
+    // Update progress
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
+    }
+
+    // Upload to Gemini and wait for processing
+    const fileInfo = await uploadVideoToGemini(videoBlob, videoPath.split('/').pop() || 'video.mp4');
+    console.log('[gemini-unified] File processing completed successfully');
+
+    // Update progress
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 50, 'Generating comprehensive analysis...');
+    }
+
+    // Generate analysis with retry logic
+    let analysisResult = null;
+    const maxAttempts = 3;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
+        
+        const analysisResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      fileData: {
+                        mimeType: fileInfo.mimeType,
+                        fileUri: fileInfo.uri
+                      }
+                    },
+                    {
+                      text: buildTvAnalysisPrompt(categories, clients)
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                topK: 32,
+                topP: 0.8,
+                maxOutputTokens: 8192
+              }
+            })
+          }
+        );
+
+        if (!analysisResponse.ok) {
+          throw new Error(`Gemini API error: ${analysisResponse.status}`);
+        }
+
+        const analysisData = await analysisResponse.json();
+        if (!analysisData.candidates || analysisData.candidates.length === 0) {
+          throw new Error('No analysis response from Gemini');
+        }
+
+        analysisResult = analysisData.candidates[0].content.parts[0].text;
+        break;
+      } catch (error) {
+        console.error(`[gemini-unified] Analysis attempt ${attempt} failed:`, error);
+        if (attempt === maxAttempts) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+      }
+    }
+
+    console.log('[gemini-unified] Analysis completed successfully');
+
+    // Clean up file
+    await cleanupGeminiFile(videoPath);
+    console.log('[gemini-unified] File cleanup completed successfully');
+
+    return {
+      success: true,
+      transcription: extractTranscriptionFromAnalysis(analysisResult),
+      segments: extractSegmentsFromAnalysis(analysisResult),
+      full_analysis: analysisResult,
+      summary: extractSummaryFromAnalysis(analysisResult),
+      keywords: extractKeywordsFromAnalysis(analysisResult)
+    };
+
+  } catch (error) {
+    console.error('[gemini-unified] Assembled video processing error:', error);
+    throw new Error(`Assembled video processing failed: ${error.message}`);
+  }
+}
+
+function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
+  const clientsList = clients.map(c => c.name).join(', ');
+
+  return `Eres un analista experto en contenido de TV. Analiza este video de TV en español y proporciona DOS SECCIONES CLARAMENTE SEPARADAS:
+
+## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES
+- Format: HABLANTE 1: [texto hablado]
+- Uses specific speaker names when identifiable
+- Complete and accurate transcription
+
+## SECCIÓN 2: ANÁLISIS DE CONTENIDO
+- Identifies content type: [TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO] or [TIPO DE CONTENIDO: PROGRAMA REGULAR]
+
+FOR ADVERTISEMENTS:
 1. Marca(s) o producto(s) anunciados
 2. Mensajes clave del anuncio
 3. Llamada a la acción (si existe)
 4. Tono del anuncio
 5. Duración aproximada
 
-PARA CADA SECCIÓN DE PROGRAMA REGULAR:
+FOR REGULAR CONTENT:
 1. Resumen del contenido (70-100 oraciones)
-   - Incluir desarrollo cronológico de los temas
-   - Destacar citas textuales relevantes
-   - Mencionar interacciones entre participantes si las hay
-   - Identificación de los participantes en la conversación (cuántos hablantes participan y si se pueden identificar sus roles o nombres) [utilizar los nombres específicos de los hablantes cuando estén disponibles]
-
 2. Temas principales tratados
-   - Listar temas por orden de importancia
-   - Incluir subtemas relacionados
-   - Señalar conexiones entre temas si existen
-
 3. Tono del contenido
-   - Estilo de la presentación (formal/informal)
-   - Tipo de lenguaje utilizado
-   - Enfoque del contenido (informativo/editorial/debate)
-
-4. Categorías aplicables de: ${categoriesList}
-   - Justificar la selección de cada categoría
-   - Indicar categoría principal y secundarias
-
+4. Categorías aplicables
 5. Presencia de personas o entidades relevantes mencionadas
+6. Clientes relevantes que podrían estar interesados
+7. Palabras clave mencionadas relevantes para los clientes
 
-6. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsList}
+CLIENTES DISPONIBLES PARA MAPEO:
+${clientsList}
 
-7. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
-${clientKeywordMapping}
-
-Responde en español de manera concisa y profesional. Asegúrate de:
-1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
-2. Si es un anuncio, enfatizar las marcas, productos y llamadas a la acción
-3. Si es contenido regular, mantener el formato de análisis detallado
-4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
-5. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas como "SPEAKER A" o "SPEAKER B"
-
-IMPORTANTE - MANEJO DE HABLANTES:
-La transcripción incluye nombres específicos de hablantes (pueden ser nombres propios como "María", "Juan", etc., en lugar de etiquetas genéricas). Utiliza estos nombres específicos en tu análisis para:
-- Identificar diferentes personas y sus roles
-- Describir la dinámica de la conversación
-- Mencionar contribuciones específicas de cada participante
-- Proporcionar un análisis más personalizado y profesional
-
-Evita usar referencias genéricas como "hablante 1", "participante A", etc., cuando tengas nombres específicos disponibles.`;
+INSTRUCCIONES IMPORTANTES:
+- La transcripción debe usar nombres específicos de hablantes cuando sea posible (no "SPEAKER 1" genérico)
+- Identifica claramente cada tipo de contenido con marcadores [TIPO DE CONTENIDO: ...]
+- Para anuncios, crea secciones separadas para cada anuncio
+- Para contenido regular, consolida en UNA sección principal
+- Menciona clientes relevantes cuando el contenido esté relacionado con sus sectores/intereses
+- Proporciona análisis detallado y completo`;
 }
 
-// Enhanced segment extraction that consolidates program content
-function extractSegmentsFromAnalysis(analysisText: string): Array<{
-  headline: string;
-  text: string;
-  start: number;
-  end: number;
-  keywords?: string[];
-}> {
-  if (!analysisText) return [];
+// Helper functions to extract data from analysis
+function extractTranscriptionFromAnalysis(analysis: string): string {
+  // Extract transcription from text-based analysis
+  const transcriptionMatch = analysis.match(/## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES\s*([\s\S]*?)(?=\n## SECCIÓN 2:|$)/);
+  if (transcriptionMatch) {
+    return transcriptionMatch[1].trim().replace(/^- Format:.*\n- Uses.*\n- Complete.*\n\n?/m, '');
+  }
+  return analysis; // Fallback to full analysis if no match
+}
 
-  const segments: Array<{
-    headline: string;
-    text: string;
-    start: number;
-    end: number;
-    keywords?: string[];
-  }> = [];
-
-  // Split by content type markers
-  const contentSections = analysisText.split(/(\[TIPO DE CONTENIDO: [^\]]+\])/);
+function extractSegmentsFromAnalysis(analysis: string): any[] {
+  // For text-based analysis, we'll create simple segments based on content sections
+  const segments = [];
+  const contentSections = analysis.split(/\[TIPO DE CONTENIDO:/);
   
-  let programContent = "";
-  let currentType = "";
-  let segmentCounter = 0;
-
-  for (let i = 0; i < contentSections.length; i++) {
-    const section = contentSections[i].trim();
+  contentSections.forEach((section, index) => {
+    if (index === 0) return; // Skip the first part (before any content type)
     
-    if (section.startsWith("[TIPO DE CONTENIDO:")) {
-      currentType = section;
-    } else if (section && currentType) {
-      if (currentType.includes("ANUNCIO PUBLICITARIO")) {
-        // Create separate segments for each advertisement
-        segments.push({
-          headline: `Anuncio Publicitario ${segmentCounter + 1}`,
-          text: section,
-          start: segmentCounter * 30,
-          end: (segmentCounter + 1) * 30,
-          keywords: ["anuncio", "publicitario", "comercial"]
-        });
-        segmentCounter++;
-      } else if (currentType.includes("PROGRAMA REGULAR")) {
-        // Consolidate all program content into one segment
-        programContent += section + "\n\n";
-      }
-      currentType = "";
+    const contentType = section.split(']')[0];
+    const content = section.split(']').slice(1).join(']').trim();
+    
+    if (content) {
+      segments.push({
+        headline: contentType === 'ANUNCIO PUBLICITARIO' ? 'Anuncio Publicitario' : 'Programa Regular',
+        text: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
+        start: index * 30000, // Rough timing
+        end: (index + 1) * 30000,
+        keywords: extractKeywordsFromContent(content)
+      });
     }
-  }
-
-  // Add consolidated program content as the first segment
-  if (programContent.trim()) {
-    segments.unshift({
-      headline: "Contenido del Programa",
-      text: programContent.trim(),
-      start: 0,
-      end: 3600, // 1 hour default
-      keywords: ["programa", "contenido", "regular"]
-    });
-  }
-
+  });
+  
   return segments;
 }
 
-// Enhanced utterance processing with better speaker identification
-function processUtterancesWithSpeakerNames(transcriptionText: string): Array<{
-  start: number;
-  end: number;
-  text: string;
-  speaker: string;
-  confidence: number;
-}> {
-  if (!transcriptionText) return [];
-
-  const utterances: Array<{
-    start: number;
-    end: number;
-    text: string;
-    speaker: string;
-    confidence: number;
-  }> = [];
-
-  // Split by speaker patterns and extract names
-  const lines = transcriptionText.split('\n');
-  let currentTime = 0;
-  const timeIncrement = 5; // 5 seconds per utterance
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (!trimmedLine) continue;
-
-    // Look for speaker patterns like "SPEAKER_NAME:" or "Nombre:"
-    const speakerMatch = trimmedLine.match(/^([A-Z][a-zA-Z\s]+):\s*(.+)$/);
-    
-    if (speakerMatch) {
-      const [, speakerName, text] = speakerMatch;
-      
-      utterances.push({
-        start: currentTime,
-        end: currentTime + timeIncrement,
-        text: text.trim(),
-        speaker: speakerName.trim(),
-        confidence: 0.95
-      });
-    } else {
-      // No speaker pattern found, use generic speaker
-      utterances.push({
-        start: currentTime,
-        end: currentTime + timeIncrement,
-        text: trimmedLine,
-        speaker: "SPEAKER_0",
-        confidence: 0.8
-      });
+function extractSummaryFromAnalysis(analysis: string): string {
+  // Extract a summary from the regular content section
+  const programMatch = analysis.match(/\[TIPO DE CONTENIDO: PROGRAMA REGULAR\]([\s\S]*?)(?=\[TIPO DE CONTENIDO:|$)/);
+  if (programMatch) {
+    const content = programMatch[1].trim();
+    const summaryMatch = content.match(/1\.\s*Resumen del contenido[:\s]*([\s\S]*?)(?=\n2\.|$)/);
+    if (summaryMatch) {
+      return summaryMatch[1].trim();
     }
-
-    currentTime += timeIncrement;
   }
-
-  return utterances;
+  return 'Análisis completado exitosamente';
 }
 
-// Enhanced Gemini processing with comprehensive analysis
-async function processVideoWithGemini(videoBlob: Blob, fileName: string, categories: string[], clients: Array<{name: string, keywords: string[]}>) {
-  console.log('[gemini-unified] Processing video with comprehensive analysis...');
+function extractKeywordsFromAnalysis(analysis: string): string[] {
+  return extractKeywordsFromContent(analysis);
+}
+
+function extractKeywordsFromContent(content: string): string[] {
+  // Extract keywords from content
+  const keywordMatch = content.match(/(?:palabras clave|keywords)[:\s]*([^\n]*)/i);
+  if (keywordMatch) {
+    return keywordMatch[1].split(',').map(k => k.trim()).filter(k => k);
+  }
   
-  const genAI = new GoogleGenerativeAI(Deno.env.get('GOOGLE_GEMINI_API_KEY')!);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-  try {
-    // Upload video to Gemini
-    console.log('[gemini-unified] Uploading video to Gemini...', fileName);
-    const uploadResult = await fetch('https://generativelanguage.googleapis.com/upload/v1beta/files', {
-      method: 'POST',
-      headers: {
-        'X-Goog-Upload-Protocol': 'multipart',
-        'X-Goog-Upload-Command': 'start,upload,finalize',
-        'X-Goog-Upload-Header-Content-Length': videoBlob.size.toString(),
-        'X-Goog-Upload-Header-Content-Type': 'video/mp4',
-        'Authorization': `Bearer ${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
-        'Content-Type': 'video/mp4'
-      },
-      body: videoBlob
-    });
-
-    if (!uploadResult.ok) {
-      throw new Error(`Upload failed: ${uploadResult.status}`);
-    }
-
-    const uploadData = await uploadResult.json();
-    console.log('[gemini-unified] Video uploaded successfully:', uploadData.file.name);
-
-    // Wait for processing
-    const fileUri = uploadData.file.name;
-    console.log('[gemini-unified] Waiting for file processing...', fileUri);
-    
-    let processingComplete = false;
-    let attempts = 0;
-    const maxAttempts = 10;
-    
-    while (!processingComplete && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileUri}`, {
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`
-        }
-      });
-      
-      const statusData = await statusResponse.json();
-      console.log(`[gemini-unified] File status check ${attempts + 1}:`, statusData.state);
-      
-      if (statusData.state === 'ACTIVE') {
-        processingComplete = true;
-      }
-      attempts++;
-    }
-
-    if (!processingComplete) {
-      throw new Error('Video processing timeout');
-    }
-
-    console.log('[gemini-unified] File processing completed successfully');
-
-    // Generate comprehensive analysis
-    const comprehensivePrompt = buildComprehensiveTvAnalysisPrompt(categories, clients);
-    
-    console.log('[gemini-unified] Analysis attempt 1/3');
-    const analysisResult = await model.generateContent([
-      {
-        fileData: {
-          mimeType: 'video/mp4',
-          fileUri: fileUri
-        }
-      },
-      { text: comprehensivePrompt }
-    ]);
-
-    const analysisText = analysisResult.response.text();
-    console.log('[gemini-unified] Analysis completed successfully');
-
-    // Extract segments with proper consolidation
-    const segments = extractSegmentsFromAnalysis(analysisText);
-    
-    // Generate basic transcription for utterances
-    const transcriptionPrompt = `Transcribe this video content in Spanish. Format the output with speaker identification where possible. Use speaker names when identifiable, otherwise use SPEAKER_0, SPEAKER_1, etc. Format each line as "SPEAKER_NAME: text content"`;
-    
-    const transcriptionResult = await model.generateContent([
-      {
-        fileData: {
-          mimeType: 'video/mp4',
-          fileUri: fileUri
-        }
-      },
-      { text: transcriptionPrompt }
-    ]);
-
-    const transcriptionText = transcriptionResult.response.text();
-    const utterances = processUtterancesWithSpeakerNames(transcriptionText);
-
-    // Clean up file
-    console.log('[gemini-unified] Cleaning up Gemini file...', fileUri);
-    try {
-      await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileUri}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`
-        }
-      });
-      console.log('[gemini-unified] File cleanup completed successfully');
-    } catch (cleanupError) {
-      console.error('[gemini-unified] File cleanup failed:', cleanupError);
-    }
-
-    return {
-      success: true,
-      transcription: transcriptionText,
-      full_analysis: analysisText, // Store the full formatted analysis
-      segments: segments,
-      utterances: utterances,
-      summary: `Análisis completado exitosamente con ${segments.length} segmentos identificados`,
-      keywords: ["análisis", "contenido", "tv", "procesamiento"]
-    };
-
-  } catch (error) {
-    console.error('[gemini-unified] Error in video processing:', error);
-    throw error;
-  }
+  // Fallback: extract common Spanish words
+  const words = content.toLowerCase().match(/\b[a-záéíóúñü]{4,}\b/g) || [];
+  const uniqueWords = [...new Set(words)];
+  return uniqueWords.slice(0, 10);
 }
 
-// Main handler function
-Deno.serve(async (req) => {
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   console.log(`[${requestId}] === UNIFIED PROCESSING START ===`);
+
+  // Parse request body once and store it for potential error handling
+  let requestBody;
+  let videoPath, transcriptionId;
+  
+  try {
+    requestBody = await req.text();
+    const parsedBody = JSON.parse(requestBody);
+    videoPath = parsedBody.videoPath;
+    transcriptionId = parsedBody.transcriptionId;
+  } catch (parseError) {
+    console.error(`[${requestId}] Failed to parse request body:`, parseError);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: 'Invalid request body',
+        details: parseError.message 
+      }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
 
   try {
     // Environment validation
@@ -351,12 +774,12 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
-    console.log(`[process-tv-with-gemini] Environment validation:`, {
+    console.log('[process-tv-with-gemini] Environment validation:', {
       hasSupabaseUrl: !!supabaseUrl,
       hasSupabaseServiceKey: !!supabaseServiceKey,
       hasGeminiApiKey: !!geminiApiKey,
-      supabaseUrlLength: supabaseUrl?.length || 0,
-      geminiKeyLength: geminiApiKey?.length || 0
+      supabaseUrlLength: supabaseUrl?.length,
+      geminiKeyLength: geminiApiKey?.length
     });
 
     if (!supabaseUrl || !supabaseServiceKey || !geminiApiKey) {
@@ -364,16 +787,13 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[${requestId}] Environment validated successfully`);
-
-    // Parse request
-    const { videoPath, transcriptionId } = await req.json();
     
     console.log(`[${requestId}] Request details:`, {
       videoPath,
       transcriptionId,
       hasVideoPath: !!videoPath,
       hasTranscriptionId: !!transcriptionId,
-      videoPathLength: videoPath?.length || 0
+      videoPathLength: videoPath?.length
     });
 
     if (!videoPath) {
@@ -382,24 +802,27 @@ Deno.serve(async (req) => {
 
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Get authenticated user
+    
+    // Get user from auth header
     const authHeader = req.headers.get('Authorization');
-    if (authHeader) {
-      const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
-      if (userError) {
-        console.error(`[${requestId}] Auth error:`, userError);
-      } else {
-        console.log(`[${requestId}] Authenticated user:`, user?.id);
-      }
+    if (!authHeader) {
+      throw new Error('Authorization header required');
     }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (authError || !user) {
+      throw new Error('Authentication failed');
+    }
+
+    console.log(`[${requestId}] Authenticated user:`, user.id);
 
     // Fetch categories and clients for dynamic prompt
     console.log(`[${requestId}] Fetching categories and clients for dynamic prompt...`);
     
     const { data: categories, error: categoriesError } = await supabase
       .from('categories')
-      .select('name_es as name');
+      .select('name_es as name')
+      .order('name_es');
     
     if (categoriesError) {
       console.error(`[${requestId}] Categories error:`, categoriesError);
@@ -409,7 +832,8 @@ Deno.serve(async (req) => {
 
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
-      .select('name, keywords');
+      .select('*')
+      .order('name');
     
     if (clientsError) {
       console.error(`[${requestId}] Clients error:`, clientsError);
@@ -417,79 +841,85 @@ Deno.serve(async (req) => {
     
     console.log(`[${requestId}] Fetched ${clients?.length || 0} clients`);
 
-    // Process video
-    console.log(`[${requestId}] Processing assembled video file from video bucket...`);
+    // Process video file
+    let result;
     
-    const categoriesArray = categories?.map(c => c.name) || [];
-    const clientsArray = clients?.map(c => ({ name: c.name, keywords: c.keywords || [] })) || [];
-
-    console.log('[gemini-unified] Processing assembled video...', {
-      videoPath,
-      categoriesCount: categoriesArray.length,
-      clientsCount: clientsArray.length
-    });
-
-    // Download video from storage
-    console.log('[gemini-unified] Downloading video from Supabase storage...', videoPath);
-    
-    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-      .from('video')
-      .createSignedUrl(videoPath, 60);
-
-    if (signedUrlError || !signedUrlData?.signedUrl) {
-      throw new Error(`Failed to generate signed URL: ${signedUrlError?.message}`);
+    if (videoPath.startsWith('chunked:')) {
+      // Handle chunked upload
+      console.log(`[${requestId}] Processing chunked upload...`);
+      const chunkInfo = videoPath.replace('chunked:', '');
+      const parts = chunkInfo.split('_');
+      const sessionId = parts.slice(-1)[0];
+      const displayName = parts.slice(0, -1).join('_');
+      
+      result = await processChunkedUploadWithGemini(sessionId, displayName, transcriptionId, categories || [], clients || []);
+    } else {
+      // Handle assembled video file
+      console.log(`[${requestId}] Processing assembled video file from video bucket...`);
+      result = await processAssembledVideoWithGemini(videoPath, transcriptionId, categories || [], clients || []);
     }
-
-    const videoResponse = await fetch(signedUrlData.signedUrl);
-    if (!videoResponse.ok) {
-      throw new Error(`Failed to download video: ${videoResponse.statusText}`);
-    }
-
-    const videoBlob = await videoResponse.blob();
-    console.log('[gemini-unified] Video downloaded successfully:', { size: videoBlob.size, type: videoBlob.type });
-
-    // Process with Gemini
-    const result = await processVideoWithGemini(videoBlob, videoPath, categoriesArray, clientsArray);
 
     console.log(`[${requestId}] Processing completed, updating database...`);
-
-    // Update database with comprehensive results
-    if (transcriptionId) {
-      await updateTranscriptionRecord(supabase, transcriptionId, {
-        transcription_text: result.transcription,
-        full_analysis: result.full_analysis, // Store the formatted analysis
-        analysis_content_summary: result.full_analysis, // Backward compatibility
-        summary: result.summary,
-        keywords: result.keywords,
-        status: 'completed',
-        progress: 100,
-        updated_at: new Date().toISOString()
-      });
+    
+    // Update database with results
+    if (transcriptionId && result.success) {
+      await updateDatabaseProgress(transcriptionId, 100, 'completed');
+      
+      // Store full analysis
+      await supabase
+        .from('tv_transcriptions')
+        .update({
+          transcription_text: result.transcription,
+          analysis_result: result.full_analysis,
+          status: 'completed',
+          progress: 100
+        })
+        .eq('id', transcriptionId);
     }
 
     console.log(`[${requestId}] === UNIFIED PROCESSING COMPLETED ===`);
 
-    return new Response(JSON.stringify({
-      success: true,
-      transcription: result.transcription,
-      full_analysis: result.full_analysis,
-      segments: result.segments,
-      utterances: result.utterances,
-      summary: result.summary,
-      keywords: result.keywords
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error(`[${requestId}] Error in unified processing:`, error);
-    
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    console.error(`[${requestId}] === UNIFIED PROCESSING FAILED ===`);
+    console.error(`[${requestId}] Error details:`, {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      isMemoryError: error.message?.includes('memory') || error.message?.includes('heap')
     });
+
+    // Update transcription status to failed if we have an ID
+    try {
+      if (transcriptionId) {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        );
+        
+        await updateDatabaseProgress(transcriptionId, 100, 'failed');
+        console.log(`[${requestId}] Updated transcription status to failed`);
+      }
+    } catch (updateError) {
+      console.error(`[${requestId}] Could not update transcription status:`, updateError);
+    }
+
+    // Categorize and return appropriate error
+    const errorMessage = categorizeError(error.message);
+    
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage,
+        details: error.message 
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });

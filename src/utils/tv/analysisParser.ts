@@ -114,12 +114,12 @@ export const parseAnalysisContent = (analysis: string): string => {
   }
 };
 
-// Enhanced consolidation function to ensure single program section
+// Helper function to consolidate multiple program sections into one
 function consolidateContent(content: string): string {
   const sections = content.split(/(\[TIPO DE CONTENIDO: [^\]]+\])/);
   
   let programContent = "";
-  let advertisementSections: string[] = [];
+  let advertisementSections = [];
   let currentType = "";
   
   for (let i = 0; i < sections.length; i++) {
@@ -129,17 +129,16 @@ function consolidateContent(content: string): string {
       currentType = section;
     } else if (section && currentType) {
       if (currentType.includes("ANUNCIO PUBLICITARIO")) {
-        // Keep advertisements as separate sections
         advertisementSections.push(currentType + "\n" + section);
       } else if (currentType.includes("PROGRAMA REGULAR")) {
-        // Consolidate all program content into one section
+        // Consolidate all program content
         programContent += section + "\n\n";
       }
       currentType = "";
     }
   }
   
-  // Build final result with proper consolidation
+  // Build final result
   let result = "";
   
   // Add ONE consolidated program section
