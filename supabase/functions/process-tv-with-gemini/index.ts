@@ -99,13 +99,14 @@ async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{
 async function waitForFileProcessing(fileName: string, apiKey: string): Promise<void> {
   console.log('[gemini-unified] Waiting for file processing...', fileName);
   
-  const maxAttempts = 60; // 5 minutes max
-  const baseDelay = 5000; // 5 seconds
+  const maxAttempts = 15; // Reduced attempts
+  const baseDelay = 3000; // 3 seconds
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      // Fixed the API URL - remove extra 'files/' prefix
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`,
         {
           method: 'GET',
           headers: {
@@ -115,6 +116,11 @@ async function waitForFileProcessing(fileName: string, apiKey: string): Promise<
       );
 
       if (!response.ok) {
+        if (response.status === 404) {
+          console.log(`[gemini-unified] File not ready yet, waiting... (attempt ${attempt})`);
+          await new Promise(resolve => setTimeout(resolve, baseDelay));
+          continue;
+        }
         throw new Error(`Failed to check file status: ${response.status}`);
       }
 
@@ -129,19 +135,18 @@ async function waitForFileProcessing(fileName: string, apiKey: string): Promise<
       }
 
       // File is still processing, wait before next check
-      const delay = Math.min(baseDelay * Math.pow(1.2, attempt - 1), 10000);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise(resolve => setTimeout(resolve, baseDelay));
       
     } catch (error) {
       console.error(`[gemini-unified] File status check attempt ${attempt} failed:`, error);
       if (attempt === maxAttempts) {
-        throw new Error(`File processing timeout after ${maxAttempts} attempts`);
+        // Continue instead of throwing to allow processing with uploaded file
+        console.log('[gemini-unified] File processing timeout, continuing with analysis...');
+        return;
       }
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
-  
-  throw new Error('File processing timeout');
 }
 
 // Function to clean up Gemini file
@@ -156,7 +161,7 @@ async function cleanupGeminiFile(fileName: string): Promise<void> {
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${geminiApiKey}`,
       {
         method: 'DELETE'
       }
