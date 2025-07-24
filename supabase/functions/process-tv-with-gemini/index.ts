@@ -457,8 +457,7 @@ async function processChunkedUploadWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192,
-                responseMimeType: "application/json"
+                maxOutputTokens: 8192
               }
             })
           }
@@ -584,8 +583,7 @@ async function processAssembledVideoWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192,
-                responseMimeType: "application/json"
+                maxOutputTokens: 8192
               }
             })
           }
@@ -633,81 +631,109 @@ async function processAssembledVideoWithGemini(
 }
 
 function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
-  const categoriesList = categories.map(c => c.name).join(', ');
   const clientsList = clients.map(c => c.name).join(', ');
 
-  return `Analiza este video de televisión y proporciona un análisis completo en formato JSON.
+  return `Eres un analista experto en contenido de TV. Analiza este video de TV en español y proporciona DOS SECCIONES CLARAMENTE SEPARADAS:
 
-CATEGORÍAS DISPONIBLES: ${categoriesList}
-CLIENTES DISPONIBLES: ${clientsList}
+## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES
+- Format: HABLANTE 1: [texto hablado]
+- Uses specific speaker names when identifiable
+- Complete and accurate transcription
 
-Proporciona el análisis en este formato JSON exacto:
-{
-  "transcription": "Transcripción completa del audio del video",
-  "summary": "Resumen ejecutivo del contenido",
-  "category": "Una categoría de la lista disponible",
-  "clients": ["Clientes mencionados o relevantes de la lista"],
-  "keywords": ["palabras", "clave", "importantes"],
-  "sentiment": "positivo/negativo/neutral",
-  "topics": ["temas", "principales"],
-  "segments": [
-    {
-      "headline": "Título del segmento",
-      "text": "Contenido del segmento",
-      "start": 0,
-      "end": 30000,
-      "keywords": ["palabras", "clave"]
-    }
-  ],
-  "mentions": {
-    "people": ["personas mencionadas"],
-    "organizations": ["organizaciones"],
-    "locations": ["lugares"]
-  }
-}
+## SECCIÓN 2: ANÁLISIS DE CONTENIDO
+- Identifies content type: [TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO] or [TIPO DE CONTENIDO: PROGRAMA REGULAR]
 
-IMPORTANTE: 
-- Proporciona timestamps en milisegundos para los segmentos
-- Incluye transcripción completa y precisa
-- Identifica segmentos de noticias relevantes
-- Responde ÚNICAMENTE con JSON válido`;
+FOR ADVERTISEMENTS:
+1. Marca(s) o producto(s) anunciados
+2. Mensajes clave del anuncio
+3. Llamada a la acción (si existe)
+4. Tono del anuncio
+5. Duración aproximada
+
+FOR REGULAR CONTENT:
+1. Resumen del contenido (70-100 oraciones)
+2. Temas principales tratados
+3. Tono del contenido
+4. Categorías aplicables
+5. Presencia de personas o entidades relevantes mencionadas
+6. Clientes relevantes que podrían estar interesados
+7. Palabras clave mencionadas relevantes para los clientes
+
+CLIENTES DISPONIBLES PARA MAPEO:
+${clientsList}
+
+INSTRUCCIONES IMPORTANTES:
+- La transcripción debe usar nombres específicos de hablantes cuando sea posible (no "SPEAKER 1" genérico)
+- Identifica claramente cada tipo de contenido con marcadores [TIPO DE CONTENIDO: ...]
+- Para anuncios, crea secciones separadas para cada anuncio
+- Para contenido regular, consolida en UNA sección principal
+- Menciona clientes relevantes cuando el contenido esté relacionado con sus sectores/intereses
+- Proporciona análisis detallado y completo`;
 }
 
 // Helper functions to extract data from analysis
 function extractTranscriptionFromAnalysis(analysis: string): string {
-  try {
-    const parsed = JSON.parse(analysis);
-    return parsed.transcription || '';
-  } catch {
-    return '';
+  // Extract transcription from text-based analysis
+  const transcriptionMatch = analysis.match(/## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES\s*([\s\S]*?)(?=\n## SECCIÓN 2:|$)/);
+  if (transcriptionMatch) {
+    return transcriptionMatch[1].trim().replace(/^- Format:.*\n- Uses.*\n- Complete.*\n\n?/m, '');
   }
+  return analysis; // Fallback to full analysis if no match
 }
 
 function extractSegmentsFromAnalysis(analysis: string): any[] {
-  try {
-    const parsed = JSON.parse(analysis);
-    return parsed.segments || [];
-  } catch {
-    return [];
-  }
+  // For text-based analysis, we'll create simple segments based on content sections
+  const segments = [];
+  const contentSections = analysis.split(/\[TIPO DE CONTENIDO:/);
+  
+  contentSections.forEach((section, index) => {
+    if (index === 0) return; // Skip the first part (before any content type)
+    
+    const contentType = section.split(']')[0];
+    const content = section.split(']').slice(1).join(']').trim();
+    
+    if (content) {
+      segments.push({
+        headline: contentType === 'ANUNCIO PUBLICITARIO' ? 'Anuncio Publicitario' : 'Programa Regular',
+        text: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
+        start: index * 30000, // Rough timing
+        end: (index + 1) * 30000,
+        keywords: extractKeywordsFromContent(content)
+      });
+    }
+  });
+  
+  return segments;
 }
 
 function extractSummaryFromAnalysis(analysis: string): string {
-  try {
-    const parsed = JSON.parse(analysis);
-    return parsed.summary || '';
-  } catch {
-    return '';
+  // Extract a summary from the regular content section
+  const programMatch = analysis.match(/\[TIPO DE CONTENIDO: PROGRAMA REGULAR\]([\s\S]*?)(?=\[TIPO DE CONTENIDO:|$)/);
+  if (programMatch) {
+    const content = programMatch[1].trim();
+    const summaryMatch = content.match(/1\.\s*Resumen del contenido[:\s]*([\s\S]*?)(?=\n2\.|$)/);
+    if (summaryMatch) {
+      return summaryMatch[1].trim();
+    }
   }
+  return 'Análisis completado exitosamente';
 }
 
 function extractKeywordsFromAnalysis(analysis: string): string[] {
-  try {
-    const parsed = JSON.parse(analysis);
-    return parsed.keywords || [];
-  } catch {
-    return [];
+  return extractKeywordsFromContent(analysis);
+}
+
+function extractKeywordsFromContent(content: string): string[] {
+  // Extract keywords from content
+  const keywordMatch = content.match(/(?:palabras clave|keywords)[:\s]*([^\n]*)/i);
+  if (keywordMatch) {
+    return keywordMatch[1].split(',').map(k => k.trim()).filter(k => k);
   }
+  
+  // Fallback: extract common Spanish words
+  const words = content.toLowerCase().match(/\b[a-záéíóúñü]{4,}\b/g) || [];
+  const uniqueWords = [...new Set(words)];
+  return uniqueWords.slice(0, 10);
 }
 
 serve(async (req) => {
