@@ -286,8 +286,8 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura:
   }
 }
 
-// Function to download video from Supabase storage
-async function downloadVideoFromSupabase(videoPath: string): Promise<Blob> {
+// Function to download video from Supabase storage with fallback reassembly
+async function downloadVideoFromSupabase(videoPath: string, sessionId?: string): Promise<Blob> {
   console.log('[gemini-unified] Downloading video from Supabase storage...', videoPath);
   
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -303,6 +303,57 @@ async function downloadVideoFromSupabase(videoPath: string): Promise<Blob> {
     const { data, error } = await supabaseClient.storage
       .from('video')
       .download(videoPath);
+
+    if (error && sessionId) {
+      console.log('[gemini-unified] Assembled file not found, attempting fallback reassembly...');
+      
+      // Try to trigger reassembly if we have session info
+      const fileName = videoPath.split('/').pop() || 'video.mp4';
+      
+      // Get session info for reassembly
+      const { data: sessionData, error: sessionError } = await supabaseClient
+        .from('chunked_upload_sessions')
+        .select('total_chunks, status')
+        .eq('session_id', sessionId)
+        .single();
+      
+      if (!sessionError && sessionData) {
+        console.log('[gemini-unified] Found session data, triggering reassembly...');
+        
+        // Call reassembly function
+        const reassemblyResponse = await fetch(`${supabaseUrl}/functions/v1/reassemble-chunked-video`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            sessionId: sessionId,
+            fileName: fileName,
+            totalChunks: sessionData.total_chunks
+          })
+        });
+        
+        if (reassemblyResponse.ok) {
+          console.log('[gemini-unified] Reassembly completed, retrying download...');
+          
+          // Retry download after reassembly
+          const { data: retryData, error: retryError } = await supabaseClient.storage
+            .from('video')
+            .download(videoPath);
+          
+          if (!retryError && retryData) {
+            console.log('[gemini-unified] Video downloaded successfully after reassembly:', {
+              size: retryData.size,
+              type: retryData.type
+            });
+            return retryData;
+          }
+        }
+      }
+      
+      throw new Error(`Failed to download video after reassembly attempt: ${error.message}`);
+    }
 
     if (error) {
       throw new Error(`Failed to download video: ${error.message}`);
@@ -355,7 +406,7 @@ async function processChunkedUploadWithGemini(
 
     // For chunked uploads, we need to find the assembled file
     const assembledFilePath = `${sessionId}/${displayName}`;
-    const videoBlob = await downloadVideoFromSupabase(assembledFilePath);
+    const videoBlob = await downloadVideoFromSupabase(assembledFilePath, sessionId);
     
     // Update progress
     if (transcriptionId) {
@@ -480,8 +531,9 @@ async function processAssembledVideoWithGemini(
       await updateDatabaseProgress(transcriptionId, 10, 'Downloading video...');
     }
 
-    // Download video from Supabase storage
-    const videoBlob = await downloadVideoFromSupabase(videoPath);
+    // Download video from Supabase storage (extract sessionId if available)
+    const sessionId = videoPath.includes('/') ? videoPath.split('/')[0] : undefined;
+    const videoBlob = await downloadVideoFromSupabase(videoPath, sessionId);
     
     // Update progress
     if (transcriptionId) {

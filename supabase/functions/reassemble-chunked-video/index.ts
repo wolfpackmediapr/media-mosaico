@@ -157,14 +157,15 @@ serve(async (req) => {
         }
       });
       
-      // Upload with enhanced error handling
-      console.log(`Uploading reassembled file: ${fileName}`);
+      // Upload with enhanced error handling - create user-specific path
+      const userSpecificPath = `${sessionId}/${fileName}`;
+      console.log(`Uploading reassembled file: ${userSpecificPath}`);
       const uploadStartTime = Date.now();
       
       try {
         const { error: uploadError } = await supabase.storage
           .from('video')
-          .upload(fileName, combinedStream, {
+          .upload(userSpecificPath, combinedStream, {
             cacheControl: '3600',
             upsert: true
           });
@@ -229,6 +230,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         fileName: fileName,
+        assembledPath: userSpecificPath,
         message: 'File reassembly completed successfully'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
