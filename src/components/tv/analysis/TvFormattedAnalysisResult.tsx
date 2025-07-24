@@ -1,7 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { SpeakerIcon, ShoppingCart } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { parseAnalysisContent } from "@/utils/tv/analysisParser";
 
 interface TvFormattedAnalysisResultProps {
   analysis: string;
@@ -10,7 +11,15 @@ interface TvFormattedAnalysisResultProps {
 const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps) => {
   if (!analysis) return null;
 
-  const [editableContent, setEditableContent] = useState(analysis);
+  // Parse and format the analysis content (handles both JSON and formatted text)
+  const formattedAnalysis = parseAnalysisContent(analysis);
+  const [editableContent, setEditableContent] = useState(formattedAnalysis);
+
+  // Update editable content when analysis changes
+  useEffect(() => {
+    const newFormattedAnalysis = parseAnalysisContent(analysis);
+    setEditableContent(newFormattedAnalysis);
+  }, [analysis]);
 
   // Split content by content type markers and filter out empty strings
   const contentParts = editableContent.split(/\[TIPO DE CONTENIDO:.*?\]/)
