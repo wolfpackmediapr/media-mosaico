@@ -22,7 +22,7 @@ export const useTvAnalysisDisplay = ({
     try {
       const { data, error } = await supabase
         .from('tv_transcriptions')
-        .select('analysis_content_summary, summary, analysis_keywords')
+        .select('full_analysis, analysis_content_summary, summary, analysis_keywords')
         .eq('id', transcriptionId)
         .single();
 
@@ -32,14 +32,16 @@ export const useTvAnalysisDisplay = ({
       }
 
       if (data) {
-        // Prioritize analysis_content_summary, then summary
-        const analysisContent = data.analysis_content_summary || 
+        // Prioritize full_analysis (new field with type markers), then analysis_content_summary, then summary
+        const analysisContent = data.full_analysis || 
+                               data.analysis_content_summary || 
                                data.summary || 
                                "";
         
         setExistingAnalysis(analysisContent);
         setHasAnalysis(!!analysisContent);
         console.log('[useTvAnalysisDisplay] Fetched existing analysis:', {
+          hasFullAnalysis: !!data.full_analysis,
           hasContentSummary: !!data.analysis_content_summary,
           hasSummary: !!data.summary,
           finalAnalysisLength: analysisContent.length

@@ -14,6 +14,8 @@ interface TranscriptionUpdate {
   analysis_donde?: string;
   analysis_porque?: string;
   analysis_keywords?: string[];
+  analysis_content_summary?: string;
+  full_analysis?: string;
   updated_at?: string;
 }
 
@@ -47,7 +49,7 @@ export async function updateTranscriptionRecord(
         updated_at: new Date().toISOString()
       };
     } else {
-      // Direct update format
+      // Direct update format - preserve the full_analysis field
       updatePayload = updateData as TranscriptionUpdate;
     }
     
