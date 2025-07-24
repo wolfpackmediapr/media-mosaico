@@ -20,25 +20,156 @@ function categorizeError(message: string): string {
   }
 }
 
+// Function to upload video to Gemini File API
+async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{ uri: string; mimeType: string }> {
+  console.log('[gemini-unified] Uploading video to Gemini...', fileName);
+  
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  if (!geminiApiKey) {
+    throw new Error('Google Gemini API key not configured');
+  }
+
+  try {
+    // First, start resumable upload
+    const initResponse = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'X-Goog-Upload-Protocol': 'resumable',
+          'X-Goog-Upload-Command': 'start',
+          'X-Goog-Upload-Header-Content-Length': videoBlob.size.toString(),
+          'X-Goog-Upload-Header-Content-Type': 'video/mp4',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file: {
+            display_name: fileName
+          }
+        })
+      }
+    );
+
+    if (!initResponse.ok) {
+      throw new Error(`Failed to initialize upload: ${initResponse.status} ${initResponse.statusText}`);
+    }
+
+    const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
+    if (!uploadUrl) {
+      throw new Error('No upload URL received from Gemini');
+    }
+
+    // Upload the actual video data
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Length': videoBlob.size.toString(),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+      },
+      body: videoBlob
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to upload video: ${uploadResponse.status} ${uploadResponse.statusText}`);
+    }
+
+    const uploadResult = await uploadResponse.json();
+    console.log('[gemini-unified] Video uploaded successfully:', uploadResult.file?.name);
+
+    // Wait for processing to complete
+    const fileUri = uploadResult.file?.uri;
+    if (!fileUri) {
+      throw new Error('No file URI received from upload');
+    }
+
+    await waitForFileProcessing(uploadResult.file.name, geminiApiKey);
+
+    return {
+      uri: fileUri,
+      mimeType: 'video/mp4'
+    };
+  } catch (error) {
+    console.error('[gemini-unified] Video upload error:', error);
+    throw new Error(`Video upload failed: ${error.message}`);
+  }
+}
+
 // Function to wait for file processing by Gemini
-async function waitForFileProcessing(fileName: string): Promise<{ uri: string; mimeType: string }> {
+async function waitForFileProcessing(fileName: string, apiKey: string): Promise<void> {
   console.log('[gemini-unified] Waiting for file processing...', fileName);
   
-  // Mock implementation - replace with actual Gemini file processing check
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  const maxAttempts = 60; // 5 minutes max
+  const baseDelay = 5000; // 5 seconds
   
-  return {
-    uri: `gemini://${fileName}`,
-    mimeType: 'video/mp4'
-  };
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${apiKey}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to check file status: ${response.status}`);
+      }
+
+      const fileInfo = await response.json();
+      console.log(`[gemini-unified] File status check ${attempt}:`, fileInfo.state);
+
+      if (fileInfo.state === 'ACTIVE') {
+        console.log('[gemini-unified] File processing completed successfully');
+        return;
+      } else if (fileInfo.state === 'FAILED') {
+        throw new Error('File processing failed on Gemini side');
+      }
+
+      // File is still processing, wait before next check
+      const delay = Math.min(baseDelay * Math.pow(1.2, attempt - 1), 10000);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+    } catch (error) {
+      console.error(`[gemini-unified] File status check attempt ${attempt} failed:`, error);
+      if (attempt === maxAttempts) {
+        throw new Error(`File processing timeout after ${maxAttempts} attempts`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+  
+  throw new Error('File processing timeout');
 }
 
 // Function to clean up Gemini file
 async function cleanupGeminiFile(fileName: string): Promise<void> {
   console.log('[gemini-unified] Cleaning up Gemini file...', fileName);
   
-  // Mock implementation - replace with actual Gemini file cleanup
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  if (!geminiApiKey) {
+    console.error('[gemini-unified] No API key for cleanup');
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${geminiApiKey}`,
+      {
+        method: 'DELETE'
+      }
+    );
+
+    if (response.ok) {
+      console.log('[gemini-unified] File cleanup completed successfully');
+    } else {
+      console.error('[gemini-unified] File cleanup failed:', response.status);
+    }
+  } catch (error) {
+    console.error('[gemini-unified] File cleanup error:', error);
+  }
 }
 
 // Function to update database progress
@@ -150,6 +281,44 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura:
   }
 }
 
+// Function to download video from Supabase storage
+async function downloadVideoFromSupabase(videoPath: string): Promise<Blob> {
+  console.log('[gemini-unified] Downloading video from Supabase storage...', videoPath);
+  
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Supabase credentials required for video download');
+  }
+
+  const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+  
+  try {
+    const { data, error } = await supabaseClient.storage
+      .from('video')
+      .download(videoPath);
+
+    if (error) {
+      throw new Error(`Failed to download video: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('No video data received from Supabase');
+    }
+
+    console.log('[gemini-unified] Video downloaded successfully:', {
+      size: data.size,
+      type: data.type
+    });
+
+    return data;
+  } catch (error) {
+    console.error('[gemini-unified] Video download error:', error);
+    throw new Error(`Video download failed: ${error.message}`);
+  }
+}
+
 // Function to process chunked upload with Gemini
 async function processChunkedUploadWithGemini(
   sessionId: string,
@@ -176,11 +345,20 @@ async function processChunkedUploadWithGemini(
   try {
     // Update progress
     if (transcriptionId) {
-      await updateDatabaseProgress(transcriptionId, 10, 'Waiting for file processing...');
+      await updateDatabaseProgress(transcriptionId, 10, 'Downloading video...');
     }
 
-    // Wait for file to be processed by Gemini
-    const fileInfo = await waitForFileProcessing(displayName);
+    // For chunked uploads, we need to find the assembled file
+    const assembledFilePath = `${sessionId}/${displayName}`;
+    const videoBlob = await downloadVideoFromSupabase(assembledFilePath);
+    
+    // Update progress
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
+    }
+
+    // Upload to Gemini and wait for processing
+    const fileInfo = await uploadVideoToGemini(videoBlob, displayName);
     console.log('[gemini-unified] File processing completed successfully');
 
     // Update progress
@@ -294,11 +472,19 @@ async function processAssembledVideoWithGemini(
   try {
     // Update progress
     if (transcriptionId) {
-      await updateDatabaseProgress(transcriptionId, 10, 'Waiting for file processing...');
+      await updateDatabaseProgress(transcriptionId, 10, 'Downloading video...');
     }
 
-    // Wait for file to be processed by Gemini
-    const fileInfo = await waitForFileProcessing(videoPath);
+    // Download video from Supabase storage
+    const videoBlob = await downloadVideoFromSupabase(videoPath);
+    
+    // Update progress
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
+    }
+
+    // Upload to Gemini and wait for processing
+    const fileInfo = await uploadVideoToGemini(videoBlob, videoPath.split('/').pop() || 'video.mp4');
     console.log('[gemini-unified] File processing completed successfully');
 
     // Update progress
@@ -475,6 +661,30 @@ serve(async (req) => {
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   console.log(`[${requestId}] === UNIFIED PROCESSING START ===`);
 
+  // Parse request body once and store it for potential error handling
+  let requestBody;
+  let videoPath, transcriptionId;
+  
+  try {
+    requestBody = await req.text();
+    const parsedBody = JSON.parse(requestBody);
+    videoPath = parsedBody.videoPath;
+    transcriptionId = parsedBody.transcriptionId;
+  } catch (parseError) {
+    console.error(`[${requestId}] Failed to parse request body:`, parseError);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: 'Invalid request body',
+        details: parseError.message 
+      }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
   try {
     // Environment validation
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -494,9 +704,6 @@ serve(async (req) => {
     }
 
     console.log(`[${requestId}] Environment validated successfully`);
-
-    // Parse request
-    const { videoPath, transcriptionId } = await req.json();
     
     console.log(`[${requestId}] Request details:`, {
       videoPath,
@@ -531,8 +738,8 @@ serve(async (req) => {
     
     const { data: categories, error: categoriesError } = await supabase
       .from('categories')
-      .select('*')
-      .order('name');
+      .select('name_es as name')
+      .order('name_es');
     
     if (categoriesError) {
       console.error(`[${requestId}] Categories error:`, categoriesError);
@@ -603,9 +810,7 @@ serve(async (req) => {
     });
 
     // Update transcription status to failed if we have an ID
-    const body = await req.text();
     try {
-      const { transcriptionId } = JSON.parse(body);
       if (transcriptionId) {
         const supabase = createClient(
           Deno.env.get('SUPABASE_URL')!,
@@ -615,8 +820,8 @@ serve(async (req) => {
         await updateDatabaseProgress(transcriptionId, 100, 'failed');
         console.log(`[${requestId}] Updated transcription status to failed`);
       }
-    } catch (parseError) {
-      console.error(`[${requestId}] Could not parse request body for error handling:`, parseError);
+    } catch (updateError) {
+      console.error(`[${requestId}] Could not update transcription status:`, updateError);
     }
 
     // Categorize and return appropriate error
