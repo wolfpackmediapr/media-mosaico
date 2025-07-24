@@ -240,6 +240,15 @@ export const useTvVideoProcessor = () => {
           words: []
         };
         setTranscriptionResult(mockTranscriptionResult);
+      } else if (result.transcription) {
+        // If no utterances but we have transcription text, let the editor handle speaker parsing
+        // This enables the same speaker functionality as Radio tab
+        console.log('[TvVideoProcessor] No utterances from processing, will let editor parse speakers from text');
+        setTranscriptionResult({
+          text: result.transcription,
+          utterances: [], // Will be populated by useSpeakerTextState
+          words: []
+        });
       }
 
       console.log('[TvVideoProcessor] Unified processing completed successfully');

@@ -17,7 +17,7 @@ export const useTvTranscriptionEditor = ({
   transcriptionResult,
   onTranscriptionChange,
 }: UseTvTranscriptionEditorProps) => {
-  // Handle speaker text state (without utterances fetching)
+  // Handle speaker text state (same as radio - with full functionality)
   const {
     localText,
     isEditing,
@@ -60,7 +60,7 @@ export const useTvTranscriptionEditor = ({
   return {
     localText,
     isEditing,
-    isLoadingUtterances: false, // TV doesn't load utterances
+    isLoadingUtterances: false, // TV uses different loading approach
     showTimestamps,
     hasTimestampData,
     isSaving,
