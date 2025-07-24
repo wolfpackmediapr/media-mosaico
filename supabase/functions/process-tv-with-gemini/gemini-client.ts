@@ -31,16 +31,73 @@ export async function testGeminiConnectivity(apiKey: string): Promise<boolean> {
 
 export async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, videoPath: string) {
   try {
-    console.log('[process-tv-with-gemini] Starting video upload to Gemini...');
+    console.log('[process-tv-with-gemini] Starting video upload to Gemini...', {
+      blobSize: videoBlob.size,
+      blobType: videoBlob.type,
+      videoPath: videoPath
+    });
     
-    // Create form data for file upload
-    const formData = new FormData();
-    formData.append('file', videoBlob, videoPath.split('/').pop() || 'video.mp4');
+    // Validate file size (Gemini has a 20MB limit for video files)
+    const maxSize = 20 * 1024 * 1024; // 20MB
+    if (videoBlob.size > maxSize) {
+      throw new Error(`File too large: ${(videoBlob.size / 1024 / 1024).toFixed(2)}MB exceeds 20MB limit`);
+    }
     
-    // Upload file to Gemini
-    const uploadResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
+    // Validate file type
+    if (!videoBlob.type.startsWith('video/')) {
+      throw new Error(`Invalid file type: ${videoBlob.type}. Only video files are supported.`);
+    }
+    
+    const fileName = videoPath.split('/').pop() || 'video.mp4';
+    console.log('[process-tv-with-gemini] Uploading file:', fileName);
+    
+    // Create metadata for the upload
+    const metadata = {
+      file: {
+        display_name: fileName,
+        mime_type: videoBlob.type || 'video/mp4'
+      }
+    };
+    
+    // First, create the file metadata
+    const metadataResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
       method: 'POST',
-      body: formData,
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': videoBlob.size.toString(),
+        'X-Goog-Upload-Header-Content-Type': videoBlob.type || 'video/mp4',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(metadata),
+    });
+
+    if (!metadataResponse.ok) {
+      const errorText = await metadataResponse.text();
+      console.error('[process-tv-with-gemini] Metadata upload error:', {
+        status: metadataResponse.status,
+        statusText: metadataResponse.statusText,
+        error: errorText
+      });
+      throw new Error(`Metadata upload failed: ${metadataResponse.status} - ${errorText}`);
+    }
+    
+    const uploadUrl = metadataResponse.headers.get('X-Goog-Upload-URL');
+    if (!uploadUrl) {
+      throw new Error('No upload URL received from Gemini');
+    }
+    
+    console.log('[process-tv-with-gemini] Got upload URL, uploading file data...');
+    
+    // Now upload the actual file data
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Length': videoBlob.size.toString(),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+      },
+      body: videoBlob,
     });
 
     if (!uploadResponse.ok) {
@@ -48,7 +105,8 @@ export async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, video
       console.error('[process-tv-with-gemini] File upload error:', {
         status: uploadResponse.status,
         statusText: uploadResponse.statusText,
-        error: errorText
+        error: errorText,
+        uploadUrl: uploadUrl
       });
       throw new Error(`File upload failed: ${uploadResponse.status} - ${errorText}`);
     }
@@ -57,13 +115,26 @@ export async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, video
     console.log('[process-tv-with-gemini] File uploaded successfully:', {
       name: uploadResult.file?.name,
       uri: uploadResult.file?.uri,
-      state: uploadResult.file?.state
+      state: uploadResult.file?.state,
+      size: uploadResult.file?.sizeBytes
     });
     
     return uploadResult.file;
   } catch (error) {
     console.error('[process-tv-with-gemini] Video upload error:', error);
-    throw new Error(`Gemini video upload failed: ${error.message}`);
+    // Provide more specific error messages
+    if (error.message.includes('File too large')) {
+      throw new Error(`Video file is too large. Please use a file smaller than 20MB.`);
+    } else if (error.message.includes('Invalid file type')) {
+      throw new Error(`Invalid file format. Please upload a video file (MP4, MOV, AVI, etc.).`);
+    } else if (error.message.includes('400')) {
+      throw new Error(`Upload request invalid. Please check the video file format and try again.`);
+    } else if (error.message.includes('401') || error.message.includes('403')) {
+      throw new Error(`Authentication failed. Please check your Gemini API key configuration.`);
+    } else if (error.message.includes('429')) {
+      throw new Error(`Rate limit exceeded. Please wait a moment and try again.`);
+    }
+    throw new Error(`Video upload failed: ${error.message}`);
   }
 }
 
