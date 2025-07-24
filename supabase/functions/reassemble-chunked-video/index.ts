@@ -59,6 +59,9 @@ serve(async (req) => {
 
     console.log(`All ${totalChunks} chunks validated. Starting streaming reassembly...`);
 
+    // Create user-specific path for the assembled file
+    const userSpecificPath = `${sessionId}/${fileName}`;
+
     // Enhanced streaming reassembly with timeout handling and performance optimizations
     const reassembleStreamingFile = async () => {
       const startTime = Date.now();
@@ -157,8 +160,7 @@ serve(async (req) => {
         }
       });
       
-      // Upload with enhanced error handling - create user-specific path
-      const userSpecificPath = `${sessionId}/${fileName}`;
+      // Upload with enhanced error handling
       console.log(`Uploading reassembled file: ${userSpecificPath}`);
       const uploadStartTime = Date.now();
       
