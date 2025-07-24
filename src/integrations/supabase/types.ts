@@ -97,6 +97,7 @@ export type Database = {
       }
       chunked_upload_sessions: {
         Row: {
+          assembled_file_path: string | null
           created_at: string | null
           file_name: string
           file_size: number
@@ -111,6 +112,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          assembled_file_path?: string | null
           created_at?: string | null
           file_name: string
           file_size: number
@@ -125,6 +127,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          assembled_file_path?: string | null
           created_at?: string | null
           file_name?: string
           file_size?: number

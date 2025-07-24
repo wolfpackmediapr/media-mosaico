@@ -187,10 +187,13 @@ serve(async (req) => {
     // Perform streaming reassembly
     await reassembleStreamingFile();
 
-    // Mark session as completed
+    // Mark session as completed and store assembled file path
     const { error: completionError } = await supabase
       .from('chunked_upload_sessions')
-      .update({ status: 'completed' })
+      .update({ 
+        status: 'completed',
+        assembled_file_path: userSpecificPath
+      })
       .eq('session_id', sessionId);
 
     if (completionError) {
