@@ -43,7 +43,7 @@ const TvVideoSection = ({
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2 w-full">
+    <div className="grid gap-8 xl:grid-cols-2 w-full">
       <VideoUploadSection
         isDragging={isDragging}
         setIsDragging={setIsDragging}

@@ -69,13 +69,13 @@ const VideoFileItem = ({
 
       {file.preview && (
         <div className="relative mb-4">
-          <VideoPlayer src={file.preview} className="h-48" />
+          <VideoPlayer src={file.preview} className="aspect-video min-h-64" />
         </div>
       )}
 
       {file.filePath && !file.preview && (
         <div className="relative mb-4">
-          <EnhancedVideoPlayer src={file.filePath} className="h-48" />
+          <EnhancedVideoPlayer src={file.filePath} className="aspect-video min-h-64" />
         </div>
       )}
 
