@@ -24,10 +24,28 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
   // Split content by content type markers and filter out empty strings
   const contentParts = editableContent.split(/\[TIPO DE CONTENIDO:.*?\]/)
     .filter(Boolean)
-    .map(part => part.trim());
+    .map(part => part.trim())
+    .filter(part => part.length > 0);
     
   // Extract content type headers
   const contentTypes = editableContent.match(/\[TIPO DE CONTENIDO:.*?\]/g) || [];
+  
+  // If no content type markers found, treat as single program content
+  if (contentTypes.length === 0 && editableContent.trim()) {
+    return (
+      <Card className="p-4 mb-4 bg-blue-50 dark:bg-blue-900/20">
+        <div className="flex items-center gap-2 mb-4 text-lg font-medium">
+          <SpeakerIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          <span className="text-blue-700 dark:text-blue-300">Programa Regular</span>
+        </div>
+        <Textarea
+          value={editableContent}
+          onChange={(e) => setEditableContent(e.target.value)}
+          className="min-h-[100px] text-foreground whitespace-pre-wrap"
+        />
+      </Card>
+    );
+  }
 
   const renderContentSection = (content: string, type: string, index: number) => {
     const isAdvertisement = type.includes("ANUNCIO PUBLICITARIO");

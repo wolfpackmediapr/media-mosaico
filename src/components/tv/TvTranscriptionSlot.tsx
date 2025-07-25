@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import TvTranscriptionMetadata from "./TvTranscriptionMetadata";
 import TvTranscriptionEditor from "./TvTranscriptionEditor";
 import InteractiveTranscription from "@/components/radio/interactive-transcription/InteractiveTranscription";
@@ -10,6 +10,7 @@ import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { normalizeTimeToSeconds } from "@/components/radio/interactive-transcription/utils";
 import { NewsSegment } from "@/hooks/use-video-processor";
+import { parseTvSpeakerText, hasTvSpeakerPatterns } from "@/utils/tv/speakerTextParser";
 
 interface TvTranscriptionSlotProps {
   isProcessing: boolean;
@@ -75,24 +76,28 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
       return true;
     }
     
-    // Check for speaker-formatted text patterns in transcription text
-    if (transcriptionText && transcriptionText.trim()) {
-      const speakerPatterns = [
-        /SPEAKER\s+\d+:/i,
-        /PRESENTER:/i,
-        /HOST:/i,
-        /GUEST:/i,
-        /LOCUTOR:/i,
-        /ENTREVISTADO:/i,
-        /\[SPEAKER\s+\d+\]/i,
-        /^\s*-\s*\w+:/m // Format like "- SPEAKER:"
-      ];
-      
-      return speakerPatterns.some(pattern => pattern.test(transcriptionText));
+    // Check for TV speaker-formatted text patterns
+    return hasTvSpeakerPatterns(transcriptionText);
+  }, [transcriptionResult?.utterances, transcriptionText]);
+
+  // Create enhanced transcription result with parsed utterances for TV
+  const enhancedTranscriptionResult = useMemo(() => {
+    if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
+      return transcriptionResult;
     }
     
-    return false;
-  }, [transcriptionResult?.utterances, transcriptionText]);
+    // If we have speaker-formatted text but no utterances, parse them
+    if (hasTvSpeakerPatterns(transcriptionText)) {
+      const parsedUtterances = parseTvSpeakerText(transcriptionText);
+      return {
+        ...transcriptionResult,
+        text: transcriptionText,
+        utterances: parsedUtterances
+      } as TranscriptionResult;
+    }
+    
+    return transcriptionResult;
+  }, [transcriptionResult, transcriptionText]);
 
   // Reset view mode to edit when transcription text is cleared
   useEffect(() => {
@@ -178,7 +183,7 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
         <CardContent className="p-4 space-y-4">
           {viewMode === 'interactive' && hasUtterances() ? (
             <InteractiveTranscription
-              transcriptionResult={transcriptionResult}
+              transcriptionResult={enhancedTranscriptionResult}
               currentTime={currentTime}
               isPlaying={isPlaying}
               onPlayPause={onPlayPause}
@@ -190,7 +195,7 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
               isProcessing={isProcessing}
               onTranscriptionChange={onTranscriptionChange}
               transcriptionId={transcriptionId}
-              transcriptionResult={transcriptionResult}
+              transcriptionResult={enhancedTranscriptionResult}
               onTimestampClick={handleTimestampClick}
               registerReset={handleRegisterReset}
               currentTime={currentTime}
