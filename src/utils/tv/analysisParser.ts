@@ -29,6 +29,17 @@ export const parseAnalysisContent = (analysis: string): string => {
     return consolidateContent(analysis);
   }
 
+  // Check if content is already well-formatted (has bullets, numbers, proper structure)
+  const hasFormatting = analysis.match(/^\s*[\d\-\•\*]\s+/m) || 
+                       analysis.match(/^\s*\d+\.\s+/m) ||
+                       analysis.includes('\n\n') ||
+                       analysis.match(/^[A-ZÁÉÍÓÚÑ]+:\s*/m);
+
+  // If already well-formatted and doesn't look like JSON, preserve as-is
+  if (hasFormatting && !analysis.trim().startsWith('{')) {
+    return `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${analysis}`;
+  }
+
   // Try to parse as JSON (legacy format)
   try {
     const parsed: ParsedAnalysisData = JSON.parse(analysis);
