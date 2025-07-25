@@ -14,6 +14,8 @@ interface TvTranscriptionSectionProps {
   };
   transcriptionResult?: TranscriptionResult;
   transcriptionId?: string;
+  segments?: NewsSegment[];
+  notepadContent?: string;
   onTranscriptionChange: (text: string) => void;
   onSeekToTimestamp: (timestamp: number) => void;
   onSegmentsReceived?: (segments: NewsSegment[]) => void;
@@ -29,6 +31,8 @@ const TvTranscriptionSection = ({
   transcriptionMetadata,
   transcriptionResult,
   transcriptionId,
+  segments = [],
+  notepadContent = "",
   onTranscriptionChange,
   onSeekToTimestamp,
   onSegmentsReceived,
@@ -51,6 +55,8 @@ const TvTranscriptionSection = ({
         category: "Economía",
         broadcastTime: "2024-03-15T10:00:00Z"
       }}
+      segments={segments}
+      notepadContent={notepadContent}
       onTranscriptionChange={onTranscriptionChange}
       onSegmentsReceived={onSegmentsReceived}
       onSeek={onSeekToTimestamp}

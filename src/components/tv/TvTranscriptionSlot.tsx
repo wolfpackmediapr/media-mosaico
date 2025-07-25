@@ -4,6 +4,8 @@ import TvTranscriptionMetadata from "./TvTranscriptionMetadata";
 import TvTranscriptionEditor from "./TvTranscriptionEditor";
 import InteractiveTranscription from "@/components/radio/interactive-transcription/InteractiveTranscription";
 import ViewModeToggle from "@/components/radio/interactive-transcription/ViewModeToggle";
+import TranscriptionCopyButton from "@/components/radio/editor/TranscriptionCopyButton";
+import TvReportButton from "./TvReportButton";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { normalizeTimeToSeconds } from "@/components/radio/interactive-transcription/utils";
@@ -21,6 +23,8 @@ interface TvTranscriptionSlotProps {
     broadcastTime?: string;
     keywords?: string[];
   };
+  segments?: NewsSegment[];
+  notepadContent?: string;
   onTranscriptionChange: (text: string) => void;
   onSegmentsReceived?: (segments: NewsSegment[]) => void;
   onMetadataChange?: (metadata: {
@@ -43,6 +47,8 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
   transcriptionResult,
   transcriptionId,
   metadata,
+  segments = [],
+  notepadContent = "",
   onTranscriptionChange,
   onSegmentsReceived,
   onMetadataChange,
@@ -170,6 +176,22 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
               currentTime={currentTime}
             />
           )}
+          
+          <div className="flex flex-col sm:flex-row gap-2 justify-end">
+            <TranscriptionCopyButton
+              transcriptionText={transcriptionText}
+              transcriptionResult={transcriptionResult}
+              transcriptionId={transcriptionId}
+              isProcessing={isProcessing}
+            />
+            <TvReportButton
+              segments={segments}
+              transcriptionText={transcriptionText}
+              notepadContent={notepadContent}
+              metadata={metadata}
+              isProcessing={isProcessing}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -7,7 +7,7 @@ import TvVideoSection from "./TvVideoSection";
 import TvTranscriptionSection from "../TvTranscriptionSection";
 import TvAnalysisSection from "../TvAnalysisSection";
 import TvNotePadSection from "../TvNotePadSection";
-import TvReportButton from "../TvReportButton";
+
 import TvTypeformEmbed from "../TvTypeformEmbed";
 import { NewsSegment } from "@/hooks/use-video-processor";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
@@ -135,6 +135,8 @@ const TvMainContent = ({
       transcriptionMetadata={transcriptionMetadata}
       transcriptionResult={transcriptionResult}
       transcriptionId={transcriptionId}
+      segments={newsSegments}
+      notepadContent={notepadContent}
       onTranscriptionChange={onTranscriptionChange}
       onSeekToTimestamp={onSeekToTimestamp}
       onSegmentsReceived={onSegmentsReceived}
@@ -168,17 +170,6 @@ const TvMainContent = ({
     />
   );
 
-  const reportSection = (
-    <Card className="p-4">
-      <TvReportButton 
-        segments={newsSegments}
-        transcriptionText={transcriptionText}
-        notepadContent={notepadContent}
-        metadata={transcriptionMetadata}
-        isProcessing={isProcessing}
-      />
-    </Card>
-  );
 
   const typeformSection = <TvTypeformEmbed />;
 
@@ -191,7 +182,6 @@ const TvMainContent = ({
         transcriptionSection={transcriptionSection}
         analysisSection={analysisSection}
         notepadSection={notepadSection}
-        reportSection={reportSection}
         typeformSection={typeformSection}
       />
     </div>

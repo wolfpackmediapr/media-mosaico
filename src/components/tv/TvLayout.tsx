@@ -9,7 +9,7 @@ interface TvLayoutProps {
   transcriptionSection: ReactNode;
   analysisSection: ReactNode;
   notepadSection: ReactNode;
-  reportSection: ReactNode;
+  reportSection?: ReactNode;
   typeformSection: ReactNode;
 }
 
@@ -56,15 +56,23 @@ const TvLayout = ({
         </ErrorBoundary>
       </div>
 
-      {/* Report and Typeform Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ErrorBoundary>
-          {reportSection}
-        </ErrorBoundary>
-        <ErrorBoundary>
-          {typeformSection}
-        </ErrorBoundary>
-      </div>
+      {/* Typeform Section */}
+      {reportSection ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ErrorBoundary>
+            {reportSection}
+          </ErrorBoundary>
+          <ErrorBoundary>
+            {typeformSection}
+          </ErrorBoundary>
+        </div>
+      ) : (
+        <div className="w-full">
+          <ErrorBoundary>
+            {typeformSection}
+          </ErrorBoundary>
+        </div>
+      )}
     </div>
   );
 };
