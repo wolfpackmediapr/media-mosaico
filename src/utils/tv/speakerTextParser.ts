@@ -113,7 +113,7 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
     // If no pattern matched, treat as unknown speaker
     if (!matched && trimmedSegment) {
       utterances.push({
-        speaker: "1",
+        speaker: "speaker_1",
         text: trimmedSegment,
         start: currentTime,
         end: currentTime + averageSegmentDuration,
@@ -123,6 +123,16 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   });
   
   return utterances;
+}
+
+/**
+ * Get or assign a speaker ID in the format "speaker_X"
+ */
+function getOrAssignSpeaker(rawSpeaker: string, speakerMap: Map<string, string>, speakerCounter: number): string {
+  if (speakerMap.has(rawSpeaker)) {
+    return speakerMap.get(rawSpeaker)!;
+  }
+  return `speaker_${speakerCounter}`;
 }
 
 /**
