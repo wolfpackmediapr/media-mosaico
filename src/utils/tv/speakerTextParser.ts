@@ -15,6 +15,10 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   let currentTime = 0;
   const averageSegmentDuration = 5000; // 5 seconds per segment as placeholder
   
+  // Track unique speakers for dynamic assignment
+  const speakerMap = new Map<string, string>();
+  let speakerCounter = 1;
+  
   segments.forEach((segment, index) => {
     const trimmedSegment = segment.trim();
     if (!trimmedSegment) return;
@@ -44,26 +48,50 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
         
         if (i === 0) {
           // Pattern 1: "SPEAKER 1: ROLE: text"
-          speaker = match[1];
+          const rawSpeaker = `${match[1]}_${match[2].trim()}`;
+          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
+          if (!speakerMap.has(rawSpeaker)) {
+            speakerMap.set(rawSpeaker, speaker);
+            speakerCounter++;
+          }
           const role = match[2].trim();
           textContent = match[3].trim();
-          // Include role in the text for context
           textContent = `${role}: ${textContent}`;
         } else if (i === 1) {
           // Pattern 2: "SPEAKER 1: text"
-          speaker = match[1];
+          const rawSpeaker = match[1];
+          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
+          if (!speakerMap.has(rawSpeaker)) {
+            speakerMap.set(rawSpeaker, speaker);
+            speakerCounter++;
+          }
           textContent = match[2].trim();
         } else if (i === 2) {
           // Pattern 3: "PRESENTER: text" etc.
-          speaker = mapRoleToSpeakerNumber(match[1]);
+          const rawSpeaker = match[1];
+          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
+          if (!speakerMap.has(rawSpeaker)) {
+            speakerMap.set(rawSpeaker, speaker);
+            speakerCounter++;
+          }
           textContent = match[2].trim();
         } else if (i === 3) {
           // Pattern 4: "[SPEAKER 1]: text"
-          speaker = match[1];
+          const rawSpeaker = match[1];
+          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
+          if (!speakerMap.has(rawSpeaker)) {
+            speakerMap.set(rawSpeaker, speaker);
+            speakerCounter++;
+          }
           textContent = match[2].trim();
         } else {
           // Pattern 5: "- SPEAKER: text"
-          speaker = mapRoleToSpeakerNumber(match[1]);
+          const rawSpeaker = match[1];
+          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
+          if (!speakerMap.has(rawSpeaker)) {
+            speakerMap.set(rawSpeaker, speaker);
+            speakerCounter++;
+          }
           textContent = match[2].trim();
         }
         
