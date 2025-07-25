@@ -3,7 +3,9 @@ import TvMainContent from "@/components/tv/containers/TvMainContent";
 import { useTvState } from "@/hooks/tv/useTvState";
 
 const Tv = () => {
+  console.log('[Tv] Component rendering');
   const tvState = useTvState();
+  console.log('[Tv] TV state:', tvState);
 
   const testAnalysis = {
     quien: "José Luis Pérez, Secretario del Departamento de Desarrollo Económico",

@@ -4,6 +4,7 @@ import { useTvNotepadState } from "./useTvNotepadState";
 import { usePersistentVideoState } from "./usePersistentVideoState";
 
 export const useTvState = () => {
+  console.log('[useTvState] Hook initialized');
   const {
     isProcessing,
     progress,

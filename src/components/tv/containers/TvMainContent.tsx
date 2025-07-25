@@ -9,7 +9,7 @@ import TvAnalysisSection from "../TvAnalysisSection";
 import TvNotePadSection from "../TvNotePadSection";
 
 import TvTypeformEmbed from "../TvTypeformEmbed";
-import { NewsSegment } from "@/hooks/use-video-processor";
+import { NewsSegment } from "@/hooks/tv/useTvVideoProcessor";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
 interface UploadedFile extends File {
@@ -90,6 +90,12 @@ const TvMainContent = ({
   isClearing = false,
   analysisResults
 }: TvMainContentProps) => {
+  console.log('[TvMainContent] Component rendering with props:', {
+    uploadedFiles: uploadedFiles?.length,
+    transcriptionText: transcriptionText?.length,
+    isProcessing
+  });
+  
   const clearAnalysisFnRef = useRef<(() => void) | null>(null);
   const clearEditorFnRef = useRef<(() => void) | null>(null);
 
