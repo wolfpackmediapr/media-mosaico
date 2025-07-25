@@ -9,12 +9,11 @@ import TvAnalysisSection from "../TvAnalysisSection";
 import TvNotePadSection from "../TvNotePadSection";
 
 import TvTypeformEmbed from "../TvTypeformEmbed";
-import { NewsSegment } from "@/hooks/tv/useTvVideoProcessor";
+import { NewsSegment, UploadedFile } from "@/types/media";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 
-interface UploadedFile extends File {
-  preview?: string;
-}
+// Re-export types for backward compatibility
+export type { UploadedFile } from "@/types/media";
 
 interface TvMainContentProps {
   uploadedFiles: UploadedFile[];

@@ -1,24 +1,18 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { NewsSegment } from "@/hooks/tv/useTvVideoProcessor";
+import { NewsSegment } from "@/types/media";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTvSegmentGenerator } from "@/hooks/tv/useTvSegmentGenerator";
 import TvAnalysisActions from "./analysis/TvAnalysisActions";
 import TvAnalysisResult from "./analysis/TvAnalysisResult";
 import { useTvAnalysisDisplay } from "@/hooks/tv/useTvAnalysisDisplay";
 import { useTvNotifications } from "@/hooks/tv/useTvNotifications";
+import { BaseAnalysisProps } from "@/components/shared/types/ComponentProps";
 
-interface TvAnalysisProps {
-  transcriptionText?: string;
-  transcriptionId?: string;
-  transcriptionResult?: TranscriptionResult;
+interface TvAnalysisProps extends Omit<BaseAnalysisProps, 'onClearAnalysis'> {
   videoPath?: string;
-  onSegmentsGenerated?: (segments: NewsSegment[]) => void;
   onClearAnalysis?: (clearFn: () => void) => void;
-  forceReset?: boolean;
-  // NEW: Accept analysis results from processing
-  analysisResults?: string;
 }
 
 const TvAnalysis = ({

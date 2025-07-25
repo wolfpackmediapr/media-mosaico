@@ -4,22 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/services/toastService";
 import { TvTranscriptionService } from "@/services/tv/tvTranscriptionService";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import { NewsSegment, TranscriptionMetadata } from '@/types/media';
 
-export interface NewsSegment {
-  headline: string;
-  text: string;
-  start: number;
-  end: number;
-  keywords?: string[];
-}
-
-interface TranscriptionMetadata {
-  channel?: string;
-  program?: string;
-  category?: string;
-  broadcastTime?: string;
-  keywords?: string[];
-}
+// Re-export for backward compatibility
+export type { NewsSegment, TranscriptionMetadata } from '@/types/media';
 
 export const useTvVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);

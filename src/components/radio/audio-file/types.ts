@@ -1,10 +1,10 @@
 
 import React from 'react';
 import { TranscriptionResult } from '@/services/audio/transcriptionService';
+import { UploadedFile } from '@/types/media';
 
-export interface UploadedFile extends File {
-  preview?: string;
-}
+// Re-export for backward compatibility
+export type { UploadedFile } from '@/types/media';
 
 export interface AudioFileItemProps {
   file: UploadedFile;
