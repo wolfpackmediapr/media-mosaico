@@ -70,9 +70,29 @@ const TvTranscriptionSlot: React.FC<TvTranscriptionSlotProps> = ({
   );
 
   const hasUtterances = useCallback(() => {
-    return !!transcriptionResult?.utterances && 
-           transcriptionResult.utterances.length > 0;
-  }, [transcriptionResult?.utterances]);
+    // Check for structured utterances first
+    if (transcriptionResult?.utterances && transcriptionResult.utterances.length > 0) {
+      return true;
+    }
+    
+    // Check for speaker-formatted text patterns in transcription text
+    if (transcriptionText && transcriptionText.trim()) {
+      const speakerPatterns = [
+        /SPEAKER\s+\d+:/i,
+        /PRESENTER:/i,
+        /HOST:/i,
+        /GUEST:/i,
+        /LOCUTOR:/i,
+        /ENTREVISTADO:/i,
+        /\[SPEAKER\s+\d+\]/i,
+        /^\s*-\s*\w+:/m // Format like "- SPEAKER:"
+      ];
+      
+      return speakerPatterns.some(pattern => pattern.test(transcriptionText));
+    }
+    
+    return false;
+  }, [transcriptionResult?.utterances, transcriptionText]);
 
   // Reset view mode to edit when transcription text is cleared
   useEffect(() => {
