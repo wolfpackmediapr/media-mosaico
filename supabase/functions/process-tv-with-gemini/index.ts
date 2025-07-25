@@ -631,44 +631,104 @@ async function processAssembledVideoWithGemini(
 }
 
 function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
-  const clientsList = clients.map(c => c.name).join(', ');
+  // Generate dynamic clients list
+  const clientsList = clients.map(c => c.name).join('\n   - ');
+  
+  // Generate dynamic categories list
+  const categoriesList = [
+    'Accidentes', 'Agencia de Gobierno', 'Ambiente', 'Ambiente & El Tiempo',
+    'Ciencia & Tecnología', 'Comunidad', 'Crimen', 'Deportes',
+    'Economía & Negocios', 'Educación & Cultura', 'EE.UU. & Internacionales',
+    'Entretenimiento', 'Gobierno', 'Otras', 'Política', 'Religión', 'Salud', 'Tribunales'
+  ].join('\n   - ');
+  
+  // Generate dynamic client-keyword mapping
+  const clientKeywordMapping = clients.map(client => {
+    const keywords = Array.isArray(client.keywords) ? client.keywords.join(', ') : '';
+    return `**${client.name}:** ${keywords}`;
+  }).join('\n');
 
-  return `Eres un analista experto en contenido de TV. Analiza este video de TV en español y proporciona DOS SECCIONES CLARAMENTE SEPARADAS:
+  return `Eres un analista experto en contenido de TV. Analiza este video de televisión en español y proporciona DOS SECCIONES CLARAMENTE SEPARADAS:
 
 ## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES
-- Format: HABLANTE 1: [texto hablado]
-- Uses specific speaker names when identifiable
-- Complete and accurate transcription
+- Formato: NOMBRE: [texto hablado]
+- Usa los nombres reales de los hablantes si están disponibles en la transcripción (evita "HABLANTE 1", "PARTICIPANTE A", etc.)
+- La transcripción debe ser completa, clara y precisa
 
 ## SECCIÓN 2: ANÁLISIS DE CONTENIDO
-- Identifies content type: [TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO] or [TIPO DE CONTENIDO: PROGRAMA REGULAR]
+Debes identificar y separar claramente cada sección comenzando CADA SECCIÓN con uno de estos encabezados:
 
-FOR ADVERTISEMENTS:
+[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]  
+[TIPO DE CONTENIDO: PROGRAMA REGULAR]  
+
+### INSTRUCCIONES PARA ANUNCIOS PUBLICITARIOS:
+Para cada anuncio detectado, incluye:
 1. Marca(s) o producto(s) anunciados
 2. Mensajes clave del anuncio
 3. Llamada a la acción (si existe)
-4. Tono del anuncio
-5. Duración aproximada
+4. Tono del anuncio (ej. promocional, urgente, emotivo)
+5. Duración aproximada del anuncio
+6. Palabras clave mencionadas relevantes
+7. Clientes relevantes a los que podría interesarles este anuncio (según listado dinámico)
+8. Justificación del mapeo con palabras clave y clientes
 
-FOR REGULAR CONTENT:
-1. Resumen del contenido (70-100 oraciones)
-2. Temas principales tratados
-3. Tono del contenido
-4. Categorías aplicables
-5. Presencia de personas o entidades relevantes mencionadas
-6. Clientes relevantes que podrían estar interesados
-7. Palabras clave mencionadas relevantes para los clientes
+**Señales clave para detectar un anuncio:**
+- Menciones de marcas, precios, promociones u ofertas
+- Frases como "llame ahora", "visite nuestra tienda", etc.
+- Teléfonos, direcciones, sitios web
+- Repetición de nombres comerciales
+- Tono claramente persuasivo o comercial
 
-CLIENTES DISPONIBLES PARA MAPEO:
-${clientsList}
+### INSTRUCCIONES PARA PROGRAMA REGULAR:
+Todo el contenido NO publicitario debe ir en UNA SOLA sección unificada.
 
-INSTRUCCIONES IMPORTANTES:
-- La transcripción debe usar nombres específicos de hablantes cuando sea posible (no "SPEAKER 1" genérico)
-- Identifica claramente cada tipo de contenido con marcadores [TIPO DE CONTENIDO: ...]
-- Para anuncios, crea secciones separadas para cada anuncio
-- Para contenido regular, consolida en UNA sección principal
-- Menciona clientes relevantes cuando el contenido esté relacionado con sus sectores/intereses
-- Proporciona análisis detallado y completo`;
+Incluye el siguiente análisis:
+
+1. **Resumen del contenido (70-100 oraciones)**
+   - Describe cronológicamente lo discutido
+   - Cita frases relevantes textualmente
+   - Describe interacciones entre los participantes
+   - Usa los nombres reales disponibles de los hablantes
+   - Identifica el número de participantes y sus roles
+
+2. **Temas principales tratados**
+   - Lista por orden de importancia
+   - Incluye subtemas
+   - Describe conexiones entre temas si las hay
+
+3. **Tono del contenido**
+   - Formal o informal
+   - Tipo de lenguaje utilizado
+   - Estilo general (informativo, editorial, de debate, narrativo, etc.)
+
+4. **Categorías aplicables** (elige de esta lista):
+   - ${categoriesList}
+
+   - Indica la categoría principal y secundarias (si aplican)
+   - Justifica por qué seleccionaste cada categoría
+
+5. **Personas o entidades relevantes mencionadas**
+
+6. **Clientes relevantes que podrían estar interesados**
+   Lista dinámica de clientes disponibles:  
+   - ${clientsList}
+
+7. **Palabras clave relevantes mencionadas**
+   Lista dinámica de correlación entre clientes y palabras clave:  
+   ${clientKeywordMapping}
+
+8. **Justificación de mapeo**
+   - Usa frases textuales de la transcripción que justifiquen cada asociación
+   - Haz el vínculo claro entre lo dicho y el cliente o tema de interés
+
+---
+
+### IMPORTANTE:
+
+- Si hay múltiples anuncios, crea una sección separada por cada uno.
+- Consolidar TODO el contenido de programa en UNA sola sección.
+- Siempre usar nombres reales de hablantes si aparecen.
+- Asegúrate de que el análisis sea completo, profesional y alineado con los intereses de los clientes mapeados.`;
 }
 
 // Helper functions to extract data from analysis
