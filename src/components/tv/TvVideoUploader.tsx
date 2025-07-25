@@ -104,7 +104,8 @@ const TvVideoUploader = ({
           return "Procesando archivo en el servidor... Esto puede tomar unos minutos.";
         }
       }
-      return `Subiendo fragmento ${Math.round(chunkProgress)}/${totalChunks} - ${uploadProgress.toFixed(0)}% completado`;
+      const currentChunk = Math.ceil((chunkProgress / 100) * totalChunks);
+      return `Subiendo fragmento ${currentChunk}/${totalChunks} - ${uploadProgress.toFixed(0)}% completado`;
     }
     return `${uploadProgress.toFixed(0)}% completado`;
   };

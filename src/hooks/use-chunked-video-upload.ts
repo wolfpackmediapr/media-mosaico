@@ -161,7 +161,7 @@ export const useChunkedVideoUpload = () => {
 
     try {
       setIsUploading(true);
-      setUploadProgress(session.uploadedChunks / session.totalChunks);
+      setUploadProgress((session.uploadedChunks / session.totalChunks) * 100);
       setChunkProgress(0);
       setTotalChunks(session.totalChunks);
       setIsPaused(false);
@@ -212,7 +212,7 @@ export const useChunkedVideoUpload = () => {
               .update({ uploaded_chunks: session.uploadedChunks })
               .eq('session_id', session.sessionId);
             
-            setUploadProgress(session.uploadedChunks / session.totalChunks);
+            setUploadProgress((session.uploadedChunks / session.totalChunks) * 100);
             break;
           } catch (error) {
             retries++;
