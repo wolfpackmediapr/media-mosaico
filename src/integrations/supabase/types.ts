@@ -1706,6 +1706,7 @@ export type Database = {
           category: string | null
           channel: string | null
           created_at: string
+          full_analysis: string | null
           id: string
           keywords: string[] | null
           original_file_path: string
@@ -1744,6 +1745,7 @@ export type Database = {
           category?: string | null
           channel?: string | null
           created_at?: string
+          full_analysis?: string | null
           id?: string
           keywords?: string[] | null
           original_file_path: string
@@ -1782,6 +1784,7 @@ export type Database = {
           category?: string | null
           channel?: string | null
           created_at?: string
+          full_analysis?: string | null
           id?: string
           keywords?: string[] | null
           original_file_path?: string
