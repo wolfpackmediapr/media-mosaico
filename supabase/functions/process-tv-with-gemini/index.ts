@@ -473,13 +473,25 @@ async function processChunkedUploadWithGemini(
     let fileInfo: { uri: string; mimeType: string } | null = null;
 
     if (supabaseClient) {
-      const { data: manifest } = await supabaseClient
+      const { data: manifest, error: manifestError } = await supabaseClient
         .from('video_chunk_manifests')
         .select('session_id, total_size, mime_type, chunk_order')
         .eq('session_id', sessionId)
         .single();
 
+      if (manifestError) {
+        console.error('[gemini-unified] Manifest lookup error:', manifestError);
+      } else if (!manifest) {
+        console.warn('[gemini-unified] No manifest found for session:', sessionId);
+      }
+
       if (manifest && Array.isArray(manifest.chunk_order) && manifest.chunk_order.length > 0) {
+        console.log('[gemini-unified] Manifest found, streaming chunks', {
+          sessionId,
+          chunks: (manifest.chunk_order as any[]).length,
+          totalSize: manifest.total_size,
+          mimeType: manifest.mime_type
+        });
         // Stream chunks directly to Gemini to handle very large files without reassembly
         if (transcriptionId) {
           await updateDatabaseProgress(transcriptionId, 20, 'Streaming video to Gemini...');
@@ -491,9 +503,9 @@ async function processChunkedUploadWithGemini(
               for (const chunk of manifest.chunk_order as any[]) {
                 const { data: chunkBlob, error: chunkErr } = await supabaseClient.storage
                   .from('video')
-                  .download(chunk.path as string);
+                  .download((chunk as any).path as string);
                 if (chunkErr || !chunkBlob) {
-                  throw new Error(`Failed to download chunk ${chunk.index}: ${chunkErr?.message}`);
+                  throw new Error(`Failed to download chunk ${(chunk as any).index}: ${chunkErr?.message}`);
                 }
                 const buf = new Uint8Array(await chunkBlob.arrayBuffer());
                 controller.enqueue(buf);
@@ -508,7 +520,7 @@ async function processChunkedUploadWithGemini(
         fileInfo = await uploadVideoToGeminiStream(
           manifest.total_size as number,
           (manifest.mime_type as string) || 'video/mp4',
-          displayName || `${sessionId}.mp4`,
+          (displayName && displayName.length > 0 ? displayName : `${sessionId}.mp4`),
           stream
         );
         console.log('[gemini-unified] File processing completed successfully (streamed)');
@@ -1017,16 +1029,62 @@ serve(async (req) => {
     let result;
     
     if (videoPath.startsWith('chunked:')) {
-      // Handle chunked upload (supports both "chunked:<displayName>_<sessionId>" and "chunked:<sessionId>")
+      // Handle chunked upload paths in both formats:
+      // 1) chunked:<sessionId>
+      // 2) chunked:<displayName>_<sessionId>
       console.log(`[${requestId}] Processing chunked upload...`);
       const chunkInfo = videoPath.replace('chunked:', '');
-      const parts = chunkInfo.split('_');
-      const sessionId = parts.slice(-1)[0];
-      let displayName = parts.slice(0, -1).join('_');
 
-      // Backward-compatibility: if only sessionId was provided, derive displayName from DB
+      // Try to resolve a valid sessionId first
+      let sessionId = chunkInfo; // assume full session id by default
+      let displayName = '';
+
+      // Attempt exact match in manifest (newer format 'chunked:<sessionId>')
+      let manifestExact: any = null;
+      try {
+        const { data, error } = await supabase
+          .from('video_chunk_manifests')
+          .select('session_id, file_name')
+          .eq('session_id', sessionId)
+          .single();
+        if (!error) manifestExact = data;
+      } catch (e) {
+        // ignore 406/No rows errors
+      }
+
+      if (!manifestExact) {
+        // Fallback: treat chunkInfo as "<displayName>_<suffix>" and try to locate by suffix
+        const suffix = chunkInfo.split('_').pop() || chunkInfo;
+        console.log(`[${requestId}] No exact manifest for '${chunkInfo}'. Trying suffix lookup: '${suffix}'`);
+        try {
+          const { data: sessionRow, error: sessionErr } = await supabase
+            .from('chunked_upload_sessions')
+            .select('session_id, file_name')
+            .like('session_id', `%_${suffix}`)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (!sessionErr && sessionRow?.session_id) {
+            sessionId = sessionRow.session_id;
+            displayName = sessionRow.file_name?.replaceAll('/', '_').replaceAll('-', '_') || '';
+            console.log(`[${requestId}] Resolved session via suffix: ${sessionId} displayName: ${displayName}`);
+          } else {
+            // Last resort: preserve original assumption and derive displayName later
+            console.warn(`[${requestId}] Could not resolve session via suffix for '${chunkInfo}'. Proceeding with '${sessionId}'.`);
+          }
+        } catch (e) {
+          console.error(`[${requestId}] Error during suffix session lookup:`, e);
+        }
+      } else {
+        // We have exact manifest match
+        displayName = manifestExact.file_name?.replaceAll('/', '_').replaceAll('-', '_') || '';
+        console.log(`[${requestId}] Exact manifest matched for session: ${sessionId} displayName: ${displayName}`);
+      }
+
+      // If displayName still empty, try deriving from DB
       if (!displayName || displayName.trim().length === 0) {
-        console.log(`[${requestId}] No displayName provided with chunked path, deriving from database for session: ${sessionId}`);
+        console.log(`[${requestId}] Deriving displayName for session: ${sessionId}`);
         try {
           // Prefer manifest record
           const { data: manifest, error: manifestErr } = await supabase
@@ -1051,7 +1109,6 @@ serve(async (req) => {
           }
 
           if (sourceFileName) {
-            // Convert stored path (e.g., "userId/timestamp_name.mp4") into displayName used by reassembly
             displayName = sourceFileName.replaceAll('/', '_').replaceAll('-', '_');
             console.log(`[${requestId}] Derived displayName: ${displayName}`);
           } else {
