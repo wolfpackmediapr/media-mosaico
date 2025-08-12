@@ -95,6 +95,72 @@ async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{
   }
 }
 
+// Streaming upload to Gemini File API
+async function uploadVideoToGeminiStream(
+  totalSize: number,
+  mimeType: string,
+  fileName: string,
+  dataStream: ReadableStream<Uint8Array>
+): Promise<{ uri: string; mimeType: string }> {
+  console.log('[gemini-unified] Streaming upload to Gemini...', { fileName, totalSize, mimeType });
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  if (!geminiApiKey) {
+    throw new Error('Google Gemini API key not configured');
+  }
+  try {
+    // Initialize resumable upload
+    const initResponse = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'X-Goog-Upload-Protocol': 'resumable',
+          'X-Goog-Upload-Command': 'start',
+          'X-Goog-Upload-Header-Content-Length': totalSize.toString(),
+          'X-Goog-Upload-Header-Content-Type': mimeType || 'video/mp4',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ file: { display_name: fileName } })
+      }
+    );
+    if (!initResponse.ok) {
+      throw new Error(`Failed to initialize streaming upload: ${initResponse.status} ${initResponse.statusText}`);
+    }
+    const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
+    if (!uploadUrl) {
+      throw new Error('No upload URL received from Gemini');
+    }
+
+    // Stream the chunks to Gemini
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Length': totalSize.toString(),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+      },
+      body: dataStream
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to stream video: ${uploadResponse.status} ${uploadResponse.statusText}`);
+    }
+
+    const uploadResult = await uploadResponse.json();
+    const fileUri = uploadResult.file?.uri;
+    if (!fileUri) {
+      throw new Error('No file URI received from upload');
+    }
+
+    await waitForFileProcessing(uploadResult.file.name, geminiApiKey);
+
+    return { uri: fileUri, mimeType: mimeType || 'video/mp4' };
+  } catch (error) {
+    console.error('[gemini-unified] Streaming upload error:', error);
+    throw new Error(`Streaming upload failed: ${error.message}`);
+  }
+}
+
 // Function to wait for file processing by Gemini
 async function waitForFileProcessing(fileName: string, apiKey: string): Promise<void> {
   console.log('[gemini-unified] Waiting for file processing...', fileName);
@@ -399,23 +465,69 @@ async function processChunkedUploadWithGemini(
   });
 
   try {
-    // Update progress
-    if (transcriptionId) {
-      await updateDatabaseProgress(transcriptionId, 10, 'Downloading video...');
+    // Attempt manifest-based streaming first to avoid large reassembly
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseClient = (supabaseUrl && supabaseServiceKey) ? createClient(supabaseUrl, supabaseServiceKey) : null;
+
+    let fileInfo: { uri: string; mimeType: string } | null = null;
+
+    if (supabaseClient) {
+      const { data: manifest } = await supabaseClient
+        .from('video_chunk_manifests')
+        .select('session_id, total_size, mime_type, chunk_order')
+        .eq('session_id', sessionId)
+        .single();
+
+      if (manifest && Array.isArray(manifest.chunk_order) && manifest.chunk_order.length > 0) {
+        // Stream chunks directly to Gemini to handle very large files without reassembly
+        if (transcriptionId) {
+          await updateDatabaseProgress(transcriptionId, 20, 'Streaming video to Gemini...');
+        }
+
+        const stream = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            try {
+              for (const chunk of manifest.chunk_order as any[]) {
+                const { data: chunkBlob, error: chunkErr } = await supabaseClient.storage
+                  .from('video')
+                  .download(chunk.path as string);
+                if (chunkErr || !chunkBlob) {
+                  throw new Error(`Failed to download chunk ${chunk.index}: ${chunkErr?.message}`);
+                }
+                const buf = new Uint8Array(await chunkBlob.arrayBuffer());
+                controller.enqueue(buf);
+              }
+              controller.close();
+            } catch (e) {
+              controller.error(e);
+            }
+          }
+        });
+
+        fileInfo = await uploadVideoToGeminiStream(
+          manifest.total_size as number,
+          (manifest.mime_type as string) || 'video/mp4',
+          displayName || `${sessionId}.mp4`,
+          stream
+        );
+        console.log('[gemini-unified] File processing completed successfully (streamed)');
+      }
     }
 
-    // For chunked uploads, we need to find the assembled file
-    const assembledFilePath = `${sessionId}/${displayName}`;
-    const videoBlob = await downloadVideoFromSupabase(assembledFilePath, sessionId);
-    
-    // Update progress
-    if (transcriptionId) {
-      await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
+    if (!fileInfo) {
+      // Fallback: download assembled file or trigger reassembly
+      if (transcriptionId) {
+        await updateDatabaseProgress(transcriptionId, 10, 'Downloading video...');
+      }
+      const assembledFilePath = `${sessionId}/${displayName}`;
+      const videoBlob = await downloadVideoFromSupabase(assembledFilePath, sessionId);
+      if (transcriptionId) {
+        await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
+      }
+      fileInfo = await uploadVideoToGemini(videoBlob, displayName);
+      console.log('[gemini-unified] File processing completed successfully');
     }
-
-    // Upload to Gemini and wait for processing
-    const fileInfo = await uploadVideoToGemini(videoBlob, displayName);
-    console.log('[gemini-unified] File processing completed successfully');
 
     // Update progress
     if (transcriptionId) {
@@ -905,12 +1017,50 @@ serve(async (req) => {
     let result;
     
     if (videoPath.startsWith('chunked:')) {
-      // Handle chunked upload
+      // Handle chunked upload (supports both "chunked:<displayName>_<sessionId>" and "chunked:<sessionId>")
       console.log(`[${requestId}] Processing chunked upload...`);
       const chunkInfo = videoPath.replace('chunked:', '');
       const parts = chunkInfo.split('_');
       const sessionId = parts.slice(-1)[0];
-      const displayName = parts.slice(0, -1).join('_');
+      let displayName = parts.slice(0, -1).join('_');
+
+      // Backward-compatibility: if only sessionId was provided, derive displayName from DB
+      if (!displayName || displayName.trim().length === 0) {
+        console.log(`[${requestId}] No displayName provided with chunked path, deriving from database for session: ${sessionId}`);
+        try {
+          // Prefer manifest record
+          const { data: manifest, error: manifestErr } = await supabase
+            .from('video_chunk_manifests')
+            .select('file_name')
+            .eq('session_id', sessionId)
+            .single();
+
+          let sourceFileName = manifest?.file_name as string | undefined;
+
+          if (manifestErr || !sourceFileName) {
+            // Fallback to chunked session
+            const { data: sessionRow, error: sessionErr } = await supabase
+              .from('chunked_upload_sessions')
+              .select('file_name')
+              .eq('session_id', sessionId)
+              .single();
+
+            if (!sessionErr && sessionRow?.file_name) {
+              sourceFileName = sessionRow.file_name as string;
+            }
+          }
+
+          if (sourceFileName) {
+            // Convert stored path (e.g., "userId/timestamp_name.mp4") into displayName used by reassembly
+            displayName = sourceFileName.replaceAll('/', '_').replaceAll('-', '_');
+            console.log(`[${requestId}] Derived displayName: ${displayName}`);
+          } else {
+            console.warn(`[${requestId}] Could not derive displayName for session ${sessionId}. Will attempt with empty displayName.`);
+          }
+        } catch (e) {
+          console.error(`[${requestId}] Error deriving displayName:`, e);
+        }
+      }
       
       result = await processChunkedUploadWithGemini(sessionId, displayName, transcriptionId, categories || [], clients || []);
     } else {
