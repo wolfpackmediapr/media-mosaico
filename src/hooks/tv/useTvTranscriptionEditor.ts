@@ -1,6 +1,7 @@
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useSpeakerTextState } from "../radio/editor/useSpeakerTextState";
 import { useTranscriptionSave } from "../radio/editor/useTranscriptionSave";
+import { useFetchUtterances } from "../radio/editor/useFetchUtterances";
 import { useCallback } from "react";
 import { hasSpeakerData } from "../radio/utils/transcriptionUtils";
 
@@ -34,6 +35,20 @@ export const useTvTranscriptionEditor = ({
     onTranscriptionChange
   });
 
+  // Handle utterance fetching (same as radio)
+  const { isLoadingUtterances } = useFetchUtterances({
+    transcriptionId,
+    transcriptionText,
+    enhancedTranscriptionResult,
+    setEnhancedTranscriptionResult,
+    setLocalSpeakerText: (text: string) => {
+      // This needs to be handled by the useSpeakerTextState hook
+      // The handleTextChange function will update the local text properly
+      handleTextChange(text);
+    },
+    onTranscriptionChange
+  });
+
   // Handle autosave functionality for TV transcriptions
   const { isSaving, saveError, saveSuccess, forceSave } = useTranscriptionSave({
     transcriptionId,
@@ -60,7 +75,7 @@ export const useTvTranscriptionEditor = ({
   return {
     localText,
     isEditing,
-    isLoadingUtterances: false, // TV uses different loading approach
+    isLoadingUtterances, // Now properly uses the actual loading state
     showTimestamps,
     hasTimestampData,
     isSaving,

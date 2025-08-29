@@ -920,6 +920,73 @@ function extractKeywordsFromContent(content: string): string[] {
   return uniqueWords.slice(0, 10);
 }
 
+// Parse analysis for TV database structure
+function parseAnalysisForTvDatabase(analysis: string): {
+  transcription: string;
+  summary: string;
+  quien: string;
+  que: string;
+  cuando: string;
+  donde: string;
+  porque: string;
+  keywords: string[];
+  category: string;
+  content_summary: string;
+} {
+  try {
+    // Try to parse as JSON first
+    const cleanJson = analysis.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsedAnalysis = JSON.parse(cleanJson);
+    
+    return {
+      transcription: parsedAnalysis.transcription || extractTranscriptionFromAnalysis(analysis),
+      summary: parsedAnalysis.summary || extractSummaryFromAnalysis(analysis),
+      quien: parsedAnalysis.analysis?.who || extractFieldFromAnalysis(analysis, 'quien|who'),
+      que: parsedAnalysis.analysis?.what || extractFieldFromAnalysis(analysis, 'que|what'),
+      cuando: parsedAnalysis.analysis?.when || extractFieldFromAnalysis(analysis, 'cuando|when'),
+      donde: parsedAnalysis.analysis?.where || extractFieldFromAnalysis(analysis, 'donde|where'),
+      porque: parsedAnalysis.analysis?.why || extractFieldFromAnalysis(analysis, 'porque|why'),
+      keywords: parsedAnalysis.keywords || extractKeywordsFromAnalysis(analysis),
+      category: parsedAnalysis.category || 'televisión',
+      content_summary: parsedAnalysis.visual_analysis || 'Análisis visual completado'
+    };
+  } catch (parseError) {
+    console.error('[parseAnalysisForTvDatabase] JSON parse error, using text extraction:', parseError);
+    
+    // Fallback to text extraction
+    return {
+      transcription: extractTranscriptionFromAnalysis(analysis),
+      summary: extractSummaryFromAnalysis(analysis),
+      quien: extractFieldFromAnalysis(analysis, 'quien|who'),
+      que: extractFieldFromAnalysis(analysis, 'que|what'),
+      cuando: extractFieldFromAnalysis(analysis, 'cuando|when'),
+      donde: extractFieldFromAnalysis(analysis, 'donde|where'),
+      porque: extractFieldFromAnalysis(analysis, 'porque|why'),
+      keywords: extractKeywordsFromAnalysis(analysis),
+      category: 'televisión',
+      content_summary: 'Análisis completado exitosamente'
+    };
+  }
+}
+
+// Extract specific fields from text-based analysis
+function extractFieldFromAnalysis(analysis: string, fieldPattern: string): string {
+  const regex = new RegExp(`(?:${fieldPattern})[:\\s]*([^\\n]*?)(?=\\n|$)`, 'i');
+  const match = analysis.match(regex);
+  if (match) {
+    return match[1].trim();
+  }
+  
+  // Try alternative patterns
+  const altRegex = new RegExp(`\\*\\*(?:${fieldPattern})\\*\\*[:\\s]*([^\\n]*?)(?=\\n|$)`, 'i');
+  const altMatch = analysis.match(altRegex);
+  if (altMatch) {
+    return altMatch[1].trim();
+  }
+  
+  return 'No especificado';
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1132,12 +1199,24 @@ serve(async (req) => {
     if (transcriptionId && result.success) {
       await updateDatabaseProgress(transcriptionId, 100, 'completed');
       
-      // Store full analysis
+      // Parse analysis to extract structured data for TV table
+      const parsedAnalysis = parseAnalysisForTvDatabase(result.full_analysis);
+      
+      // Store complete analysis with correct TV table structure
       await supabase
         .from('tv_transcriptions')
         .update({
-          transcription_text: result.transcription,
-          analysis_result: result.full_analysis,
+          transcription_text: result.transcription || parsedAnalysis.transcription,
+          analysis_summary: parsedAnalysis.summary,
+          analysis_quien: parsedAnalysis.quien,
+          analysis_que: parsedAnalysis.que,
+          analysis_cuando: parsedAnalysis.cuando,
+          analysis_donde: parsedAnalysis.donde,
+          analysis_porque: parsedAnalysis.porque,
+          analysis_keywords: parsedAnalysis.keywords,
+          analysis_category: parsedAnalysis.category,
+          analysis_content_summary: parsedAnalysis.content_summary,
+          full_analysis: result.full_analysis,
           status: 'completed',
           progress: 100
         })
