@@ -23,17 +23,19 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
     const trimmedSegment = segment.trim();
     if (!trimmedSegment) return;
     
-    // Try different TV speaker patterns
+    // Try different TV speaker patterns including Gemini format
     const patterns = [
-      // Pattern 1: "SPEAKER 1: ROLE: text"
+      // Pattern 1: "**Speaker Name:** text" (Gemini format)
+      /^\*\*([^*]+):\*\*\s*(.*)/s,
+      // Pattern 2: "SPEAKER 1: ROLE: text"
       /^SPEAKER\s+(\d+):\s*([^:]+):\s*(.*)/s,
-      // Pattern 2: "SPEAKER 1: text"
+      // Pattern 3: "SPEAKER 1: text"
       /^SPEAKER\s+(\d+):\s*(.*)/s,
-      // Pattern 3: "PRESENTER: text" or "HOST: text"
+      // Pattern 4: "PRESENTER: text" or "HOST: text"
       /^(PRESENTER|HOST|GUEST|LOCUTOR|ENTREVISTADO):\s*(.*)/s,
-      // Pattern 4: "[SPEAKER 1]: text"
+      // Pattern 5: "[SPEAKER 1]: text"
       /^\[SPEAKER\s+(\d+)\]:\s*(.*)/s,
-      // Pattern 5: "- SPEAKER: text"
+      // Pattern 6: "- SPEAKER: text"
       /^\s*-\s*(\w+):\s*(.*)/s
     ];
     
@@ -47,7 +49,16 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
         let textContent: string;
         
         if (i === 0) {
-          // Pattern 1: "SPEAKER 1: ROLE: text"
+          // Pattern 1: "**Speaker Name:** text" (Gemini format)
+          const rawSpeaker = match[1].trim();
+          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
+          if (!speakerMap.has(rawSpeaker)) {
+            speakerMap.set(rawSpeaker, speaker);
+            speakerCounter++;
+          }
+          textContent = match[2].trim();
+        } else if (i === 1) {
+          // Pattern 2: "SPEAKER 1: ROLE: text"
           const rawSpeaker = `${match[1]}_${match[2].trim()}`;
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
           if (!speakerMap.has(rawSpeaker)) {
@@ -57,17 +68,8 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
           const role = match[2].trim();
           textContent = match[3].trim();
           textContent = `${role}: ${textContent}`;
-        } else if (i === 1) {
-          // Pattern 2: "SPEAKER 1: text"
-          const rawSpeaker = match[1];
-          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
-          if (!speakerMap.has(rawSpeaker)) {
-            speakerMap.set(rawSpeaker, speaker);
-            speakerCounter++;
-          }
-          textContent = match[2].trim();
         } else if (i === 2) {
-          // Pattern 3: "PRESENTER: text" etc.
+          // Pattern 3: "SPEAKER 1: text"
           const rawSpeaker = match[1];
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
           if (!speakerMap.has(rawSpeaker)) {
@@ -76,7 +78,16 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
           }
           textContent = match[2].trim();
         } else if (i === 3) {
-          // Pattern 4: "[SPEAKER 1]: text"
+          // Pattern 4: "PRESENTER: text" etc.
+          const rawSpeaker = match[1];
+          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
+          if (!speakerMap.has(rawSpeaker)) {
+            speakerMap.set(rawSpeaker, speaker);
+            speakerCounter++;
+          }
+          textContent = match[2].trim();
+        } else if (i === 4) {
+          // Pattern 5: "[SPEAKER 1]: text"
           const rawSpeaker = match[1];
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
           if (!speakerMap.has(rawSpeaker)) {
@@ -85,7 +96,7 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
           }
           textContent = match[2].trim();
         } else {
-          // Pattern 5: "- SPEAKER: text"
+          // Pattern 6: "- SPEAKER: text"
           const rawSpeaker = match[1];
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
           if (!speakerMap.has(rawSpeaker)) {
@@ -158,6 +169,7 @@ export function hasTvSpeakerPatterns(text: string): boolean {
   if (!text || !text.trim()) return false;
   
   const patterns = [
+    /\*\*[^*]+:\*\*/i, // Gemini format: **Speaker:**
     /SPEAKER\s+\d+:/i,
     /PRESENTER:/i,
     /HOST:/i,
