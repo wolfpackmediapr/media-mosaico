@@ -654,9 +654,25 @@ async function processAssembledVideoWithGemini(
       await updateDatabaseProgress(transcriptionId, 10, 'Downloading video...');
     }
 
-    // Download video from Supabase storage (extract sessionId if available)
-    const sessionId = videoPath.includes('/') ? videoPath.split('/')[0] : undefined;
-    const videoBlob = await downloadVideoFromSupabase(videoPath, sessionId);
+     // Download video from Supabase storage (use appropriate bucket for compressed videos)
+     const isCompressed = videoPath.includes('_compressed.');
+     const bucket = isCompressed ? 'media' : 'video';
+     const sessionId = videoPath.includes('/') ? videoPath.split('/')[0] : undefined;
+     
+     const supabaseUrl = Deno.env.get('SUPABASE_URL');
+     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+     const supabaseClient = createClient(supabaseUrl!, supabaseServiceKey!);
+     
+     const { data: videoData, error: downloadError } = await supabaseClient
+       .storage
+       .from(bucket)
+       .download(videoPath);
+
+     if (downloadError) {
+       throw new Error(`Failed to download video: ${downloadError.message}`);
+     }
+
+     const videoBlob = new Blob([videoData], { type: 'video/mp4' });
     
     // Update progress
     if (transcriptionId) {
@@ -1048,11 +1064,37 @@ serve(async (req) => {
     });
 
     if (!videoPath) {
-      throw new Error('Video path is required');
+      throw new Error('videoPath is required');
     }
 
-    // Create Supabase client
+    // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Step 1: Compress video for AI processing
+    console.log(`[${requestId}] Step 1: Compressing video for AI analysis...`);
+     if (transcriptionId) {
+       await updateDatabaseProgress(transcriptionId, 10, 'Compressing video for AI analysis...');
+     }
+    
+    let compressedVideoPath = videoPath;
+    try {
+      const compressResponse = await supabase.functions.invoke('compress-tv-video', {
+        body: { videoPath }
+      });
+
+      if (compressResponse.data && compressResponse.data.success) {
+        compressedVideoPath = compressResponse.data.compressedPath;
+        console.log(`[${requestId}] Video compressed successfully: ${compressedVideoPath}`);
+      } else {
+        console.log(`[${requestId}] Compression failed, using original: ${compressResponse.error?.message || 'Unknown error'}`);
+      }
+    } catch (compressionError: any) {
+      console.log(`[${requestId}] Compression failed, using original: ${compressionError.message}`);
+    }
+
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 20, 'Video compression completed, starting AI processing...');
+    }
     
     // Get user from auth header
     const authHeader = req.headers.get('Authorization');
@@ -1092,15 +1134,15 @@ serve(async (req) => {
     
     console.log(`[${requestId}] Fetched ${clients?.length || 0} clients`);
 
-    // Process video file
+    // Process video file (using compressed version where available)
     let result;
     
-    if (videoPath.startsWith('chunked:')) {
+    if (compressedVideoPath.startsWith('chunked:')) {
       // Handle chunked upload paths in both formats:
       // 1) chunked:<sessionId>
       // 2) chunked:<displayName>_<sessionId>
       console.log(`[${requestId}] Processing chunked upload...`);
-      const chunkInfo = videoPath.replace('chunked:', '');
+      const chunkInfo = compressedVideoPath.replace('chunked:', '');
 
       // Try to resolve a valid sessionId first
       let sessionId = chunkInfo; // assume full session id by default
@@ -1188,9 +1230,9 @@ serve(async (req) => {
       
       result = await processChunkedUploadWithGemini(sessionId, displayName, transcriptionId, categories || [], clients || []);
     } else {
-      // Handle assembled video file
+      // Handle assembled video file (use compressed version if available)
       console.log(`[${requestId}] Processing assembled video file from video bucket...`);
-      result = await processAssembledVideoWithGemini(videoPath, transcriptionId, categories || [], clients || []);
+      result = await processAssembledVideoWithGemini(compressedVideoPath, transcriptionId, categories || [], clients || []);
     }
 
     console.log(`[${requestId}] Processing completed, updating database...`);
@@ -1221,6 +1263,18 @@ serve(async (req) => {
           progress: 100
         })
         .eq('id', transcriptionId);
+    }
+
+    // Clean up compressed video if it was created
+    if (compressedVideoPath !== videoPath) {
+      try {
+        console.log(`[${requestId}] Cleaning up compressed video: ${compressedVideoPath}`);
+        await supabase.storage.from('media').remove([compressedVideoPath]);
+        console.log(`[${requestId}] Compressed video cleanup completed`);
+      } catch (cleanupError: any) {
+        console.error(`[${requestId}] Compressed video cleanup failed:`, cleanupError.message);
+        // Don't throw error for cleanup failure
+      }
     }
 
     console.log(`[${requestId}] === UNIFIED PROCESSING COMPLETED ===`);

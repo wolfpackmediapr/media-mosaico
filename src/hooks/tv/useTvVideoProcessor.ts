@@ -179,7 +179,8 @@ export const useTvVideoProcessor = () => {
       });
 
       // Call unified processing function with correct path format
-      console.log('[TvVideoProcessor] Calling unified processing function');
+      // This now automatically includes video compression for AI processing
+      console.log('[TvVideoProcessor] Calling unified processing function (includes automatic compression)');
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-gemini', {
           body: { 
