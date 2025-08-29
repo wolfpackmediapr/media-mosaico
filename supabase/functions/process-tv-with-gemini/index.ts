@@ -909,6 +909,192 @@ function extractKeywordsFromContent(content: string): string[] {
   return uniqueWords.slice(0, 10);
 }
 
+// Function to check if a file is large and should use two-phase processing
+async function checkIfLargeFile(videoPath: string, supabase: any): Promise<boolean> {
+  try {
+    if (videoPath.startsWith('chunked:')) {
+      const sessionId = videoPath.replace('chunked:', '').split('_').pop() || videoPath.replace('chunked:', '');
+      
+      // Check manifest for file size
+      const { data: manifest } = await supabase
+        .from('video_chunk_manifests')
+        .select('total_size')
+        .eq('session_id', sessionId)
+        .single();
+      
+      if (manifest?.total_size) {
+        const sizeInMB = manifest.total_size / (1024 * 1024);
+        console.log(`[checkIfLargeFile] File size: ${sizeInMB.toFixed(1)}MB`);
+        return sizeInMB > 500; // Files over 500MB use two-phase processing
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error('[checkIfLargeFile] Error checking file size:', error);
+    return false;
+  }
+}
+
+// Function to handle resume polling for large files
+async function handleResumePolling(transcriptionId: string, requestId: string): Promise<Response> {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Missing Supabase credentials');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Check transcription status
+    const { data: transcription, error } = await supabase
+      .from('tv_transcriptions')
+      .select('status, progress, transcription_text, analysis_result')
+      .eq('id', transcriptionId)
+      .single();
+    
+    if (error) {
+      throw new Error(`Failed to fetch transcription status: ${error.message}`);
+    }
+    
+    console.log(`[${requestId}] Polling status:`, {
+      status: transcription.status,
+      progress: transcription.progress
+    });
+    
+    if (transcription.status === 'completed') {
+      return new Response(JSON.stringify({
+        success: true,
+        completed: true,
+        transcription: transcription.transcription_text,
+        full_analysis: transcription.analysis_result,
+        summary: extractSummaryFromAnalysis(transcription.analysis_result || ''),
+        keywords: extractKeywordsFromAnalysis(transcription.analysis_result || ''),
+        segments: extractSegmentsFromAnalysis(transcription.analysis_result || '')
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    if (transcription.status === 'failed') {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Processing failed'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // Still processing
+    return new Response(JSON.stringify({
+      success: true,
+      processing: true,
+      progress: transcription.progress || 0,
+      status: transcription.status || 'processing'
+    }), {
+      status: 202,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+    
+  } catch (error) {
+    console.error(`[${requestId}] Resume polling error:`, error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Failed to check processing status'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Function to process large files in background
+async function processLargeFileInBackground(
+  videoPath: string, 
+  transcriptionId: string, 
+  categories: any[], 
+  clients: any[], 
+  requestId: string
+): Promise<void> {
+  try {
+    console.log(`[${requestId}] Starting background processing for large file`);
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+    
+    let result;
+    
+    if (videoPath.startsWith('chunked:')) {
+      const chunkInfo = videoPath.replace('chunked:', '');
+      let sessionId = chunkInfo;
+      let displayName = '';
+      
+      // Resolve session and display name (same logic as before)
+      try {
+        const { data, error } = await supabase
+          .from('video_chunk_manifests')
+          .select('session_id, file_name')
+          .eq('session_id', sessionId)
+          .single();
+        if (!error) {
+          displayName = data.file_name?.replaceAll('/', '_').replaceAll('-', '_') || '';
+        }
+      } catch (e) {
+        // Try suffix lookup fallback
+        const suffix = chunkInfo.split('_').pop() || chunkInfo;
+        try {
+          const { data: sessionRow, error: sessionErr } = await supabase
+            .from('chunked_upload_sessions')
+            .select('session_id, file_name')
+            .like('session_id', `%_${suffix}`)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (!sessionErr && sessionRow?.session_id) {
+            sessionId = sessionRow.session_id;
+            displayName = sessionRow.file_name?.replaceAll('/', '_').replaceAll('-', '_') || '';
+          }
+        } catch (fallbackError) {
+          console.error(`[${requestId}] Background session resolution failed:`, fallbackError);
+        }
+      }
+      
+      result = await processChunkedUploadWithGemini(sessionId, displayName, transcriptionId, categories, clients);
+    } else {
+      result = await processAssembledVideoWithGemini(videoPath, transcriptionId, categories, clients);
+    }
+    
+    if (result.success) {
+      console.log(`[${requestId}] Background processing completed successfully`);
+      await updateDatabaseProgress(transcriptionId, 100, 'completed');
+      
+      await supabase
+        .from('tv_transcriptions')
+        .update({
+          transcription_text: result.transcription,
+          analysis_result: result.full_analysis,
+          status: 'completed',
+          progress: 100
+        })
+        .eq('id', transcriptionId);
+    } else {
+      throw new Error('Background processing failed');
+    }
+    
+  } catch (error) {
+    console.error(`[${requestId}] Background processing error:`, error);
+    try {
+      await updateDatabaseProgress(transcriptionId, 100, 'failed');
+    } catch (updateError) {
+      console.error(`[${requestId}] Failed to update status to failed:`, updateError);
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -919,13 +1105,14 @@ serve(async (req) => {
 
   // Parse request body once and store it for potential error handling
   let requestBody;
-  let videoPath, transcriptionId;
+  let videoPath, transcriptionId, resumeToken;
   
   try {
     requestBody = await req.text();
     const parsedBody = JSON.parse(requestBody);
     videoPath = parsedBody.videoPath;
     transcriptionId = parsedBody.transcriptionId;
+    resumeToken = parsedBody.resumeToken; // For large file polling
   } catch (parseError) {
     console.error(`[${requestId}] Failed to parse request body:`, parseError);
     return new Response(
@@ -939,6 +1126,12 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
+  }
+
+  // Handle resume polling for large files
+  if (resumeToken && transcriptionId) {
+    console.log(`[${requestId}] Resume polling for transcription:`, transcriptionId);
+    return await handleResumePolling(transcriptionId, requestId);
   }
 
   try {
@@ -1014,7 +1207,26 @@ serve(async (req) => {
     
     console.log(`[${requestId}] Fetched ${clients?.length || 0} clients`);
 
-    // Process video file
+    // Check if this is a large file that should use two-phase processing
+    const isLargeFile = await checkIfLargeFile(videoPath, supabase);
+    if (isLargeFile && transcriptionId) {
+      console.log(`[${requestId}] Large file detected, using two-phase processing`);
+      // Start background processing
+      EdgeRuntime.waitUntil(processLargeFileInBackground(videoPath, transcriptionId, categories || [], clients || [], requestId));
+      // Return immediate 202 Accepted response
+      return new Response(JSON.stringify({ 
+        success: true, 
+        processing: true, 
+        message: 'Large file processing started in background',
+        transcriptionId,
+        resumeToken: `${transcriptionId}_${Date.now()}`
+      }), {
+        status: 202,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Process video file normally
     let result;
     
     if (videoPath.startsWith('chunked:')) {
