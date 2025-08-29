@@ -205,15 +205,31 @@ async function generateComprehensiveAnalysis(fileUri: string, apiKey: string, ca
   const prompt = `
 Eres un analista experto en contenido de TV. Analiza este video de TV en español y proporciona DOS SECCIONES CLARAMENTE SEPARADAS:
 
-## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES
+## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN VISUAL DE HABLANTES
 
-Proporciona una transcripción completa y precisa del contenido hablado en el video, identificando claramente a cada hablante cuando sea posible. Utiliza el formato:
+INSTRUCCIONES CRÍTICAS PARA IDENTIFICACIÓN DE HABLANTES:
 
-HABLANTE 1: [texto hablado]
-HABLANTE 2: [texto hablado]
-NARRADOR: [texto hablado]
+1. **ANÁLISIS VISUAL DE TEXTO EN PANTALLA**: Examina cuidadosamente todos los frames del video buscando:
+   - **Chyrons/Lower Thirds**: Gráficos en la parte inferior que muestran nombres y títulos
+   - **Banners de texto**: Cualquier texto superpuesto que identifique personas
+   - **Crawlers de noticias**: Texto deslizante que pueda mencionar nombres
+   - **Name tags/Identificadores**: Cualquier elemento gráfico con nombres de personas
 
-Si puedes identificar nombres específicos de los hablantes, utilízalos en lugar de "HABLANTE 1", etc.
+2. **CORRELACIÓN AUDIO-VISUAL**: Conecta los nombres que aparecen en pantalla con las voces que hablan:
+   - Cuando aparece un nombre en un lower third, identifica qué voz corresponde a esa persona
+   - Nota cambios de hablantes que coincidan con cambios visuales en pantalla
+   - Presta atención a transiciones entre entrevistados/presentadores
+
+3. **FORMATO DE TRANSCRIPCIÓN MEJORADO**:
+   - **[NOMBRE COMPLETO]:** [texto hablado] (cuando el nombre es visible en pantalla)
+   - **[TÍTULO/ROL - NOMBRE]:** [texto hablado] (ej: "REPORTERA - MARIBEL MELÉNDEZ:")
+   - **PRESENTADOR/PRESENTADORA:** [texto hablado] (para anchors principales)
+   - Solo usa "HABLANTE 1/2/3" si NO hay identificación visual disponible
+
+4. **CONTEXT VISUAL ADICIONAL**: Menciona brevemente:
+   - Títulos profesionales mostrados en lower thirds
+   - Ubicaciones mencionadas en gráficos
+   - Cualquier información contextual visual relevante
 
 ## SECCIÓN 2: ANÁLISIS DE CONTENIDO
 
@@ -255,15 +271,21 @@ PARA CADA SECCIÓN DE PROGRAMA REGULAR:
    - Tipo de lenguaje utilizado
    - Enfoque del contenido (informativo/editorial/debate)
 
-4. Categorías aplicables de: ${categoriesText}
+4. Identificación específica de participantes:
+   - **Nombres completos identificados visualmente**: Lista todos los nombres que aparecen en chyrons, lower thirds o gráficos
+   - **Títulos/cargos mostrados**: Incluye títulos profesionales o cargos que aparezcan en pantalla
+   - **Roles en el programa**: Diferencia entre presentadores, reporteros, entrevistados, corresponsales
+   - **Contexto visual de cada participante**: Describe brevemente cómo fueron identificados visualmente
+
+5. Categorías aplicables de: ${categoriesText}
    - Justificar la selección de cada categoría
    - Indicar categoría principal y secundarias
 
-5. Presencia de personas o entidades relevantes mencionadas
+6. Presencia de personas or entidades relevantes mencionadas
 
-6. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}
+7. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}
 
-7. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
+8. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
 ${keywordMapping}
 
 Responde en español de manera concisa y profesional. Asegúrate de:
@@ -272,7 +294,8 @@ Responde en español de manera concisa y profesional. Asegúrate de:
 3. Si es un anuncio, enfatizar las marcas, productos y llamadas a la acción
 4. Si es contenido regular, mantener el formato de análisis detallado
 5. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
-6. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas como "SPEAKER A" o "SPEAKER B"
+6. **PRIORIZAR IDENTIFICACIÓN VISUAL**: Usar SIEMPRE nombres completos de personas cuando aparezcan en lower thirds, chyrons, o cualquier gráfico en pantalla
+7. **ANALIZAR ELEMENTOS VISUALES**: Prestar especial atención a texto superpuesto, banners, crawlers y cualquier información gráfica que identifique personas, lugares o contexto
   `;
 
   const requestBody = {
