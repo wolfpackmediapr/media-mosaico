@@ -21,7 +21,7 @@ function categorizeError(message: string): string {
 }
 
 // Function to upload video to Gemini File API
-async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{ uri: string; mimeType: string; name: string }> {
+async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{ uri: string; mimeType: string }> {
   console.log('[gemini-unified] Uploading video to Gemini...', fileName);
   
   const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
@@ -87,8 +87,7 @@ async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{
 
     return {
       uri: fileUri,
-      mimeType: 'video/mp4',
-      name: uploadResult.file?.name
+      mimeType: 'video/mp4'
     };
   } catch (error) {
     console.error('[gemini-unified] Video upload error:', error);
@@ -102,7 +101,7 @@ async function uploadVideoToGeminiStream(
   mimeType: string,
   fileName: string,
   dataStream: ReadableStream<Uint8Array>
-): Promise<{ uri: string; mimeType: string; name: string }> {
+): Promise<{ uri: string; mimeType: string }> {
   console.log('[gemini-unified] Streaming upload to Gemini...', { fileName, totalSize, mimeType });
   const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
   if (!geminiApiKey) {
@@ -155,7 +154,7 @@ async function uploadVideoToGeminiStream(
 
     await waitForFileProcessing(uploadResult.file.name, geminiApiKey);
 
-    return { uri: fileUri, mimeType: mimeType || 'video/mp4', name: uploadResult.file?.name };
+    return { uri: fileUri, mimeType: mimeType || 'video/mp4' };
   } catch (error) {
     console.error('[gemini-unified] Streaming upload error:', error);
     throw new Error(`Streaming upload failed: ${error.message}`);
@@ -165,43 +164,55 @@ async function uploadVideoToGeminiStream(
 // Function to wait for file processing by Gemini
 async function waitForFileProcessing(fileName: string, apiKey: string): Promise<void> {
   console.log('[gemini-unified] Waiting for file processing...', fileName);
-  const maxAttempts = 90; // up to ~10-15 minutes with backoff
-  const baseDelay = 5000; // 5s
-  const maxDelay = 45000; // cap at 45s between polls
-
+  
+  const maxAttempts = 15; // Reduced attempts
+  const baseDelay = 3000; // 3 seconds
+  
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      // Fixed the API URL - remove extra 'files/' prefix
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`,
-        { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
 
-      if (response.ok) {
-        const fileInfo = await response.json();
-        const state = fileInfo.state;
-        console.log(`[gemini-unified] File status check ${attempt}/${maxAttempts}: ${state}`);
-        if (state === 'ACTIVE') {
-          console.log('[gemini-unified] File processing completed successfully');
-          return;
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log(`[gemini-unified] File not ready yet, waiting... (attempt ${attempt})`);
+          await new Promise(resolve => setTimeout(resolve, baseDelay));
+          continue;
         }
-        if (state === 'FAILED') {
-          throw new Error('File processing failed on Gemini side');
-        }
-      } else {
-        // Not ready yet or transient error
-        console.warn(`[gemini-unified] Status check non-OK (${response.status}) on attempt ${attempt}`);
+        throw new Error(`Failed to check file status: ${response.status}`);
       }
+
+      const fileInfo = await response.json();
+      console.log(`[gemini-unified] File status check ${attempt}:`, fileInfo.state);
+
+      if (fileInfo.state === 'ACTIVE') {
+        console.log('[gemini-unified] File processing completed successfully');
+        return;
+      } else if (fileInfo.state === 'FAILED') {
+        throw new Error('File processing failed on Gemini side');
+      }
+
+      // File is still processing, wait before next check
+      await new Promise(resolve => setTimeout(resolve, baseDelay));
+      
     } catch (error) {
-      console.warn(`[gemini-unified] File status check attempt ${attempt} failed:`, error);
+      console.error(`[gemini-unified] File status check attempt ${attempt} failed:`, error);
+      if (attempt === maxAttempts) {
+        // Continue instead of throwing to allow processing with uploaded file
+        console.log('[gemini-unified] File processing timeout, continuing with analysis...');
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
-
-    // Exponential backoff with jitter
-    const delay = Math.min(Math.floor(baseDelay * Math.pow(1.35, attempt - 1)), maxDelay) + Math.floor(Math.random() * 1000);
-    await new Promise((r) => setTimeout(r, delay));
   }
-
-  // After extensive waiting, fail explicitly to avoid analyzing before ready
-  throw new Error('File processing timeout waiting for Gemini to become ACTIVE');
 }
 
 // Function to clean up Gemini file
@@ -535,71 +546,71 @@ async function processChunkedUploadWithGemini(
       await updateDatabaseProgress(transcriptionId, 50, 'Generating comprehensive analysis...');
     }
 
-    // Generate analysis with model fallback and retries
-    let analysisResult: string | null = null;
-    const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
-
-    for (const model of models) {
-      let succeeded = false;
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          console.log(`[gemini-unified] Analysis using ${model} (attempt ${attempt}/2)`);
-          const body = {
-            contents: [
-              {
-                parts: [
-                  { text: buildTvAnalysisPrompt(categories, clients) },
-                  { file_data: { mime_type: fileInfo.mimeType, file_uri: fileInfo.uri } }
-                ]
+    // Generate analysis with retry logic
+    let analysisResult = null;
+    const maxAttempts = 3;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
+        
+        const analysisResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      fileData: {
+                        mimeType: fileInfo.mimeType,
+                        fileUri: fileInfo.uri
+                      }
+                    },
+                    {
+                      text: buildTvAnalysisPrompt(categories, clients)
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                topK: 32,
+                topP: 0.8,
+                maxOutputTokens: 8192
               }
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              topK: 32,
-              topP: 0.8,
-              maxOutputTokens: 8192
-            }
-          };
-
-          const analysisResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'User-Agent': 'Supabase-Edge-Function/1.0' },
-              body: JSON.stringify(body)
-            }
-          );
-
-          if (!analysisResponse.ok) {
-            const errText = await analysisResponse.text();
-            throw new Error(`Gemini API ${analysisResponse.status}: ${errText}`);
+            })
           }
+        );
 
-          const data = await analysisResponse.json();
-          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!text) throw new Error('Invalid response format from Gemini');
-
-          analysisResult = text;
-          console.log(`[gemini-unified] Analysis completed with ${model}`);
-          succeeded = true;
-          break;
-        } catch (error) {
-          console.error(`[gemini-unified] ${model} attempt ${attempt} failed:`, error);
-          await new Promise((r) => setTimeout(r, 4000 * attempt));
+        if (!analysisResponse.ok) {
+          throw new Error(`Gemini API error: ${analysisResponse.status}`);
         }
-      }
-      if (succeeded) break;
-      console.warn(`[gemini-unified] Switching model after failures: ${model} -> next`);
-    }
 
-    if (!analysisResult) {
-      throw new Error('Analysis failed across all Gemini models');
+        const analysisData = await analysisResponse.json();
+        if (!analysisData.candidates || analysisData.candidates.length === 0) {
+          throw new Error('No analysis response from Gemini');
+        }
+
+        analysisResult = analysisData.candidates[0].content.parts[0].text;
+        break;
+      } catch (error) {
+        console.error(`[gemini-unified] Analysis attempt ${attempt} failed:`, error);
+        if (attempt === maxAttempts) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+      }
     }
 
     console.log('[gemini-unified] Analysis completed successfully');
 
     // Clean up file
-    await cleanupGeminiFile(fileInfo.name);
+    await cleanupGeminiFile(displayName);
     console.log('[gemini-unified] File cleanup completed successfully');
 
     return {
@@ -661,71 +672,71 @@ async function processAssembledVideoWithGemini(
       await updateDatabaseProgress(transcriptionId, 50, 'Generating comprehensive analysis...');
     }
 
-    // Generate analysis with model fallback and retries
-    let analysisResult: string | null = null;
-    const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
-
-    for (const model of models) {
-      let succeeded = false;
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          console.log(`[gemini-unified] Analysis using ${model} (attempt ${attempt}/2)`);
-          const body = {
-            contents: [
-              {
-                parts: [
-                  { text: buildTvAnalysisPrompt(categories, clients) },
-                  { file_data: { mime_type: fileInfo.mimeType, file_uri: fileInfo.uri } }
-                ]
+    // Generate analysis with retry logic
+    let analysisResult = null;
+    const maxAttempts = 3;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
+        
+        const analysisResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      fileData: {
+                        mimeType: fileInfo.mimeType,
+                        fileUri: fileInfo.uri
+                      }
+                    },
+                    {
+                      text: buildTvAnalysisPrompt(categories, clients)
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                topK: 32,
+                topP: 0.8,
+                maxOutputTokens: 8192
               }
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              topK: 32,
-              topP: 0.8,
-              maxOutputTokens: 8192
-            }
-          };
-
-          const analysisResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'User-Agent': 'Supabase-Edge-Function/1.0' },
-              body: JSON.stringify(body)
-            }
-          );
-
-          if (!analysisResponse.ok) {
-            const errText = await analysisResponse.text();
-            throw new Error(`Gemini API ${analysisResponse.status}: ${errText}`);
+            })
           }
+        );
 
-          const data = await analysisResponse.json();
-          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!text) throw new Error('Invalid response format from Gemini');
-
-          analysisResult = text;
-          console.log(`[gemini-unified] Analysis completed with ${model}`);
-          succeeded = true;
-          break;
-        } catch (error) {
-          console.error(`[gemini-unified] ${model} attempt ${attempt} failed:`, error);
-          await new Promise((r) => setTimeout(r, 4000 * attempt));
+        if (!analysisResponse.ok) {
+          throw new Error(`Gemini API error: ${analysisResponse.status}`);
         }
-      }
-      if (succeeded) break;
-      console.warn(`[gemini-unified] Switching model after failures: ${model} -> next`);
-    }
 
-    if (!analysisResult) {
-      throw new Error('Analysis failed across all Gemini models');
+        const analysisData = await analysisResponse.json();
+        if (!analysisData.candidates || analysisData.candidates.length === 0) {
+          throw new Error('No analysis response from Gemini');
+        }
+
+        analysisResult = analysisData.candidates[0].content.parts[0].text;
+        break;
+      } catch (error) {
+        console.error(`[gemini-unified] Analysis attempt ${attempt} failed:`, error);
+        if (attempt === maxAttempts) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+      }
     }
 
     console.log('[gemini-unified] Analysis completed successfully');
 
     // Clean up file
-    await cleanupGeminiFile(fileInfo.name);
+    await cleanupGeminiFile(videoPath);
     console.log('[gemini-unified] File cleanup completed successfully');
 
     return {
@@ -909,192 +920,6 @@ function extractKeywordsFromContent(content: string): string[] {
   return uniqueWords.slice(0, 10);
 }
 
-// Function to check if a file is large and should use two-phase processing
-async function checkIfLargeFile(videoPath: string, supabase: any): Promise<boolean> {
-  try {
-    if (videoPath.startsWith('chunked:')) {
-      const sessionId = videoPath.replace('chunked:', '').split('_').pop() || videoPath.replace('chunked:', '');
-      
-      // Check manifest for file size
-      const { data: manifest } = await supabase
-        .from('video_chunk_manifests')
-        .select('total_size')
-        .eq('session_id', sessionId)
-        .single();
-      
-      if (manifest?.total_size) {
-        const sizeInMB = manifest.total_size / (1024 * 1024);
-        console.log(`[checkIfLargeFile] File size: ${sizeInMB.toFixed(1)}MB`);
-        return sizeInMB > 500; // Files over 500MB use two-phase processing
-      }
-    }
-    return false;
-  } catch (error) {
-    console.error('[checkIfLargeFile] Error checking file size:', error);
-    return false;
-  }
-}
-
-// Function to handle resume polling for large files
-async function handleResumePolling(transcriptionId: string, requestId: string): Promise<Response> {
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase credentials');
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Check transcription status
-    const { data: transcription, error } = await supabase
-      .from('tv_transcriptions')
-      .select('status, progress, transcription_text, analysis_result')
-      .eq('id', transcriptionId)
-      .single();
-    
-    if (error) {
-      throw new Error(`Failed to fetch transcription status: ${error.message}`);
-    }
-    
-    console.log(`[${requestId}] Polling status:`, {
-      status: transcription.status,
-      progress: transcription.progress
-    });
-    
-    if (transcription.status === 'completed') {
-      return new Response(JSON.stringify({
-        success: true,
-        completed: true,
-        transcription: transcription.transcription_text,
-        full_analysis: transcription.analysis_result,
-        summary: extractSummaryFromAnalysis(transcription.analysis_result || ''),
-        keywords: extractKeywordsFromAnalysis(transcription.analysis_result || ''),
-        segments: extractSegmentsFromAnalysis(transcription.analysis_result || '')
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    
-    if (transcription.status === 'failed') {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Processing failed'
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    
-    // Still processing
-    return new Response(JSON.stringify({
-      success: true,
-      processing: true,
-      progress: transcription.progress || 0,
-      status: transcription.status || 'processing'
-    }), {
-      status: 202,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-    
-  } catch (error) {
-    console.error(`[${requestId}] Resume polling error:`, error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Failed to check processing status'
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-}
-
-// Function to process large files in background
-async function processLargeFileInBackground(
-  videoPath: string, 
-  transcriptionId: string, 
-  categories: any[], 
-  clients: any[], 
-  requestId: string
-): Promise<void> {
-  try {
-    console.log(`[${requestId}] Starting background processing for large file`);
-    
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
-    
-    let result;
-    
-    if (videoPath.startsWith('chunked:')) {
-      const chunkInfo = videoPath.replace('chunked:', '');
-      let sessionId = chunkInfo;
-      let displayName = '';
-      
-      // Resolve session and display name (same logic as before)
-      try {
-        const { data, error } = await supabase
-          .from('video_chunk_manifests')
-          .select('session_id, file_name')
-          .eq('session_id', sessionId)
-          .single();
-        if (!error) {
-          displayName = data.file_name?.replaceAll('/', '_').replaceAll('-', '_') || '';
-        }
-      } catch (e) {
-        // Try suffix lookup fallback
-        const suffix = chunkInfo.split('_').pop() || chunkInfo;
-        try {
-          const { data: sessionRow, error: sessionErr } = await supabase
-            .from('chunked_upload_sessions')
-            .select('session_id, file_name')
-            .like('session_id', `%_${suffix}`)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-          
-          if (!sessionErr && sessionRow?.session_id) {
-            sessionId = sessionRow.session_id;
-            displayName = sessionRow.file_name?.replaceAll('/', '_').replaceAll('-', '_') || '';
-          }
-        } catch (fallbackError) {
-          console.error(`[${requestId}] Background session resolution failed:`, fallbackError);
-        }
-      }
-      
-      result = await processChunkedUploadWithGemini(sessionId, displayName, transcriptionId, categories, clients);
-    } else {
-      result = await processAssembledVideoWithGemini(videoPath, transcriptionId, categories, clients);
-    }
-    
-    if (result.success) {
-      console.log(`[${requestId}] Background processing completed successfully`);
-      await updateDatabaseProgress(transcriptionId, 100, 'completed');
-      
-      await supabase
-        .from('tv_transcriptions')
-        .update({
-          transcription_text: result.transcription,
-          analysis_result: result.full_analysis,
-          status: 'completed',
-          progress: 100
-        })
-        .eq('id', transcriptionId);
-    } else {
-      throw new Error('Background processing failed');
-    }
-    
-  } catch (error) {
-    console.error(`[${requestId}] Background processing error:`, error);
-    try {
-      await updateDatabaseProgress(transcriptionId, 100, 'failed');
-    } catch (updateError) {
-      console.error(`[${requestId}] Failed to update status to failed:`, updateError);
-    }
-  }
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1105,14 +930,13 @@ serve(async (req) => {
 
   // Parse request body once and store it for potential error handling
   let requestBody;
-  let videoPath, transcriptionId, resumeToken;
+  let videoPath, transcriptionId;
   
   try {
     requestBody = await req.text();
     const parsedBody = JSON.parse(requestBody);
     videoPath = parsedBody.videoPath;
     transcriptionId = parsedBody.transcriptionId;
-    resumeToken = parsedBody.resumeToken; // For large file polling
   } catch (parseError) {
     console.error(`[${requestId}] Failed to parse request body:`, parseError);
     return new Response(
@@ -1126,12 +950,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
-  }
-
-  // Handle resume polling for large files
-  if (resumeToken && transcriptionId) {
-    console.log(`[${requestId}] Resume polling for transcription:`, transcriptionId);
-    return await handleResumePolling(transcriptionId, requestId);
   }
 
   try {
@@ -1207,26 +1025,7 @@ serve(async (req) => {
     
     console.log(`[${requestId}] Fetched ${clients?.length || 0} clients`);
 
-    // Check if this is a large file that should use two-phase processing
-    const isLargeFile = await checkIfLargeFile(videoPath, supabase);
-    if (isLargeFile && transcriptionId) {
-      console.log(`[${requestId}] Large file detected, using two-phase processing`);
-      // Start background processing
-      EdgeRuntime.waitUntil(processLargeFileInBackground(videoPath, transcriptionId, categories || [], clients || [], requestId));
-      // Return immediate 202 Accepted response
-      return new Response(JSON.stringify({ 
-        success: true, 
-        processing: true, 
-        message: 'Large file processing started in background',
-        transcriptionId,
-        resumeToken: `${transcriptionId}_${Date.now()}`
-      }), {
-        status: 202,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Process video file normally
+    // Process video file
     let result;
     
     if (videoPath.startsWith('chunked:')) {

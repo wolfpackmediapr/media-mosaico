@@ -198,21 +198,6 @@ export const useTvVideoProcessor = () => {
         throw new Error(result?.error || 'Video processing failed');
       }
 
-      // Handle 202 Accepted responses for large files
-      if (result.processing && result.resumeToken) {
-        console.log('[TvVideoProcessor] Large file detected, starting polling...');
-        toast.info("Archivo grande detectado", {
-          description: "El procesamiento continuará en segundo plano..."
-        });
-        
-        const finalResult = await pollForCompletion(existingTranscription?.id || transcriptionId!, result.resumeToken);
-        if (finalResult) {
-          Object.assign(result, finalResult); // Merge results
-        } else {
-          throw new Error('Failed to complete large file processing');
-        }
-      }
-
       // Set all results from unified response
       setTranscriptionText(result.transcription || '');
       setNewsSegments(result.segments || []);
@@ -282,62 +267,6 @@ export const useTvVideoProcessor = () => {
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  // Polling function for large file processing
-  const pollForCompletion = async (transcriptionId: string, resumeToken: string): Promise<any> => {
-    const maxAttempts = 60; // 5 minutes with 5 second intervals
-    let attempts = 0;
-    
-    while (attempts < maxAttempts) {
-      try {
-        console.log(`[TvVideoProcessor] Polling attempt ${attempts + 1}/${maxAttempts}`);
-        
-        const { data: pollResult, error: pollError } = await supabase.functions
-          .invoke('process-tv-with-gemini', {
-            body: { 
-              transcriptionId,
-              resumeToken
-            }
-          });
-        
-        if (pollError) {
-          console.error('[TvVideoProcessor] Polling error:', pollError);
-          throw new Error(`Polling failed: ${pollError.message}`);
-        }
-        
-        if (pollResult?.completed) {
-          console.log('[TvVideoProcessor] Large file processing completed');
-          return pollResult;
-        }
-        
-        if (pollResult?.processing) {
-          // Update progress if available
-          if (pollResult.progress) {
-            setProgress(Math.max(15, pollResult.progress));
-          }
-          
-          // Wait before next poll
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          attempts++;
-        } else {
-          throw new Error('Unexpected polling response');
-        }
-        
-      } catch (error) {
-        console.error(`[TvVideoProcessor] Polling attempt ${attempts + 1} failed:`, error);
-        attempts++;
-        
-        if (attempts >= maxAttempts) {
-          throw new Error('Large file processing timed out');
-        }
-        
-        // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-    }
-    
-    throw new Error('Large file processing timed out after maximum attempts');
   };
 
   return {
