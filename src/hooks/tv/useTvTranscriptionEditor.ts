@@ -1,9 +1,9 @@
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useSpeakerTextState } from "../radio/editor/useSpeakerTextState";
 import { useTranscriptionSave } from "../radio/editor/useTranscriptionSave";
-import { useCallback, useMemo } from "react";
+import { useFetchUtterances } from "../radio/editor/useFetchUtterances";
+import { useCallback } from "react";
 import { hasSpeakerData } from "../radio/utils/transcriptionUtils";
-import { parseTvSpeakerText } from "@/utils/tv/speakerTextParser";
 
 interface UseTvTranscriptionEditorProps {
   transcriptionText: string;
@@ -35,25 +35,19 @@ export const useTvTranscriptionEditor = ({
     onTranscriptionChange
   });
 
-  // Parse TV speaker data from Gemini transcription (no external API calls)
-  const tvUtterances = useMemo(() => {
-    if (!transcriptionText) return [];
-    return parseTvSpeakerText(transcriptionText);
-  }, [transcriptionText]);
-
-  // Update enhanced transcription result with TV utterances
-  useMemo(() => {
-    if (tvUtterances.length > 0 && !enhancedTranscriptionResult?.utterances) {
-      setEnhancedTranscriptionResult({
-        ...transcriptionResult,
-        utterances: tvUtterances,
-        text: transcriptionText
-      });
-    }
-  }, [tvUtterances, enhancedTranscriptionResult, transcriptionResult, transcriptionText, setEnhancedTranscriptionResult]);
-
-  // TV transcriptions don't load from external API
-  const isLoadingUtterances = false;
+  // Handle utterance fetching (same as radio)
+  const { isLoadingUtterances } = useFetchUtterances({
+    transcriptionId,
+    transcriptionText,
+    enhancedTranscriptionResult,
+    setEnhancedTranscriptionResult,
+    setLocalSpeakerText: (text: string) => {
+      // This needs to be handled by the useSpeakerTextState hook
+      // The handleTextChange function will update the local text properly
+      handleTextChange(text);
+    },
+    onTranscriptionChange
+  });
 
   // Handle autosave functionality for TV transcriptions
   const { isSaving, saveError, saveSuccess, forceSave } = useTranscriptionSave({
