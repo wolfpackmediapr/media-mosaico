@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -1705,6 +1705,7 @@ export type Database = {
           broadcast_time: string | null
           category: string | null
           channel: string | null
+          compressed_path: string | null
           created_at: string
           full_analysis: string | null
           id: string
@@ -1718,6 +1719,7 @@ export type Database = {
           transcription_text: string | null
           updated_at: string
           user_id: string | null
+          was_compressed: boolean
         }
         Insert: {
           analysis_alerts?: Json | null
@@ -1744,6 +1746,7 @@ export type Database = {
           broadcast_time?: string | null
           category?: string | null
           channel?: string | null
+          compressed_path?: string | null
           created_at?: string
           full_analysis?: string | null
           id?: string
@@ -1757,6 +1760,7 @@ export type Database = {
           transcription_text?: string | null
           updated_at?: string
           user_id?: string | null
+          was_compressed?: boolean
         }
         Update: {
           analysis_alerts?: Json | null
@@ -1783,6 +1787,7 @@ export type Database = {
           broadcast_time?: string | null
           category?: string | null
           channel?: string | null
+          compressed_path?: string | null
           created_at?: string
           full_analysis?: string | null
           id?: string
@@ -1796,6 +1801,7 @@ export type Database = {
           transcription_text?: string | null
           updated_at?: string
           user_id?: string | null
+          was_compressed?: boolean
         }
         Relationships: []
       }
@@ -1919,9 +1925,9 @@ export type Database = {
       get_platforms_with_counts: {
         Args: Record<PropertyKey, never>
         Returns: {
+          count: number
           id: string
           name: string
-          count: number
         }[]
       }
       get_user_audio_files: {
@@ -1945,17 +1951,17 @@ export type Database = {
       get_users_email: {
         Args: { user_ids: string[] }
         Returns: {
-          id: string
           email: string
+          id: string
         }[]
       }
       insert_audio_file: {
         Args: {
-          p_filename: string
-          p_storage_path: string
-          p_file_size: number
-          p_mime_type: string
           p_duration?: number
+          p_file_size: number
+          p_filename: string
+          p_mime_type: string
+          p_storage_path: string
           p_transcription_id?: string
         }
         Returns: Json
@@ -1963,50 +1969,50 @@ export type Database = {
       insert_tv_rate: {
         Args: {
           channel_name: string
-          program_name: string
           days: string[]
-          start_time: string
           end_time: string
+          program_name: string
           rate_15s: number
           rate_30s: number
           rate_45s: number
           rate_60s: number
+          start_time: string
         }
         Returns: undefined
       }
       match_news_segments: {
         Args: {
-          query_embedding: string
-          match_threshold: number
           match_count: number
+          match_threshold: number
+          query_embedding: string
         }
         Returns: {
+          end_ms: number
           id: string
+          keywords: string[]
           segment_number: number
           segment_title: string
-          transcript: string
-          timestamp_start: string
-          timestamp_end: string
-          start_ms: number
-          end_ms: number
-          keywords: string[]
           similarity: number
+          start_ms: number
+          timestamp_end: string
+          timestamp_start: string
+          transcript: string
         }[]
       }
       match_press_clippings: {
         Args: {
-          query_embedding: string
-          match_threshold?: number
           match_count?: number
+          match_threshold?: number
+          query_embedding: string
         }
         Returns: {
-          id: string
-          title: string
+          category: string
           content: string
+          id: string
           page_number: number
           publication_name: string
-          category: string
           similarity: number
+          title: string
         }[]
       }
       schedule_content_notification_processing: {

@@ -1090,6 +1090,7 @@ serve(async (req) => {
     }
     
     let compressedVideoPath = videoPath;
+    let wasCompressed = false;
     
     if (shouldCompress) {
       console.log(`[${requestId}] Step 1: Compressing large video for AI analysis...`);
@@ -1104,6 +1105,7 @@ serve(async (req) => {
 
         if (compressResponse.data && compressResponse.data.success) {
           compressedVideoPath = compressResponse.data.compressedPath;
+          wasCompressed = true;
           console.log(`[${requestId}] Video compressed successfully: ${compressedVideoPath}`);
         } else {
           console.log(`[${requestId}] Compression failed, using original: ${compressResponse.error?.message || 'Unknown error'}`);
@@ -1116,7 +1118,7 @@ serve(async (req) => {
     }
 
     if (transcriptionId) {
-      await updateDatabaseProgress(transcriptionId, 20, shouldCompress ? 'Video compression completed, starting AI processing...' : 'Starting AI processing...');
+      await updateDatabaseProgress(transcriptionId, 20, wasCompressed ? 'Video compressed successfully, starting AI processing...' : 'Starting AI processing...');
     }
     
     // Get user from auth header
@@ -1282,6 +1284,8 @@ serve(async (req) => {
           analysis_category: parsedAnalysis.category,
           analysis_content_summary: parsedAnalysis.content_summary,
           full_analysis: result.full_analysis,
+          was_compressed: wasCompressed,
+          compressed_path: wasCompressed ? compressedVideoPath : null,
           status: 'completed',
           progress: 100
         })
