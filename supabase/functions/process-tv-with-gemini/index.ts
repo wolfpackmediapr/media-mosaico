@@ -588,7 +588,24 @@ async function processChunkedUploadWithGemini(
         );
 
         if (!analysisResponse.ok) {
-          throw new Error(`Gemini API error: ${analysisResponse.status}`);
+          const errorText = await analysisResponse.text();
+          console.error(`[gemini-unified] API Response Error:`, {
+            status: analysisResponse.status,
+            statusText: analysisResponse.statusText,
+            body: errorText,
+            attempt: attempt,
+            mimeType: fileInfo.mimeType
+          });
+          
+          // MP4-specific error handling for 400 errors
+          if (analysisResponse.status === 400 && fileInfo.mimeType.includes('mp4')) {
+            console.log(`[gemini-unified] MP4 format rejected by Gemini (attempt ${attempt})`);
+            if (attempt === maxAttempts) {
+              throw new Error(`MP4 format not supported by Gemini API. Status: ${analysisResponse.status}. Consider converting to MOV format.`);
+            }
+          }
+          
+          throw new Error(`Gemini API error: ${analysisResponse.status} - ${errorText}`);
         }
 
         const analysisData = await analysisResponse.json();
@@ -730,7 +747,25 @@ async function processAssembledVideoWithGemini(
         );
 
         if (!analysisResponse.ok) {
-          throw new Error(`Gemini API error: ${analysisResponse.status}`);
+          const errorText = await analysisResponse.text();
+          console.error(`[gemini-unified] API Response Error:`, {
+            status: analysisResponse.status,
+            statusText: analysisResponse.statusText,
+            body: errorText,
+            attempt: attempt,
+            mimeType: fileInfo.mimeType,
+            videoPath: videoPath
+          });
+          
+          // MP4-specific error handling for 400 errors
+          if (analysisResponse.status === 400 && fileInfo.mimeType.includes('mp4')) {
+            console.log(`[gemini-unified] MP4 format rejected by Gemini (attempt ${attempt}) for video: ${videoPath}`);
+            if (attempt === maxAttempts) {
+              throw new Error(`MP4 format not supported by Gemini API. Status: ${analysisResponse.status}. Consider converting to MOV format.`);
+            }
+          }
+          
+          throw new Error(`Gemini API error: ${analysisResponse.status} - ${errorText}`);
         }
 
         const analysisData = await analysisResponse.json();
@@ -742,6 +777,16 @@ async function processAssembledVideoWithGemini(
         break;
       } catch (error) {
         console.error(`[gemini-unified] Analysis attempt ${attempt} failed:`, error);
+        
+        // Enhanced MP4 error logging
+        if (error.message.includes('MP4 format not supported') || error.message.includes('400')) {
+          console.error(`[gemini-unified] MP4 processing failed completely after ${maxAttempts} attempts`, {
+            videoPath: videoPath || 'unknown',
+            mimeType: fileInfo?.mimeType || 'unknown',
+            error: error.message
+          });
+        }
+        
         if (attempt === maxAttempts) {
           throw error;
         }
@@ -1066,9 +1111,22 @@ serve(async (req) => {
     if (!videoPath) {
       throw new Error('videoPath is required');
     }
+    
+    if (!transcriptionId) {
+      throw new Error('transcriptionId is required');
+    }
 
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Detect MP4 files for enhanced processing
+    const isMP4File = videoPath.toLowerCase().includes('.mp4');
+    if (isMP4File) {
+      console.log(`[${requestId}] MP4 file detected - will use enhanced error handling`);
+    }
+
+    // Update progress to show we're starting
+    await updateDatabaseProgress(transcriptionId, 20, 'Starting AI processing...');
 
     // Step 1: Conditionally compress video for AI analysis
     const isChunkedPath = videoPath.startsWith('chunked:');

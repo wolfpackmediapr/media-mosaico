@@ -1,8 +1,9 @@
+import { useState, useRef, useEffect, useCallback } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useSpeakerTextState } from "../radio/editor/useSpeakerTextState";
-import { useTranscriptionSave } from "../radio/editor/useTranscriptionSave";
-import { useFetchUtterances } from "../radio/editor/useFetchUtterances";
-import { useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAutosave } from "@/hooks/use-autosave";
+import { toast } from "sonner";
 import { hasSpeakerData } from "../radio/utils/transcriptionUtils";
 
 interface UseTvTranscriptionEditorProps {
@@ -18,7 +19,10 @@ export const useTvTranscriptionEditor = ({
   transcriptionResult,
   onTranscriptionChange,
 }: UseTvTranscriptionEditorProps) => {
-  // Handle speaker text state (same as radio - with full functionality)
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const lastSavedContentRef = useRef<string>(transcriptionText);
+
+  // Handle speaker text state (TV-specific - no utterance fetching)
   const {
     localText,
     isEditing,
@@ -35,47 +39,81 @@ export const useTvTranscriptionEditor = ({
     onTranscriptionChange
   });
 
-  // Handle utterance fetching (same as radio)
-  const { isLoadingUtterances } = useFetchUtterances({
-    transcriptionId,
-    transcriptionText,
-    enhancedTranscriptionResult,
-    setEnhancedTranscriptionResult,
-    setLocalSpeakerText: (text: string) => {
-      // This needs to be handled by the useSpeakerTextState hook
-      // The handleTextChange function will update the local text properly
-      handleTextChange(text);
-    },
-    onTranscriptionChange
+  // TV-specific save function for transcriptions table
+  const saveContent = useCallback(async (data: { text: string, id?: string }): Promise<void> => {
+    if (!data.id) return;
+    
+    // Skip save if content hasn't changed
+    if (data.text === lastSavedContentRef.current) {
+      return;
+    }
+
+    try {
+      setSaveError(null);
+      const { error } = await supabase
+        .from('transcriptions')
+        .update({
+          transcription_text: data.text,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', data.id);
+      
+      if (error) {
+        console.error('[useTvTranscriptionEditor] Error saving:', error);
+        setSaveError(error.message);
+        toast.error("No se pudo guardar la transcripción");
+        throw error;
+      }
+
+      lastSavedContentRef.current = data.text;
+      toast.success("Transcripción guardada correctamente");
+    } catch (error) {
+      console.error('[useTvTranscriptionEditor] Error in save operation:', error);
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+      setSaveError(errorMessage);
+      throw error;
+    }
+  }, []);
+
+  // Use autosave hook for TV transcriptions
+  const { isSaving, saveSuccess } = useAutosave({
+    data: { text: localText, id: transcriptionId },
+    onSave: saveContent,
+    debounce: 3000,
+    enabled: !!transcriptionId && !!localText,
+    showSuccessToast: false
   });
 
-  // Handle autosave functionality for TV transcriptions
-  const { isSaving, saveError, saveSuccess, forceSave } = useTranscriptionSave({
-    transcriptionId,
-    localText
-  });
-
-  // Computed properties based on speaker labels state
-  const showTimestamps = hasSpeakerLabels;
-  const hasTimestampData = hasSpeakerLabels;
-  
   // Force save method for manual triggers
   const handleForceSave = useCallback(async () => {
-    if (transcriptionId && localText) {
-      return await forceSave();
+    if (!transcriptionId) return false;
+    
+    try {
+      await saveContent({
+        text: localText,
+        id: transcriptionId
+      });
+      return true;
+    } catch (error) {
+      console.error('[useTvTranscriptionEditor] Force save error:', error);
+      return false;
     }
-    return false;
-  }, [forceSave, localText, transcriptionId]);
+  }, [localText, saveContent, transcriptionId]);
 
   // Check if there are actual utterances in the result
   const hasUtterances = useCallback(() => {
     return hasSpeakerData(enhancedTranscriptionResult);
   }, [enhancedTranscriptionResult]);
 
+  // TV-specific computed properties (no loading state since we don't fetch utterances)
+  const showTimestamps = hasSpeakerLabels;
+  const hasTimestampData = hasSpeakerLabels;
+  const isLoadingUtterances = false; // TV doesn't fetch utterances separately
+
   return {
     localText,
     isEditing,
-    isLoadingUtterances, // Now properly uses the actual loading state
+    isLoadingUtterances,
     showTimestamps,
     hasTimestampData,
     isSaving,
