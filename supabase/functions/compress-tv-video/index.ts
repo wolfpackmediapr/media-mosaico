@@ -20,20 +20,48 @@ serve(async (req) => {
       throw new Error('Video path is required');
     }
 
+    // Skip compression for chunked uploads - they need to be assembled first
+    if (videoPath.startsWith('chunked:')) {
+      console.log('[compress-tv-video] Skipping compression for chunked upload:', videoPath);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Chunked uploads cannot be compressed directly',
+          skipReason: 'chunked_upload'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      );
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Download original video from storage
+    // Try downloading from different buckets in order of preference
     console.log('[compress-tv-video] Downloading original video...');
-    const { data: fileData, error: downloadError } = await supabase
-      .storage
-      .from('media')
-      .download(videoPath);
+    const buckets = ['video', 'videos', 'media'];
+    let fileData: Blob | null = null;
+    let downloadError: any = null;
+    let sourceBucket = '';
 
-    if (downloadError) {
-      throw new Error('Error downloading video: ' + downloadError.message);
+    for (const bucket of buckets) {
+      const { data, error } = await supabase.storage.from(bucket).download(videoPath);
+      if (data && !error) {
+        fileData = data;
+        sourceBucket = bucket;
+        console.log(`[compress-tv-video] Successfully downloaded from bucket: ${bucket}`);
+        break;
+      }
+      downloadError = error;
+      console.log(`[compress-tv-video] Failed to download from bucket ${bucket}:`, error?.message);
+    }
+
+    if (!fileData || downloadError) {
+      throw new Error('Error downloading video from all buckets: ' + downloadError?.message);
     }
 
     // Create CloudConvert compression job
@@ -147,18 +175,19 @@ serve(async (req) => {
 
     const compressedVideoBlob = await compressedVideoResponse.blob();
     
-    // Generate compressed file path
-    const fileExtension = videoPath.split('.').pop();
-    const compressedPath = videoPath.replace(`.${fileExtension}`, `_compressed.${fileExtension}`);
+    // Generate compressed file path - always use .mp4 for compressed output
+    const pathWithoutExtension = videoPath.replace(/\.[^/.]+$/, '');
+    const compressedPath = `${pathWithoutExtension}_compressed.mp4`;
     
-    // Upload compressed video to Supabase storage
-    console.log('[compress-tv-video] Uploading compressed video to storage:', compressedPath);
+    // Upload compressed video to Supabase storage (use same bucket as source)
+    console.log(`[compress-tv-video] Uploading compressed video to ${sourceBucket} bucket:`, compressedPath);
     const { error: uploadError } = await supabase
       .storage
-      .from('media')
+      .from(sourceBucket)
       .upload(compressedPath, compressedVideoBlob, {
         cacheControl: '3600',
-        upsert: true
+        upsert: true,
+        contentType: 'video/mp4'
       });
 
     if (uploadError) {

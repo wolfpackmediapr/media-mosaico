@@ -1070,30 +1070,53 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Step 1: Compress video for AI processing
-    console.log(`[${requestId}] Step 1: Compressing video for AI analysis...`);
-     if (transcriptionId) {
-       await updateDatabaseProgress(transcriptionId, 10, 'Compressing video for AI analysis...');
-     }
+    // Step 1: Conditionally compress video for AI analysis
+    const isChunkedPath = videoPath.startsWith('chunked:');
+    let shouldCompress = false;
+    
+    if (!isChunkedPath) {
+      // Check file size for assembled files to determine if compression is needed
+      try {
+        const { data: fileData } = await supabase.storage.from('video').download(videoPath);
+        if (fileData) {
+          const fileSize = fileData.size;
+          // Only compress files larger than 250MB
+          shouldCompress = fileSize > 250 * 1024 * 1024;
+          console.log(`[${requestId}] File size: ${Math.round(fileSize / 1024 / 1024)}MB, shouldCompress: ${shouldCompress}`);
+        }
+      } catch (error) {
+        console.log(`[${requestId}] Could not check file size, skipping compression:`, error.message);
+      }
+    }
     
     let compressedVideoPath = videoPath;
-    try {
-      const compressResponse = await supabase.functions.invoke('compress-tv-video', {
-        body: { videoPath }
-      });
-
-      if (compressResponse.data && compressResponse.data.success) {
-        compressedVideoPath = compressResponse.data.compressedPath;
-        console.log(`[${requestId}] Video compressed successfully: ${compressedVideoPath}`);
-      } else {
-        console.log(`[${requestId}] Compression failed, using original: ${compressResponse.error?.message || 'Unknown error'}`);
+    
+    if (shouldCompress) {
+      console.log(`[${requestId}] Step 1: Compressing large video for AI analysis...`);
+      if (transcriptionId) {
+        await updateDatabaseProgress(transcriptionId, 10, 'Compressing video for AI analysis...');
       }
-    } catch (compressionError: any) {
-      console.log(`[${requestId}] Compression failed, using original: ${compressionError.message}`);
+      
+      try {
+        const compressResponse = await supabase.functions.invoke('compress-tv-video', {
+          body: { videoPath }
+        });
+
+        if (compressResponse.data && compressResponse.data.success) {
+          compressedVideoPath = compressResponse.data.compressedPath;
+          console.log(`[${requestId}] Video compressed successfully: ${compressedVideoPath}`);
+        } else {
+          console.log(`[${requestId}] Compression failed, using original: ${compressResponse.error?.message || 'Unknown error'}`);
+        }
+      } catch (compressionError: any) {
+        console.log(`[${requestId}] Compression failed, using original: ${compressionError.message}`);
+      }
+    } else {
+      console.log(`[${requestId}] Skipping compression (chunked path or small file)`);
     }
 
     if (transcriptionId) {
-      await updateDatabaseProgress(transcriptionId, 20, 'Video compression completed, starting AI processing...');
+      await updateDatabaseProgress(transcriptionId, 20, shouldCompress ? 'Video compression completed, starting AI processing...' : 'Starting AI processing...');
     }
     
     // Get user from auth header
@@ -1114,8 +1137,8 @@ serve(async (req) => {
     
     const { data: categories, error: categoriesError } = await supabase
       .from('categories')
-      .select('name_es as name')
-      .order('name_es');
+      .select('id, name, name_es')
+      .eq('type', 'news');
     
     if (categoriesError) {
       console.error(`[${requestId}] Categories error:`, categoriesError);
