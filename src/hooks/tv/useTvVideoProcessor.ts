@@ -65,6 +65,7 @@ export const useTvVideoProcessor = () => {
       let existingTranscription = null;
       let fileName = '';
       let skipUpload = false;
+      let tvTranscription = null;
 
       // Find the best matching chunked upload session
       let matchingChunkSession = null;
@@ -181,11 +182,15 @@ export const useTvVideoProcessor = () => {
       // Call unified processing function with correct path format
       // This now automatically includes video compression for AI processing
       console.log('[TvVideoProcessor] Calling unified processing function (includes automatic compression)');
+      
+      // Use the correct transcription ID - either existing one or the one we just created
+      const actualTranscriptionId = existingTranscription?.id || (skipUpload ? existingTranscription?.id : tvTranscription?.id);
+      
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-gemini', {
           body: { 
             videoPath: fileName,
-            transcriptionId: existingTranscription?.id || transcriptionId
+            transcriptionId: actualTranscriptionId
           }
         });
 
