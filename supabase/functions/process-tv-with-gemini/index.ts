@@ -833,15 +833,42 @@ function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
     return `**${client.name}:** ${keywords}`;
   }).join('\n');
 
-  return `Eres un analista experto en contenido de TV. Analiza este video de televisión en español y proporciona DOS SECCIONES CLARAMENTE SEPARADAS:
+  return `Eres un analista experto en contenido de TV. Analiza este video de televisión en español y responde EXCLUSIVAMENTE en el siguiente formato JSON válido (sin texto adicional antes o después):
 
-## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES
-- Formato: NOMBRE: [texto hablado]
-- Usa los nombres reales de los hablantes si están disponibles en la transcripción (evita "HABLANTE 1", "PARTICIPANTE A", etc.)
-- La transcripción debe ser completa, clara y precisa
+{
+  "transcription": "[SECCIÓN 1] Transcripción completa con formato SPEAKER X: NOMBRE: texto hablado",
+  "visual_analysis": "[SECCIÓN 2] Análisis visual y de contenido", 
+  "segments": [
+    {
+      "headline": "Título del segmento",
+      "text": "Resumen del contenido",
+      "start": 0,
+      "end": 30000,
+      "keywords": ["palabra1", "palabra2"]
+    }
+  ],
+  "keywords": ["palabra1", "palabra2", "palabra3"],
+  "summary": "Resumen ejecutivo completo",
+  "analysis": {
+    "who": "Quiénes participan",
+    "what": "Qué se discute",
+    "when": "Cuándo ocurre",
+    "where": "Dónde se desarrolla", 
+    "why": "Por qué es relevante"
+  }
+}
+
+## INSTRUCCIONES CRÍTICAS PARA LA TRANSCRIPCIÓN:
+1. **FORMATO OBLIGATORIO**: SPEAKER 1: NOMBRE REAL: [texto hablado]
+2. **NOMBRES REALES**: Usa los nombres reales de los hablantes, NO "HABLANTE 1" o "PARTICIPANTE A"
+3. **SEPARACIÓN CLARA**: Cada cambio de hablante debe estar en línea separada
+4. **CONSISTENCIA**: Mantén el mismo nombre para cada hablante durante todo el video
+5. **EJEMPLO**:
+   SPEAKER 1: MARÍA RODRÍGUEZ: Buen día y bienvenidos al programa
+   SPEAKER 2: CARLOS LÓPEZ: Gracias por invitarme, María
 
 ## SECCIÓN 2: ANÁLISIS DE CONTENIDO
-Debes identificar y separar claramente cada sección comenzando CADA SECCIÓN con uno de estos encabezados:
+Identifica y separa claramente cada sección:
 
 [TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]  
 [TIPO DE CONTENIDO: PROGRAMA REGULAR]  
@@ -909,11 +936,11 @@ Incluye el siguiente análisis:
 ---
 
 ### IMPORTANTE:
-
+- **RESPONDE SOLO EN JSON** - Sin texto antes o después del JSON
 - Si hay múltiples anuncios, crea una sección separada por cada uno.
 - Consolidar TODO el contenido de programa en UNA sola sección.
 - Siempre usar nombres reales de hablantes si aparecen.
-- Asegúrate de que el análisis sea completo, profesional y alineado con los intereses de los clientes mapeados.`;
+- Si el JSON falla, asegúrate de que la transcripción mantenga el formato SPEAKER X: NOMBRE: texto`;
 }
 
 // Helper functions to extract data from analysis
@@ -921,9 +948,102 @@ function extractTranscriptionFromAnalysis(analysis: string): string {
   // Extract transcription from text-based analysis
   const transcriptionMatch = analysis.match(/## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES\s*([\s\S]*?)(?=\n## SECCIÓN 2:|$)/);
   if (transcriptionMatch) {
-    return transcriptionMatch[1].trim().replace(/^- Format:.*\n- Uses.*\n- Complete.*\n\n?/m, '');
+    const extractedText = transcriptionMatch[1].trim().replace(/^- Format:.*\n- Uses.*\n- Complete.*\n\n?/m, '');
+    
+    // If we have speaker patterns, return as-is
+    if (hasTvSpeakerPatterns(extractedText)) {
+      console.log('[extractTranscriptionFromAnalysis] Found speaker patterns in extracted text');
+      return extractedText;
+    }
+    
+    // Try to parse and reformat using TV speaker parser
+    console.log('[extractTranscriptionFromAnalysis] No speaker patterns found, attempting to parse and reformat');
+    return parseTvSpeakerFormattedText(extractedText);
   }
+  
+  // Fallback: look for speaker patterns in the full analysis
+  const speakerPatterns = analysis.match(/(?:SPEAKER\s+\d+:|PRESENTER:|HOST:|LOCUTOR:|ENTREVISTADO:)[\s\S]*?(?=\n\n|\n(?:SPEAKER|PRESENTER|HOST|LOCUTOR|ENTREVISTADO)|$)/gi);
+  
+  if (speakerPatterns && speakerPatterns.length > 0) {
+    console.log('[extractTranscriptionFromAnalysis] Found speaker patterns in full analysis');
+    return speakerPatterns.join('\n\n');
+  }
+  
+  console.log('[extractTranscriptionFromAnalysis] No speaker patterns found, returning raw analysis');
   return analysis; // Fallback to full analysis if no match
+}
+
+// Parse and format TV speaker text properly
+function parseTvSpeakerFormattedText(text: string): string {
+  if (!text) return text;
+  
+  // Try to identify speaker changes and format them properly
+  const lines = text.split('\n').filter(line => line.trim());
+  const formattedLines: string[] = [];
+  let currentSpeaker = '';
+  let speakersFound = new Set<string>();
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+    
+    // Check if line contains speaker indicators
+    const speakerIndicators = [
+      /^([A-ZÁÉÍÓÚÑÜ\s]+):\s*(.+)/,  // "NOMBRE: texto"
+      /^-\s*([A-ZÁÉÍÓÚÑÜ\s]+):\s*(.+)/, // "- NOMBRE: texto"
+      /\[([A-ZÁÉÍÓÚÑÜ\s]+)\]:\s*(.+)/ // "[NOMBRE]: texto"
+    ];
+    
+    let matched = false;
+    for (const pattern of speakerIndicators) {
+      const match = trimmedLine.match(pattern);
+      if (match) {
+        const speaker = match[1].trim();
+        const text = match[2].trim();
+        
+        // Assign consistent speaker IDs
+        if (!speakersFound.has(speaker)) {
+          speakersFound.add(speaker);
+        }
+        
+        formattedLines.push(`SPEAKER ${Array.from(speakersFound).indexOf(speaker) + 1}: ${speaker}: ${text}`);
+        matched = true;
+        break;
+      }
+    }
+    
+    if (!matched) {
+      // If no speaker pattern, try to associate with previous speaker or create new one
+      if (currentSpeaker) {
+        formattedLines.push(`${currentSpeaker} (continuación): ${trimmedLine}`);
+      } else {
+        // First speaker by default
+        formattedLines.push(`SPEAKER 1: ${trimmedLine}`);
+        currentSpeaker = 'SPEAKER 1';
+      }
+    }
+  }
+  
+  return formattedLines.join('\n\n');
+}
+
+// Check for TV speaker patterns
+function hasTvSpeakerPatterns(text: string): boolean {
+  if (!text || !text.trim()) return false;
+  
+  const patterns = [
+    /SPEAKER\s+\d+:/i,
+    /PRESENTER:/i,
+    /HOST:/i,
+    /GUEST:/i,
+    /LOCUTOR:/i,
+    /ENTREVISTADO:/i,
+    /\[SPEAKER\s+\d+\]/i,
+    /^\s*-\s*\w+:/m,
+    /^[A-ZÁÉÍÓÚÑÜ\s]+:\s*/m  // Generic "NAME: " pattern
+  ];
+  
+  return patterns.some(pattern => pattern.test(text));
 }
 
 function extractSegmentsFromAnalysis(analysis: string): any[] {

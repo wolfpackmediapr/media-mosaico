@@ -158,6 +158,7 @@ export function hasTvSpeakerPatterns(text: string): boolean {
   if (!text || !text.trim()) return false;
   
   const patterns = [
+    // Standard speaker patterns
     /SPEAKER\s+\d+:/i,
     /PRESENTER:/i,
     /HOST:/i,
@@ -165,7 +166,24 @@ export function hasTvSpeakerPatterns(text: string): boolean {
     /LOCUTOR:/i,
     /ENTREVISTADO:/i,
     /\[SPEAKER\s+\d+\]/i,
-    /^\s*-\s*\w+:/m
+    /^\s*-\s*\w+:/m,
+    
+    // Enhanced patterns for better detection
+    /^[A-ZÁÉÍÓÚÑÜ\s]{2,}:\s*/m,  // Generic "NAME: " pattern (caps)
+    /CONDUCTOR:/i,
+    /REPORTERO:|REPORTERA:/i,
+    /INVITADO:|INVITADA:/i,
+    /COMENTARISTA:/i,
+    /ANALISTA:/i,
+    /PERIODISTA:/i,
+    
+    // Role-based patterns
+    /SPEAKER\s+\d+:\s*[A-ZÁÉÍÓÚÑÜ\s]+:/i,  // "SPEAKER 1: NAME:"
+    /^\d+\.\s*[A-ZÁÉÍÓÚÑÜ\s]+:/m,  // "1. NAME:"
+    
+    // Mixed format patterns
+    /\[[A-ZÁÉÍÓÚÑÜ\s]+\]:/i,  // "[NAME]:"
+    /-\s*[A-ZÁÉÍÓÚÑÜ\s]{2,}:/i  // "- NAME:"
   ];
   
   return patterns.some(pattern => pattern.test(text));
