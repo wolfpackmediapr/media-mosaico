@@ -29,6 +29,11 @@ export const useTvVideoProcessor = () => {
     
     console.log("[TvVideoProcessor] Starting unified video processing:", file.name);
 
+    // Declare variables in outer scope for error handling access
+    let existingTranscription: any = null;
+    let tvTranscription: any = null;
+    let fileName = '';
+
     try {
       // Check authentication
       const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -62,10 +67,7 @@ export const useTvVideoProcessor = () => {
         console.error('[TvVideoProcessor] Error searching for chunk sessions:', sessionError);
       }
 
-      let existingTranscription = null;
-      let fileName = '';
       let skipUpload = false;
-      let tvTranscription = null;
 
       // Find the best matching chunked upload session
       let matchingChunkSession = null;
@@ -160,7 +162,7 @@ export const useTvVideoProcessor = () => {
 
         // Create TV transcription record
         console.log('[TvVideoProcessor] Creating TV transcription record');
-        const tvTranscription = await TvTranscriptionService.createTranscription({
+        tvTranscription = await TvTranscriptionService.createTranscription({
           original_file_path: fileName,
           status: 'processing',
           progress: 10
@@ -183,8 +185,38 @@ export const useTvVideoProcessor = () => {
       // This now automatically includes video compression for AI processing
       console.log('[TvVideoProcessor] Calling unified processing function (includes automatic compression)');
       
-      // Use the correct transcription ID - either existing one or the one we just created
-      const actualTranscriptionId = existingTranscription?.id || (skipUpload ? existingTranscription?.id : tvTranscription?.id);
+      // Determine the correct transcription ID with proper validation
+      let actualTranscriptionId: string | null = null;
+      
+      if (skipUpload && existingTranscription?.id) {
+        // For chunked uploads, use existing transcription ID
+        actualTranscriptionId = existingTranscription.id;
+        console.log('[TvVideoProcessor] Using existing transcription ID (chunked):', actualTranscriptionId);
+      } else if (tvTranscription?.id) {
+        // For new uploads, use the transcription we just created
+        actualTranscriptionId = tvTranscription.id;
+        console.log('[TvVideoProcessor] Using new transcription ID (assembled):', actualTranscriptionId);
+      } else {
+        console.error('[TvVideoProcessor] No valid transcription ID found:', {
+          skipUpload,
+          existingTranscriptionId: existingTranscription?.id,
+          tvTranscriptionId: tvTranscription?.id,
+          hasExisting: !!existingTranscription,
+          hasTvTranscription: !!tvTranscription
+        });
+        throw new Error('No valid transcription ID could be determined. Please try uploading the video again.');
+      }
+      
+      // Final validation before calling edge function
+      if (!actualTranscriptionId) {
+        throw new Error('Transcription ID is required but was not found. Please try uploading the video again.');
+      }
+      
+      console.log('[TvVideoProcessor] Final transcription ID check:', {
+        actualTranscriptionId,
+        videoPath: fileName,
+        skipUpload
+      });
       
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-gemini', {
@@ -255,16 +287,21 @@ export const useTvVideoProcessor = () => {
     } catch (error: any) {
       console.error('[TvVideoProcessor] Error in unified processing:', error);
       
-      // Update transcription status to failed
-      if (transcriptionId) {
+      // Update transcription status to failed - use the correct transcription ID
+      const failedTranscriptionId = existingTranscription?.id || tvTranscription?.id || transcriptionId;
+      
+      if (failedTranscriptionId) {
         try {
-          await TvTranscriptionService.updateTranscription(transcriptionId, {
+          await TvTranscriptionService.updateTranscription(failedTranscriptionId, {
             status: 'failed',
             progress: 100
           });
+          console.log('[TvVideoProcessor] Updated transcription status to failed:', failedTranscriptionId);
         } catch (updateError) {
           console.error('[TvVideoProcessor] Failed to update error status:', updateError);
         }
+      } else {
+        console.warn('[TvVideoProcessor] No transcription ID available to update error status');
       }
       
       toast.error("Error al procesar video", {
