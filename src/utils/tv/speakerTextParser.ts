@@ -12,8 +12,26 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   // First, clean the text from any analysis artifacts
   const cleanedText = cleanInputText(text);
   
-  // Split by double newlines to get separate utterances
-  const segments = cleanedText.split(/\n\s*\n/).filter(segment => segment.trim());
+  // NEW: Split by SPEAKER patterns directly, not by double newlines
+  const speakerPattern = /(SPEAKER\s+\d+:\s*[^:]*:\s*|SPEAKER\s+\d+:\s*)/gi;
+  const segments: string[] = [];
+  
+  // Split by speaker patterns to get individual speaker segments
+  const parts = cleanedText.split(speakerPattern);
+  
+  for (let i = 1; i < parts.length; i += 2) {
+    const speakerLabel = parts[i]; // The SPEAKER X: part
+    const content = parts[i + 1] || ''; // The actual content
+    
+    if (speakerLabel && content.trim()) {
+      segments.push((speakerLabel + content.split(/SPEAKER\s+\d+:/i)[0]).trim());
+    }
+  }
+  
+  // Fallback to original method if no speaker patterns found
+  if (segments.length === 0) {
+    segments.push(...cleanedText.split(/\n\s*\n/).filter(segment => segment.trim()));
+  }
   
   let currentTime = 0;
   const averageSegmentDuration = 5000; // 5 seconds per segment as placeholder
