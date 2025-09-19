@@ -11,7 +11,9 @@ interface ParsedAnalysisData {
   visual_analysis?: string;
   segments?: ParsedSegment[];
   keywords?: string[];
+  palabras_clave?: string[];
   summary?: string;
+  resumen?: string;
   analysis?: {
     who?: string;
     what?: string;
@@ -19,6 +21,21 @@ interface ParsedAnalysisData {
     where?: string;
     why?: string;
   };
+  analisis_5w?: {
+    quien?: string;
+    que?: string;
+    cuando?: string;
+    donde?: string;
+    porque?: string;
+  };
+  relevancia_clientes?: Array<{
+    cliente: string;
+    nivel_relevancia: string;
+    razon: string;
+  }>;
+  alertas?: string[];
+  puntuacion_impacto?: string;
+  recomendaciones?: string[];
 }
 
 export const parseAnalysisContent = (analysis: string): string => {
@@ -57,26 +74,34 @@ export const parseAnalysisContent = (analysis: string): string => {
 };
 
 // Convert JSON analysis data to human-readable formatted text
-function convertJsonToReadableFormat(parsed: ParsedAnalysisData): string {
+function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
   let programContent = "";
   let advertisementSections: string[] = [];
   
   // DO NOT include transcription in analysis display - keep them separate
   
-  // Format 5W Analysis
-  if (parsed.analysis) {
+  // Format 5W Analysis - handle both old and new Spanish formats
+  const analysis5w = parsed.analysis || parsed.analisis_5w;
+  if (analysis5w) {
     programContent += "ANÁLISIS 5W:\n";
-    if (parsed.analysis.who) programContent += `• QUIÉN: ${parsed.analysis.who}\n`;
-    if (parsed.analysis.what) programContent += `• QUÉ: ${parsed.analysis.what}\n`;
-    if (parsed.analysis.when) programContent += `• CUÁNDO: ${parsed.analysis.when}\n`;
-    if (parsed.analysis.where) programContent += `• DÓNDE: ${parsed.analysis.where}\n`;
-    if (parsed.analysis.why) programContent += `• POR QUÉ: ${parsed.analysis.why}\n`;
+    const who = analysis5w.who || analysis5w.quien;
+    const what = analysis5w.what || analysis5w.que;
+    const when = analysis5w.when || analysis5w.cuando;
+    const where = analysis5w.where || analysis5w.donde;
+    const why = analysis5w.why || analysis5w.porque;
+    
+    if (who) programContent += `• QUIÉN: ${who}\n`;
+    if (what) programContent += `• QUÉ: ${what}\n`;
+    if (when) programContent += `• CUÁNDO: ${when}\n`;
+    if (where) programContent += `• DÓNDE: ${where}\n`;
+    if (why) programContent += `• POR QUÉ: ${why}\n`;
     programContent += "\n";
   }
   
-  // Format Summary
-  if (parsed.summary) {
-    programContent += "RESUMEN:\n" + parsed.summary + "\n\n";
+  // Format Summary - handle both formats
+  const summary = parsed.summary || parsed.resumen;
+  if (summary) {
+    programContent += "RESUMEN:\n" + summary + "\n\n";
   }
   
   // Format Visual Analysis
@@ -84,9 +109,42 @@ function convertJsonToReadableFormat(parsed: ParsedAnalysisData): string {
     programContent += "ANÁLISIS VISUAL:\n" + parsed.visual_analysis + "\n\n";
   }
   
-  // Format Keywords
-  if (parsed.keywords && parsed.keywords.length > 0) {
-    programContent += "PALABRAS CLAVE:\n" + parsed.keywords.join(', ') + "\n\n";
+  // Format Keywords - handle both formats
+  const keywords = parsed.keywords || parsed.palabras_clave;
+  if (keywords && keywords.length > 0) {
+    programContent += "PALABRAS CLAVE:\n" + keywords.join(', ') + "\n\n";
+  }
+  
+  // Format Client Relevance (new Spanish format)
+  if (parsed.relevancia_clientes && parsed.relevancia_clientes.length > 0) {
+    programContent += "RELEVANCIA PARA CLIENTES:\n";
+    parsed.relevancia_clientes.forEach((rel: any) => {
+      programContent += `• ${rel.cliente} (${rel.nivel_relevancia}): ${rel.razon}\n`;
+    });
+    programContent += "\n";
+  }
+  
+  // Format Alerts (new Spanish format)
+  if (parsed.alertas && parsed.alertas.length > 0) {
+    programContent += "ALERTAS:\n";
+    parsed.alertas.forEach((alert: string) => {
+      programContent += `• ${alert}\n`;
+    });
+    programContent += "\n";
+  }
+  
+  // Format Impact Score (new Spanish format)
+  if (parsed.puntuacion_impacto) {
+    programContent += `PUNTUACIÓN DE IMPACTO: ${parsed.puntuacion_impacto}/10\n\n`;
+  }
+  
+  // Format Recommendations (new Spanish format)
+  if (parsed.recomendaciones && parsed.recomendaciones.length > 0) {
+    programContent += "RECOMENDACIONES:\n";
+    parsed.recomendaciones.forEach((rec: string) => {
+      programContent += `• ${rec}\n`;
+    });
+    programContent += "\n";
   }
   
   // Process segments - separate ads from regular content

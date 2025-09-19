@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { constructTvPrompt } from '../analyze-tv-content/tvPromptBuilder.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -283,29 +284,13 @@ async function generateComprehensiveAnalysis(
     throw new Error('Google Gemini API key not configured');
   }
 
-  // Build TV-specific prompt
-  const prompt = `Analiza el siguiente contenido de TV y proporciona un análisis detallado en formato JSON:
-
-CATEGORÍAS DISPONIBLES: ${categories.map(c => c.name).join(', ')}
-CLIENTES DISPONIBLES: ${clients.map(c => c.name).join(', ')}
-
-CONTENIDO A ANALIZAR:
-${transcriptText}
-
-Responde ÚNICAMENTE con un objeto JSON válido con esta estructura:
-{
-  "summary": "Resumen ejecutivo del contenido",
-  "category": "Una de las categorías disponibles que mejor aplique",
-  "clients": ["Lista de clientes mencionados o relevantes"],
-  "keywords": ["palabras", "clave", "relevantes"],
-  "sentiment": "positivo/negativo/neutral",
-  "topics": ["temas", "principales", "discutidos"],
-  "mentions": {
-    "people": ["personas mencionadas"],
-    "organizations": ["organizaciones mencionadas"],
-    "locations": ["lugares mencionados"]
-  }
-}`;
+  // Build TV-specific Spanish prompt using the proper prompt builder
+  const prompt = constructTvPrompt(
+    categories.map(c => c.name),
+    clients,
+    '',
+    !!transcriptText
+  );
 
   try {
     const response = await fetch(
