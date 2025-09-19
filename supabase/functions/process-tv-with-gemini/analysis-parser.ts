@@ -96,28 +96,78 @@ export function parseAnalysisText(analysisText: string): ParsedAnalysis {
 
 // Extract transcription with proper TV speaker parsing
 function extractTranscriptionWithSpeakerParsing(analysisText: string): string {
-  // First try to extract from structured sections
+  console.log('[analysis-parser] Starting transcription extraction from mixed content');
+  
+  // Step 1: Try to extract from structured sections first
   const transcriptionMatch = analysisText.match(/## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES\s*([\s\S]*?)(?=\n## SECCIÓN 2:|$)/);
   
   if (transcriptionMatch) {
-    const extractedText = transcriptionMatch[1].trim()
+    let extractedText = transcriptionMatch[1].trim()
       .replace(/^- Format:.*\n- Uses.*\n- Complete.*\n\n?/m, '');
     
-    // Check if it has TV speaker patterns, if not, try to improve formatting
-    if (hasTvSpeakerPatterns(extractedText)) {
+    // Clean extracted text from analysis artifacts
+    extractedText = cleanTranscriptionFromAnalysis(extractedText);
+    
+    if (hasTvSpeakerPatterns(extractedText) && extractedText.length > 50) {
+      console.log('[analysis-parser] Successfully extracted transcription from structured section');
       return extractedText;
     }
   }
   
-  // Fallback: look for any speaker-like patterns in the full text
-  const speakerPatterns = analysisText.match(/(?:SPEAKER\s+\d+:|PRESENTER:|HOST:|LOCUTOR:|ENTREVISTADO:)[\s\S]*?(?=\n\n|\n(?:SPEAKER|PRESENTER|HOST|LOCUTOR|ENTREVISTADO)|$)/gi);
-  
-  if (speakerPatterns && speakerPatterns.length > 0) {
-    return speakerPatterns.join('\n\n');
+  // Step 2: Try to extract from JSON transcription field
+  const jsonTranscriptionMatch = analysisText.match(/"transcription"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s);
+  if (jsonTranscriptionMatch) {
+    let transcriptionText = jsonTranscriptionMatch[1]
+      .replace(/\\n/g, '\n')
+      .replace(/\\"/g, '"')
+      .replace(/\\\//g, '/')
+      .trim();
+    
+    transcriptionText = cleanTranscriptionFromAnalysis(transcriptionText);
+    
+    if (hasTvSpeakerPatterns(transcriptionText) && transcriptionText.length > 50) {
+      console.log('[analysis-parser] Successfully extracted transcription from JSON field');
+      return transcriptionText;
+    }
   }
   
-  // Final fallback: return the first portion of text
-  return analysisText.substring(0, 2000);
+  // Step 3: Look for speaker patterns in the full text
+  const speakerPatterns = analysisText.match(/(?:SPEAKER\s+\d+(?:\s*:\s*[^:]+)?:|PRESENTER:|HOST:|LOCUTOR:|ENTREVISTADO:|CONDUCTOR:|REPORTERO:|REPORTERA:)[\s\S]*?(?=\n\n|\n(?:SPEAKER|PRESENTER|HOST|LOCUTOR|ENTREVISTADO|CONDUCTOR|REPORTERO|REPORTERA)|$)/gi);
+  
+  if (speakerPatterns && speakerPatterns.length > 0) {
+    let transcriptionText = speakerPatterns.join('\n\n');
+    transcriptionText = cleanTranscriptionFromAnalysis(transcriptionText);
+    
+    if (transcriptionText.length > 50) {
+      console.log('[analysis-parser] Extracted transcription from speaker patterns');
+      return transcriptionText;
+    }
+  }
+  
+  // Step 4: Try to extract dialogue-like content (lines with colons)
+  const dialogueLines = analysisText.split('\n')
+    .filter(line => {
+      const trimmed = line.trim();
+      return trimmed.length > 10 && 
+             (trimmed.includes(':') && !trimmed.startsWith('{') && !trimmed.startsWith('"')) &&
+             !isAnalysisField(trimmed);
+    })
+    .slice(0, 20); // Limit to prevent too much content
+  
+  if (dialogueLines.length > 0) {
+    let transcriptionText = dialogueLines.join('\n');
+    transcriptionText = cleanTranscriptionFromAnalysis(transcriptionText);
+    
+    if (transcriptionText.length > 50) {
+      console.log('[analysis-parser] Extracted transcription from dialogue lines');
+      return transcriptionText;
+    }
+  }
+  
+  // Final fallback: clean portion of text
+  const cleanedText = cleanTranscriptionFromAnalysis(analysisText.substring(0, 2000));
+  console.log('[analysis-parser] Using fallback transcription extraction');
+  return cleanedText || "Contenido de transcripción no disponible en formato legible";
 }
 
 // Extract keywords from text content
@@ -139,7 +189,69 @@ function extractKeywordsFromText(text: string): string[] {
   return uniqueWords.slice(0, 10);
 }
 
-// Check if text contains TV-specific speaker patterns
+// Clean transcription content from analysis artifacts
+function cleanTranscriptionFromAnalysis(text: string): string {
+  if (!text) return "";
+  
+  let cleaned = text;
+  
+  // Remove JSON artifacts and structure
+  cleaned = cleaned
+    .replace(/[\{\}]/g, '') // Remove braces
+    .replace(/"[^"]*":\s*/g, '') // Remove JSON keys like "transcription": 
+    .replace(/^[^:]*transcription[^:]*:/i, '') // Remove transcription labels
+    .replace(/^[^:]*visual_analysis[^:]*:.*$/gmi, '') // Remove visual analysis lines
+    .replace(/^[^:]*analysis[^:]*:.*$/gmi, '') // Remove analysis lines
+    .replace(/^[^:]*summary[^:]*:.*$/gmi, '') // Remove summary lines
+    .replace(/^[^:]*keywords[^:]*:.*$/gmi, '') // Remove keywords lines
+    .replace(/^[^:]*segments[^:]*:.*$/gmi, '') // Remove segments lines
+    .replace(/\\"([^"]*)\\"[,\s]*/g, '$1 ') // Clean escaped quotes
+    .replace(/\\n/g, '\n') // Convert literal \n to newlines
+    .replace(/\\"/g, '"') // Convert escaped quotes
+    .replace(/\\\//g, '/') // Convert escaped slashes
+    .replace(/[\[\]]/g, '') // Remove brackets
+    .replace(/,\s*$/gm, '') // Remove trailing commas
+    .replace(/^\s*,/gm, '') // Remove leading commas
+    .replace(/\n\s*\n\s*\n/g, '\n\n') // Normalize multiple newlines
+    .trim();
+  
+  // Remove analysis section markers and content
+  cleaned = cleaned
+    .replace(/## SECCIÓN \d+:.*$/gmi, '')
+    .replace(/^(who|what|when|where|why|quién|qué|cuándo|dónde|por qué):\s*.*/gmi, '')
+    .replace(/^(ANÁLISIS|RESUMEN|PALABRAS CLAVE|SEGMENTOS):\s*.*/gmi, '')
+    .replace(/^(analysis|summary|keywords|segments):\s*.*/gmi, '');
+  
+  // Ensure we only keep speaker dialogue
+  const lines = cleaned.split('\n').filter(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+    
+    // Keep lines that look like speaker dialogue
+    return hasTvSpeakerPatterns(trimmed) || 
+           (trimmed.includes(':') && trimmed.length > 10 && !isAnalysisField(trimmed));
+  });
+  
+  return lines.join('\n').trim();
+}
+
+// Check if a line contains analysis field keywords
+function isAnalysisField(text: string): boolean {
+  const analysisKeywords = [
+    'transcription', 'visual_analysis', 'analysis', 'summary', 'keywords', 'segments',
+    'transcripción', 'análisis', 'resumen', 'palabras', 'segmentos',
+    'who', 'what', 'when', 'where', 'why', 'quién', 'qué', 'cuándo', 'dónde', 'por qué'
+  ];
+  
+  const lowerText = text.toLowerCase();
+  return analysisKeywords.some(keyword => 
+    lowerText.startsWith(keyword + ':') || 
+    lowerText.startsWith('"' + keyword + '"') ||
+    lowerText.includes('"' + keyword + '":')
+  );
+}
+
+// Enhanced check for TV-specific speaker patterns
 function hasTvSpeakerPatterns(text: string): boolean {
   if (!text || !text.trim()) return false;
   
@@ -150,8 +262,15 @@ function hasTvSpeakerPatterns(text: string): boolean {
     /GUEST:/i,
     /LOCUTOR:/i,
     /ENTREVISTADO:/i,
+    /CONDUCTOR:/i,
+    /REPORTERO:|REPORTERA:/i,
+    /INVITADO:|INVITADA:/i,
+    /COMENTARISTA:/i,
+    /ANALISTA:/i,
+    /PERIODISTA:/i,
     /\[SPEAKER\s+\d+\]/i,
-    /^\s*-\s*\w+:/m
+    /^\s*-\s*\w+:/m,
+    /^[A-ZÁÉÍÓÚÑÜ\s]{2,15}:\s*/m // Generic speaker pattern (caps, reasonable length)
   ];
   
   return patterns.some(pattern => pattern.test(text));

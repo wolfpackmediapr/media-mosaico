@@ -49,9 +49,12 @@ export const parseAnalysisContent = (analysis: string): string => {
     let programContent = "";
     let advertisementSections: string[] = [];
     
-    // Collect transcription and analysis into program content
+    // Handle transcription separately - ensure it's clean speaker dialogue only
     if (parsed.transcription) {
-      programContent += "TRANSCRIPCIÓN:\n" + parsed.transcription + "\n\n";
+      const cleanTranscription = cleanTranscriptionContent(parsed.transcription);
+      if (cleanTranscription) {
+        programContent += "TRANSCRIPCIÓN:\n" + cleanTranscription + "\n\n";
+      }
     }
     
     if (parsed.analysis) {
@@ -163,4 +166,71 @@ function consolidateContent(content: string): string {
   }
   
   return result.trim();
+}
+
+// Clean transcription content to remove analysis artifacts
+function cleanTranscriptionContent(transcription: string): string {
+  if (!transcription) return "";
+  
+  let cleaned = transcription;
+  
+  // Remove JSON artifacts and analysis fields
+  cleaned = cleaned
+    .replace(/[\{\}]/g, '') // Remove braces
+    .replace(/"[^"]*":\s*/g, '') // Remove JSON keys
+    .replace(/\\n/g, '\n') // Convert literal \n to newlines
+    .replace(/\\"/g, '"') // Convert escaped quotes
+    .replace(/\\\//g, '/') // Convert escaped slashes
+    .replace(/[\[\]]/g, '') // Remove brackets
+    .replace(/,\s*$/gm, '') // Remove trailing commas
+    .replace(/^\s*,/gm, '') // Remove leading commas
+    .trim();
+  
+  // Filter out analysis fields and keep only speaker dialogue
+  const lines = cleaned.split('\n').filter(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+    
+    // Remove analysis field lines
+    const analysisKeywords = [
+      'visual_analysis', 'analysis', 'summary', 'keywords', 'segments',
+      'análisis', 'resumen', 'palabras', 'segmentos',
+      'who', 'what', 'when', 'where', 'why', 'quién', 'qué', 'cuándo', 'dónde', 'por qué'
+    ];
+    
+    const lowerLine = trimmed.toLowerCase();
+    const isAnalysisField = analysisKeywords.some(keyword => 
+      lowerLine.startsWith(keyword + ':') || 
+      lowerLine.startsWith('"' + keyword + '"') ||
+      lowerLine.includes('"' + keyword + '":')
+    );
+    
+    if (isAnalysisField) return false;
+    
+    // Keep lines that look like speaker dialogue
+    return hasSpeakerFormat(trimmed);
+  });
+  
+  return lines.join('\n').trim();
+}
+
+// Check if text has speaker format
+function hasSpeakerFormat(text: string): boolean {
+  if (!text || text.length < 10) return false;
+  
+  const speakerPatterns = [
+    /SPEAKER\s+\d+:/i,
+    /PRESENTER:/i,
+    /HOST:/i,
+    /GUEST:/i,
+    /LOCUTOR:/i,
+    /ENTREVISTADO:/i,
+    /CONDUCTOR:/i,
+    /REPORTERO:|REPORTERA:/i,
+    /INVITADO:|INVITADA:/i,
+    /^[A-ZÁÉÍÓÚÑÜ\s]{2,15}:\s*/m // Generic speaker pattern
+  ];
+  
+  return speakerPatterns.some(pattern => pattern.test(text)) ||
+         (text.includes(':') && !text.includes('{') && !text.includes('"'));
 }
