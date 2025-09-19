@@ -35,5 +35,9 @@ export const configurationRoutes: RouteObject[] = [
   {
     path: "ajustes/usuarios",
     element: createProtectedRoute(settingsRoutes.UsersSettings)
+  },
+  {
+    path: "ajustes/clientes",
+    element: createProtectedRoute(settingsRoutes.ClientsSettings)
   }
 ];
