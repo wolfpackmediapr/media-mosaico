@@ -29,104 +29,116 @@ export const parseAnalysisContent = (analysis: string): string => {
     return consolidateContent(analysis);
   }
 
-  // Check if content is already well-formatted (has bullets, numbers, proper structure)
+  // PRIORITY: Try to parse as JSON first (this is the main analysis format from Gemini)
+  const trimmedAnalysis = analysis.trim();
+  if (trimmedAnalysis.startsWith('{') && trimmedAnalysis.endsWith('}')) {
+    try {
+      const parsed: ParsedAnalysisData = JSON.parse(analysis);
+      return convertJsonToReadableFormat(parsed);
+    } catch (error) {
+      console.warn('[analysisParser] JSON parsing failed:', error);
+      // Continue to other parsing methods
+    }
+  }
+
+  // SECONDARY: Check if content is already well-formatted (has bullets, numbers, proper structure)
   const hasFormatting = analysis.match(/^\s*[\d\-\•\*]\s+/m) || 
                        analysis.match(/^\s*\d+\.\s+/m) ||
                        analysis.includes('\n\n') ||
                        analysis.match(/^[A-ZÁÉÍÓÚÑ]+:\s*/m);
 
-  // If already well-formatted and doesn't look like JSON, preserve as-is
-  if (hasFormatting && !analysis.trim().startsWith('{')) {
+  // If already well-formatted, preserve as-is
+  if (hasFormatting) {
     return `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${analysis}`;
   }
 
-  // Try to parse as JSON (legacy format)
-  try {
-    const parsed: ParsedAnalysisData = JSON.parse(analysis);
-    
-    // Convert JSON back to formatted text with content type markers
-    // Consolidate all program content into ONE section
-    let programContent = "";
-    let advertisementSections: string[] = [];
-    
-    // Handle transcription separately - ensure it's clean speaker dialogue only
-    if (parsed.transcription) {
-      const cleanTranscription = cleanTranscriptionContent(parsed.transcription);
-      if (cleanTranscription) {
-        programContent += "TRANSCRIPCIÓN:\n" + cleanTranscription + "\n\n";
-      }
-    }
-    
-    if (parsed.analysis) {
-      programContent += "ANÁLISIS 5W:\n";
-      if (parsed.analysis.who) programContent += `QUIÉN: ${parsed.analysis.who}\n`;
-      if (parsed.analysis.what) programContent += `QUÉ: ${parsed.analysis.what}\n`;
-      if (parsed.analysis.when) programContent += `CUÁNDO: ${parsed.analysis.when}\n`;
-      if (parsed.analysis.where) programContent += `DÓNDE: ${parsed.analysis.where}\n`;
-      if (parsed.analysis.why) programContent += `POR QUÉ: ${parsed.analysis.why}\n`;
-      programContent += "\n";
-    }
-    
-    if (parsed.summary) {
-      programContent += "RESUMEN: " + parsed.summary + "\n\n";
-    }
-    
-    if (parsed.keywords && parsed.keywords.length > 0) {
-      programContent += "PALABRAS CLAVE: " + parsed.keywords.join(', ') + "\n\n";
-    }
-    
-    // Process segments - separate ads from regular content
-    if (parsed.segments && parsed.segments.length > 0) {
-      parsed.segments.forEach((segment) => {
-        const isAd = segment.keywords?.some(keyword => 
-          keyword.toLowerCase().includes('anuncio') || 
-          keyword.toLowerCase().includes('publicidad') ||
-          keyword.toLowerCase().includes('comercial')
-        ) || segment.text.toLowerCase().includes('anuncio') || 
-           segment.headline?.toLowerCase().includes('anuncio');
-        
-        if (isAd) {
-          let adContent = `[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]\n`;
-          if (segment.headline) adContent += `TITULAR: ${segment.headline}\n\n`;
-          adContent += segment.text;
-          if (segment.keywords && segment.keywords.length > 0) {
-            adContent += `\n\nPALABRAS CLAVE: ${segment.keywords.join(', ')}`;
-          }
-          advertisementSections.push(adContent);
-        } else {
-          // Add to program content
-          if (segment.headline && !programContent.includes(segment.headline)) {
-            programContent += `TITULAR: ${segment.headline}\n\n`;
-          }
-          programContent += segment.text + "\n\n";
-        }
-      });
-    }
-    
-    // Build final formatted content
-    let finalContent = "";
-    
-    // Add ONE consolidated program section if there's program content
-    if (programContent.trim()) {
-      finalContent += `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${programContent.trim()}\n\n`;
-    }
-    
-    // Add separate advertisement sections
-    finalContent += advertisementSections.join('\n\n');
-    
-    return finalContent.trim();
-    
-  } catch (error) {
-    console.warn('[analysisParser] Could not parse as JSON, treating as plain text:', error);
-    
-    // If it's not JSON and doesn't have content type markers, wrap it as program content
-    if (!analysis.includes("[TIPO DE CONTENIDO:")) {
-      return `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${analysis}`;
-    }
-    
-    return consolidateContent(analysis);
-  }
+  // FALLBACK: Treat as plain text and wrap it
+  return `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${analysis}`;
 };
+
+// Convert JSON analysis data to human-readable formatted text
+function convertJsonToReadableFormat(parsed: ParsedAnalysisData): string {
+  let programContent = "";
+  let advertisementSections: string[] = [];
+  
+  // DO NOT include transcription in analysis display - keep them separate
+  
+  // Format 5W Analysis
+  if (parsed.analysis) {
+    programContent += "ANÁLISIS 5W:\n";
+    if (parsed.analysis.who) programContent += `• QUIÉN: ${parsed.analysis.who}\n`;
+    if (parsed.analysis.what) programContent += `• QUÉ: ${parsed.analysis.what}\n`;
+    if (parsed.analysis.when) programContent += `• CUÁNDO: ${parsed.analysis.when}\n`;
+    if (parsed.analysis.where) programContent += `• DÓNDE: ${parsed.analysis.where}\n`;
+    if (parsed.analysis.why) programContent += `• POR QUÉ: ${parsed.analysis.why}\n`;
+    programContent += "\n";
+  }
+  
+  // Format Summary
+  if (parsed.summary) {
+    programContent += "RESUMEN:\n" + parsed.summary + "\n\n";
+  }
+  
+  // Format Visual Analysis
+  if (parsed.visual_analysis) {
+    programContent += "ANÁLISIS VISUAL:\n" + parsed.visual_analysis + "\n\n";
+  }
+  
+  // Format Keywords
+  if (parsed.keywords && parsed.keywords.length > 0) {
+    programContent += "PALABRAS CLAVE:\n" + parsed.keywords.join(', ') + "\n\n";
+  }
+  
+  // Process segments - separate ads from regular content
+  if (parsed.segments && parsed.segments.length > 0) {
+    programContent += "SEGMENTOS IDENTIFICADOS:\n\n";
+    
+    parsed.segments.forEach((segment, index) => {
+      const isAd = segment.keywords?.some(keyword => 
+        keyword.toLowerCase().includes('anuncio') || 
+        keyword.toLowerCase().includes('publicidad') ||
+        keyword.toLowerCase().includes('comercial')
+      ) || segment.text.toLowerCase().includes('anuncio') || 
+         segment.headline?.toLowerCase().includes('anuncio');
+      
+      if (isAd) {
+        let adContent = `[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]\n`;
+        if (segment.headline) adContent += `TITULAR: ${segment.headline}\n\n`;
+        adContent += segment.text;
+        if (segment.keywords && segment.keywords.length > 0) {
+          adContent += `\n\nPALABRAS CLAVE: ${segment.keywords.join(', ')}`;
+        }
+        advertisementSections.push(adContent);
+      } else {
+        // Add to program content
+        programContent += `${index + 1}. `;
+        if (segment.headline) {
+          programContent += `${segment.headline}\n`;
+        }
+        programContent += `${segment.text}\n`;
+        if (segment.keywords && segment.keywords.length > 0) {
+          programContent += `Palabras clave: ${segment.keywords.join(', ')}\n`;
+        }
+        programContent += "\n";
+      }
+    });
+  }
+  
+  // Build final formatted content
+  let finalContent = "";
+  
+  // Add ONE consolidated program section if there's program content
+  if (programContent.trim()) {
+    finalContent += `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${programContent.trim()}\n\n`;
+  }
+  
+  // Add separate advertisement sections
+  if (advertisementSections.length > 0) {
+    finalContent += advertisementSections.join('\n\n');
+  }
+  
+  return finalContent.trim() || "[TIPO DE CONTENIDO: PROGRAMA REGULAR]\nAnálisis completado exitosamente.";
+}
 
 // Helper function to consolidate multiple program sections into one
 function consolidateContent(content: string): string {
