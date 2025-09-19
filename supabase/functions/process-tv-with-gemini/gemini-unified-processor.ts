@@ -17,7 +17,7 @@ export async function processVideoWithGemini(
     
     // Step 1: Upload video to Gemini (10% progress)
     progressCallback?.(0.1);
-    const uploadedFile = await uploadVideoToGemini(videoBlob, apiKey, videoPath);
+    const { file: uploadedFile, mimeType } = await uploadVideoToGemini(videoBlob, apiKey, videoPath);
     
     // Step 2: Wait for processing (30% progress when complete)
     progressCallback?.(0.2);
@@ -25,7 +25,7 @@ export async function processVideoWithGemini(
     
     // Step 3: Generate comprehensive analysis (80% progress when complete)
     progressCallback?.(0.6);
-    const analysisResult = await generateComprehensiveAnalysis(processedFile.uri, apiKey, categories, clients);
+    const analysisResult = await generateComprehensiveAnalysis(processedFile.uri, apiKey, categories, clients, mimeType);
     
     // Step 4: Cleanup (100% progress)
     progressCallback?.(0.9);
@@ -65,6 +65,16 @@ async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, videoPath: s
         break;
       case 'webm':
         mimeType = 'video/webm';
+        break;
+      case 'mpg':
+      case 'mpeg':
+        mimeType = 'video/mpeg';
+        break;
+      case 'mp2':
+        mimeType = 'video/mp2';
+        break;
+      case 'mpv':
+        mimeType = 'video/mpv';
         break;
       default:
         mimeType = 'video/mp4'; // Default fallback
@@ -108,7 +118,7 @@ async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, videoPath: s
       const uploadResult = await uploadResponse.json();
       console.log('[gemini-unified] File uploaded successfully:', uploadResult.file?.name);
       
-      return uploadResult.file;
+      return { file: uploadResult.file, mimeType };
       
     } catch (error) {
       console.error(`[gemini-unified] Upload attempt ${attempt} error:`, error);
@@ -168,7 +178,7 @@ async function waitForFileProcessing(
   throw new Error('File processing timeout');
 }
 
-async function generateComprehensiveAnalysis(fileUri: string, apiKey: string, categories: any[] = [], clients: any[] = []) {
+async function generateComprehensiveAnalysis(fileUri: string, apiKey: string, categories: any[] = [], clients: any[] = [], mimeType: string = 'video/mp4') {
   console.log('[gemini-unified] Generating comprehensive analysis...');
   
   // Build dynamic category list
@@ -282,7 +292,7 @@ Responde en español de manera concisa y profesional. Asegúrate de:
           { text: prompt },
           {
             file_data: {
-              mime_type: 'video/mp4',
+              mime_type: mimeType,
               file_uri: fileUri
             }
           }
