@@ -94,80 +94,196 @@ export function parseAnalysisText(analysisText: string): ParsedAnalysis {
   };
 }
 
-// Extract transcription with proper TV speaker parsing
+// Enhanced transcription extraction with better parsing
 function extractTranscriptionWithSpeakerParsing(analysisText: string): string {
-  console.log('[analysis-parser] Starting transcription extraction from mixed content');
+  console.log('[analysis-parser] Starting enhanced transcription extraction');
   
-  // Step 1: Try to extract from structured sections first
-  const transcriptionMatch = analysisText.match(/## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES\s*([\s\S]*?)(?=\n## SECCIÓN 2:|$)/);
+  // Enhanced Strategy 1: Extract from JSON transcription field with better parsing
+  try {
+    const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.transcription) {
+        const cleanTranscription = cleanTranscriptionFromGeminiResponse(parsed.transcription);
+        if (cleanTranscription && hasTvSpeakerPatterns(cleanTranscription)) {
+          console.log('[analysis-parser] Successfully extracted from JSON structure');
+          return cleanTranscription;
+        }
+      }
+    }
+  } catch (error) {
+    console.log('[analysis-parser] JSON parsing failed, trying alternative methods');
+  }
   
-  if (transcriptionMatch) {
-    let extractedText = transcriptionMatch[1].trim()
-      .replace(/^- Format:.*\n- Uses.*\n- Complete.*\n\n?/m, '');
-    
-    // Clean extracted text from analysis artifacts
-    extractedText = cleanTranscriptionFromAnalysis(extractedText);
-    
-    if (hasTvSpeakerPatterns(extractedText) && extractedText.length > 50) {
-      console.log('[analysis-parser] Successfully extracted transcription from structured section');
-      return extractedText;
+  // Strategy 2: Extract from structured sections with enhanced patterns
+  const sectionPatterns = [
+    /## PASO 1: TRANSCRIPCIÓN[:\s]*([^#]+?)(?=##|\[TIPO|$)/s,
+    /TRANSCRIPCIÓN[:\s]*([^[#]+?)(?=\[|##|$)/s,
+    /## SECCIÓN 1[:\s]*([^#]+?)(?=##|$)/s,
+    /"transcription"[:\s]*"([^"]+)"/s
+  ];
+  
+  for (const pattern of sectionPatterns) {
+    const match = analysisText.match(pattern);
+    if (match && match[1]) {
+      const cleanTranscription = cleanTranscriptionFromGeminiResponse(match[1]);
+      if (cleanTranscription && hasTvSpeakerPatterns(cleanTranscription)) {
+        console.log('[analysis-parser] Successfully extracted from section pattern');
+        return cleanTranscription;
+      }
     }
   }
   
-  // Step 2: Try to extract from JSON transcription field
-  const jsonTranscriptionMatch = analysisText.match(/"transcription"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s);
-  if (jsonTranscriptionMatch) {
-    let transcriptionText = jsonTranscriptionMatch[1]
-      .replace(/\\n/g, '\n')
-      .replace(/\\"/g, '"')
-      .replace(/\\\//g, '/')
-      .trim();
+  // Strategy 3: Enhanced speaker dialogue extraction
+  const speakerContent = extractSpeakerDialogueOnly(analysisText);
+  if (speakerContent && speakerContent.length > 50) {
+    console.log('[analysis-parser] Successfully extracted speaker dialogue');
+    return speakerContent;
+  }
+  
+  // Strategy 4: Natural language processing fallback
+  const naturalDialogue = extractNaturalDialogue(analysisText);
+  if (naturalDialogue && naturalDialogue.length > 50) {
+    console.log('[analysis-parser] Successfully extracted natural dialogue');
+    return naturalDialogue;
+  }
+  
+  console.log('[analysis-parser] No valid transcription found');
+  return 'Transcripción no disponible - contenido no contiene diálogos identificables';
+}
+
+// Extract only clean speaker dialogue from mixed content  
+function extractSpeakerDialogueOnly(text: string): string {
+  if (!text) return '';
+  
+  const lines = text.split('\n');
+  const speakerLines: string[] = [];
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.length < 10) continue;
     
-    transcriptionText = cleanTranscriptionFromAnalysis(transcriptionText);
+    // Enhanced speaker detection patterns
+    const speakerPatterns = [
+      /^SPEAKER\s+\d+:\s*[^:]+:\s*.+/i,
+      /^SPEAKER\s+\d+:\s*.+/i,
+      /^(PRESENTER|HOST|GUEST|LOCUTOR|ENTREVISTADO|CONDUCTOR|REPORTERO|REPORTERA|INVITADO|INVITADA|COMENTARISTA|ANALISTA|PERIODISTA):\s*.+/i,
+      /^[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,20}:\s*[^:].+/
+    ];
     
-    if (hasTvSpeakerPatterns(transcriptionText) && transcriptionText.length > 50) {
-      console.log('[analysis-parser] Successfully extracted transcription from JSON field');
-      return transcriptionText;
+    const isDialogue = speakerPatterns.some(pattern => pattern.test(trimmedLine));
+    const isNotAnalysis = !isAnalysisField(trimmedLine) && 
+                         !trimmedLine.includes('{') && 
+                         !trimmedLine.includes('"') &&
+                         !trimmedLine.startsWith('##') &&
+                         !trimmedLine.startsWith('[');
+    
+    if (isDialogue && isNotAnalysis) {
+      speakerLines.push(trimmedLine);
     }
   }
   
-  // Step 3: Look for speaker patterns in the full text
-  const speakerPatterns = analysisText.match(/(?:SPEAKER\s+\d+(?:\s*:\s*[^:]+)?:|PRESENTER:|HOST:|LOCUTOR:|ENTREVISTADO:|CONDUCTOR:|REPORTERO:|REPORTERA:)[\s\S]*?(?=\n\n|\n(?:SPEAKER|PRESENTER|HOST|LOCUTOR|ENTREVISTADO|CONDUCTOR|REPORTERO|REPORTERA)|$)/gi);
+  return speakerLines.join('\n');
+}
+
+// Extract natural dialogue using conversation flow detection
+function extractNaturalDialogue(text: string): string {
+  if (!text) return '';
   
-  if (speakerPatterns && speakerPatterns.length > 0) {
-    let transcriptionText = speakerPatterns.join('\n\n');
-    transcriptionText = cleanTranscriptionFromAnalysis(transcriptionText);
+  const lines = text.split('\n');
+  const dialogueLines: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || line.length < 15) continue;
     
-    if (transcriptionText.length > 50) {
-      console.log('[analysis-parser] Extracted transcription from speaker patterns');
-      return transcriptionText;
+    // Look for conversation indicators
+    const conversationIndicators = [
+      /\b(dice|comenta|afirma|explica|menciona|señala|indica|pregunta|responde)\b/i,
+      /\b(buenos días|buenas tardes|buenas noches|bienvenidos|gracias|efectivamente)\b/i,
+      /\b(por favor|disculpe|perdón|exactamente|correcto)\b/i,
+      /:.*\b(es|son|está|están|fue|fueron|será|serán|tiene|tienen|había|hubo)\b/i
+    ];
+    
+    const hasConversationPattern = conversationIndicators.some(pattern => pattern.test(line));
+    const hasColon = line.includes(':') && !line.startsWith('{');
+    const isNotAnalysis = !isAnalysisField(line) && !line.includes('"') && !line.startsWith('#');
+    
+    if ((hasConversationPattern || hasColon) && isNotAnalysis) {
+      // Try to format as speaker if not already formatted
+      if (!line.match(/^SPEAKER\s+\d+:/i) && line.includes(':')) {
+        const colonIndex = line.indexOf(':');
+        const beforeColon = line.substring(0, colonIndex).trim();
+        const afterColon = line.substring(colonIndex + 1).trim();
+        
+        if (beforeColon.length > 0 && afterColon.length > 10) {
+          dialogueLines.push(`SPEAKER 1: ${beforeColon}: ${afterColon}`);
+        }
+      } else {
+        dialogueLines.push(line);
+      }
     }
   }
   
-  // Step 4: Try to extract dialogue-like content (lines with colons)
-  const dialogueLines = analysisText.split('\n')
+  return dialogueLines.slice(0, 20).join('\n'); // Limit lines to prevent overflow
+}
+
+// Enhanced function to clean transcription from Gemini's mixed responses
+function cleanTranscriptionFromGeminiResponse(text: string): string {
+  if (!text) return '';
+  
+  let cleaned = text;
+  
+  // Remove JSON artifacts and escape sequences
+  cleaned = cleaned
+    .replace(/\\n/g, '\n')
+    .replace(/\\"/g, '"')
+    .replace(/\\\//g, '/')
+    .replace(/[\{\}"]/g, '')
+    .replace(/^[,\s]+|[,\s]+$/g, '')
+    .trim();
+  
+  // Remove analysis section markers and headers
+  cleaned = cleaned
+    .replace(/## PASO \d+:.*$/gmi, '')
+    .replace(/## SECCIÓN \d+:.*$/gmi, '')
+    .replace(/\[TIPO DE CONTENIDO:.*?\]/gi, '')
+    .replace(/\*\*FORMATO OBLIGATORIO.*?\*\*/s, '')
+    .replace(/\*\*REGLAS ESTRICTAS.*?\*\*/s, '')
+    .replace(/\*\*EJEMPLO.*?\*\*/s, '');
+  
+  // Split into lines and filter for valid speaker dialogue
+  const lines = cleaned.split('\n')
+    .map(line => line.trim())
     .filter(line => {
-      const trimmed = line.trim();
-      return trimmed.length > 10 && 
-             (trimmed.includes(':') && !trimmed.startsWith('{') && !trimmed.startsWith('"')) &&
-             !isAnalysisField(trimmed);
-    })
-    .slice(0, 20); // Limit to prevent too much content
+      if (!line || line.length < 10) return false;
+      
+      // Skip analysis fields and markers
+      if (isAnalysisField(line)) return false;
+      if (line.startsWith('[') || line.startsWith('##') || line.startsWith('**')) return false;
+      if (line.includes('transcription') || line.includes('analysis')) return false;
+      
+      // Keep lines that look like speaker dialogue
+      return hasSpeakerFormat(line) || (line.includes(':') && !line.includes('"'));
+    });
   
-  if (dialogueLines.length > 0) {
-    let transcriptionText = dialogueLines.join('\n');
-    transcriptionText = cleanTranscriptionFromAnalysis(transcriptionText);
-    
-    if (transcriptionText.length > 50) {
-      console.log('[analysis-parser] Extracted transcription from dialogue lines');
-      return transcriptionText;
-    }
-  }
+  return lines.join('\n').trim();
+}
+
+// Enhanced speaker format detection
+function hasSpeakerFormat(text: string): boolean {
+  if (!text || text.length < 10) return false;
   
-  // Final fallback: clean portion of text
-  const cleanedText = cleanTranscriptionFromAnalysis(analysisText.substring(0, 2000));
-  console.log('[analysis-parser] Using fallback transcription extraction');
-  return cleanedText || "Contenido de transcripción no disponible en formato legible";
+  const speakerPatterns = [
+    /^SPEAKER\s+\d+:/i,
+    /^(PRESENTER|HOST|GUEST|LOCUTOR|ENTREVISTADO|CONDUCTOR|REPORTERO|REPORTERA|INVITADO|INVITADA|COMENTARISTA|ANALISTA|PERIODISTA):/i,
+    /^[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,20}:\s*[^:]/i
+  ];
+  
+  return speakerPatterns.some(pattern => pattern.test(text)) && 
+         !text.includes('{') && 
+         !text.includes('"transcription"') &&
+         !isAnalysisField(text);
 }
 
 // Extract keywords from text content

@@ -154,14 +154,14 @@ function getOrAssignSpeaker(rawSpeaker: string, speakerMap: Map<string, string>,
 }
 
 /**
- * Clean input text from analysis artifacts and mixed content
+ * Enhanced cleaning of input text from analysis artifacts and mixed content
  */
 function cleanInputText(text: string): string {
   if (!text) return "";
   
   let cleaned = text;
   
-  // Remove JSON structure artifacts
+  // Enhanced JSON and structure artifacts removal
   cleaned = cleaned
     .replace(/[\{\}]/g, '')
     .replace(/"[^"]*":\s*/g, '')
@@ -173,14 +173,34 @@ function cleanInputText(text: string): string {
     .replace(/^\s*,/gm, '')
     .trim();
   
-  // Remove analysis section markers
-  cleaned = cleaned.replace(/## SECCIÓN \d+:.*$/gmi, '');
+  // Remove enhanced analysis section markers and headers
+  cleaned = cleaned
+    .replace(/## PASO \d+:.*$/gmi, '')
+    .replace(/## SECCIÓN \d+:.*$/gmi, '')
+    .replace(/\*\*FORMATO OBLIGATORIO.*?\*\*/gs, '')
+    .replace(/\*\*REGLAS ESTRICTAS.*?\*\*/gs, '')
+    .replace(/\*\*EJEMPLO CORRECTO.*?\*\*/gs, '')
+    .replace(/\[TIPO DE CONTENIDO:.*?\]/gi, '');
   
-  return cleaned;
+  // Remove instruction text and format guidelines
+  const instructionPatterns = [
+    /CRÍTICO - SOLO DIÁLOGOS.*?(?=SPEAKER|$)/gs,
+    /Tu tarea principal.*?(?=SPEAKER|$)/gs,
+    /FORMATO OBLIGATORIO.*?(?=SPEAKER|$)/gs,
+    /REGLAS ESTRICTAS.*?(?=SPEAKER|$)/gs,
+    /USA NOMBRES REALES.*?(?=SPEAKER|$)/gs,
+    /NO incluyas análisis.*?(?=SPEAKER|$)/gs
+  ];
+  
+  instructionPatterns.forEach(pattern => {
+    cleaned = cleaned.replace(pattern, '');
+  });
+  
+  return cleaned.trim();
 }
 
 /**
- * Check if content is analysis-related rather than transcription dialogue
+ * Enhanced check if content is analysis-related rather than transcription dialogue
  */
 function isAnalysisContent(text: string): boolean {
   if (!text) return true;
@@ -188,26 +208,38 @@ function isAnalysisContent(text: string): boolean {
   const analysisKeywords = [
     'transcription', 'visual_analysis', 'analysis', 'summary', 'keywords', 'segments',
     'transcripción', 'análisis', 'resumen', 'palabras', 'segmentos',
-    'who', 'what', 'when', 'where', 'why', 'quién', 'qué', 'cuándo', 'dónde', 'por qué'
+    'who', 'what', 'when', 'where', 'why', 'quién', 'qué', 'cuándo', 'dónde', 'por qué',
+    'formato', 'reglas', 'ejemplo', 'paso', 'sección', 'crítico', 'obligatorio', 'estrictas'
   ];
   
   const lowerText = text.toLowerCase();
   
-  // Check for analysis field patterns
+  // Enhanced analysis field pattern detection
   const hasAnalysisPattern = analysisKeywords.some(keyword => 
     lowerText.startsWith(keyword + ':') || 
     lowerText.includes('"' + keyword + '"') ||
-    lowerText.includes(keyword + '":')
+    lowerText.includes(keyword + '":') ||
+    lowerText.includes(keyword + ' obligatorio') ||
+    lowerText.includes(keyword + ' para')
   );
   
-  // Check for JSON-like patterns
+  // Enhanced JSON and instruction pattern detection
   const hasJsonPattern = text.includes('{') || text.includes('}') || 
                          text.includes('":') || text.startsWith('"');
+                         
+  const isInstruction = text.includes('**') || text.startsWith('##') || 
+                       text.includes('FORMATO') || text.includes('REGLAS') ||
+                       text.includes('EJEMPLO') || text.includes('PASO');
   
   // Check if it's too short or looks like metadata
   const isTooShort = text.trim().length < 10;
   
-  return hasAnalysisPattern || hasJsonPattern || isTooShort;
+  // Check for content type markers
+  const hasContentMarker = text.includes('[TIPO DE CONTENIDO:') || 
+                          text.includes('[SECCIÓN') ||
+                          text.includes('[PASO');
+  
+  return hasAnalysisPattern || hasJsonPattern || isTooShort || isInstruction || hasContentMarker;
 }
 
 /**

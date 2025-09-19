@@ -168,50 +168,92 @@ function consolidateContent(content: string): string {
   return result.trim();
 }
 
-// Clean transcription content to remove analysis artifacts
+// Enhanced transcription cleaning with better validation
 function cleanTranscriptionContent(transcription: string): string {
   if (!transcription) return "";
   
   let cleaned = transcription;
   
-  // Remove JSON artifacts and analysis fields
+  // Enhanced JSON and structure cleanup
   cleaned = cleaned
-    .replace(/[\{\}]/g, '') // Remove braces
-    .replace(/"[^"]*":\s*/g, '') // Remove JSON keys
-    .replace(/\\n/g, '\n') // Convert literal \n to newlines
-    .replace(/\\"/g, '"') // Convert escaped quotes
-    .replace(/\\\//g, '/') // Convert escaped slashes
-    .replace(/[\[\]]/g, '') // Remove brackets
-    .replace(/,\s*$/gm, '') // Remove trailing commas
-    .replace(/^\s*,/gm, '') // Remove leading commas
+    .replace(/[\{\}]/g, '')
+    .replace(/"[^"]*":\s*/g, '')
+    .replace(/\\n/g, '\n')
+    .replace(/\\"/g, '"')
+    .replace(/\\\//g, '/')
+    .replace(/[\[\]]/g, '')
+    .replace(/,\s*$/gm, '')
+    .replace(/^\s*,/gm, '')
+    .replace(/## PASO \d+:.*$/gmi, '') // Remove step headers
+    .replace(/## SECCIÓN \d+:.*$/gmi, '') // Remove section headers
+    .replace(/\[TIPO DE CONTENIDO:.*?\]/gi, '') // Remove content type markers
     .trim();
   
-  // Filter out analysis fields and keep only speaker dialogue
+  // Enhanced filtering for speaker dialogue only
   const lines = cleaned.split('\n').filter(line => {
     const trimmed = line.trim();
-    if (!trimmed) return false;
+    if (!trimmed || trimmed.length < 10) return false;
     
-    // Remove analysis field lines
+    // Enhanced analysis field detection
     const analysisKeywords = [
-      'visual_analysis', 'analysis', 'summary', 'keywords', 'segments',
-      'análisis', 'resumen', 'palabras', 'segmentos',
-      'who', 'what', 'when', 'where', 'why', 'quién', 'qué', 'cuándo', 'dónde', 'por qué'
+      'transcription', 'visual_analysis', 'analysis', 'summary', 'keywords', 'segments',
+      'transcripción', 'análisis', 'resumen', 'palabras', 'segmentos',
+      'who', 'what', 'when', 'where', 'why', 'quién', 'qué', 'cuándo', 'dónde', 'por qué',
+      'formato', 'reglas', 'ejemplo', 'paso', 'sección', 'crítico'
     ];
     
     const lowerLine = trimmed.toLowerCase();
     const isAnalysisField = analysisKeywords.some(keyword => 
       lowerLine.startsWith(keyword + ':') || 
+      lowerLine.includes(keyword + ':') ||
       lowerLine.startsWith('"' + keyword + '"') ||
       lowerLine.includes('"' + keyword + '":')
     );
     
+    // Skip analysis fields and formatting instructions
     if (isAnalysisField) return false;
+    if (trimmed.startsWith('**') || trimmed.startsWith('##')) return false;
+    if (trimmed.includes('FORMATO OBLIGATORIO') || trimmed.includes('REGLAS ESTRICTAS')) return false;
     
-    // Keep lines that look like speaker dialogue
-    return hasSpeakerFormat(trimmed);
+    // Enhanced speaker dialogue validation
+    return hasValidSpeakerFormat(trimmed) || hasDialoguePattern(trimmed);
   });
   
   return lines.join('\n').trim();
+}
+
+// Enhanced speaker format validation
+function hasValidSpeakerFormat(text: string): boolean {
+  if (!text || text.length < 10) return false;
+  
+  const speakerPatterns = [
+    /^SPEAKER\s+\d+:\s*[^:]+:\s*.+/i, // SPEAKER 1: NAME: content
+    /^SPEAKER\s+\d+:\s*.+/i, // SPEAKER 1: content
+    /^(PRESENTER|HOST|GUEST|LOCUTOR|ENTREVISTADO|CONDUCTOR|REPORTERO|REPORTERA|INVITADO|INVITADA|COMENTARISTA|ANALISTA|PERIODISTA):\s*.+/i,
+    /^[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,20}:\s*[^:].+/i // NAME: content
+  ];
+  
+  return speakerPatterns.some(pattern => pattern.test(text)) && 
+         !text.includes('{') && 
+         !text.includes('"') &&
+         !text.includes('transcription') &&
+         !text.includes('análisis');
+}
+
+// Check for natural dialogue patterns
+function hasDialoguePattern(text: string): boolean {
+  if (!text || text.length < 15) return false;
+  
+  const dialogueIndicators = [
+    /\b(dice|comenta|afirma|explica|menciona|señala|indica|pregunta|responde):/i,
+    /\b(buenos días|buenas tardes|buenas noches|bienvenidos|gracias|efectivamente):/i,
+    /:.*\b(es|son|está|están|fue|fueron|será|serán|tiene|tienen)\b/i
+  ];
+  
+  const hasColon = text.includes(':') && !text.includes('"');
+  const hasDialogueMarkers = dialogueIndicators.some(pattern => pattern.test(text));
+  
+  return hasColon && (hasDialogueMarkers || text.split(':')[0].trim().length < 25);
 }
 
 // Check if text has speaker format

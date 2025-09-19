@@ -833,11 +833,33 @@ function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
     return `**${client.name}:** ${keywords}`;
   }).join('\n');
 
-  return `Eres un analista experto en contenido de TV. Analiza este video de televisión en español y responde EXCLUSIVAMENTE en el siguiente formato JSON válido (sin texto adicional antes o después):
+  return `Eres un analista experto en contenido de TV. Analiza este video de televisión en español.
+
+## PASO 1: TRANSCRIPCIÓN (CRÍTICO - SOLO DIÁLOGOS)
+Tu tarea principal es extraer ÚNICAMENTE los diálogos hablados con identificación exacta de speakers.
+
+**FORMATO OBLIGATORIO PARA TRANSCRIPCIÓN:**
+SPEAKER 1: [NOMBRE REAL]: [texto exacto hablado]
+SPEAKER 2: [NOMBRE REAL]: [texto exacto hablado]
+
+**REGLAS ESTRICTAS:**
+- USA NOMBRES REALES de los hablantes (NO "Hablante 1" o "Participante A")
+- CADA CAMBIO de hablante debe ir en línea SEPARADA
+- MANTÉN el mismo nombre para cada speaker durante TODO el video
+- NO incluyas análisis, resúmenes ni comentarios en la transcripción
+- SOLO el texto exacto que se escucha hablar
+
+**EJEMPLO CORRECTO:**
+SPEAKER 1: MARÍA RODRÍGUEZ: Buenos días y bienvenidos al noticiero
+SPEAKER 2: CARLOS LÓPEZ: Gracias María, hoy tenemos noticias importantes
+SPEAKER 1: MARÍA RODRÍGUEZ: Efectivamente Carlos, empecemos con los titulares
+
+## PASO 2: ANÁLISIS SEPARADO
+Después de la transcripción, proporciona el análisis en formato JSON:
 
 {
-  "transcription": "[SECCIÓN 1] Transcripción completa con formato SPEAKER X: NOMBRE: texto hablado",
-  "visual_analysis": "[SECCIÓN 2] Análisis visual y de contenido", 
+  "transcription": "[AQUÍ VA SOLO LA TRANSCRIPCIÓN DEL PASO 1 - SIN ANÁLISIS]",
+  "visual_analysis": "Análisis visual del contenido", 
   "segments": [
     {
       "headline": "Título del segmento",
