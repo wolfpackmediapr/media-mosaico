@@ -7,17 +7,23 @@ export async function processVideoWithGemini(
   clients: any[] = []
 ) {
   try {
-    console.log('[gemini-unified] Starting unified video processing...', {
-      blobSize: videoBlob.size,
-      blobType: videoBlob.type,
-      videoPath,
-      categoriesCount: categories.length,
-      clientsCount: clients.length
-    });
-    
-    // Step 1: Upload video to Gemini (10% progress)
-    progressCallback?.(0.1);
-    const { file: uploadedFile, mimeType } = await uploadVideoToGemini(videoBlob, apiKey, videoPath);
+  console.log('[gemini-unified] Starting unified video processing...', {
+    blobSize: videoBlob.size,
+    blobType: videoBlob.type,
+    videoPath,
+    categoriesCount: categories.length,
+    clientsCount: clients.length
+  });
+  
+  // Step 1: Upload video to Gemini (10% progress)
+  progressCallback?.(0.1);
+  const { file: uploadedFile, mimeType } = await uploadVideoToGemini(videoBlob, apiKey, videoPath);
+  
+  console.log('[gemini-unified] Video uploaded successfully', {
+    fileName: uploadedFile.name,
+    detectedMimeType: mimeType,
+    originalBlobType: videoBlob.type
+  });
     
     // Step 2: Wait for processing (30% progress when complete)
     progressCallback?.(0.2);
@@ -53,6 +59,8 @@ async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, videoPath: s
   if (!mimeType || mimeType === 'application/octet-stream') {
     // Determine MIME type from file extension
     const extension = videoPath.split('.').pop()?.toLowerCase();
+    console.log('[gemini-unified] Detecting MIME type from extension:', extension);
+    
     switch (extension) {
       case 'mp4':
         mimeType = 'video/mp4';
@@ -77,10 +85,20 @@ async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, videoPath: s
         mimeType = 'video/mpv';
         break;
       default:
+        console.log('[gemini-unified] Unknown extension, using default MIME type:', extension);
         mimeType = 'video/mp4'; // Default fallback
     }
     console.log(`[gemini-unified] Corrected MIME type to: ${mimeType}`);
   }
+  
+  // Validate MIME type for Gemini compatibility
+  const supportedMimeTypes = ['video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/mp2', 'video/mpv'];
+  if (!supportedMimeTypes.includes(mimeType)) {
+    console.warn('[gemini-unified] Unsupported MIME type detected, falling back to video/mp4:', mimeType);
+    mimeType = 'video/mp4';
+  }
+  
+  console.log('[gemini-unified] Final MIME type for processing:', mimeType);
   
   const formData = new FormData();
   const fileName = videoPath.split('/').pop() || 'video.mp4';
@@ -179,7 +197,12 @@ async function waitForFileProcessing(
 }
 
 async function generateComprehensiveAnalysis(fileUri: string, apiKey: string, categories: any[] = [], clients: any[] = [], mimeType: string = 'video/mp4') {
-  console.log('[gemini-unified] Generating comprehensive analysis...');
+  console.log('[gemini-unified] Generating comprehensive analysis...', {
+    fileUri,
+    mimeType,
+    categoriesCount: categories.length,
+    clientsCount: clients.length
+  });
   
   // Build dynamic category list
   const categoriesText = categories.length > 0 
