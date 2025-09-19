@@ -23,68 +23,52 @@ export interface ParsedAnalysis {
 export function parseAnalysisText(analysisText: string): ParsedAnalysis {
   console.log('[process-tv-with-gemini] Raw analysis length:', analysisText.length);
 
-  // Try multiple JSON cleanup strategies
-  const cleanupStrategies = [
-    // Strategy 1: Standard cleanup
-    (text: string) => text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim(),
-    // Strategy 2: More aggressive cleanup
-    (text: string) => {
-      let cleaned = text.replace(/```[\w]*\n?/g, '').replace(/```\n?/g, '').trim();
-      // Remove any text before first { and after last }
-      const firstBrace = cleaned.indexOf('{');
-      const lastBrace = cleaned.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        cleaned = cleaned.substring(firstBrace, lastBrace + 1);
-      }
-      return cleaned;
-    },
-    // Strategy 3: Extract JSON from mixed content
-    (text: string) => {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      return jsonMatch ? jsonMatch[0] : text;
-    }
-  ];
-
-  // Try each cleanup strategy
-  for (let i = 0; i < cleanupStrategies.length; i++) {
-    try {
-      const cleanJson = cleanupStrategies[i](analysisText);
-      console.log(`[process-tv-with-gemini] Trying cleanup strategy ${i + 1}, cleaned length:`, cleanJson.length);
-      
+  // Strategy 1: Enhanced JSON extraction with analysis cleaning
+  try {
+    const cleanJson = extractAndCleanJSON(analysisText);
+    if (cleanJson) {
       const parsedAnalysis = JSON.parse(cleanJson);
-      console.log('[process-tv-with-gemini] Successfully parsed JSON analysis with strategy', i + 1);
+      console.log('[process-tv-with-gemini] Successfully parsed clean JSON analysis');
       
-      // Validate that we have the expected structure
-      if (parsedAnalysis && (parsedAnalysis.transcription || parsedAnalysis.summary)) {
-        return parsedAnalysis;
-      } else {
-        console.warn('[process-tv-with-gemini] Parsed JSON missing expected fields, trying next strategy');
+      // Clean the transcription field to remove any analysis content
+      if (parsedAnalysis.transcription) {
+        parsedAnalysis.transcription = cleanTranscriptionFromAnalysis(parsedAnalysis.transcription);
       }
-    } catch (parseError) {
-      console.log(`[process-tv-with-gemini] Strategy ${i + 1} failed:`, parseError.message);
+      
+      // Clean other analysis fields to avoid mixed content
+      if (parsedAnalysis.summary) {
+        parsedAnalysis.summary = cleanAnalysisContent(parsedAnalysis.summary);
+      }
+      
+      if (parsedAnalysis.visual_analysis) {
+        parsedAnalysis.visual_analysis = cleanAnalysisContent(parsedAnalysis.visual_analysis);
+      }
+      
+      return parsedAnalysis;
     }
+  } catch (parseError) {
+    console.log('[process-tv-with-gemini] Enhanced JSON parsing failed:', parseError.message);
   }
 
-  // All JSON strategies failed - enhanced fallback with TV speaker parsing
-  console.error('[process-tv-with-gemini] All JSON parse strategies failed');
-  console.error('[process-tv-with-gemini] Raw text sample:', analysisText.substring(0, 500));
+  // Strategy 2: Manual field extraction from mixed content
+  console.log('[process-tv-with-gemini] Falling back to manual extraction');
   
-  // Extract transcription using TV speaker patterns
   const transcriptionText = extractTranscriptionWithSpeakerParsing(analysisText);
+  const cleanAnalysisOnly = extractAnalysisFieldsOnly(analysisText);
   
   return {
     transcription: transcriptionText,
-    visual_analysis: "Análisis visual procesado con formato alternativo",
-    segments: [{
+    visual_analysis: cleanAnalysisOnly.visual_analysis || "Análisis visual procesado",
+    segments: cleanAnalysisOnly.segments || [{
       headline: "Contenido Principal", 
-      text: transcriptionText.substring(0, 1000),
+      text: cleanAnalysisOnly.summary?.substring(0, 500) || "Resumen del contenido",
       start: 0,
       end: 60,
-      keywords: extractKeywordsFromText(transcriptionText)
+      keywords: cleanAnalysisOnly.keywords || []
     }],
-    keywords: extractKeywordsFromText(transcriptionText),
-    summary: "Análisis completado exitosamente con procesamiento alternativo",
-    analysis: {
+    keywords: cleanAnalysisOnly.keywords || extractKeywordsFromText(transcriptionText),
+    summary: cleanAnalysisOnly.summary || "Análisis completado exitosamente",
+    analysis: cleanAnalysisOnly.analysis || {
       who: "Participantes del contenido analizado",
       what: "Análisis de contenido televisivo", 
       when: "Durante la transmisión",
@@ -92,6 +76,105 @@ export function parseAnalysisText(analysisText: string): ParsedAnalysis {
       why: "Información noticiosa de relevancia"
     }
   };
+}
+
+// Extract and clean JSON from mixed content
+function extractAndCleanJSON(text: string): string | null {
+  // Strategy 1: Find JSON between braces
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+  
+  let cleanJson = jsonMatch[0];
+  
+  // Remove transcription content that leaked into analysis fields
+  try {
+    const parsed = JSON.parse(cleanJson);
+    
+    // Clean each field
+    Object.keys(parsed).forEach(key => {
+      if (typeof parsed[key] === 'string') {
+        // Remove speaker dialogue from analysis fields
+        if (key !== 'transcription') {
+          parsed[key] = parsed[key]
+            .replace(/SPEAKER\s+\d+:\s*[^:]+:\s*.+/g, '')
+            .replace(/^[A-ZÁÉÍÓÚÑÜ\s]{2,25}:\s*.+$/gm, '')
+            .trim();
+        }
+      }
+    });
+    
+    return JSON.stringify(parsed);
+  } catch (e) {
+    // If parsing failed, try basic cleanup
+    return cleanJson
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+  }
+}
+
+// Extract only analysis fields, excluding transcription
+function extractAnalysisFieldsOnly(text: string): {
+  visual_analysis?: string;
+  segments?: any[];
+  keywords?: string[];
+  summary?: string;
+  analysis?: any;
+} {
+  const result: any = {};
+  
+  // Extract visual analysis
+  const visualMatch = text.match(/"visual_analysis":\s*"([^"]+)"/);
+  if (visualMatch) {
+    result.visual_analysis = visualMatch[1];
+  }
+  
+  // Extract summary
+  const summaryMatch = text.match(/"summary":\s*"([^"]+)"/);
+  if (summaryMatch) {
+    result.summary = summaryMatch[1];
+  }
+  
+  // Extract keywords
+  const keywordsMatch = text.match(/"keywords":\s*\[([^\]]+)\]/);
+  if (keywordsMatch) {
+    try {
+      result.keywords = JSON.parse(`[${keywordsMatch[1]}]`);
+    } catch (e) {
+      result.keywords = keywordsMatch[1].split(',').map(k => k.replace(/"/g, '').trim());
+    }
+  }
+  
+  // Extract analysis object
+  const analysisMatch = text.match(/"analysis":\s*\{([^}]+)\}/);
+  if (analysisMatch) {
+    try {
+      result.analysis = JSON.parse(`{${analysisMatch[1]}}`);
+    } catch (e) {
+      // Manual parsing fallback
+      result.analysis = {};
+      const fields = ['who', 'what', 'when', 'where', 'why'];
+      fields.forEach(field => {
+        const fieldMatch = text.match(new RegExp(`"${field}":\\s*"([^"]+)"`, 'i'));
+        if (fieldMatch) {
+          result.analysis[field] = fieldMatch[1];
+        }
+      });
+    }
+  }
+  
+  return result;
+}
+
+// Clean analysis content to remove transcription contamination
+function cleanAnalysisContent(content: string): string {
+  if (!content) return content;
+  
+  return content
+    .replace(/SPEAKER\s+\d+:\s*[^:]+:\s*.+/g, '') // Remove speaker lines
+    .replace(/^[A-ZÁÉÍÓÚÑÜ\s]{2,25}:\s*.+$/gm, '') // Remove speaker patterns
+    .replace(/\n\s*\n\s*\n/g, '\n\n') // Clean up multiple newlines
+    .trim();
 }
 
 // Enhanced transcription extraction with better parsing

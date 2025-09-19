@@ -835,31 +835,42 @@ function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
 
   return `Eres un analista experto en contenido de TV. Analiza este video de televisión en español.
 
-## PASO 1: TRANSCRIPCIÓN (CRÍTICO - SOLO DIÁLOGOS)
-Tu tarea principal es extraer ÚNICAMENTE los diálogos hablados con identificación exacta de speakers.
+## INSTRUCCIONES CRÍTICAS:
+1. SEPARA completamente la TRANSCRIPCIÓN del ANÁLISIS
+2. IDENTIFICA correctamente CADA CAMBIO de hablante
+3. USA nombres reales, NO números genéricos
+4. NUNCA mezcles transcripción con análisis
 
-**FORMATO OBLIGATORIO PARA TRANSCRIPCIÓN:**
-SPEAKER 1: [NOMBRE REAL]: [texto exacto hablado]
-SPEAKER 2: [NOMBRE REAL]: [texto exacto hablado]
+## TRANSCRIPCIÓN PASO A PASO:
 
-**REGLAS ESTRICTAS:**
-- USA NOMBRES REALES de los hablantes (NO "Hablante 1" o "Participante A")
-- CADA CAMBIO de hablante debe ir en línea SEPARADA
-- MANTÉN el mismo nombre para cada speaker durante TODO el video
-- NO incluyas análisis, resúmenes ni comentarios en la transcripción
-- SOLO el texto exacto que se escucha hablar
+**PASO 1 - ESCUCHA E IDENTIFICA:**
+- Identifica CUÁNTAS voces diferentes hablan
+- Detecta CADA cambio de voz/hablante
+- Asigna nombres reales a cada voz
 
-**EJEMPLO CORRECTO:**
-SPEAKER 1: MARÍA RODRÍGUEZ: Buenos días y bienvenidos al noticiero
-SPEAKER 2: CARLOS LÓPEZ: Gracias María, hoy tenemos noticias importantes
-SPEAKER 1: MARÍA RODRÍGUEZ: Efectivamente Carlos, empecemos con los titulares
+**PASO 2 - FORMATO ESTRICTO:**
+Cada línea de transcripción DEBE seguir este formato exacto:
+SPEAKER 1: [NOMBRE REAL]: [frase completa del hablante]
+SPEAKER 2: [NOMBRE DIFERENTE]: [su frase completa]
 
-## PASO 2: ANÁLISIS SEPARADO
-Después de la transcripción, proporciona el análisis en formato JSON:
+**EJEMPLOS CORRECTOS:**
+SPEAKER 1: MARÍA RODRÍGUEZ: Buenos días Puerto Rico, soy María Rodríguez
+SPEAKER 2: CARLOS VEGA: Gracias María, aquí Carlos Vega con las noticias
+SPEAKER 1: MARÍA RODRÍGUEZ: Empezamos con los titulares de hoy
+SPEAKER 3: ANA TORRES: Desde el Capitolio, Ana Torres reportando
+
+**EJEMPLOS INCORRECTOS:**
+❌ SPEAKER 1: Buenos días, soy María. Aquí tenemos las noticias de Carlos sobre...
+❌ HABLANTE 1: María dice buenos días y Carlos responde que...
+❌ Los presentadores saludan y empiezan el programa...
+
+## ANÁLISIS EN JSON SEPARADO:
+
+Después de completar la transcripción, proporciona SOLO análisis limpio:
 
 {
-  "transcription": "[AQUÍ VA SOLO LA TRANSCRIPCIÓN DEL PASO 1 - SIN ANÁLISIS]",
-  "visual_analysis": "Análisis visual del contenido", 
+  "transcription": "[AQUÍ COPIAS EXACTAMENTE la transcripción de arriba - SIN MODIFICAR]",
+  "visual_analysis": "Descripción de elementos visuales únicamente", 
   "segments": [
     {
       "headline": "Título del segmento",
@@ -870,10 +881,10 @@ Después de la transcripción, proporciona el análisis en formato JSON:
     }
   ],
   "keywords": ["palabra1", "palabra2", "palabra3"],
-  "summary": "Resumen ejecutivo completo",
+  "summary": "Resumen ejecutivo del contenido - SIN transcripción literal",
   "analysis": {
-    "who": "Quiénes participan",
-    "what": "Qué se discute",
+    "who": "Quiénes participan (nombres únicamente)",
+    "what": "Qué temas se discuten (sin transcripción literal)",
     "when": "Cuándo ocurre",
     "where": "Dónde se desarrolla", 
     "why": "Por qué es relevante"
@@ -967,86 +978,193 @@ Incluye el siguiente análisis:
 
 // Helper functions to extract data from analysis
 function extractTranscriptionFromAnalysis(analysis: string): string {
-  // Extract transcription from text-based analysis
-  const transcriptionMatch = analysis.match(/## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES\s*([\s\S]*?)(?=\n## SECCIÓN 2:|$)/);
-  if (transcriptionMatch) {
-    const extractedText = transcriptionMatch[1].trim().replace(/^- Format:.*\n- Uses.*\n- Complete.*\n\n?/m, '');
-    
-    // If we have speaker patterns, return as-is
-    if (hasTvSpeakerPatterns(extractedText)) {
-      console.log('[extractTranscriptionFromAnalysis] Found speaker patterns in extracted text');
-      return extractedText;
+  console.log('[extractTranscriptionFromAnalysis] Starting transcription extraction');
+  
+  // Strategy 1: Extract from JSON structure first
+  try {
+    const jsonMatch = analysis.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.transcription && typeof parsed.transcription === 'string') {
+        const cleanTranscription = cleanTranscriptionOnly(parsed.transcription);
+        if (cleanTranscription && hasSeparatedSpeakers(cleanTranscription)) {
+          console.log('[extractTranscriptionFromAnalysis] Found clean transcription in JSON');
+          return cleanTranscription;
+        }
+      }
     }
-    
-    // Try to parse and reformat using TV speaker parser
-    console.log('[extractTranscriptionFromAnalysis] No speaker patterns found, attempting to parse and reformat');
-    return parseTvSpeakerFormattedText(extractedText);
+  } catch (error) {
+    console.log('[extractTranscriptionFromAnalysis] JSON parsing failed, trying text extraction');
   }
   
-  // Fallback: look for speaker patterns in the full analysis
-  const speakerPatterns = analysis.match(/(?:SPEAKER\s+\d+:|PRESENTER:|HOST:|LOCUTOR:|ENTREVISTADO:)[\s\S]*?(?=\n\n|\n(?:SPEAKER|PRESENTER|HOST|LOCUTOR|ENTREVISTADO)|$)/gi);
+  // Strategy 2: Extract from structured text sections
+  const sectionPatterns = [
+    /## TRANSCRIPCIÓN PASO A PASO:[\s\S]*?(\*\*EJEMPLOS CORRECTOS:\*\*[\s\S]*?)(?=##|\{|$)/s,
+    /SPEAKER\s+\d+:[\s\S]*?(?=\n\n\{|\n\{|$)/s,
+    /^(SPEAKER\s+\d+:.*$)/gm
+  ];
   
-  if (speakerPatterns && speakerPatterns.length > 0) {
-    console.log('[extractTranscriptionFromAnalysis] Found speaker patterns in full analysis');
-    return speakerPatterns.join('\n\n');
+  for (const pattern of sectionPatterns) {
+    const matches = analysis.match(pattern);
+    if (matches) {
+      const extractedText = Array.isArray(matches) ? matches.join('\n') : matches[0];
+      const cleanText = cleanTranscriptionOnly(extractedText);
+      if (cleanText && hasSeparatedSpeakers(cleanText)) {
+        console.log('[extractTranscriptionFromAnalysis] Found speaker patterns in text sections');
+        return cleanText;
+      }
+    }
   }
   
-  console.log('[extractTranscriptionFromAnalysis] No speaker patterns found, returning raw analysis');
-  return analysis; // Fallback to full analysis if no match
+  // Strategy 3: Look for individual SPEAKER lines throughout the text
+  const speakerLines = analysis.match(/^SPEAKER\s+\d+:\s*[^:]+:\s*.+$/gm);
+  if (speakerLines && speakerLines.length > 1) {
+    console.log('[extractTranscriptionFromAnalysis] Found multiple speaker lines');
+    return speakerLines.join('\n');
+  }
+  
+  // Strategy 4: Enhanced parsing for mixed content
+  const enhancedParsing = parseAndSeparateSpeakers(analysis);
+  if (enhancedParsing && enhancedParsing.length > 50) {
+    console.log('[extractTranscriptionFromAnalysis] Used enhanced parsing');
+    return enhancedParsing;
+  }
+  
+  console.log('[extractTranscriptionFromAnalysis] All strategies failed, returning fallback');
+  return 'Transcripción no disponible - no se pudieron identificar speakers separados';
 }
 
-// Parse and format TV speaker text properly
-function parseTvSpeakerFormattedText(text: string): string {
-  if (!text) return text;
+// Clean transcription content only - remove all analysis
+function cleanTranscriptionOnly(text: string): string {
+  if (!text) return '';
   
-  // Try to identify speaker changes and format them properly
-  const lines = text.split('\n').filter(line => line.trim());
-  const formattedLines: string[] = [];
-  let currentSpeaker = '';
-  let speakersFound = new Set<string>();
+  let cleaned = text;
+  
+  // Remove JSON artifacts
+  cleaned = cleaned
+    .replace(/\\n/g, '\n')
+    .replace(/\\"/g, '"')
+    .replace(/\\\//g, '/')
+    .replace(/[\{\}"]/g, '')
+    .trim();
+  
+  // Remove analysis sections and markers
+  cleaned = cleaned
+    .replace(/## ANÁLISIS EN JSON SEPARADO:[\s\S]*/s, '')
+    .replace(/\{[\s\S]*\}/, '')
+    .replace(/## INSTRUCCIONES CRÍTICAS:[\s\S]*?(?=SPEAKER\s+\d+:|$)/s, '')
+    .replace(/\*\*PASO \d+ - [\s\S]*?(?=SPEAKER\s+\d+:|$)/s, '')
+    .replace(/\*\*EJEMPLOS [\s\S]*?(?=SPEAKER\s+\d+:|$)/s, '')
+    .replace(/❌[\s\S]*?(?=SPEAKER\s+\d+:|$)/s, '');
+  
+  // Extract only SPEAKER lines
+  const speakerLines = cleaned.match(/^SPEAKER\s+\d+:\s*[^:]+:\s*.+$/gm);
+  if (speakerLines && speakerLines.length > 0) {
+    return speakerLines.join('\n');
+  }
+  
+  // Fallback: look for any speaker-like patterns
+  const lines = cleaned.split('\n')
+    .map(line => line.trim())
+    .filter(line => {
+      if (!line || line.length < 10) return false;
+      // Keep only lines that look like speaker dialogue
+      return /^SPEAKER\s+\d+:\s*[^:]+:\s*.+/i.test(line) ||
+             /^[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,20}:\s*[^:].+/.test(line);
+    });
+  
+  return lines.join('\n');
+}
+
+// Check if text has properly separated speakers
+function hasSeparatedSpeakers(text: string): boolean {
+  if (!text) return false;
+  
+  const speakerMatches = text.match(/^SPEAKER\s+\d+:/gm);
+  const uniqueSpeakers = new Set();
+  
+  if (speakerMatches) {
+    speakerMatches.forEach(match => {
+      const speakerNum = match.match(/SPEAKER\s+(\d+):/);
+      if (speakerNum) uniqueSpeakers.add(speakerNum[1]);
+    });
+  }
+  
+  // Should have at least 2 different speakers or multiple speaker instances
+  return uniqueSpeakers.size >= 2 || (speakerMatches && speakerMatches.length >= 3);
+}
+
+// Enhanced parsing to separate speakers from mixed content
+function parseAndSeparateSpeakers(text: string): string {
+  if (!text) return '';
+  
+  console.log('[parseAndSeparateSpeakers] Starting enhanced speaker separation');
+  
+  const lines = text.split('\n');
+  const speakerLines: string[] = [];
+  const seenSpeakers = new Map<string, number>();
+  let speakerCounter = 1;
   
   for (const line of lines) {
     const trimmedLine = line.trim();
-    if (!trimmedLine) continue;
+    if (!trimmedLine || trimmedLine.length < 15) continue;
     
-    // Check if line contains speaker indicators
-    const speakerIndicators = [
-      /^([A-ZÁÉÍÓÚÑÜ\s]+):\s*(.+)/,  // "NOMBRE: texto"
-      /^-\s*([A-ZÁÉÍÓÚÑÜ\s]+):\s*(.+)/, // "- NOMBRE: texto"
-      /\[([A-ZÁÉÍÓÚÑÜ\s]+)\]:\s*(.+)/ // "[NOMBRE]: texto"
-    ];
+    // Skip analysis content
+    if (isAnalysisContent(trimmedLine)) continue;
     
-    let matched = false;
-    for (const pattern of speakerIndicators) {
-      const match = trimmedLine.match(pattern);
-      if (match) {
-        const speaker = match[1].trim();
-        const text = match[2].trim();
-        
-        // Assign consistent speaker IDs
-        if (!speakersFound.has(speaker)) {
-          speakersFound.add(speaker);
-        }
-        
-        formattedLines.push(`SPEAKER ${Array.from(speakersFound).indexOf(speaker) + 1}: ${speaker}: ${text}`);
-        matched = true;
-        break;
-      }
+    // Look for existing SPEAKER format
+    const existingSpeaker = trimmedLine.match(/^SPEAKER\s+(\d+):\s*([^:]+):\s*(.+)$/);
+    if (existingSpeaker) {
+      speakerLines.push(trimmedLine);
+      continue;
     }
     
-    if (!matched) {
-      // If no speaker pattern, try to associate with previous speaker or create new one
-      if (currentSpeaker) {
-        formattedLines.push(`${currentSpeaker} (continuación): ${trimmedLine}`);
-      } else {
-        // First speaker by default
-        formattedLines.push(`SPEAKER 1: ${trimmedLine}`);
-        currentSpeaker = 'SPEAKER 1';
+    // Look for speaker patterns to convert
+    const speakerPatterns = [
+      /^([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{2,25}):\s*(.+)$/,  // "NOMBRE APELLIDO: texto"
+      /^-\s*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{2,25}):\s*(.+)$/, // "- NOMBRE: texto"
+      /\[([A-ZÁÉÍÓÚÑÜ\s]+)\]:\s*(.+)$/ // "[NOMBRE]: texto"
+    ];
+    
+    for (const pattern of speakerPatterns) {
+      const match = trimmedLine.match(pattern);
+      if (match && match[2] && match[2].length > 10) {
+        const speakerName = match[1].trim();
+        const dialogue = match[2].trim();
+        
+        // Assign consistent speaker numbers
+        if (!seenSpeakers.has(speakerName)) {
+          seenSpeakers.set(speakerName, speakerCounter++);
+        }
+        
+        const speakerNum = seenSpeakers.get(speakerName);
+        speakerLines.push(`SPEAKER ${speakerNum}: ${speakerName}: ${dialogue}`);
+        break;
       }
     }
   }
   
-  return formattedLines.join('\n\n');
+  console.log(`[parseAndSeparateSpeakers] Found ${speakerLines.length} speaker lines with ${seenSpeakers.size} unique speakers`);
+  return speakerLines.join('\n');
+}
+
+// Check if line contains analysis content
+function isAnalysisContent(text: string): boolean {
+  const analysisKeywords = [
+    'analysis', 'análisis', 'resumen', 'summary', 'keywords', 'palabras',
+    'visual_analysis', 'segments', 'transcription', 'transcripción',
+    'who', 'what', 'when', 'where', 'why', 'quién', 'qué', 'cuándo', 'dónde', 'por qué',
+    'JSON', 'PASO', 'INSTRUCCIONES', 'CRÍTICAS', 'EJEMPLOS', 'FORMATO'
+  ];
+  
+  const lowerText = text.toLowerCase();
+  return analysisKeywords.some(keyword => 
+    lowerText.includes(keyword.toLowerCase()) ||
+    text.startsWith('##') ||
+    text.startsWith('**') ||
+    text.startsWith('{') ||
+    text.includes('"')
+  );
 }
 
 // Check for TV speaker patterns
