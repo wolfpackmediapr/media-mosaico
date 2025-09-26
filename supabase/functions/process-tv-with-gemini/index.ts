@@ -629,7 +629,12 @@ async function processChunkedUploadWithGemini(
                       }
                     },
                     {
-                      text: buildTvAnalysisPrompt(categories, clients)
+                      text: constructTvPrompt(
+                        categories.map(c => c.name),
+                        clients,
+                        '',
+                        true
+                      )
                     }
                   ]
                 }
@@ -788,7 +793,12 @@ async function processAssembledVideoWithGemini(
                       }
                     },
                     {
-                      text: buildTvAnalysisPrompt(categories, clients)
+                      text: constructTvPrompt(
+                        categories.map(c => c.name),
+                        clients,
+                        '',
+                        true
+                      )
                     }
                   ]
                 }
@@ -872,166 +882,6 @@ async function processAssembledVideoWithGemini(
   }
 }
 
-function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
-  // Generate dynamic clients list
-  const clientsList = clients.map(c => c.name).join('\n   - ');
-  
-  // Generate dynamic categories list
-  const categoriesList = [
-    'Accidentes', 'Agencia de Gobierno', 'Ambiente', 'Ambiente & El Tiempo',
-    'Ciencia & Tecnología', 'Comunidad', 'Crimen', 'Deportes',
-    'Economía & Negocios', 'Educación & Cultura', 'EE.UU. & Internacionales',
-    'Entretenimiento', 'Gobierno', 'Otras', 'Política', 'Religión', 'Salud', 'Tribunales'
-  ].join('\n   - ');
-  
-  // Generate dynamic client-keyword mapping
-  const clientKeywordMapping = clients.map(client => {
-    const keywords = Array.isArray(client.keywords) ? client.keywords.join(', ') : '';
-    return `**${client.name}:** ${keywords}`;
-  }).join('\n');
-
-  return `Eres un analista experto en contenido de TV. Analiza este video de televisión en español.
-
-## INSTRUCCIONES CRÍTICAS:
-1. SEPARA completamente la TRANSCRIPCIÓN del ANÁLISIS
-2. IDENTIFICA correctamente CADA CAMBIO de hablante
-3. USA nombres reales, NO números genéricos
-4. NUNCA mezcles transcripción con análisis
-
-## TRANSCRIPCIÓN PASO A PASO:
-
-**PASO 1 - ESCUCHA E IDENTIFICA:**
-- Identifica CUÁNTAS voces diferentes hablan
-- Detecta CADA cambio de voz/hablante
-- Asigna nombres reales a cada voz
-
-**PASO 2 - FORMATO ESTRICTO:**
-Cada línea de transcripción DEBE seguir este formato exacto:
-SPEAKER 1: [NOMBRE REAL]: [frase completa del hablante]
-SPEAKER 2: [NOMBRE DIFERENTE]: [su frase completa]
-
-**EJEMPLOS CORRECTOS:**
-SPEAKER 1: MARÍA RODRÍGUEZ: Buenos días Puerto Rico, soy María Rodríguez
-SPEAKER 2: CARLOS VEGA: Gracias María, aquí Carlos Vega con las noticias
-SPEAKER 1: MARÍA RODRÍGUEZ: Empezamos con los titulares de hoy
-SPEAKER 3: ANA TORRES: Desde el Capitolio, Ana Torres reportando
-
-**EJEMPLOS INCORRECTOS:**
-❌ SPEAKER 1: Buenos días, soy María. Aquí tenemos las noticias de Carlos sobre...
-❌ HABLANTE 1: María dice buenos días y Carlos responde que...
-❌ Los presentadores saludan y empiezan el programa...
-
-## ANÁLISIS EN JSON SEPARADO:
-
-Después de completar la transcripción, proporciona SOLO análisis limpio:
-
-{
-  "transcription": "[AQUÍ COPIAS EXACTAMENTE la transcripción de arriba - SIN MODIFICAR]",
-  "visual_analysis": "Descripción de elementos visuales únicamente", 
-  "segments": [
-    {
-      "headline": "Título del segmento",
-      "text": "Resumen del contenido",
-      "start": 0,
-      "end": 30000,
-      "keywords": ["palabra1", "palabra2"]
-    }
-  ],
-  "keywords": ["palabra1", "palabra2", "palabra3"],
-  "summary": "Resumen ejecutivo del contenido - SIN transcripción literal",
-  "analysis": {
-    "who": "Quiénes participan (nombres únicamente)",
-    "what": "Qué temas se discuten (sin transcripción literal)",
-    "when": "Cuándo ocurre",
-    "where": "Dónde se desarrolla", 
-    "why": "Por qué es relevante"
-  }
-}
-
-## INSTRUCCIONES CRÍTICAS PARA LA TRANSCRIPCIÓN:
-1. **FORMATO OBLIGATORIO**: SPEAKER 1: NOMBRE REAL: [texto hablado]
-2. **NOMBRES REALES**: Usa los nombres reales de los hablantes, NO "HABLANTE 1" o "PARTICIPANTE A"
-3. **SEPARACIÓN CLARA**: Cada cambio de hablante debe estar en línea separada
-4. **CONSISTENCIA**: Mantén el mismo nombre para cada hablante durante todo el video
-5. **EJEMPLO**:
-   SPEAKER 1: MARÍA RODRÍGUEZ: Buen día y bienvenidos al programa
-   SPEAKER 2: CARLOS LÓPEZ: Gracias por invitarme, María
-
-## SECCIÓN 2: ANÁLISIS DE CONTENIDO
-Identifica y separa claramente cada sección:
-
-[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]  
-[TIPO DE CONTENIDO: PROGRAMA REGULAR]  
-
-### INSTRUCCIONES PARA ANUNCIOS PUBLICITARIOS:
-Para cada anuncio detectado, incluye:
-1. Marca(s) o producto(s) anunciados
-2. Mensajes clave del anuncio
-3. Llamada a la acción (si existe)
-4. Tono del anuncio (ej. promocional, urgente, emotivo)
-5. Duración aproximada del anuncio
-6. Palabras clave mencionadas relevantes
-7. Clientes relevantes a los que podría interesarles este anuncio (según listado dinámico)
-8. Justificación del mapeo con palabras clave y clientes
-
-**Señales clave para detectar un anuncio:**
-- Menciones de marcas, precios, promociones u ofertas
-- Frases como "llame ahora", "visite nuestra tienda", etc.
-- Teléfonos, direcciones, sitios web
-- Repetición de nombres comerciales
-- Tono claramente persuasivo o comercial
-
-### INSTRUCCIONES PARA PROGRAMA REGULAR:
-Todo el contenido NO publicitario debe ir en UNA SOLA sección unificada.
-
-Incluye el siguiente análisis:
-
-1. **Resumen del contenido (70-100 oraciones)**
-   - Describe cronológicamente lo discutido
-   - Cita frases relevantes textualmente
-   - Describe interacciones entre los participantes
-   - Usa los nombres reales disponibles de los hablantes
-   - Identifica el número de participantes y sus roles
-
-2. **Temas principales tratados**
-   - Lista por orden de importancia
-   - Incluye subtemas
-   - Describe conexiones entre temas si las hay
-
-3. **Tono del contenido**
-   - Formal o informal
-   - Tipo de lenguaje utilizado
-   - Estilo general (informativo, editorial, de debate, narrativo, etc.)
-
-4. **Categorías aplicables** (elige de esta lista):
-   - ${categoriesList}
-
-   - Indica la categoría principal y secundarias (si aplican)
-   - Justifica por qué seleccionaste cada categoría
-
-5. **Personas o entidades relevantes mencionadas**
-
-6. **Clientes relevantes que podrían estar interesados**
-   Lista dinámica de clientes disponibles:  
-   - ${clientsList}
-
-7. **Palabras clave relevantes mencionadas**
-   Lista dinámica de correlación entre clientes y palabras clave:  
-   ${clientKeywordMapping}
-
-8. **Justificación de mapeo**
-   - Usa frases textuales de la transcripción que justifiquen cada asociación
-   - Haz el vínculo claro entre lo dicho y el cliente o tema de interés
-
----
-
-### IMPORTANTE:
-- **RESPONDE SOLO EN JSON** - Sin texto antes o después del JSON
-- Si hay múltiples anuncios, crea una sección separada por cada uno.
-- Consolidar TODO el contenido de programa en UNA sola sección.
-- Siempre usar nombres reales de hablantes si aparecen.
-- Si el JSON falla, asegúrate de que la transcripción mantenga el formato SPEAKER X: NOMBRE: texto`;
-}
 
 // Helper functions to extract data from analysis
 function extractTranscriptionFromAnalysis(analysis: string): string {
