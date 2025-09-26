@@ -39,163 +39,193 @@ interface ParsedAnalysisData {
 }
 
 export const parseAnalysisContent = (analysis: string): string => {
-  if (!analysis) return "";
-
-  // Check if it's already formatted text with content type markers
-  if (analysis.includes("[TIPO DE CONTENIDO:")) {
-    return consolidateContent(analysis);
+  console.log('[parseAnalysisContent] Starting analysis parsing');
+  
+  if (!analysis || typeof analysis !== 'string') {
+    console.log('[parseAnalysisContent] No analysis content provided');
+    return '';
   }
 
-  // PRIORITY: Try to parse as JSON first (this is the main analysis format from Gemini)
-  const trimmedAnalysis = analysis.trim();
-  if (trimmedAnalysis.startsWith('{') && trimmedAnalysis.endsWith('}')) {
-    try {
-      const parsed: ParsedAnalysisData = JSON.parse(analysis);
-      return convertJsonToReadableFormat(parsed);
-    } catch (error) {
-      console.warn('[analysisParser] JSON parsing failed:', error);
-      // Continue to other parsing methods
-    }
+  // Clean transcription contamination first
+  const cleanedAnalysis = cleanTranscriptionContent(analysis);
+  
+  // Try parsing as JSON first
+  try {
+    const cleanJson = cleanedAnalysis.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleanJson);
+    console.log('[parseAnalysisContent] Successfully parsed as JSON');
+    
+    // Ensure no transcription content leaks into analysis display
+    const formattedResult = convertJsonToReadableFormat(parsed);
+    return cleanTranscriptionFromAnalysis(formattedResult);
+  } catch (jsonError) {
+    console.log('[parseAnalysisContent] JSON parsing failed, checking existing formatting');
   }
 
-  // SECONDARY: Check if content is already well-formatted (has bullets, numbers, proper structure)
-  const hasFormatting = analysis.match(/^\s*[\d\-\•\*]\s+/m) || 
-                       analysis.match(/^\s*\d+\.\s+/m) ||
-                       analysis.includes('\n\n') ||
-                       analysis.match(/^[A-ZÁÉÍÓÚÑ]+:\s*/m);
-
-  // If already well-formatted, preserve as-is
-  if (hasFormatting) {
-    return `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${analysis}`;
+  // Check if already formatted with content type markers
+  if (cleanedAnalysis.includes('[TIPO DE CONTENIDO:')) {
+    console.log('[parseAnalysisContent] Content already formatted with type markers');
+    return consolidateContent(cleanedAnalysis);
   }
 
-  // FALLBACK: Treat as plain text and wrap it
-  return `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${analysis}`;
+  // Treat as plain text analysis
+  console.log('[parseAnalysisContent] Processing as plain text analysis');
+  const contentType = determineContentType(cleanedAnalysis);
+  return `[TIPO DE CONTENIDO: ${contentType}]\n\n${cleanTranscriptionContent(cleanedAnalysis)}`;
 };
+
+// Enhanced function to clean transcription content from analysis
+function cleanTranscriptionFromAnalysis(content: string): string {
+  if (!content) return content;
+  
+  // Remove any JSON artifacts
+  let cleaned = content
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .replace(/^\s*{\s*$/gm, '')
+    .replace(/^\s*}\s*$/gm, '');
+  
+  // Remove lines that look like transcription
+  const lines = cleaned.split('\n');
+  const filteredLines = lines.filter(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return true;
+    
+    // Skip lines that look like speaker dialogue
+    if (/^SPEAKER\s+\d+:/i.test(trimmed)) return false;
+    if (/^[A-ZÁÉÍÓÚÑÜ\s]+:\s+/i.test(trimmed)) return false;
+    if (trimmed.startsWith('"transcription"')) return false;
+    if (trimmed.includes('SPEAKER 1:') || trimmed.includes('SPEAKER 2:')) return false;
+    
+    return true;
+  });
+  
+  return filteredLines.join('\n').trim();
+}
+
+// Helper function to determine content type from analysis data
+function determineContentType(data: any): string {
+  if (typeof data === 'object') {
+    // Check for advertisement indicators in segments or content
+    const hasAds = data.segments?.some((segment: any) => 
+      segment.headline?.toLowerCase().includes('anuncio') ||
+      segment.text?.toLowerCase().includes('publicidad')
+    );
+    return hasAds ? 'PROGRAMA REGULAR + ANUNCIOS' : 'PROGRAMA REGULAR';
+  }
+  
+  // For string content, check for advertisement keywords
+  const text = data.toString().toLowerCase();
+  const hasAdKeywords = text.includes('anuncio') || text.includes('publicidad') || text.includes('comercial');
+  return hasAdKeywords ? 'PROGRAMA REGULAR + ANUNCIOS' : 'PROGRAMA REGULAR';
+}
 
 // Convert JSON analysis data to human-readable formatted text
 function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
-  let programContent = "";
-  let advertisementSections: string[] = [];
+  console.log('[convertJsonToReadableFormat] Converting analysis to readable format');
   
-  // DO NOT include transcription in analysis display - keep them separate
+  // Check if this is analysis or transcription JSON data
+  const isAnalysisJson = parsed.analysis || parsed.analisis_5w || parsed.resumen || parsed.summary || 
+                         parsed.keywords || parsed.palabras_clave || parsed.visual_analysis ||
+                         parsed.segments || parsed.who || parsed.what;
   
-  // Format 5W Analysis - handle both old and new Spanish formats
-  const analysis5w = parsed.analysis || parsed.analisis_5w;
-  if (analysis5w) {
-    programContent += "ANÁLISIS 5W:\n";
-    const who = analysis5w.who || analysis5w.quien;
-    const what = analysis5w.what || analysis5w.que;
-    const when = analysis5w.when || analysis5w.cuando;
-    const where = analysis5w.where || analysis5w.donde;
-    const why = analysis5w.why || analysis5w.porque;
-    
-    if (who) programContent += `• QUIÉN: ${who}\n`;
-    if (what) programContent += `• QUÉ: ${what}\n`;
-    if (when) programContent += `• CUÁNDO: ${when}\n`;
-    if (where) programContent += `• DÓNDE: ${where}\n`;
-    if (why) programContent += `• POR QUÉ: ${why}\n`;
-    programContent += "\n";
+  if (!isAnalysisJson) {
+    console.log('[convertJsonToReadableFormat] Not analysis JSON, treating as plain text');
+    return parsed.toString();
   }
   
-  // Format Summary - handle both formats
-  const summary = parsed.summary || parsed.resumen;
+  let sections: string[] = [];
+  
+  // Determine content type and add header
+  const contentType = determineContentType(parsed);
+  sections.push(`[TIPO DE CONTENIDO: ${contentType}]`);
+  
+  // 5W Analysis section (enhanced to handle both Spanish and English formats)
+  const analysis5W = parsed.analisis_5w || parsed.analysis || {};
+  if (Object.keys(analysis5W).length > 0 || parsed.who || parsed.what || parsed.when || parsed.where || parsed.why) {
+    sections.push('\n**ANÁLISIS 5W**');
+    
+    const who = analysis5W.quien || analysis5W.who || parsed.who || 'No especificado';
+    const what = analysis5W.que || analysis5W.what || parsed.what || 'No especificado';
+    const when = analysis5W.cuando || analysis5W.when || parsed.when || 'No especificado';
+    const where = analysis5W.donde || analysis5W.where || parsed.where || 'No especificado';
+    const why = analysis5W.porque || analysis5W.why || parsed.why || 'No especificado';
+    
+    sections.push(`• **Quién:** ${who}`);
+    sections.push(`• **Qué:** ${what}`);
+    sections.push(`• **Cuándo:** ${when}`);
+    sections.push(`• **Dónde:** ${where}`);
+    sections.push(`• **Por qué:** ${why}`);
+  }
+  
+  // Summary section (prioritize Spanish)
+  const summary = parsed.resumen || parsed.summary;
   if (summary) {
-    programContent += "RESUMEN:\n" + summary + "\n\n";
+    sections.push('\n**RESUMEN**');
+    sections.push(summary);
   }
   
-  // Format Visual Analysis
+  // Visual analysis section
   if (parsed.visual_analysis) {
-    programContent += "ANÁLISIS VISUAL:\n" + parsed.visual_analysis + "\n\n";
+    sections.push('\n**ANÁLISIS VISUAL**');
+    sections.push(parsed.visual_analysis);
   }
   
-  // Format Keywords - handle both formats
-  const keywords = parsed.keywords || parsed.palabras_clave;
-  if (keywords && keywords.length > 0) {
-    programContent += "PALABRAS CLAVE:\n" + keywords.join(', ') + "\n\n";
+  // Keywords section (prioritize Spanish)
+  const keywords = parsed.palabras_clave || parsed.keywords;
+  if (keywords && Array.isArray(keywords)) {
+    sections.push('\n**PALABRAS CLAVE**');
+    sections.push(keywords.join(', '));
   }
   
-  // Format Client Relevance (new Spanish format)
-  if (parsed.relevancia_clientes && parsed.relevancia_clientes.length > 0) {
-    programContent += "RELEVANCIA PARA CLIENTES:\n";
-    parsed.relevancia_clientes.forEach((rel: any) => {
-      programContent += `• ${rel.cliente} (${rel.nivel_relevancia}): ${rel.razon}\n`;
-    });
-    programContent += "\n";
-  }
-  
-  // Format Alerts (new Spanish format)
-  if (parsed.alertas && parsed.alertas.length > 0) {
-    programContent += "ALERTAS:\n";
-    parsed.alertas.forEach((alert: string) => {
-      programContent += `• ${alert}\n`;
-    });
-    programContent += "\n";
-  }
-  
-  // Format Impact Score (new Spanish format)
-  if (parsed.puntuacion_impacto) {
-    programContent += `PUNTUACIÓN DE IMPACTO: ${parsed.puntuacion_impacto}/10\n\n`;
-  }
-  
-  // Format Recommendations (new Spanish format)
-  if (parsed.recomendaciones && parsed.recomendaciones.length > 0) {
-    programContent += "RECOMENDACIONES:\n";
-    parsed.recomendaciones.forEach((rec: string) => {
-      programContent += `• ${rec}\n`;
-    });
-    programContent += "\n";
-  }
-  
-  // Process segments - separate ads from regular content
-  if (parsed.segments && parsed.segments.length > 0) {
-    programContent += "SEGMENTOS IDENTIFICADOS:\n\n";
-    
-    parsed.segments.forEach((segment, index) => {
-      const isAd = segment.keywords?.some(keyword => 
-        keyword.toLowerCase().includes('anuncio') || 
-        keyword.toLowerCase().includes('publicidad') ||
-        keyword.toLowerCase().includes('comercial')
-      ) || segment.text.toLowerCase().includes('anuncio') || 
-         segment.headline?.toLowerCase().includes('anuncio');
-      
-      if (isAd) {
-        let adContent = `[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]\n`;
-        if (segment.headline) adContent += `TITULAR: ${segment.headline}\n\n`;
-        adContent += segment.text;
-        if (segment.keywords && segment.keywords.length > 0) {
-          adContent += `\n\nPALABRAS CLAVE: ${segment.keywords.join(', ')}`;
-        }
-        advertisementSections.push(adContent);
-      } else {
-        // Add to program content
-        programContent += `${index + 1}. `;
-        if (segment.headline) {
-          programContent += `${segment.headline}\n`;
-        }
-        programContent += `${segment.text}\n`;
-        if (segment.keywords && segment.keywords.length > 0) {
-          programContent += `Palabras clave: ${segment.keywords.join(', ')}\n`;
-        }
-        programContent += "\n";
-      }
+  // Client relevance section (prioritize Spanish)
+  const clientRelevance = parsed.relevancia_clientes || parsed.client_relevance;
+  if (clientRelevance && Array.isArray(clientRelevance)) {
+    sections.push('\n**RELEVANCIA PARA CLIENTES**');
+    clientRelevance.forEach(client => {
+      const clientName = client.cliente || client.client || 'Cliente';
+      const relevanceLevel = client.nivel_relevancia || client.relevance_level || 'No especificado';
+      const reason = client.razon || client.reason || 'No especificada';
+      sections.push(`• **${clientName}** (${relevanceLevel}): ${reason}`);
     });
   }
   
-  // Build final formatted content
-  let finalContent = "";
-  
-  // Add ONE consolidated program section if there's program content
-  if (programContent.trim()) {
-    finalContent += `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${programContent.trim()}\n\n`;
+  // Alerts section (prioritize Spanish)
+  const alerts = parsed.alertas || parsed.alerts;
+  if (alerts && Array.isArray(alerts) && alerts.length > 0) {
+    sections.push('\n**ALERTAS**');
+    alerts.forEach(alert => {
+      sections.push(`• ${alert}`);
+    });
   }
   
-  // Add separate advertisement sections
-  if (advertisementSections.length > 0) {
-    finalContent += advertisementSections.join('\n\n');
+  // Impact score section (prioritize Spanish)
+  const impactScore = parsed.puntuacion_impacto || parsed.impact_score;
+  if (impactScore) {
+    sections.push('\n**PUNTUACIÓN DE IMPACTO**');
+    sections.push(`${impactScore}/10`);
   }
   
-  return finalContent.trim() || "[TIPO DE CONTENIDO: PROGRAMA REGULAR]\nAnálisis completado exitosamente.";
+  // Recommendations section (prioritize Spanish)
+  const recommendations = parsed.recomendaciones || parsed.recommendations;
+  if (recommendations && Array.isArray(recommendations) && recommendations.length > 0) {
+    sections.push('\n**RECOMENDACIONES**');
+    recommendations.forEach(rec => {
+      sections.push(`• ${rec}`);
+    });
+  }
+  
+  // Category section (prioritize Spanish)
+  const category = parsed.categoria || parsed.category;
+  if (category) {
+    sections.push('\n**CATEGORÍA**');
+    sections.push(category);
+  }
+  
+  const result = sections.join('\n');
+  console.log('[convertJsonToReadableFormat] Generated formatted analysis:', result.length, 'characters');
+  
+  return result;
 }
 
 // Helper function to consolidate multiple program sections into one

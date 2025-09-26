@@ -23,6 +23,8 @@ function constructTvPrompt(
     : 'Sin clientes específicos';
 
   return `
+INSTRUCCIÓN CRÍTICA: Debes responder ÚNICAMENTE en español y con la estructura JSON exacta que se especifica a continuación. NO uses nombres de campos en inglés.
+
 Eres un experto analista de contenido de televisión especializado en noticias de Puerto Rico y el Caribe.
 
 Tu tarea es analizar ${hasTranscription ? 'la transcripción de un programa de TV' : 'el contenido visual de un video de TV'} y proporcionar un análisis estructurado en formato JSON.
@@ -45,13 +47,13 @@ Genera un análisis completo que incluya:
 5. **Resumen ejecutivo**
 6. **Alertas de relevancia** para clientes específicos
 
-Responde ÚNICAMENTE en formato JSON con esta estructura:
+RESPONDE ÚNICAMENTE EN ESPAÑOL CON ESTA ESTRUCTURA JSON EXACTA (usa estos nombres de campo exactamente):
 {
   "categoria": "categoría principal del contenido",
   "relevancia_clientes": [
     {
       "cliente": "nombre del cliente",
-      "nivel_relevancia": "alto/medio/bajo",
+      "nivel_relevancia": "alto/medio/bajo", 
       "razon": "explicación de por qué es relevante"
     }
   ],
@@ -71,6 +73,8 @@ Responde ÚNICAMENTE en formato JSON con esta estructura:
   "puntuacion_impacto": "1-10 según el impacto noticioso",
   "recomendaciones": ["recomendación 1", "recomendación 2"]
 }
+
+IMPORTANTE: NO uses "analysis", "keywords", "summary" ni otros campos en inglés. Usa EXACTAMENTE los nombres de campo en español mostrados arriba.
 
 ${contextText ? `Contexto adicional: ${contextText}` : ''}
 `;
@@ -1294,7 +1298,7 @@ function extractKeywordsFromContent(content: string): string[] {
   return uniqueWords.slice(0, 10);
 }
 
-// Parse analysis for TV database structure
+// Parse analysis for TV database structure - Enhanced to handle both Spanish and English JSON
 function parseAnalysisForTvDatabase(analysis: string): {
   transcription: string;
   summary: string;
@@ -1312,16 +1316,17 @@ function parseAnalysisForTvDatabase(analysis: string): {
     const cleanJson = analysis.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsedAnalysis = JSON.parse(cleanJson);
     
+    // Handle both Spanish and English JSON formats
     return {
       transcription: parsedAnalysis.transcription || extractTranscriptionFromAnalysis(analysis),
-      summary: parsedAnalysis.summary || extractSummaryFromAnalysis(analysis),
-      quien: parsedAnalysis.analysis?.who || extractFieldFromAnalysis(analysis, 'quien|who'),
-      que: parsedAnalysis.analysis?.what || extractFieldFromAnalysis(analysis, 'que|what'),
-      cuando: parsedAnalysis.analysis?.when || extractFieldFromAnalysis(analysis, 'cuando|when'),
-      donde: parsedAnalysis.analysis?.where || extractFieldFromAnalysis(analysis, 'donde|where'),
-      porque: parsedAnalysis.analysis?.why || extractFieldFromAnalysis(analysis, 'porque|why'),
-      keywords: parsedAnalysis.keywords || extractKeywordsFromAnalysis(analysis),
-      category: parsedAnalysis.category || 'televisión',
+      summary: parsedAnalysis.resumen || parsedAnalysis.summary || extractSummaryFromAnalysis(analysis),
+      quien: parsedAnalysis.analisis_5w?.quien || parsedAnalysis.analysis?.who || extractFieldFromAnalysis(analysis, 'quien|who'),
+      que: parsedAnalysis.analisis_5w?.que || parsedAnalysis.analysis?.what || extractFieldFromAnalysis(analysis, 'que|what'),
+      cuando: parsedAnalysis.analisis_5w?.cuando || parsedAnalysis.analysis?.when || extractFieldFromAnalysis(analysis, 'cuando|when'),
+      donde: parsedAnalysis.analisis_5w?.donde || parsedAnalysis.analysis?.where || extractFieldFromAnalysis(analysis, 'donde|where'),
+      porque: parsedAnalysis.analisis_5w?.porque || parsedAnalysis.analysis?.why || extractFieldFromAnalysis(analysis, 'porque|why'),
+      keywords: parsedAnalysis.palabras_clave || parsedAnalysis.keywords || extractKeywordsFromAnalysis(analysis),
+      category: parsedAnalysis.categoria || parsedAnalysis.category || 'televisión',
       content_summary: parsedAnalysis.visual_analysis || 'Análisis visual completado'
     };
   } catch (parseError) {
