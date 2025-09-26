@@ -98,16 +98,17 @@ serve(async (req) => {
         });
         
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`Error processing feed ${feed.name}:`, error);
         
         // Log the error and update feed source
-        await logProcessingError(supabase, feed, error.message);
-        await updateFeedSource(supabase, feed.url, false, error.message);
+        await logProcessingError(supabase, feed, errorMessage);
+        await updateFeedSource(supabase, feed.url, false, errorMessage);
         
         results.push({
           feed: feed.name,
           success: false,
-          error: error.message
+          error: errorMessage
         });
       }
     }
@@ -127,12 +128,14 @@ serve(async (req) => {
     );
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : 'No stack trace available';
     console.error('Error in process-social-feeds function:', error);
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: error.message,
-        details: error.stack
+        success: false,
+        error: errorMessage,
+        details: errorStack
       }),
       { 
         status: 500,

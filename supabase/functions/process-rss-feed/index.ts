@@ -182,8 +182,8 @@ async function processArticle(
   } catch (error) {
     console.error('Error processing article:', error);
     await logProcessingError(supabase, {
-      stage: 'article_processing',
-      error: error.message,
+      stage: 'preprocessing',
+      error: error instanceof Error ? error.message : String(error),
       article: {
         title: article.title,
         description: article.description,
@@ -215,7 +215,7 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
     let errorCount = 0;
 
     // Sort items by publication date (newest first)
-    const sortedItems = feedData.items.sort((a, b) => {
+    const sortedItems = feedData.items.sort((a: any, b: any) => {
       const dateA = new Date(getArticleDate(a));
       const dateB = new Date(getArticleDate(b));
       return dateB.getTime() - dateA.getTime();
@@ -261,15 +261,16 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
     
     // Update feed source error status
     const currentErrorCount = (feedSource.error_count || 0) + 1;
+    const errorMessage = error instanceof Error ? error.message : String(error);
     await supabase
       .from('feed_sources')
       .update({
-        last_fetch_error: error.message,
+        last_fetch_error: errorMessage,
         error_count: currentErrorCount
       })
       .eq('id', feedSource.id);
 
-    return { successCount: 0, errorCount: 1, error: error.message };
+    return { successCount: 0, errorCount: 1, error: errorMessage };
   }
 }
 
@@ -323,11 +324,12 @@ serve(async (req) => {
     );
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Error processing RSS feeds:', error);
     return new Response(
       JSON.stringify({ 
         error: 'Error al procesar los feeds RSS',
-        details: error.message 
+        details: errorMessage 
       }),
       { 
         status: 500,
@@ -523,9 +525,9 @@ async function analyzeArticle(
         });
         
         if (attempt === 2) {
-          await logProcessingError(supabase, {
-            stage: 'parsing',
-            error: `JSON parsing error: ${parseError.message}`,
+        await logProcessingError(supabase, {
+          stage: 'parsing',
+          error: `JSON parsing error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
             article: { title, description, source },
             rawContent: content
           });
@@ -538,7 +540,7 @@ async function analyzeArticle(
       if (attempt === 2) {
         await logProcessingError(supabase, {
           stage: 'analysis',
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           article: { title, description, source }
         });
         return getFallbackAnalysis('Error en el proceso de análisis');

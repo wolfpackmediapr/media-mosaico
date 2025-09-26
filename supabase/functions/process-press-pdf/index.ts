@@ -3,8 +3,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-// Import PDF.js using esm.sh with explicit module format for Deno compatibility
-import * as pdfjs from "https://esm.sh/pdfjs-dist@2.14.305/build/pdf.js";
+// Import PDF.js using a web-compatible version that doesn't require Node.js canvas
+import * as pdfjs from "https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -342,8 +342,9 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
   try {
     console.log("Starting PDF text extraction with PDF.js...");
     
-    // Create a PDF.js loading task
-    const loadingTask = pdfjs.getDocument({ data: pdfData });
+    // Create a PDF.js loading task - ensure pdfData is a Uint8Array
+    const uint8Array = pdfData instanceof Uint8Array ? pdfData : new Uint8Array(pdfData);
+    const loadingTask = pdfjs.getDocument({ data: uint8Array });
     
     console.log("PDF document loading task created");
     
@@ -393,8 +394,9 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
     console.log(`Successfully processed ${textPages.length} pages`);
     return textPages;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Error extracting text from PDF:", error);
-    throw new Error(`Failed to extract text from PDF: ${error.message}`);
+    throw new Error(`Failed to extract text from PDF: ${errorMessage}`);
   }
 }
 
@@ -609,17 +611,19 @@ serve(async (req) => {
       const { jobId } = await req.json();
       if (jobId) {
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         await updateProcessingJob(supabase, jobId, { 
           status: 'error',
-          error: error.message || 'Unknown error occurred'
+          error: errorMessage || 'Unknown error occurred'
         });
       }
     } catch (e) {
       // Ignore errors here
     }
     
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Unknown error occurred' }),
+      JSON.stringify({ error: errorMessage || 'Unknown error occurred' }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

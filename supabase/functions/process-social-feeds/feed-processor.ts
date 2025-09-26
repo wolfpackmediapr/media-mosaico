@@ -47,7 +47,8 @@ export const processRssJsonFeed = async (supabase: any, feed: any, feedSourceId:
     try {
       pubDate = new Date(item.date_published || item.pubDate || item.published).toISOString();
     } catch (e) {
-      console.error(`Error parsing date for "${item.title}": ${e.message}`);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      console.error(`Error parsing date for "${item.title}": ${errorMessage}`);
       pubDate = new Date().toISOString();
     }
     
@@ -127,7 +128,8 @@ export const updateFeedSource = async (supabase: any, feedUrl: string, success: 
       }
     }
   } catch (error) {
-    console.error(`Failed to update feed source: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to update feed source: ${errorMessage}`);
   }
 };
 
@@ -142,6 +144,7 @@ export const logProcessingError = async (supabase: any, feedInfo: any, errorMess
         article_info: feedInfo
       });
   } catch (logError) {
-    console.error(`Failed to log error: ${logError.message}`);
+    const errorMessage = logError instanceof Error ? logError.message : String(logError);
+    console.error(`Failed to log error: ${errorMessage}`);
   }
 };

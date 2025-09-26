@@ -250,8 +250,9 @@ serve(async (req) => {
       }
 
     } catch (geminiError) {
+      const errorMessage = geminiError instanceof Error ? geminiError.message : String(geminiError);
       console.error('[analyze-tv-content] Gemini processing error:', geminiError);
-      throw new Error(`Error en el procesamiento con Gemini: ${geminiError.message}`);
+      throw new Error(`Error en el procesamiento con Gemini: ${errorMessage}`);
     }
 
     // Store analysis if transcriptId is provided
@@ -301,11 +302,13 @@ serve(async (req) => {
     console.error('[analyze-tv-content] Function error:', error);
     
     // Provide detailed error information for debugging
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : 'No stack trace available';
     const errorResponse = {
-      error: error.message || 'Error interno del servidor',
+      error: errorMessage || 'Error interno del servidor',
       success: false,
       timestamp: new Date().toISOString(),
-      details: error.stack || 'No stack trace available'
+      details: errorStack
     };
 
     return new Response(
