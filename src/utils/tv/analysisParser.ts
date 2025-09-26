@@ -46,16 +46,16 @@ export const parseAnalysisContent = (analysis: string): string => {
     return '';
   }
 
-  // Clean transcription contamination first
-  const cleanedAnalysis = cleanTranscriptionContent(analysis);
-  
+  // Remove transcription contamination from mixed content first
+  const cleanedInput = removeTranscriptionFromMixedContent(analysis);
+
   // Try parsing as JSON first
   try {
-    const cleanJson = cleanedAnalysis.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const cleanJson = cleanedInput.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsed = JSON.parse(cleanJson);
     console.log('[parseAnalysisContent] Successfully parsed as JSON');
     
-    // Ensure no transcription content leaks into analysis display
+    // Convert to readable format and ensure no transcription content
     const formattedResult = convertJsonToReadableFormat(parsed);
     return cleanTranscriptionFromAnalysis(formattedResult);
   } catch (jsonError) {
@@ -63,15 +63,15 @@ export const parseAnalysisContent = (analysis: string): string => {
   }
 
   // Check if already formatted with content type markers
-  if (cleanedAnalysis.includes('[TIPO DE CONTENIDO:')) {
+  if (cleanedInput.includes('[TIPO DE CONTENIDO:')) {
     console.log('[parseAnalysisContent] Content already formatted with type markers');
-    return consolidateContent(cleanedAnalysis);
+    return consolidateContent(cleanedInput);
   }
 
   // Treat as plain text analysis
   console.log('[parseAnalysisContent] Processing as plain text analysis');
-  const contentType = determineContentType(cleanedAnalysis);
-  return `[TIPO DE CONTENIDO: ${contentType}]\n\n${cleanTranscriptionContent(cleanedAnalysis)}`;
+  const contentType = determineContentType(cleanedInput);
+  return `[TIPO DE CONTENIDO: ${contentType}]\n\n${cleanTranscriptionContent(cleanedInput)}`;
 };
 
 // Enhanced function to clean transcription content from analysis
@@ -134,98 +134,73 @@ function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
     return parsed.toString();
   }
   
-  let sections: string[] = [];
+  const analysisContent = [];
   
-  // Determine content type and add header
-  const contentType = determineContentType(parsed);
-  sections.push(`[TIPO DE CONTENIDO: ${contentType}]`);
-  
-  // 5W Analysis section (enhanced to handle both Spanish and English formats)
-  const analysis5W = parsed.analisis_5w || parsed.analysis || {};
-  if (Object.keys(analysis5W).length > 0 || parsed.who || parsed.what || parsed.when || parsed.where || parsed.why) {
-    sections.push('\n**ANÁLISIS 5W**');
+  // Handle visual analysis or summary first
+  const visualAnalysis = parsed.analisis_visual || parsed.visual_analysis || parsed.resumen || parsed.summary || '';
+  if (visualAnalysis && !isTranscriptionContent(visualAnalysis)) {
+    analysisContent.push(`**Resumen del contenido:**\n${visualAnalysis}`);
+  }
+
+  // Handle 5W analysis in a structured way
+  const analysis5w = parsed.analisis_5w || parsed.analysis || {};
+  if (Object.keys(analysis5w).length > 0) {
+    const analysisSection = [];
     
-    const who = analysis5W.quien || analysis5W.who || parsed.who || 'No especificado';
-    const what = analysis5W.que || analysis5W.what || parsed.what || 'No especificado';
-    const when = analysis5W.cuando || analysis5W.when || parsed.when || 'No especificado';
-    const where = analysis5W.donde || analysis5W.where || parsed.where || 'No especificado';
-    const why = analysis5W.porque || analysis5W.why || parsed.why || 'No especificado';
-    
-    sections.push(`• **Quién:** ${who}`);
-    sections.push(`• **Qué:** ${what}`);
-    sections.push(`• **Cuándo:** ${when}`);
-    sections.push(`• **Dónde:** ${where}`);
-    sections.push(`• **Por qué:** ${why}`);
+    if (analysis5w.quien || analysis5w.who) {
+      analysisSection.push(`**Quién:** ${analysis5w.quien || analysis5w.who}`);
+    }
+    if (analysis5w.que || analysis5w.what) {
+      analysisSection.push(`**Qué:** ${analysis5w.que || analysis5w.what}`);
+    }
+    if (analysis5w.cuando || analysis5w.when) {
+      analysisSection.push(`**Cuándo:** ${analysis5w.cuando || analysis5w.when}`);
+    }
+    if (analysis5w.donde || analysis5w.where) {
+      analysisSection.push(`**Dónde:** ${analysis5w.donde || analysis5w.where}`);
+    }
+    if (analysis5w.porque || analysis5w.why) {
+      analysisSection.push(`**Por qué:** ${analysis5w.porque || analysis5w.why}`);
+    }
+
+    if (analysisSection.length > 0) {
+      analysisContent.push(`**Análisis 5W:**\n${analysisSection.join('\n')}`);
+    }
   }
-  
-  // Summary section (prioritize Spanish)
-  const summary = parsed.resumen || parsed.summary;
-  if (summary) {
-    sections.push('\n**RESUMEN**');
-    sections.push(summary);
+
+  // Handle keywords
+  const keywords = parsed.palabras_clave || parsed.keywords || [];
+  if (Array.isArray(keywords) && keywords.length > 0) {
+    analysisContent.push(`**Palabras clave:** ${keywords.join(', ')}`);
   }
-  
-  // Visual analysis section
-  if (parsed.visual_analysis) {
-    sections.push('\n**ANÁLISIS VISUAL**');
-    sections.push(parsed.visual_analysis);
+
+  // Handle segments if present
+  if (parsed.segmentos || parsed.segments) {
+    const segments = parsed.segmentos || parsed.segments;
+    if (Array.isArray(segments)) {
+      const segmentTexts = segments
+        .map((segment: any) => {
+          const segmentText = segment.texto || segment.text || '';
+          const title = segment.titulo || segment.headline || '';
+          if (segmentText && !isTranscriptionContent(segmentText)) {
+            return title ? `**${title}:** ${segmentText}` : segmentText;
+          }
+          return null;
+        })
+        .filter(Boolean);
+      
+      if (segmentTexts.length > 0) {
+        analysisContent.push(`**Segmentos identificados:**\n${segmentTexts.join('\n\n')}`);
+      }
+    }
   }
-  
-  // Keywords section (prioritize Spanish)
-  const keywords = parsed.palabras_clave || parsed.keywords;
-  if (keywords && Array.isArray(keywords)) {
-    sections.push('\n**PALABRAS CLAVE**');
-    sections.push(keywords.join(', '));
+
+  // Create the main program section
+  if (analysisContent.length > 0) {
+    return `[TIPO DE CONTENIDO: PROGRAMA REGULAR]\n${analysisContent.join('\n\n')}`;
   }
-  
-  // Client relevance section (prioritize Spanish)
-  const clientRelevance = parsed.relevancia_clientes || parsed.client_relevance;
-  if (clientRelevance && Array.isArray(clientRelevance)) {
-    sections.push('\n**RELEVANCIA PARA CLIENTES**');
-    clientRelevance.forEach(client => {
-      const clientName = client.cliente || client.client || 'Cliente';
-      const relevanceLevel = client.nivel_relevancia || client.relevance_level || 'No especificado';
-      const reason = client.razon || client.reason || 'No especificada';
-      sections.push(`• **${clientName}** (${relevanceLevel}): ${reason}`);
-    });
-  }
-  
-  // Alerts section (prioritize Spanish)
-  const alerts = parsed.alertas || parsed.alerts;
-  if (alerts && Array.isArray(alerts) && alerts.length > 0) {
-    sections.push('\n**ALERTAS**');
-    alerts.forEach(alert => {
-      sections.push(`• ${alert}`);
-    });
-  }
-  
-  // Impact score section (prioritize Spanish)
-  const impactScore = parsed.puntuacion_impacto || parsed.impact_score;
-  if (impactScore) {
-    sections.push('\n**PUNTUACIÓN DE IMPACTO**');
-    sections.push(`${impactScore}/10`);
-  }
-  
-  // Recommendations section (prioritize Spanish)
-  const recommendations = parsed.recomendaciones || parsed.recommendations;
-  if (recommendations && Array.isArray(recommendations) && recommendations.length > 0) {
-    sections.push('\n**RECOMENDACIONES**');
-    recommendations.forEach(rec => {
-      sections.push(`• ${rec}`);
-    });
-  }
-  
-  // Category section (prioritize Spanish)
-  const category = parsed.categoria || parsed.category;
-  if (category) {
-    sections.push('\n**CATEGORÍA**');
-    sections.push(category);
-  }
-  
-  const result = sections.join('\n');
-  console.log('[convertJsonToReadableFormat] Generated formatted analysis:', result.length, 'characters');
-  
-  return result;
+
+  return '[TIPO DE CONTENIDO: PROGRAMA REGULAR]\nAnálisis completado exitosamente';
 }
 
 // Helper function to consolidate multiple program sections into one
@@ -354,6 +329,41 @@ function hasDialoguePattern(text: string): boolean {
   const hasDialogueMarkers = dialogueIndicators.some(pattern => pattern.test(text));
   
   return hasColon && (hasDialogueMarkers || text.split(':')[0].trim().length < 25);
+}
+
+// Remove transcription content from mixed analysis content
+function removeTranscriptionFromMixedContent(content: string): string {
+  if (!content) return '';
+  
+  // Remove SPEAKER patterns and associated dialogue
+  let cleaned = content.replace(/SPEAKER\s+\d+:\s*[^:]+:.*$/gm, '');
+  
+  // Remove obvious transcription sections
+  cleaned = cleaned.replace(/## TRANSCRIPCIÓN[\s\S]*?(?=##|$)/g, '');
+  cleaned = cleaned.replace(/transcripción:[\s\S]*?(?=,|"|$)/gi, '');
+  
+  // Remove JSON artifacts but preserve analysis JSON
+  cleaned = cleaned.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+  
+  // Remove instruction text
+  cleaned = cleaned.replace(/## INSTRUCCIONES.*?(?=\{|$)/gs, '');
+  cleaned = cleaned.replace(/PASO \d+.*?(?=\{|$)/gs, '');
+  
+  return cleaned.trim();
+}
+
+// Check if content contains transcription-like content
+function isTranscriptionContent(text: string): boolean {
+  if (!text) return false;
+  
+  const transcriptionIndicators = [
+    /SPEAKER\s+\d+:/i,
+    /^[A-ZÁÉÍÓÚÑÜ\s]+:\s*[A-Z]/,
+    /transcripción/i,
+    /transcription/i
+  ];
+  
+  return transcriptionIndicators.some(pattern => pattern.test(text));
 }
 
 // Check if text has speaker format

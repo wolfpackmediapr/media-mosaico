@@ -926,25 +926,25 @@ SPEAKER 3: ANA TORRES: Desde el Capitolio, Ana Torres reportando
 Después de completar la transcripción, proporciona SOLO análisis limpio:
 
 {
-  "transcription": "[AQUÍ COPIAS EXACTAMENTE la transcripción de arriba - SIN MODIFICAR]",
-  "visual_analysis": "Descripción de elementos visuales únicamente", 
-  "segments": [
+  "transcripcion": "[AQUÍ COPIAS EXACTAMENTE la transcripción de arriba - SIN MODIFICAR]",
+  "analisis_visual": "Descripción de elementos visuales únicamente", 
+  "segmentos": [
     {
-      "headline": "Título del segmento",
-      "text": "Resumen del contenido",
-      "start": 0,
-      "end": 30000,
-      "keywords": ["palabra1", "palabra2"]
+      "titulo": "Título del segmento",
+      "texto": "Resumen del contenido",
+      "inicio": 0,
+      "fin": 30000,
+      "palabras_clave": ["palabra1", "palabra2"]
     }
   ],
-  "keywords": ["palabra1", "palabra2", "palabra3"],
-  "summary": "Resumen ejecutivo del contenido - SIN transcripción literal",
-  "analysis": {
-    "who": "Quiénes participan (nombres únicamente)",
-    "what": "Qué temas se discuten (sin transcripción literal)",
-    "when": "Cuándo ocurre",
-    "where": "Dónde se desarrolla", 
-    "why": "Por qué es relevante"
+  "palabras_clave": ["palabra1", "palabra2", "palabra3"],
+  "resumen": "Resumen ejecutivo del contenido - SIN transcripción literal",
+  "analisis_5w": {
+    "quien": "Quiénes participan (nombres únicamente)",
+    "que": "Qué temas se discuten (sin transcripción literal)",
+    "cuando": "Cuándo ocurre",
+    "donde": "Dónde se desarrolla", 
+    "porque": "Por qué es relevante"
   }
 }
 
@@ -1027,6 +1027,8 @@ Incluye el siguiente análisis:
 
 ### IMPORTANTE:
 - **RESPONDE SOLO EN JSON** - Sin texto antes o después del JSON
+- **USA CAMPOS EN ESPAÑOL** - transcripcion, palabras_clave, resumen, analisis_5w, etc.
+- **ANÁLISIS EN ESPAÑOL** - Todo el análisis debe estar completamente EN ESPAÑOL
 - Si hay múltiples anuncios, crea una sección separada por cada uno.
 - Consolidar TODO el contenido de programa en UNA sola sección.
 - Siempre usar nombres reales de hablantes si aparecen.
@@ -1318,7 +1320,7 @@ function parseAnalysisForTvDatabase(analysis: string): {
     
     // Handle both Spanish and English JSON formats
     return {
-      transcription: parsedAnalysis.transcription || extractTranscriptionFromAnalysis(analysis),
+      transcription: parsedAnalysis.transcripcion || parsedAnalysis.transcription || extractTranscriptionFromAnalysis(analysis),
       summary: parsedAnalysis.resumen || parsedAnalysis.summary || extractSummaryFromAnalysis(analysis),
       quien: parsedAnalysis.analisis_5w?.quien || parsedAnalysis.analysis?.who || extractFieldFromAnalysis(analysis, 'quien|who'),
       que: parsedAnalysis.analisis_5w?.que || parsedAnalysis.analysis?.what || extractFieldFromAnalysis(analysis, 'que|what'),
@@ -1327,7 +1329,7 @@ function parseAnalysisForTvDatabase(analysis: string): {
       porque: parsedAnalysis.analisis_5w?.porque || parsedAnalysis.analysis?.why || extractFieldFromAnalysis(analysis, 'porque|why'),
       keywords: parsedAnalysis.palabras_clave || parsedAnalysis.keywords || extractKeywordsFromAnalysis(analysis),
       category: parsedAnalysis.categoria || parsedAnalysis.category || 'televisión',
-      content_summary: parsedAnalysis.visual_analysis || 'Análisis visual completado'
+      content_summary: parsedAnalysis.analisis_visual || parsedAnalysis.visual_analysis || 'Análisis visual completado'
     };
   } catch (parseError) {
     console.error('[parseAnalysisForTvDatabase] JSON parse error, using text extraction:', parseError);

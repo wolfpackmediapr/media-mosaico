@@ -39,9 +39,10 @@ const TvAnalysis = ({
     forceRefresh: forceReset
   });
 
-  // Determine which analysis to show (priority: analysisResults > existing > empty)
-  const displayAnalysis = analysisResults || existingAnalysis;
-  const hasAnalysisToShow = !!(analysisResults || hasExistingAnalysis);
+  // Determine which analysis to show (priority: existing parsed > raw analysisResults > empty)
+  // Prefer properly parsed content over raw mixed content
+  const displayAnalysis = hasExistingAnalysis ? existingAnalysis : analysisResults;
+  const hasAnalysisToShow = !!(hasExistingAnalysis || analysisResults);
 
   // Clear function for parent
   const clearAnalysisState = () => {
