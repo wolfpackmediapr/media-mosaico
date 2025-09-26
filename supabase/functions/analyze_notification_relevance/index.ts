@@ -113,7 +113,7 @@ serve(async (req) => {
     notifications.forEach(notification => {
       // Process keywords
       if (notification.keyword_matched && Array.isArray(notification.keyword_matched)) {
-        notification.keyword_matched.forEach((keyword: string) => {
+        notification.keyword_matched.forEach(keyword => {
           if (!keywordEngagement[keyword]) {
             keywordEngagement[keyword] = { count: 0, readCount: 0, engagementRate: 0 };
           }
@@ -251,9 +251,8 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Unhandled error:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: errorMessage }),
+      JSON.stringify({ error: "Internal server error", details: error.message }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

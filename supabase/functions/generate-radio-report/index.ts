@@ -142,11 +142,10 @@ serve(async (req) => {
     )
   } catch (error) {
     console.error('Error in generate-radio-report function:', error)
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: errorMessage
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error.message 
       }),
       { 
         status: 500,

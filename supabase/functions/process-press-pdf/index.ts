@@ -3,8 +3,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-// Use a simpler PDF processing approach to avoid native dependencies
-// import * as pdfjs from "https://esm.sh/pdfjs-dist@2.14.305/build/pdf.js";
+// Import PDF.js using a Deno-compatible CDN with a stable version - explicitly referencing ES5 build
+import * as pdfjs from "https://cdn.skypack.dev/pdfjs-dist@2.14.305/es5/build/pdf.js";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -336,30 +336,65 @@ async function downloadPdfFromStorage(supabase: any, filePath: string): Promise<
 }
 
 /**
- * Extract text from PDF using OpenAI Vision API (replacing PDF.js to avoid canvas dependencies)
+ * Extract text from a PDF file using PDF.js
  */
 async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
   try {
-    console.log("Starting PDF text extraction with OpenAI Vision API...");
+    console.log("Starting PDF text extraction with PDF.js...");
     
-    // Convert PDF to base64
-    const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(pdfData)));
-    const dataUrl = `data:application/pdf;base64,${base64Pdf}`;
+    // Create a PDF.js loading task
+    const loadingTask = pdfjs.getDocument({ data: pdfData });
     
-    // For simplicity, we'll assume it's a single page or extract first page only
-    // In production, you might want to implement page splitting
-    console.log("Processing PDF with Vision API (treating as single document)");
+    console.log("PDF document loading task created");
     
-    const visionResult = await extractTextWithVisionAPI(new Uint8Array(pdfData), 1);
+    const pdfDocument = await loadingTask.promise;
+    const numPages = pdfDocument.numPages;
+    console.log(`PDF document loaded with ${numPages} pages`);
     
-    return [{
-      pageNumber: 1,
-      text: visionResult.text
-    }];
+    const textPages = [];
+    
+    // Extract text from each page
+    for (let i = 1; i <= numPages; i++) {
+      try {
+        console.log(`Getting page ${i}...`);
+        const page = await pdfDocument.getPage(i);
+        
+        console.log(`Getting text content for page ${i}...`);
+        const textContent = await page.getTextContent();
+        
+        // Combine all text items into a single string
+        let pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        console.log(`Extracted ${pageText.length} characters from page ${i}`);
+        
+        // If very little text was extracted (possibly a scan), log this
+        if (pageText.length < 100) {
+          console.log(`Page ${i} appears to be mostly image-based (only ${pageText.length} chars extracted)`);
+        }
+        
+        textPages.push({
+          pageNumber: i,
+          text: pageText
+        });
+      } catch (pageError) {
+        console.error(`Error extracting text from page ${i}:`, pageError);
+        // Continue with next page if one fails
+        textPages.push({
+          pageNumber: i,
+          text: ""  // Empty text will be handled by Vision API later
+        });
+      }
+    }
+    
+    console.log(`Successfully processed ${textPages.length} pages`);
+    return textPages;
   } catch (error) {
     console.error("Error extracting text from PDF:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to extract text from PDF: ${errorMessage}`);
+    throw new Error(`Failed to extract text from PDF: ${error.message}`);
   }
 }
 
@@ -574,19 +609,17 @@ serve(async (req) => {
       const { jobId } = await req.json();
       if (jobId) {
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        const errorMessage = error instanceof Error ? error.message : String(error);
         await updateProcessingJob(supabase, jobId, { 
           status: 'error',
-          error: errorMessage || 'Unknown error occurred'
+          error: error.message || 'Unknown error occurred'
         });
       }
     } catch (e) {
       // Ignore errors here
     }
     
-    const errorMessage = error instanceof Error ? error.message : String(error);
     return new Response(
-      JSON.stringify({ error: errorMessage || 'Unknown error occurred' }),
+      JSON.stringify({ error: error.message || 'Unknown error occurred' }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

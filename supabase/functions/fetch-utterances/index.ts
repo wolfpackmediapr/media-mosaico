@@ -85,11 +85,10 @@ serve(async (req) => {
     }
   } catch (error) {
     console.error('Error in fetch-utterances function:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: errorMessage,
+        error: error.message,
       }),
       { 
         status: 400,
