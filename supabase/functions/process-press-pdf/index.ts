@@ -3,8 +3,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-// Import PDF.js using esm.sh which is more reliable for Deno edge functions
-import * as pdfjs from "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.min.js";
+// Import PDF.js using a Deno-compatible CDN with a stable version - explicitly referencing ES5 build
+import * as pdfjs from "https://cdn.skypack.dev/pdfjs-dist@2.14.305/es5/build/pdf.js";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;

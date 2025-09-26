@@ -91,18 +91,11 @@ function cleanTranscriptionFromAnalysis(content: string): string {
     const trimmed = line.trim();
     if (!trimmed) return true;
     
-    // Enhanced speaker dialogue detection - remove ALL speaker patterns
+    // Skip lines that look like speaker dialogue
     if (/^SPEAKER\s+\d+:/i.test(trimmed)) return false;
-    if (/^SPEAKER\s+\d+:\s*[^:]+:/i.test(trimmed)) return false; // SPEAKER 1: NAME: content
-    if (/^[A-ZÁÉÍÓÚÑÜ\s]+:\s*[A-ZÁÉÍÓÚÑÜ]/i.test(trimmed) && trimmed.split(':').length >= 2) return false;
+    if (/^[A-ZÁÉÍÓÚÑÜ\s]+:\s+/i.test(trimmed)) return false;
     if (trimmed.startsWith('"transcription"')) return false;
     if (trimmed.includes('SPEAKER 1:') || trimmed.includes('SPEAKER 2:')) return false;
-    
-    // Remove lines with transcription field indicators
-    if (trimmed.includes('"transcription":') || trimmed.includes('"transcripción":')) return false;
-    
-    // Remove pure dialogue lines (name: content pattern)
-    if (/^[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,20}:\s*[^:].{10,}/i.test(trimmed)) return false;
     
     return true;
   });

@@ -5,7 +5,6 @@ import { toast } from "@/services/toastService";
 import { TvTranscriptionService } from "@/services/tv/tvTranscriptionService";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { NewsSegment, TranscriptionMetadata } from '@/types/media';
-import { parseAnalysisContent } from "@/utils/tv/analysisParser";
 
 // Re-export for backward compatibility
 export type { NewsSegment, TranscriptionMetadata } from '@/types/media';
@@ -242,15 +241,13 @@ export const useTvVideoProcessor = () => {
       setNewsSegments(result.segments || []);
       
       // NEW: Automatically set analysis results from Gemini processing
-      // Use full_analysis and parse it to remove transcription contamination
-      const rawAnalysisText = result.full_analysis || result.summary || '';
-      const cleanedAnalysisText = parseAnalysisContent(rawAnalysisText);
-      setAnalysisResults(cleanedAnalysisText);
-      console.log('[TvVideoProcessor] Analysis automatically populated and parsed:', {
+      // Use full_analysis which should contain properly formatted content with type markers
+      const analysisText = result.full_analysis || result.summary || '';
+      setAnalysisResults(analysisText);
+      console.log('[TvVideoProcessor] Analysis automatically populated:', {
         hasFullAnalysis: !!result.full_analysis,
         hasSummary: !!result.summary,
-        rawLength: rawAnalysisText.length,
-        cleanedLength: cleanedAnalysisText.length
+        analysisLength: analysisText.length
       });
       
       setProgress(100);
