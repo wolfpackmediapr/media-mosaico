@@ -54,7 +54,7 @@ export function parseAnalysisText(analysisText: string): ParsedAnalysis {
       return parsedAnalysis;
     }
   } catch (parseError) {
-    console.log('[process-tv-with-gemini] Enhanced JSON parsing failed:', parseError.message);
+    console.log('[process-tv-with-gemini] Enhanced JSON parsing failed:', parseError instanceof Error ? parseError.message : String(parseError));
   }
 
   // Strategy 2: Manual field extraction from mixed content

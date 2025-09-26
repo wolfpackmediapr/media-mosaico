@@ -164,7 +164,7 @@ async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{
     };
   } catch (error) {
     console.error('[gemini-unified] Video upload error:', error);
-    throw new Error(`Video upload failed: ${error.message}`);
+    throw new Error(`Video upload failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -230,7 +230,7 @@ async function uploadVideoToGeminiStream(
     return { uri: fileUri, mimeType: mimeType || 'video/mp4' };
   } catch (error) {
     console.error('[gemini-unified] Streaming upload error:', error);
-    throw new Error(`Streaming upload failed: ${error.message}`);
+    throw new Error(`Streaming upload failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -340,7 +340,7 @@ async function updateDatabaseProgress(transcriptionId: string, progress: number,
 
   if (error) {
     console.error('[gemini-unified] Database update error:', error);
-    throw new Error(`Database update failed: ${error.message}`);
+    throw new Error(`Database update failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -405,7 +405,7 @@ async function generateComprehensiveAnalysis(
     return data.candidates[0].content.parts[0].text;
   } catch (error) {
     console.error('[gemini-unified] Analysis generation error:', error);
-    throw new Error(`Failed to generate analysis: ${error.message}`);
+    throw new Error(`Failed to generate analysis: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -475,11 +475,11 @@ async function downloadVideoFromSupabase(videoPath: string, sessionId?: string):
         }
       }
       
-      throw new Error(`Failed to download video after reassembly attempt: ${error.message}`);
+      throw new Error(`Failed to download video after reassembly attempt: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     if (error) {
-      throw new Error(`Failed to download video: ${error.message}`);
+      throw new Error(`Failed to download video: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     if (!data) {
@@ -494,7 +494,7 @@ async function downloadVideoFromSupabase(videoPath: string, sessionId?: string):
     return data;
   } catch (error) {
     console.error('[gemini-unified] Video download error:', error);
-    throw new Error(`Video download failed: ${error.message}`);
+    throw new Error(`Video download failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -699,7 +699,7 @@ async function processChunkedUploadWithGemini(
 
   } catch (error) {
     console.error('[gemini-unified] Chunked upload processing error:', error);
-    throw new Error(`Chunked upload processing failed: ${error.message}`);
+    throw new Error(`Chunked upload processing failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -744,7 +744,7 @@ async function processAssembledVideoWithGemini(
        .download(videoPath);
 
      if (downloadError) {
-       throw new Error(`Failed to download video: ${downloadError.message}`);
+       throw new Error(`Failed to download video: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`);
      }
 
      const videoBlob = new Blob([videoData], { type: 'video/mp4' });
@@ -838,11 +838,11 @@ async function processAssembledVideoWithGemini(
         console.error(`[gemini-unified] Analysis attempt ${attempt} failed:`, error);
         
         // Enhanced MP4 error logging
-        if (error.message.includes('MP4 format not supported') || error.message.includes('400')) {
+        if ((error instanceof Error && error.message.includes('MP4 format not supported')) || (error instanceof Error && error.message.includes('400'))) {
           console.error(`[gemini-unified] MP4 processing failed completely after ${maxAttempts} attempts`, {
             videoPath: videoPath || 'unknown',
             mimeType: fileInfo?.mimeType || 'unknown',
-            error: error.message
+            error: error instanceof Error ? error.message : String(error)
           });
         }
         
@@ -870,7 +870,7 @@ async function processAssembledVideoWithGemini(
 
   } catch (error) {
     console.error('[gemini-unified] Assembled video processing error:', error);
-    throw new Error(`Assembled video processing failed: ${error.message}`);
+    throw new Error(`Assembled video processing failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -1150,7 +1150,7 @@ function hasSeparatedSpeakers(text: string): boolean {
   }
   
   // Should have at least 2 different speakers or multiple speaker instances
-  return uniqueSpeakers.size >= 2 || (speakerMatches && speakerMatches.length >= 3);
+  return uniqueSpeakers.size >= 2 || Boolean(speakerMatches && speakerMatches.length >= 3);
 }
 
 // Enhanced parsing to separate speakers from mixed content
@@ -1247,7 +1247,7 @@ function hasTvSpeakerPatterns(text: string): boolean {
 
 function extractSegmentsFromAnalysis(analysis: string): any[] {
   // For text-based analysis, we'll create simple segments based on content sections
-  const segments = [];
+  const segments: any[] = [];
   const contentSections = analysis.split(/\[TIPO DE CONTENIDO:/);
   
   contentSections.forEach((section, index) => {
@@ -1391,7 +1391,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: false, 
         error: 'Invalid request body',
-        details: parseError.message 
+        details: parseError instanceof Error ? parseError.message : String(parseError) 
       }),
       {
         status: 400,
@@ -1463,7 +1463,7 @@ serve(async (req) => {
           console.log(`[${requestId}] File size: ${Math.round(fileSize / 1024 / 1024)}MB, shouldCompress: ${shouldCompress}`);
         }
       } catch (error) {
-        console.log(`[${requestId}] Could not check file size, skipping compression:`, error.message);
+        console.log(`[${requestId}] Could not check file size, skipping compression:`, error instanceof Error ? error.message : String(error));
       }
     }
     
@@ -1645,7 +1645,7 @@ serve(async (req) => {
       await updateDatabaseProgress(transcriptionId, 100, 'completed');
       
       // Parse analysis to extract structured data for TV table
-      const parsedAnalysis = parseAnalysisForTvDatabase(result.full_analysis);
+      const parsedAnalysis = parseAnalysisForTvDatabase(result.full_analysis || '');
       
       // Store complete analysis with correct TV table structure
       await supabase
@@ -1691,10 +1691,10 @@ serve(async (req) => {
   } catch (error) {
     console.error(`[${requestId}] === UNIFIED PROCESSING FAILED ===`);
     console.error(`[${requestId}] Error details:`, {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      isMemoryError: error.message?.includes('memory') || error.message?.includes('heap')
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : 'UnknownError',
+      isMemoryError: (error instanceof Error && error.message?.includes('memory')) || (error instanceof Error && error.message?.includes('heap'))
     });
 
     // Update transcription status to failed if we have an ID
@@ -1713,13 +1713,13 @@ serve(async (req) => {
     }
 
     // Categorize and return appropriate error
-    const errorMessage = categorizeError(error.message);
+    const errorMessage = categorizeError(error instanceof Error ? error.message : String(error));
     
     return new Response(
       JSON.stringify({ 
         success: false, 
         error: errorMessage,
-        details: error.message 
+        details: error instanceof Error ? error.message : String(error) 
       }),
       {
         status: 500,

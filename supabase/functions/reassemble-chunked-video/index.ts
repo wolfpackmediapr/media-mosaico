@@ -144,7 +144,7 @@ serve(async (req) => {
                 }
                 
               } catch (error) {
-                throw new Error(`Error processing chunk ${i}: ${error.message}`);
+                throw new Error(`Error processing chunk ${i}: ${error instanceof Error ? error.message : String(error)}`);
               }
             }
             
@@ -182,7 +182,7 @@ serve(async (req) => {
         
       } catch (uploadError) {
         console.error('Upload failed:', uploadError);
-        throw new Error(`Upload failed: ${uploadError.message}`);
+        throw new Error(`Upload failed: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
       }
     };
 

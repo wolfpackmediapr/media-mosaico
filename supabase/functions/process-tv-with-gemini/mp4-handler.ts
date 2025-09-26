@@ -25,7 +25,7 @@ export async function processMP4WithFallback(options: MP4ProcessingOptions) {
     console.error(`[${requestId}] MP4 direct processing failed:`, error);
     
     // Check if it's a Gemini API 400 error (format rejection)
-    if (error.message.includes('400') || error.message.includes('Gemini API error')) {
+    if ((error instanceof Error && error.message.includes('400')) || (error instanceof Error && error.message.includes('Gemini API error'))) {
       console.log(`[${requestId}] Attempting MP4 to MOV conversion fallback`);
       
       try {
@@ -44,7 +44,7 @@ export async function processMP4WithFallback(options: MP4ProcessingOptions) {
         
       } catch (conversionError) {
         console.error(`[${requestId}] MP4 conversion fallback failed:`, conversionError);
-        throw new Error(`Both MP4 processing and conversion failed: ${error.message}`);
+        throw new Error(`Both MP4 processing and conversion failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     

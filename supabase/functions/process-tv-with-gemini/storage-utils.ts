@@ -46,10 +46,10 @@ export async function validateAndGetFile(supabase: any, videoPath: string): Prom
     throw new Error(`Failed to list files in video bucket: ${listError.message}`);
   }
   
-  console.log('[storage-utils] Available files in video bucket:', filesList?.map(f => f.name) || []);
+  console.log('[storage-utils] Available files in video bucket:', filesList?.map((f: any) => f.name) || []);
   
   // Check if our file exists - be flexible with matching
-  const fileExists = filesList?.some(f => {
+  const fileExists = filesList?.some((f: any) => {
     // Exact match
     if (f.name === fileName) return true;
     
@@ -67,14 +67,14 @@ export async function validateAndGetFile(supabase: any, videoPath: string): Prom
   if (!fileExists) {
     console.error('[storage-utils] File not found in video bucket:', {
       searchingFor: fileName,
-      availableFiles: filesList?.map(f => f.name) || [],
+      availableFiles: filesList?.map((f: any) => f.name) || [],
       userId
     });
     throw new Error(`File not found in video storage: ${fileName}`);
   }
   
   // Find the exact file path for signed URL
-  const matchedFile = filesList?.find(f => {
+  const matchedFile = filesList?.find((f: any) => {
     if (f.name === fileName) return true;
     if (fileName.includes(f.name) || f.name.includes(fileName.split('_').pop() || '')) return true;
     const baseName = fileName.replace(/^\d+_/, '').replace(/\.[^/.]+$/, '');
@@ -139,7 +139,7 @@ export async function downloadVideoWithRetry(videoUrl: string, maxRetries = 3): 
       console.error(`[storage-utils] Download attempt ${attempt} failed:`, error);
       
       if (attempt === maxRetries) {
-        throw new Error(`Failed to download video after ${maxRetries} attempts: ${error.message}`);
+        throw new Error(`Failed to download video after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}`);
       }
       
       // Wait before retry with exponential backoff

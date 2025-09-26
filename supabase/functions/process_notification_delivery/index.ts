@@ -131,14 +131,14 @@ serve(async (req) => {
           .from("notification_delivery_log")
           .update({ 
             status: "failed", 
-            error: err.message || "Unknown error"
+            error: err instanceof Error ? err.message : "Unknown error"
           })
           .eq("id", delivery.id);
 
         deliveryResults.push({
           id: delivery.id,
           status: "failed",
-          error: err.message
+          error: err instanceof Error ? err.message : String(err)
         });
       }
     }
@@ -157,7 +157,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Unhandled error:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error.message }),
+      JSON.stringify({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

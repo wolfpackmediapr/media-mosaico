@@ -25,7 +25,7 @@ export async function testGeminiConnectivity(apiKey: string): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('[process-tv-with-gemini] Gemini connectivity test error:', error);
-    throw new Error(`Gemini API connectivity failed: ${error.message}`);
+    throw new Error(`Gemini API connectivity failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -63,7 +63,7 @@ export async function uploadVideoToGemini(videoBlob: Blob, apiKey: string, video
     return uploadResult.file;
   } catch (error) {
     console.error('[process-tv-with-gemini] Video upload error:', error);
-    throw new Error(`Gemini video upload failed: ${error.message}`);
+    throw new Error(`Gemini video upload failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -214,7 +214,7 @@ export async function generateAnalysisWithVideo(videoBlob: Blob, apiKey: string,
     
   } catch (error) {
     console.error('[process-tv-with-gemini] Video analysis error:', error);
-    throw new Error(`Gemini video analysis failed: ${error.message}`);
+    throw new Error(`Gemini video analysis failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

@@ -423,7 +423,7 @@ serve(async (req) => {
           .from("content_processing_jobs")
           .update({ 
             status: "failed", 
-            error: error.message || "Unknown error",
+            error: error instanceof Error ? error.message : "Unknown error",
             processed_at: new Date().toISOString() 
           })
           .eq("id", payload.job_id);
@@ -433,7 +433,7 @@ serve(async (req) => {
     }
     
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error.message }),
+      JSON.stringify({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

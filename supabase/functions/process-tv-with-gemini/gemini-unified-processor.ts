@@ -17,7 +17,11 @@ export async function processVideoWithGemini(
   
   // Step 1: Upload video to Gemini (10% progress)
   progressCallback?.(0.1);
-  const { file: uploadedFile, mimeType } = await uploadVideoToGemini(videoBlob, apiKey, videoPath);
+  const uploadResult = await uploadVideoToGemini(videoBlob, apiKey, videoPath);
+  if (!uploadResult) {
+    throw new Error('Failed to upload video to Gemini');
+  }
+  const { file: uploadedFile, mimeType } = uploadResult;
   
   console.log('[gemini-unified] Video uploaded successfully', {
     fileName: uploadedFile.name,
@@ -44,7 +48,7 @@ export async function processVideoWithGemini(
     
   } catch (error) {
     console.error('[gemini-unified] Processing error:', error);
-    throw new Error(`Unified video processing failed: ${error.message}`);
+    throw new Error(`Unified video processing failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -187,7 +191,7 @@ async function waitForFileProcessing(
     } catch (error) {
       console.error(`[gemini-unified] Status check attempt ${attempt} failed:`, error);
       if (attempt === maxAttempts) {
-        throw new Error(`File processing timeout after ${maxAttempts} attempts: ${error.message}`);
+        throw new Error(`File processing timeout after ${maxAttempts} attempts: ${error instanceof Error ? error.message : String(error)}`);
       }
       await new Promise(resolve => setTimeout(resolve, 3000));
     }
@@ -483,7 +487,7 @@ function createUtterancesFromTranscription(transcription: string): any[] {
 
 function extractSegmentsFromAnalysis(analysisText: string): any[] {
   // Create basic segments based on content type sections
-  const segments = [];
+  const segments: any[] = [];
   const sections = analysisText.split(/\[TIPO DE CONTENIDO:/);
   
   sections.forEach((section, index) => {
