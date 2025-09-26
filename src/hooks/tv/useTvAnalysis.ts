@@ -119,13 +119,11 @@ export const useTvAnalysis = ({
       if (data?.success) {
         console.log('[useTvAnalysis] Analysis completed successfully');
         
-        // Create a comprehensive analysis summary
-        const analysisText = JSON.stringify({
-          summary: data.summary || 'Análisis completado',
-          keywords: data.keywords || [],
-          analysis: data.analysis || {},
-          segments_count: data.segments?.length || 0
-        }, null, 2);
+        // Pass through the actual Gemini analysis data as a JSON string
+        // This preserves the Spanish field names that the parser expects
+        const analysisText = typeof data.analysis === 'string' 
+          ? data.analysis 
+          : JSON.stringify(data.analysis || data, null, 2);
         
         setAnalysis(analysisText);
         toast.success("Análisis de contenido completado");
