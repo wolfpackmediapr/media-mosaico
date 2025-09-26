@@ -64,11 +64,13 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in fetch-sentences function:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message,
-        details: error.stack
+        error: errorMessage,
+        details: errorStack
       }),
       { 
         status: 500,
