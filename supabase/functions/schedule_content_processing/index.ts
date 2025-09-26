@@ -69,16 +69,18 @@ serve(async (req) => {
         return await response.json();
       } catch (err) {
         console.error(`Error processing job ${job.id}:`, err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        
         // Update job status to failed
         await supabase
           .from("content_processing_jobs")
           .update({ 
             status: "failed", 
-            error: err.message || "Unknown error",
+            error: errorMessage || "Unknown error",
             processed_at: new Date().toISOString() 
           })
           .eq("id", job.id);
-        return { error: err.message, job_id: job.id };
+        return { error: errorMessage, job_id: job.id };
       }
     });
 
@@ -99,7 +101,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Unhandled error:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error.message }),
+      JSON.stringify({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

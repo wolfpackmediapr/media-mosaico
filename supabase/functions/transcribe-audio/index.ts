@@ -18,13 +18,15 @@ serve(async (req) => {
     console.log('Starting transcription process...');
     
     const formData = await req.formData();
-    const file = formData.get('file');
+    const fileEntry = formData.get('file');
     const userId = formData.get('userId');
 
     // Enhanced validation
-    if (!file) {
+    if (!fileEntry || typeof fileEntry === 'string') {
       throw new Error('File is missing from request');
     }
+
+    const file = fileEntry as File;
 
     if (!userId) {
       throw new Error('User ID is required');
@@ -212,7 +214,7 @@ serve(async (req) => {
 
     } catch (dbError) {
       console.error('Database operation failed:', dbError);
-      throw new Error(`Database operation failed: ${dbError.message}`);
+      throw new Error(`Database operation failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
     }
 
   } catch (error) {
@@ -220,7 +222,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       }),
       { 
         status: 400,

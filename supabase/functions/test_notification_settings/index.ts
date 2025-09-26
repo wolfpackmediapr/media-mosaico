@@ -169,7 +169,7 @@ serve(async (req) => {
       if (!payload.sources.includes(item.type)) continue;
       
       // Find matching keywords
-      const matchedKeywords = client.keywords.filter(keyword => 
+      const matchedKeywords = client.keywords.filter((keyword: any) => 
         item.content.toLowerCase().includes(keyword.toLowerCase())
       );
       
@@ -229,7 +229,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Unhandled error:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error.message }),
+      JSON.stringify({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

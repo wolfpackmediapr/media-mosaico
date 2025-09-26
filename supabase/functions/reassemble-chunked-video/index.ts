@@ -229,7 +229,7 @@ serve(async (req) => {
     })();
 
     // Start cleanup in background but don't wait for it
-    globalThis.EdgeRuntime?.waitUntil?.(cleanupPromise);
+    (globalThis as any).EdgeRuntime?.waitUntil?.(cleanupPromise);
 
     return new Response(
       JSON.stringify({ 
@@ -261,12 +261,13 @@ serve(async (req) => {
     }
     
     // Determine if error is retryable
-    const isRetryable = !error.message?.includes('Chunks not found') && 
-                       !error.message?.includes('already completed');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isRetryable = !errorMessage?.includes('Chunks not found') && 
+                       !errorMessage?.includes('already completed');
     
     return new Response(
       JSON.stringify({ 
-        error: error.message || 'An error occurred during file reassembly',
+        error: errorMessage || 'An error occurred during file reassembly',
         retryable: isRetryable
       }),
       { 

@@ -199,7 +199,7 @@ serve(async (req) => {
     }
 
     // Parse response
-    const responseBody = await response.json().catch(error => {
+    const responseBody = await response?.json().catch(error => {
       console.error('Error parsing OpenAI response:', error);
       throw new Error('Invalid response from OpenAI API');
     });
@@ -215,7 +215,7 @@ serve(async (req) => {
     
     // Transform segments into word-like format for consistency
     const segments = result.segments || [];
-    const words = segments.map(segment => ({
+    const words = segments.map((segment: any) => ({
       text: segment.text,
       start: Math.round(segment.start * 1000), // Convert seconds to ms
       end: Math.round(segment.end * 1000),     // Convert seconds to ms
@@ -293,8 +293,10 @@ serve(async (req) => {
     
     // Determine status code based on error
     let statusCode = 500;
-    const errorMessage = error.message || 'Unknown error occurred';
-    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Transcription error:', errorMessage);
+    console.error('Error details:', error);
+
     // Check for client errors
     if (
       errorMessage.includes('File size exceeds') ||
@@ -308,7 +310,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: false, 
         error: errorMessage,
-        details: error.stack
+        details: error instanceof Error ? error.stack : undefined
       }),
       { 
         status: statusCode,

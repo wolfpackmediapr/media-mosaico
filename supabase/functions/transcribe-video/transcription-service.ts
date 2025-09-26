@@ -245,7 +245,7 @@ export const createSegments = (
  * Extract news segments from AssemblyAI result
  */
 export const extractNewsSegmentsFromAssemblyAI = (transcriptResult: any): any[] => {
-  let newsSegments = [];
+  let newsSegments: any[] = [];
   
   if (!transcriptResult) return newsSegments;
   
