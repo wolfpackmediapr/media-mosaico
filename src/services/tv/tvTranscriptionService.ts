@@ -58,17 +58,35 @@ export class TvTranscriptionService {
     status?: string;
     progress?: number;
   }): Promise<TvTranscription | null> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      console.error('Authentication error:', authError);
+      throw new Error('Authentication failed');
+    }
     if (!user) throw new Error('User not authenticated');
+
+    // Ensure user_id is explicitly set
+    const insertData = {
+      user_id: user.id,
+      original_file_path: data.original_file_path,
+      audio_file_path: data.audio_file_path,
+      transcription_text: data.transcription_text,
+      channel: data.channel,
+      program: data.program,
+      category: data.category,
+      broadcast_time: data.broadcast_time,
+      keywords: data.keywords,
+      relevant_clients: data.relevant_clients,
+      summary: data.summary,
+      status: data.status || 'pending',
+      progress: data.progress || 0
+    };
+
+    console.log('[TvTranscriptionService] Creating transcription with user_id:', user.id);
 
     const { data: transcription, error } = await supabase
       .from('tv_transcriptions')
-      .insert({
-        user_id: user.id,
-        ...data,
-        status: data.status || 'pending',
-        progress: data.progress || 0
-      })
+      .insert(insertData)
       .select()
       .single();
 
