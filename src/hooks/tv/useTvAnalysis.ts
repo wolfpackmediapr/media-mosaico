@@ -121,9 +121,9 @@ export const useTvAnalysis = ({
         
         // Pass through the actual Gemini analysis data as a JSON string
         // This preserves the Spanish field names that the parser expects
-        const analysisText = typeof data.analysis === 'string' 
-          ? data.analysis 
-          : JSON.stringify(data.analysis || data, null, 2);
+        const analysisText = typeof data.full_analysis === 'string' 
+          ? data.full_analysis 
+          : JSON.stringify(data.full_analysis || data, null, 2);
         
         setAnalysis(analysisText);
         toast.success("Análisis de contenido completado");
