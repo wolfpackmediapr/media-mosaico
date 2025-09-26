@@ -39,9 +39,12 @@ const TvAnalysis = ({
     forceRefresh: forceReset
   });
 
-  // Determine which analysis to show (priority: analysisResults > existing > empty)
-  const displayAnalysis = analysisResults || existingAnalysis;
-  const hasAnalysisToShow = !!(analysisResults || hasExistingAnalysis);
+  // Determine which analysis to show (priority: properly formatted content)
+  // If analysisResults exists and is properly formatted, use it. Otherwise use existing.
+  const shouldUseAnalysisResults = analysisResults && 
+    (analysisResults.includes('[TIPO DE CONTENIDO:') || analysisResults.includes('**ANÁLISIS'));
+  const displayAnalysis = shouldUseAnalysisResults ? analysisResults : existingAnalysis;
+  const hasAnalysisToShow = !!(displayAnalysis && displayAnalysis.trim().length > 0);
 
   // Clear function for parent
   const clearAnalysisState = () => {
