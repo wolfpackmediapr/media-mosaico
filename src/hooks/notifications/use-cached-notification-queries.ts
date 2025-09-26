@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, UseQueryOptions } from "@tanstack/react-query";
-import { NotificationItemProps } from "@/components/notifications/NotificationItem";
+import { NotificationItem } from "@/components/notifications/types";
 import { transformNotification } from "./utils";
 
 /**
@@ -17,7 +17,7 @@ interface CachedNotificationQueryOptions {
   /** Whether to enable background fetching */
   enableBackgroundFetching?: boolean;
   /** Custom query options */
-  queryOptions?: Omit<UseQueryOptions<NotificationItemProps[], Error>, 'queryKey' | 'queryFn'>;
+  queryOptions?: Omit<UseQueryOptions<NotificationItem[], Error>, 'queryKey' | 'queryFn'>;
 }
 
 /**
