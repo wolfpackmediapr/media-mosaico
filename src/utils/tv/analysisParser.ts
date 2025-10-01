@@ -38,6 +38,33 @@ interface ParsedAnalysisData {
   recomendaciones?: string[];
 }
 
+// Helper to detect if content is structured analysis vs raw transcription
+function isStructuredAnalysis(content: string): boolean {
+  const analysisKeywords = [
+    // Spanish analysis markers
+    'Quién:', 'Qué:', 'Cuándo:', 'Dónde:', 'Por qué:',
+    '**Quién:**', '**Qué:**', '**Cuándo:**', '**Dónde:**', '**Por qué:**',
+    'ANÁLISIS 5W', 'RESUMEN', 'PALABRAS CLAVE', 'RELEVANCIA',
+    // English analysis markers
+    'Who:', 'What:', 'When:', 'Where:', 'Why:',
+    'ANALYSIS', 'SUMMARY', 'KEYWORDS', 'RELEVANCE'
+  ];
+  
+  const hasAnalysisMarkers = analysisKeywords.some(keyword => 
+    content.includes(keyword)
+  );
+  
+  // Check if it's mostly speaker dialogue (raw transcription)
+  const lines = content.split('\n');
+  const speakerLines = lines.filter(line => 
+    /^SPEAKER\s+\d+:/i.test(line.trim()) || 
+    /^[A-ZÁÉÍÓÚÑÜ\s]{2,20}:\s+/i.test(line.trim())
+  );
+  const isMostlySpeakerDialogue = speakerLines.length > lines.length * 0.3;
+  
+  return hasAnalysisMarkers && !isMostlySpeakerDialogue;
+}
+
 export const parseAnalysisContent = (analysis: string): string => {
   console.log('[parseAnalysisContent] Starting analysis parsing');
   
@@ -46,16 +73,12 @@ export const parseAnalysisContent = (analysis: string): string => {
     return '';
   }
 
-  // Clean transcription contamination first
-  const cleanedAnalysis = cleanTranscriptionContent(analysis);
-  
   // Try parsing as JSON first
   try {
-    const cleanJson = cleanedAnalysis.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const cleanJson = analysis.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsed = JSON.parse(cleanJson);
     console.log('[parseAnalysisContent] Successfully parsed as JSON');
     
-    // Ensure no transcription content leaks into analysis display
     const formattedResult = convertJsonToReadableFormat(parsed);
     return cleanTranscriptionFromAnalysis(formattedResult);
   } catch (jsonError) {
@@ -63,15 +86,23 @@ export const parseAnalysisContent = (analysis: string): string => {
   }
 
   // Check if already formatted with content type markers
-  if (cleanedAnalysis.includes('[TIPO DE CONTENIDO:')) {
+  if (analysis.includes('[TIPO DE CONTENIDO:')) {
     console.log('[parseAnalysisContent] Content already formatted with type markers');
-    return consolidateContent(cleanedAnalysis);
+    return consolidateContent(analysis);
   }
 
-  // Treat as plain text analysis
-  console.log('[parseAnalysisContent] Processing as plain text analysis');
-  const contentType = determineContentType(cleanedAnalysis);
-  return `[TIPO DE CONTENIDO: ${contentType}]\n\n${cleanTranscriptionContent(cleanedAnalysis)}`;
+  // Determine if this is structured analysis or raw transcription
+  if (isStructuredAnalysis(analysis)) {
+    console.log('[parseAnalysisContent] Detected structured analysis content');
+    const contentType = determineContentType(analysis);
+    // Keep analysis content as-is, just add content type header if missing
+    return `[TIPO DE CONTENIDO: ${contentType}]\n\n${analysis.trim()}`;
+  }
+
+  // Only apply transcription cleaning to raw dialogue
+  console.log('[parseAnalysisContent] Processing as raw transcription');
+  const contentType = determineContentType(analysis);
+  return `[TIPO DE CONTENIDO: ${contentType}]\n\n${cleanTranscriptionContent(analysis)}`;
 };
 
 // Enhanced function to clean transcription content from analysis
