@@ -939,14 +939,14 @@ Después de completar la transcripción, proporciona SOLO análisis limpio:
       "keywords": ["palabra1", "palabra2"]
     }
   ],
-  "keywords": ["palabra1", "palabra2", "palabra3"],
-  "summary": "Resumen ejecutivo del contenido - SIN transcripción literal",
-  "analysis": {
-    "who": "Quiénes participan (nombres únicamente)",
-    "what": "Qué temas se discuten (sin transcripción literal)",
-    "when": "Cuándo ocurre",
-    "where": "Dónde se desarrolla", 
-    "why": "Por qué es relevante"
+  "palabras_clave": ["palabra1", "palabra2", "palabra3"],
+  "resumen": "Resumen ejecutivo completo y detallado del contenido en español - SIN transcripción literal",
+  "analisis_5w": {
+    "quien": "Quiénes participan (nombres y roles específicos)",
+    "que": "Qué temas se discuten en detalle (sin transcripción literal)",
+    "cuando": "Cuándo ocurre (fechas, horas, contexto temporal)",
+    "donde": "Dónde se desarrolla (ubicaciones específicas)", 
+    "porque": "Por qué es relevante (impacto, importancia, contexto)"
   }
 }
 
