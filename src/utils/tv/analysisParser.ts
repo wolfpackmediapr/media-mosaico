@@ -151,7 +151,7 @@ function determineContentType(data: any): string {
   return hasAdKeywords ? 'PROGRAMA REGULAR + ANUNCIOS' : 'PROGRAMA REGULAR';
 }
 
-// Convert JSON analysis data to human-readable formatted text
+// Convert JSON analysis data to human-readable formatted text (plain text, no markdown)
 function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
   console.log('[convertJsonToReadableFormat] Converting analysis to readable format');
   
@@ -174,7 +174,7 @@ function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
   // 5W Analysis section (enhanced to handle both Spanish and English formats)
   const analysis5W = parsed.analisis_5w || parsed.analysis || {};
   if (Object.keys(analysis5W).length > 0 || parsed.who || parsed.what || parsed.when || parsed.where || parsed.why) {
-    sections.push('\n**ANÁLISIS 5W**');
+    sections.push('\n=== ANÁLISIS 5W ===');
     
     const who = analysis5W.quien || analysis5W.who || parsed.who || 'No especificado';
     const what = analysis5W.que || analysis5W.what || parsed.what || 'No especificado';
@@ -182,49 +182,49 @@ function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
     const where = analysis5W.donde || analysis5W.where || parsed.where || 'No especificado';
     const why = analysis5W.porque || analysis5W.why || parsed.why || 'No especificado';
     
-    sections.push(`• **Quién:** ${who}`);
-    sections.push(`• **Qué:** ${what}`);
-    sections.push(`• **Cuándo:** ${when}`);
-    sections.push(`• **Dónde:** ${where}`);
-    sections.push(`• **Por qué:** ${why}`);
+    sections.push(`• Quién: ${who}`);
+    sections.push(`• Qué: ${what}`);
+    sections.push(`• Cuándo: ${when}`);
+    sections.push(`• Dónde: ${where}`);
+    sections.push(`• Por qué: ${why}`);
   }
   
   // Summary section (prioritize Spanish)
   const summary = parsed.resumen || parsed.summary;
   if (summary) {
-    sections.push('\n**RESUMEN**');
+    sections.push('\n=== RESUMEN ===');
     sections.push(summary);
   }
   
   // Visual analysis section
   if (parsed.visual_analysis) {
-    sections.push('\n**ANÁLISIS VISUAL**');
+    sections.push('\n=== ANÁLISIS VISUAL ===');
     sections.push(parsed.visual_analysis);
   }
   
   // Keywords section (prioritize Spanish)
   const keywords = parsed.palabras_clave || parsed.keywords;
   if (keywords && Array.isArray(keywords)) {
-    sections.push('\n**PALABRAS CLAVE**');
+    sections.push('\n=== PALABRAS CLAVE ===');
     sections.push(keywords.join(', '));
   }
   
   // Client relevance section (prioritize Spanish)
   const clientRelevance = parsed.relevancia_clientes || parsed.client_relevance;
   if (clientRelevance && Array.isArray(clientRelevance)) {
-    sections.push('\n**RELEVANCIA PARA CLIENTES**');
+    sections.push('\n=== RELEVANCIA PARA CLIENTES ===');
     clientRelevance.forEach(client => {
       const clientName = client.cliente || client.client || 'Cliente';
       const relevanceLevel = client.nivel_relevancia || client.relevance_level || 'No especificado';
       const reason = client.razon || client.reason || 'No especificada';
-      sections.push(`• **${clientName}** (${relevanceLevel}): ${reason}`);
+      sections.push(`• ${clientName} (${relevanceLevel}): ${reason}`);
     });
   }
   
   // Alerts section (prioritize Spanish)
   const alerts = parsed.alertas || parsed.alerts;
   if (alerts && Array.isArray(alerts) && alerts.length > 0) {
-    sections.push('\n**ALERTAS**');
+    sections.push('\n=== ALERTAS ===');
     alerts.forEach(alert => {
       sections.push(`• ${alert}`);
     });
@@ -233,14 +233,14 @@ function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
   // Impact score section (prioritize Spanish)
   const impactScore = parsed.puntuacion_impacto || parsed.impact_score;
   if (impactScore) {
-    sections.push('\n**PUNTUACIÓN DE IMPACTO**');
+    sections.push('\n=== PUNTUACIÓN DE IMPACTO ===');
     sections.push(`${impactScore}/10`);
   }
   
   // Recommendations section (prioritize Spanish)
   const recommendations = parsed.recomendaciones || parsed.recommendations;
   if (recommendations && Array.isArray(recommendations) && recommendations.length > 0) {
-    sections.push('\n**RECOMENDACIONES**');
+    sections.push('\n=== RECOMENDACIONES ===');
     recommendations.forEach(rec => {
       sections.push(`• ${rec}`);
     });
@@ -249,7 +249,7 @@ function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
   // Category section (prioritize Spanish)
   const category = parsed.categoria || parsed.category;
   if (category) {
-    sections.push('\n**CATEGORÍA**');
+    sections.push('\n=== CATEGORÍA ===');
     sections.push(category);
   }
   
