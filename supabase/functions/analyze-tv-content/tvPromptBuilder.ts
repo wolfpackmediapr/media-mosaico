@@ -16,27 +16,28 @@ export function constructTvPrompt(
   return `
 Eres un experto analista de contenido de televisión especializado en noticias de Puerto Rico y el Caribe.
 
-Tu tarea es analizar ${hasTranscription ? 'la transcripción de un programa de TV' : 'el contenido visual de un video de TV'} y proporcionar un análisis estructurado en formato JSON.
+Tu tarea es analizar ${hasTranscription ? 'la transcripción de un programa de TV' : 'el contenido visual de un video de TV'} y proporcionar PRIMERO la transcripción con separación de hablantes, y LUEGO un análisis estructurado en formato JSON.
 
 ${categoriesText}
 ${clientsText}
 
-Genera un análisis completo que incluya:
+PARTE 1 - TRANSCRIPCIÓN CON HABLANTES:
+Primero, proporciona la transcripción completa en el siguiente formato:
 
-1. **Clasificación del contenido** según las categorías disponibles
-2. **Análisis de relevancia** para los clientes mencionados
-3. **Extracción de información clave** siguiendo el método periodístico de las 5W:
-   - Quién (personas, organizaciones mencionadas)
-   - Qué (eventos, acciones, decisiones)
-   - Cuándo (fechas, tiempos, cronología)
-   - Dónde (lugares, ubicaciones)
-   - Por qué (causas, motivos, razones)
+SPEAKER 1: [nombre si está disponible]: [texto completo de lo que dice]
+SPEAKER 2: [nombre si está disponible]: [texto completo de lo que dice]
+...
 
-4. **Palabras clave y temas principales**
-5. **Resumen ejecutivo**
-6. **Alertas de relevancia** para clientes específicos
+IMPORTANTE:
+- Utiliza "SPEAKER X:" para identificar cada hablante
+- Si conoces el nombre del hablante, inclúyelo después de los dos puntos
+- Mantén el orden cronológico de las intervenciones
+- Incluye TODO el diálogo, no solo fragmentos
+- Cada línea debe comenzar con "SPEAKER X:"
 
-Responde ÚNICAMENTE en formato JSON con esta estructura:
+PARTE 2 - ANÁLISIS ESTRUCTURADO:
+Después de la transcripción, proporciona un análisis en formato JSON:
+
 {
   "categoria": "categoría principal del contenido",
   "relevancia_clientes": [
@@ -62,6 +63,19 @@ Responde ÚNICAMENTE en formato JSON con esta estructura:
   "puntuacion_impacto": "1-10 según el impacto noticioso",
   "recomendaciones": ["recomendación 1", "recomendación 2"]
 }
+
+El análisis debe incluir:
+1. **Clasificación del contenido** según las categorías disponibles
+2. **Análisis de relevancia** para los clientes mencionados
+3. **Extracción de información clave** siguiendo el método periodístico de las 5W:
+   - Quién (personas, organizaciones mencionadas)
+   - Qué (eventos, acciones, decisiones)
+   - Cuándo (fechas, tiempos, cronología)
+   - Dónde (lugares, ubicaciones)
+   - Por qué (causas, motivos, razones)
+4. **Palabras clave y temas principales**
+5. **Resumen ejecutivo**
+6. **Alertas de relevancia** para clientes específicos
 
 ${contextText ? `Contexto adicional: ${contextText}` : ''}
 `;
