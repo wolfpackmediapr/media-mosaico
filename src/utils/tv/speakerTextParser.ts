@@ -12,21 +12,22 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   // First, clean the text from any analysis artifacts
   const cleanedText = cleanInputText(text);
   
-  // NEW: Split by SPEAKER patterns directly, not by double newlines
-  const speakerPattern = /(SPEAKER\s+\d+:\s*[^:]*:\s*|SPEAKER\s+\d+:\s*)/gi;
+  // Use matchAll to capture each SPEAKER segment individually in chronological order
   const segments: string[] = [];
   
-  // Split by speaker patterns to get individual speaker segments
-  const parts = cleanedText.split(speakerPattern);
+  // Match each SPEAKER X: occurrence with its content until the next SPEAKER or end
+  const speakerMatches = Array.from(
+    cleanedText.matchAll(/(SPEAKER\s+\d+(?:\s*\([^)]+\))?:\s*)([^]*?)(?=SPEAKER\s+\d+|$)/gi)
+  );
   
-  for (let i = 1; i < parts.length; i += 2) {
-    const speakerLabel = parts[i]; // The SPEAKER X: part
-    const content = parts[i + 1] || ''; // The actual content
-    
-    if (speakerLabel && content.trim()) {
-      segments.push((speakerLabel + content.split(/SPEAKER\s+\d+:/i)[0]).trim());
+  // Extract segments preserving order - each match is a separate segment
+  speakerMatches.forEach(match => {
+    const speakerLabel = match[1].trim(); // SPEAKER X: or SPEAKER X (Name):
+    const content = match[2].trim(); // The dialogue content
+    if (content) {
+      segments.push(`${speakerLabel} ${content}`);
     }
-  }
+  });
   
   // Fallback to original method if no speaker patterns found
   if (segments.length === 0) {
