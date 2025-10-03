@@ -4,7 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
 // Import PDF.js using a web-compatible version that doesn't require Node.js canvas
-import * as pdfjs from "https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js";
+// The ?external=canvas parameter tells esm.sh to skip bundling the canvas dependency
+import * as pdfjs from "https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js?external=canvas";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
