@@ -80,6 +80,39 @@ ${contextText ? `Contexto adicional: ${contextText}` : ''}
 `;
 }
 
+// Dedicated Transcription-Only Prompt
+function buildTranscriptionOnlyPrompt(): string {
+  return `Eres un transcriptor experto de contenido audiovisual en español de Puerto Rico y el Caribe.
+
+Tu ÚNICA tarea es transcribir PALABRA POR PALABRA todo el diálogo que escuchas en el video, separando por hablantes.
+
+FORMATO REQUERIDO - Usa EXACTAMENTE este formato:
+
+SPEAKER 1: [Transcripción textual exacta de todo lo que dice]
+SPEAKER 2: [Transcripción textual exacta de todo lo que dice]
+SPEAKER 1: [Si el primer hablante vuelve a hablar]
+SPEAKER 3: [Si aparece un tercer hablante]
+
+REGLAS CRÍTICAS:
+✓ Transcribe TODO el diálogo palabra por palabra
+✓ Identifica correctamente cuando cambia el hablante
+✓ Mantén el orden cronológico estricto
+✓ Si identificas el nombre del hablante, añádelo: SPEAKER 1 (María González):
+✓ Incluye pausas significativas con [pausa]
+✓ Incluye eventos importantes como [aplausos], [risas], [música]
+✓ NO resumas NI parafrasees - transcribe EXACTAMENTE lo que escuchas
+✓ NO incluyas análisis, opiniones ni interpretaciones
+
+FORMATO DE SALIDA:
+Responde ÚNICAMENTE con la transcripción en el formato SPEAKER X: texto
+NO incluyas títulos, encabezados, ni explicaciones adicionales.
+
+Ejemplo de salida correcta:
+SPEAKER 1 (Periodista): Buenos días Puerto Rico, hoy tenemos noticias importantes sobre...
+SPEAKER 2 (Invitado): Gracias por la invitación. Quiero hablar sobre...
+SPEAKER 1 (Periodista): Muy interesante. ¿Nos puede explicar más sobre...?`;
+}
+
 // Utility function to categorize errors
 function categorizeError(message: string): string {
   if (message.includes('memory') || message.includes('heap')) {
@@ -598,9 +631,63 @@ async function processChunkedUploadWithGemini(
       console.log('[gemini-unified] File processing completed successfully');
     }
 
-    // Update progress
+    // ===== FIRST CALL: Extract Verbatim Transcription =====
+    console.log('[gemini-unified] Starting speaker-separated transcription...');
     if (transcriptionId) {
-      await updateDatabaseProgress(transcriptionId, 50, 'Generating comprehensive analysis...');
+      await updateDatabaseProgress(transcriptionId, 40, 'Extracting speaker-separated transcription...');
+    }
+
+    let speakerTranscription = '';
+    const maxTranscriptionAttempts = 2;
+
+    for (let attempt = 1; attempt <= maxTranscriptionAttempts; attempt++) {
+      try {
+        console.log(`[gemini-unified] Transcription attempt ${attempt}/${maxTranscriptionAttempts}`);
+        
+        const transcriptionResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { fileData: { mimeType: fileInfo.mimeType, fileUri: fileInfo.uri } },
+                  { text: buildTranscriptionOnlyPrompt() }
+                ]
+              }],
+              generationConfig: {
+                temperature: 0.1,
+                topK: 32,
+                topP: 0.8,
+                maxOutputTokens: 8192
+              }
+            })
+          }
+        );
+
+        if (!transcriptionResponse.ok) {
+          throw new Error(`Transcription API error: ${transcriptionResponse.status}`);
+        }
+
+        const transcriptionData = await transcriptionResponse.json();
+        if (transcriptionData.candidates?.[0]?.content?.parts?.[0]?.text) {
+          speakerTranscription = transcriptionData.candidates[0].content.parts[0].text.trim();
+          console.log('[gemini-unified] Speaker transcription extracted successfully');
+          break;
+        }
+      } catch (error) {
+        console.error(`[gemini-unified] Transcription attempt ${attempt} failed:`, error);
+        if (attempt === maxTranscriptionAttempts) {
+          console.warn('[gemini-unified] All transcription attempts failed, proceeding with analysis only');
+          speakerTranscription = '';
+        }
+      }
+    }
+
+    // ===== SECOND CALL: Generate Content Analysis =====
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 60, 'Generating content analysis...');
     }
 
     // Generate analysis with retry logic
@@ -690,7 +777,7 @@ async function processChunkedUploadWithGemini(
 
     return {
       success: true,
-      transcription: extractTranscriptionFromAnalysis(analysisResult),
+      transcription: speakerTranscription || extractTranscriptionFromAnalysis(analysisResult),
       segments: extractSegmentsFromAnalysis(analysisResult),
       full_analysis: analysisResult,
       summary: extractSummaryFromAnalysis(analysisResult),
@@ -979,6 +1066,12 @@ Evita usar referencias genéricas como "hablante 1", "participante A", etc., cua
 // Helper functions to extract data from analysis
 function extractTranscriptionFromAnalysis(analysis: string): string {
   console.log('[extractTranscriptionFromAnalysis] Starting transcription extraction');
+  
+  // Strategy 0: Check if it's already pure SPEAKER format (from dedicated transcription call)
+  if (analysis.trim().startsWith('SPEAKER ') && analysis.includes('SPEAKER 2:')) {
+    console.log('[extractTranscriptionFromAnalysis] Found pure speaker format from dedicated call');
+    return analysis.trim();
+  }
   
   // Strategy 1: Extract from [TIPO DE CONTENIDO:] format (PRIMARY for video analysis)
   const contentSections = analysis.match(/\[TIPO DE CONTENIDO: PROGRAMA REGULAR\]([\s\S]*?)(?=\[TIPO DE CONTENIDO:|$)/gi);
