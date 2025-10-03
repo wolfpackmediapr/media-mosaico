@@ -638,8 +638,8 @@ async function processChunkedUploadWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192,
-                responseMimeType: "application/json"
+                maxOutputTokens: 8192
+                // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
           }
@@ -798,8 +798,8 @@ async function processAssembledVideoWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192,
-                responseMimeType: "application/json"
+                maxOutputTokens: 8192
+                // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
           }
@@ -980,7 +980,27 @@ Evita usar referencias genéricas como "hablante 1", "participante A", etc., cua
 function extractTranscriptionFromAnalysis(analysis: string): string {
   console.log('[extractTranscriptionFromAnalysis] Starting transcription extraction');
   
-  // Strategy 1: Extract from JSON structure first
+  // Strategy 1: Extract from [TIPO DE CONTENIDO:] format (PRIMARY for video analysis)
+  const contentSections = analysis.match(/\[TIPO DE CONTENIDO: PROGRAMA REGULAR\]([\s\S]*?)(?=\[TIPO DE CONTENIDO:|$)/gi);
+  if (contentSections && contentSections.length > 0) {
+    console.log('[extractTranscriptionFromAnalysis] Found [TIPO DE CONTENIDO:] format');
+    
+    let transcriptionText = '';
+    contentSections.forEach(section => {
+      // Extract the "Resumen del contenido" which contains the narrative transcription
+      const summaryMatch = section.match(/1\.\s*Resumen del contenido[:\s]*([\s\S]*?)(?=\n2\.|$)/i);
+      if (summaryMatch && summaryMatch[1]) {
+        transcriptionText += summaryMatch[1].trim() + '\n\n';
+      }
+    });
+    
+    if (transcriptionText.length > 100) {
+      console.log('[extractTranscriptionFromAnalysis] Extracted transcription from content summaries');
+      return transcriptionText.trim();
+    }
+  }
+  
+  // Strategy 2: Extract from JSON structure
   try {
     const jsonMatch = analysis.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -997,7 +1017,7 @@ function extractTranscriptionFromAnalysis(analysis: string): string {
     console.log('[extractTranscriptionFromAnalysis] JSON parsing failed, trying text extraction');
   }
   
-  // Strategy 2: Extract from structured text sections
+  // Strategy 3: Extract from structured text sections with SPEAKER patterns
   const sectionPatterns = [
     /## TRANSCRIPCIÓN PASO A PASO:[\s\S]*?(\*\*EJEMPLOS CORRECTOS:\*\*[\s\S]*?)(?=##|\{|$)/s,
     /SPEAKER\s+\d+:[\s\S]*?(?=\n\n\{|\n\{|$)/s,
@@ -1016,14 +1036,14 @@ function extractTranscriptionFromAnalysis(analysis: string): string {
     }
   }
   
-  // Strategy 3: Look for individual SPEAKER lines throughout the text
+  // Strategy 4: Look for individual SPEAKER lines throughout the text
   const speakerLines = analysis.match(/^SPEAKER\s+\d+:\s*[^:]+:\s*.+$/gm);
   if (speakerLines && speakerLines.length > 1) {
     console.log('[extractTranscriptionFromAnalysis] Found multiple speaker lines');
     return speakerLines.join('\n');
   }
   
-  // Strategy 4: Enhanced parsing for mixed content
+  // Strategy 5: Enhanced parsing for mixed content
   const enhancedParsing = parseAndSeparateSpeakers(analysis);
   if (enhancedParsing && enhancedParsing.length > 50) {
     console.log('[extractTranscriptionFromAnalysis] Used enhanced parsing');
@@ -1241,7 +1261,7 @@ function extractKeywordsFromContent(content: string): string[] {
   return uniqueWords.slice(0, 10);
 }
 
-// Parse analysis for TV database structure - Enhanced to handle both Spanish and English JSON
+// Parse analysis for TV database structure - Enhanced to handle [TIPO DE CONTENIDO:] format
 function parseAnalysisForTvDatabase(analysis: string): {
   transcription: string;
   summary: string;
@@ -1254,8 +1274,69 @@ function parseAnalysisForTvDatabase(analysis: string): {
   category: string;
   content_summary: string;
 } {
+  // Strategy 1: Parse [TIPO DE CONTENIDO:] format (PRIMARY for video analysis)
+  const hasContentTypeFormat = analysis.includes('[TIPO DE CONTENIDO:');
+  
+  if (hasContentTypeFormat) {
+    console.log('[parseAnalysisForTvDatabase] Parsing [TIPO DE CONTENIDO:] format');
+    
+    // Extract all content summaries for the full readable analysis
+    const contentSections = analysis.match(/\[TIPO DE CONTENIDO: [^\]]+\]([\s\S]*?)(?=\[TIPO DE CONTENIDO:|$)/gi);
+    let contentSummary = '';
+    
+    if (contentSections) {
+      contentSections.forEach((section, index) => {
+        const typeMatch = section.match(/\[TIPO DE CONTENIDO: ([^\]]+)\]/);
+        const contentType = typeMatch ? typeMatch[1] : 'Contenido';
+        
+        contentSummary += `\n[TIPO DE CONTENIDO: ${contentType}]\n`;
+        
+        // Extract summary
+        const summaryMatch = section.match(/1\.\s*Resumen del contenido[:\s]*([\s\S]*?)(?=\n2\.|$)/i);
+        if (summaryMatch) {
+          contentSummary += `\nResumen: ${summaryMatch[1].trim()}\n`;
+        }
+        
+        // Extract key topics
+        const topicsMatch = section.match(/2\.\s*Temas principales[:\s]*([\s\S]*?)(?=\n3\.|$)/i);
+        if (topicsMatch) {
+          contentSummary += `Temas: ${topicsMatch[1].trim()}\n`;
+        }
+        
+        // Extract categories
+        const categoriesMatch = section.match(/3\.\s*Categorías[:\s]*([\s\S]*?)(?=\n4\.|$)/i);
+        if (categoriesMatch) {
+          contentSummary += `Categorías: ${categoriesMatch[1].trim()}\n`;
+        }
+        
+        // Extract keywords
+        const keywordsMatch = section.match(/4\.\s*Palabras clave[:\s]*([\s\S]*?)(?=\n5\.|$)/i);
+        if (keywordsMatch) {
+          contentSummary += `Palabras clave: ${keywordsMatch[1].trim()}\n`;
+        }
+        
+        if (index < contentSections.length - 1) {
+          contentSummary += '\n---\n';
+        }
+      });
+    }
+    
+    return {
+      transcription: extractTranscriptionFromAnalysis(analysis),
+      summary: extractSummaryFromAnalysis(analysis),
+      quien: extractFieldFromAnalysis(analysis, 'participantes|quien|who'),
+      que: extractFieldFromAnalysis(analysis, 'temas principales|que|what'),
+      cuando: extractFieldFromAnalysis(analysis, 'cuando|when'),
+      donde: extractFieldFromAnalysis(analysis, 'donde|where'),
+      porque: extractFieldFromAnalysis(analysis, 'porque|why'),
+      keywords: extractKeywordsFromAnalysis(analysis),
+      category: extractFieldFromAnalysis(analysis, 'categorías|category'),
+      content_summary: contentSummary.trim() || 'Análisis visual completado'
+    };
+  }
+  
+  // Strategy 2: Try to parse as JSON
   try {
-    // Try to parse as JSON first
     const cleanJson = analysis.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsedAnalysis = JSON.parse(cleanJson);
     
