@@ -509,10 +509,18 @@ export const useChunkedVideoUpload = () => {
 
       console.log('Edge function reassembly successful:', data);
 
+      // Get authenticated user for RLS policy
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        throw new Error('User not authenticated');
+      }
+
       // Create transcription record
       const { data: transcriptionData, error: transcriptionError } = await supabase
         .from('tv_transcriptions')
         .insert({
+          user_id: user.id,
           original_file_path: fileName,
           audio_file_path: fileName,
           status: 'uploaded'

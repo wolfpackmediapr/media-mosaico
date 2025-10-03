@@ -1458,8 +1458,7 @@ serve(async (req) => {
     
     const { data: categories, error: categoriesError } = await supabase
       .from('categories')
-      .select('id, name, name_es')
-      .eq('type', 'news');
+      .select('id, name_es, name_en');
     
     if (categoriesError) {
       console.error(`[${requestId}] Categories error:`, categoriesError);

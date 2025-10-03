@@ -11,13 +11,21 @@ interface TvFormattedAnalysisResultProps {
 const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps) => {
   if (!analysis) return null;
 
+  // Defensive: Convert object to string if needed
+  const analysisString = typeof analysis === 'string' 
+    ? analysis 
+    : JSON.stringify(analysis, null, 2);
+
   // Parse and format the analysis content (handles both JSON and formatted text)
-  const formattedAnalysis = parseAnalysisContent(analysis);
+  const formattedAnalysis = parseAnalysisContent(analysisString);
   const [editableContent, setEditableContent] = useState(formattedAnalysis);
 
   // Update editable content when analysis changes
   useEffect(() => {
-    const newFormattedAnalysis = parseAnalysisContent(analysis);
+    const analysisString = typeof analysis === 'string' 
+      ? analysis 
+      : JSON.stringify(analysis, null, 2);
+    const newFormattedAnalysis = parseAnalysisContent(analysisString);
     setEditableContent(newFormattedAnalysis);
   }, [analysis]);
 
