@@ -145,7 +145,7 @@ serve(async (req) => {
             
             console.log('[analyze-tv-content] Calling Gemini API with video context');
             geminiResponse = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
               {
                 method: 'POST',
                 headers: {
@@ -188,7 +188,7 @@ serve(async (req) => {
 
         console.log('[analyze-tv-content] Calling Gemini API for text analysis');
         geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
           {
             method: 'POST',
             headers: {

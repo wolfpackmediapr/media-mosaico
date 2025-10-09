@@ -321,6 +321,20 @@ async function waitForFileProcessing(fileName: string, apiKey: string): Promise<
   }
 }
 
+// Helper to extract retry delay from Gemini 429 error responses
+function extractRetryDelay(errorData: any): number {
+  try {
+    const errorMessage = JSON.stringify(errorData);
+    const retryMatch = errorMessage.match(/"retryDelay":\s*"(\d+)s"/);
+    if (retryMatch) {
+      return parseInt(retryMatch[1]) * 1000; // Convert to milliseconds
+    }
+  } catch (e) {
+    console.error('[extractRetryDelay] Parse error:', e);
+  }
+  return 30000; // Default 30 seconds
+}
+
 // Function to clean up Gemini file
 async function cleanupGeminiFile(fileName: string): Promise<void> {
   console.log('[gemini-unified] Cleaning up Gemini file...', fileName);
@@ -399,7 +413,7 @@ async function generateComprehensiveAnalysis(
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
         headers: {
@@ -638,14 +652,14 @@ async function processChunkedUploadWithGemini(
     }
 
     let speakerTranscription = '';
-    const maxTranscriptionAttempts = 2;
+    const maxTranscriptionAttempts = 5; // Increased for rate limit handling
 
     for (let attempt = 1; attempt <= maxTranscriptionAttempts; attempt++) {
       try {
         console.log(`[gemini-unified] Transcription attempt ${attempt}/${maxTranscriptionAttempts}`);
         
         const transcriptionResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -667,6 +681,27 @@ async function processChunkedUploadWithGemini(
         );
 
         if (!transcriptionResponse.ok) {
+          const errorData = await transcriptionResponse.json().catch(() => ({}));
+          
+          // Handle rate limit (429) with exponential backoff
+          if (transcriptionResponse.status === 429) {
+            const retryDelay = extractRetryDelay(errorData);
+            const backoffDelay = Math.min(retryDelay * attempt, 120000); // Max 2 minutes
+            
+            console.warn(`[gemini-unified] Rate limit on transcription attempt ${attempt}. Retrying in ${backoffDelay/1000}s...`);
+            
+            if (transcriptionId) {
+              await updateDatabaseProgress(
+                transcriptionId, 
+                35 + attempt, 
+                `Límite alcanzado. Reintentando en ${backoffDelay/1000}s... (${attempt}/${maxTranscriptionAttempts})`
+              );
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+            continue; // Retry
+          }
+          
           throw new Error(`Transcription API error: ${transcriptionResponse.status}`);
         }
 
@@ -685,6 +720,10 @@ async function processChunkedUploadWithGemini(
       }
     }
 
+    // Add small delay between API calls to reduce rate limit hits
+    console.log('[gemini-unified] Waiting 3s before analysis call to avoid rate limits...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
     // ===== SECOND CALL: Generate Content Analysis =====
     if (transcriptionId) {
       await updateDatabaseProgress(transcriptionId, 60, 'Generating content analysis...');
@@ -692,14 +731,14 @@ async function processChunkedUploadWithGemini(
 
     // Generate analysis with retry logic
     let analysisResult = null;
-    const maxAttempts = 3;
+    const maxAttempts = 5; // Increased for rate limit handling
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
         
         const analysisResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
           {
             method: 'POST',
             headers: {
@@ -733,7 +772,9 @@ async function processChunkedUploadWithGemini(
         );
 
         if (!analysisResponse.ok) {
-          const errorText = await analysisResponse.text();
+          const errorData = await analysisResponse.json().catch(() => ({}));
+          const errorText = JSON.stringify(errorData);
+          
           console.error(`[gemini-unified] API Response Error:`, {
             status: analysisResponse.status,
             statusText: analysisResponse.statusText,
@@ -741,6 +782,25 @@ async function processChunkedUploadWithGemini(
             attempt: attempt,
             mimeType: fileInfo.mimeType
           });
+          
+          // Handle rate limit (429) with exponential backoff
+          if (analysisResponse.status === 429) {
+            const retryDelay = extractRetryDelay(errorData);
+            const backoffDelay = Math.min(retryDelay * attempt, 120000); // Max 2 minutes
+            
+            console.warn(`[gemini-unified] Rate limit on analysis attempt ${attempt}. Retrying in ${backoffDelay/1000}s...`);
+            
+            if (transcriptionId) {
+              await updateDatabaseProgress(
+                transcriptionId, 
+                60 + attempt, 
+                `Límite alcanzado. Reintentando en ${backoffDelay/1000}s... (${attempt}/${maxAttempts})`
+              );
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+            continue; // Retry
+          }
           
           // MP4-specific error handling for 400 errors
           if (analysisResponse.status === 400 && fileInfo.mimeType.includes('mp4')) {
@@ -859,7 +919,7 @@ async function processAssembledVideoWithGemini(
         console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
         
         const analysisResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
           {
             method: 'POST',
             headers: {

@@ -304,9 +304,22 @@ export const useTvVideoProcessor = () => {
         console.warn('[TvVideoProcessor] No transcription ID available to update error status');
       }
       
-      toast.error("Error al procesar video", {
-        description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente."
-      });
+      // Display user-friendly error messages based on error type
+      if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+        toast.error("Límite temporal de API alcanzado", {
+          description: "El video se procesará en 1-2 minutos. Por favor espera e intenta de nuevo.",
+          duration: 10000
+        });
+      } else if (error.message?.includes('quota')) {
+        toast.error("Cuota de procesamiento alcanzada", {
+          description: "Intenta de nuevo en unos minutos.",
+          duration: 8000
+        });
+      } else {
+        toast.error("Error al procesar video", {
+          description: error.message || "No se pudo procesar el archivo. Por favor, intenta nuevamente."
+        });
+      }
     } finally {
       setIsProcessing(false);
     }
