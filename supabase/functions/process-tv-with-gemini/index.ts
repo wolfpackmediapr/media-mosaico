@@ -702,6 +702,24 @@ async function processChunkedUploadWithGemini(
             continue; // Retry
           }
           
+          // Handle service unavailable (503) with longer backoff
+          if (transcriptionResponse.status === 503) {
+            const backoffDelay = Math.min(10000 * attempt, 180000); // Start at 10s, max 3 min
+            
+            console.warn(`[gemini-unified] Gemini service unavailable (503) on attempt ${attempt}. Retrying in ${backoffDelay/1000}s...`);
+            
+            if (transcriptionId) {
+              await updateDatabaseProgress(
+                transcriptionId, 
+                35 + attempt, 
+                `Servicio temporalmente no disponible. Reintentando en ${backoffDelay/1000}s... (${attempt}/${maxTranscriptionAttempts})`
+              );
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+            continue; // Retry
+          }
+          
           throw new Error(`Transcription API error: ${transcriptionResponse.status}`);
         }
 
@@ -795,6 +813,24 @@ async function processChunkedUploadWithGemini(
                 transcriptionId, 
                 60 + attempt, 
                 `Límite alcanzado. Reintentando en ${backoffDelay/1000}s... (${attempt}/${maxAttempts})`
+              );
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+            continue; // Retry
+          }
+          
+          // Handle service unavailable (503) with longer backoff
+          if (analysisResponse.status === 503) {
+            const backoffDelay = Math.min(10000 * attempt, 180000); // Start at 10s, max 3 min
+            
+            console.warn(`[gemini-unified] Gemini service unavailable (503) on attempt ${attempt}. Retrying in ${backoffDelay/1000}s...`);
+            
+            if (transcriptionId) {
+              await updateDatabaseProgress(
+                transcriptionId, 
+                60 + attempt, 
+                `Servicio temporalmente no disponible. Reintentando en ${backoffDelay/1000}s... (${attempt}/${maxAttempts})`
               );
             }
             
@@ -1133,25 +1169,8 @@ function extractTranscriptionFromAnalysis(analysis: string): string {
     return analysis.trim();
   }
   
-  // Strategy 1: Extract from [TIPO DE CONTENIDO:] format (PRIMARY for video analysis)
-  const contentSections = analysis.match(/\[TIPO DE CONTENIDO: PROGRAMA REGULAR\]([\s\S]*?)(?=\[TIPO DE CONTENIDO:|$)/gi);
-  if (contentSections && contentSections.length > 0) {
-    console.log('[extractTranscriptionFromAnalysis] Found [TIPO DE CONTENIDO:] format');
-    
-    let transcriptionText = '';
-    contentSections.forEach(section => {
-      // Extract the "Resumen del contenido" which contains the narrative transcription
-      const summaryMatch = section.match(/1\.\s*Resumen del contenido[:\s]*([\s\S]*?)(?=\n2\.|$)/i);
-      if (summaryMatch && summaryMatch[1]) {
-        transcriptionText += summaryMatch[1].trim() + '\n\n';
-      }
-    });
-    
-    if (transcriptionText.length > 100) {
-      console.log('[extractTranscriptionFromAnalysis] Extracted transcription from content summaries');
-      return transcriptionText.trim();
-    }
-  }
+  // Strategy 1 REMOVED: Was incorrectly extracting analysis summaries instead of SPEAKER dialogue
+  // The [TIPO DE CONTENIDO:] format contains analysis content, NOT transcription
   
   // Strategy 2: Extract from JSON structure
   try {
@@ -1821,11 +1840,18 @@ serve(async (req) => {
       // Parse analysis to extract structured data for TV table
       const parsedAnalysis = parseAnalysisForTvDatabase(result.full_analysis || '');
       
+      // Validate transcription before saving - only save if it contains SPEAKER format
+      const validTranscription = (result.transcription && result.transcription.includes('SPEAKER ')) 
+        ? result.transcription 
+        : (parsedAnalysis.transcription && parsedAnalysis.transcription.includes('SPEAKER '))
+          ? parsedAnalysis.transcription
+          : ''; // Save empty if no valid SPEAKER transcription
+      
       // Store complete analysis with correct TV table structure
       await supabase
         .from('tv_transcriptions')
         .update({
-          transcription_text: result.transcription || parsedAnalysis.transcription,
+          transcription_text: validTranscription,
           analysis_summary: parsedAnalysis.summary,
           analysis_quien: parsedAnalysis.quien,
           analysis_que: parsedAnalysis.que,

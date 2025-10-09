@@ -11,13 +11,22 @@ interface TvFormattedAnalysisResultProps {
 const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps) => {
   if (!analysis) return null;
 
+  // Clean up markdown formatting for display
+  const cleanAnalysisText = (text: string) => {
+    return text
+      .replace(/\*\*/g, '') // Remove bold markers
+      .replace(/\*/g, '')   // Remove italic markers  
+      .trim();
+  };
+
   // Defensive: Convert object to string if needed
   const analysisString = typeof analysis === 'string' 
     ? analysis 
     : JSON.stringify(analysis, null, 2);
 
   // Parse and format the analysis content (handles both JSON and formatted text)
-  const formattedAnalysis = parseAnalysisContent(analysisString);
+  const rawFormattedAnalysis = parseAnalysisContent(analysisString);
+  const formattedAnalysis = cleanAnalysisText(rawFormattedAnalysis);
   const [editableContent, setEditableContent] = useState(formattedAnalysis);
 
   // Update editable content when analysis changes

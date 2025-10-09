@@ -49,6 +49,10 @@ export const EnhancedTranscriptionEditor: React.FC<EnhancedTranscriptionEditorPr
       if (formattedText && (!transcriptionText || transcriptionText !== formattedText)) {
         onTranscriptionChange(formattedText);
       }
+    } else if (transcriptionText && !transcriptionText.includes('SPEAKER ')) {
+      // If text doesn't have SPEAKER format, it's likely analysis content - show warning
+      console.warn('[EnhancedTranscriptionEditor] Transcription text does not contain SPEAKER format');
+      setEditableText('Transcripción no disponible - el contenido no pudo ser procesado correctamente');
     }
   }, [hasUtterances, onTranscriptionChange, transcriptionResult, transcriptionText]);
 
