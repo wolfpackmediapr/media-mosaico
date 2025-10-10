@@ -152,6 +152,16 @@ export const useSpeakerLabels = ({ transcriptionId }: UseSpeakerLabelsProps) => 
     
     // Format original speaker name
     if (typeof originalSpeaker === 'string') {
+      // Check if speaker has embedded name in format: speaker_X_(Name - Role)
+      const nameMatch = originalSpeaker.match(/speaker_(\d+)_\(([^)]+)\)/i);
+      if (nameMatch) {
+        // Extract just the name without role for cleaner display
+        const fullName = nameMatch[2]; // "Aixa Vázquez - Presentadora"
+        const nameOnly = fullName.split(' - ')[0].trim(); // "Aixa Vázquez"
+        return nameOnly;
+      }
+      
+      // Fallback: original format without embedded names
       return originalSpeaker.includes('_') ? 
         `Speaker ${originalSpeaker.split('_')[1]}` : 
         `Speaker ${originalSpeaker}`;
