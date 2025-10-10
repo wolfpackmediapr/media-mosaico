@@ -17,15 +17,18 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   
   // Match each SPEAKER X: occurrence with its content until the next SPEAKER or end
   const speakerMatches = Array.from(
-    cleanedText.matchAll(/(SPEAKER\s+\d+(?:\s*\([^)]+\))?:\s*)([^]*?)(?=SPEAKER\s+\d+|$)/gi)
+    cleanedText.matchAll(/SPEAKER\s+(\d+)(?:\s*\(([^)]+)\))?:\s*([^]*?)(?=SPEAKER\s+\d+|$)/gi)
   );
   
-  // Extract segments preserving order - each match is a separate segment
+  // Extract segments preserving order - reconstruct without full label to avoid duplication
   speakerMatches.forEach(match => {
-    const speakerLabel = match[1].trim(); // SPEAKER X: or SPEAKER X (Name):
-    const content = match[2].trim(); // The dialogue content
+    const speakerNum = match[1]; // Just the number: "2"
+    const speakerName = match[2] || ''; // The name if present: "María Rivera" (not used in text)
+    const content = match[3].trim(); // The dialogue content
+    
     if (content) {
-      segments.push(`${speakerLabel} ${content}`);
+      // Reconstruct as simple "SPEAKER X:" format - name will be displayed by UI component
+      segments.push(`SPEAKER ${speakerNum}: ${content}`);
     }
   });
   
@@ -47,6 +50,8 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
     
     // Try different TV speaker patterns
     const patterns = [
+      // Pattern 0: "SPEAKER 1 (Name): text" - Gemini's format with names in parentheses
+      /^SPEAKER\s+(\d+)\s*\(([^)]+)\):\s*(.*)/s,
       // Pattern 1: "SPEAKER 1: ROLE: text"
       /^SPEAKER\s+(\d+):\s*([^:]+):\s*(.*)/s,
       // Pattern 2: "SPEAKER 1: text"
@@ -71,6 +76,16 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
         let textContent: string;
         
         if (i === 0) {
+          // Pattern 0: "SPEAKER 1 (Name): text" - Extract speaker number, ignore name in dialogue
+          const rawSpeaker = match[1]; // Just the number
+          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
+          if (!speakerMap.has(rawSpeaker)) {
+            speakerMap.set(rawSpeaker, speaker);
+            speakerCounter++;
+          }
+          // Don't include speaker label or name in textContent - just the dialogue
+          textContent = match[3].trim();
+        } else if (i === 1) {
           // Pattern 1: "SPEAKER 1: ROLE: text"
           const rawSpeaker = `${match[1]}_${match[2].trim()}`;
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
@@ -81,7 +96,7 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
           const role = match[2].trim();
           textContent = match[3].trim();
           textContent = `${role}: ${textContent}`;
-        } else if (i === 1) {
+        } else if (i === 2) {
           // Pattern 2: "SPEAKER 1: text"
           const rawSpeaker = match[1];
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
@@ -90,7 +105,7 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
             speakerCounter++;
           }
           textContent = match[2].trim();
-        } else if (i === 2) {
+        } else if (i === 3) {
           // Pattern 3: "PRESENTER: text" etc.
           const rawSpeaker = match[1];
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
@@ -99,7 +114,7 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
             speakerCounter++;
           }
           textContent = match[2].trim();
-        } else if (i === 3) {
+        } else if (i === 4) {
           // Pattern 4: "[SPEAKER 1]: text"
           const rawSpeaker = match[1];
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
@@ -108,7 +123,7 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
             speakerCounter++;
           }
           textContent = match[2].trim();
-        } else if (i === 4) {
+        } else if (i === 5) {
           // Pattern 5: "- SPEAKER: text"
           const rawSpeaker = match[1];
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
