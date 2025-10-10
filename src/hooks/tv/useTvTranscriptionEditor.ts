@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
-import { useSpeakerTextState } from "../radio/editor/useSpeakerTextState";
+import { useTvSpeakerTextState } from "./useTvSpeakerTextState";
 import { supabase } from "@/integrations/supabase/client";
 import { useAutosave } from "@/hooks/use-autosave";
 import { toast } from "sonner";
@@ -32,7 +32,7 @@ export const useTvTranscriptionEditor = ({
     resetLocalSpeakerText,
     enhancedTranscriptionResult,
     setEnhancedTranscriptionResult
-  } = useSpeakerTextState({
+  } = useTvSpeakerTextState({
     transcriptionText,
     transcriptionId,
     transcriptionResult,
