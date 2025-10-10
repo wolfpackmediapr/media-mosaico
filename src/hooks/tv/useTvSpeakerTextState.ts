@@ -76,19 +76,30 @@ export const useTvSpeakerTextState = ({
       }
     } 
     else if (transcriptionText && transcriptionText !== lastTextRef.current) {
-      console.log('[useTvSpeakerTextState] Processing plain TV transcription text');
-      const formattedText = formatPlainTextAsTvSpeaker(transcriptionText);
-      setLocalSpeakerText(formattedText);
-      lastTextRef.current = formattedText;
-      onTranscriptionChange(formattedText);
+      console.log('[useTvSpeakerTextState] Processing TV transcription text from database');
       
-      const parsedUtterances = parseTvSpeakerTextToUtterances(formattedText);
+      // FIRST: Parse the text to extract Gemini names and create utterances
+      const parsedUtterances = parseTvSpeakerTextToUtterances(transcriptionText);
+      
       if (parsedUtterances.length > 0) {
+        // THEN: Format back to text with names as prefixes in dialogue
+        const formattedText = formatTvSpeakerText(parsedUtterances);
+        setLocalSpeakerText(formattedText);
+        lastTextRef.current = formattedText;
+        onTranscriptionChange(formattedText);
+        
+        // Store the enhanced result with parsed utterances
         setEnhancedTranscriptionResult(prev => ({
           ...(prev || {}),
           text: formattedText,
           utterances: parsedUtterances
         }) as TranscriptionResult);
+      } else {
+        // Fallback for text without proper speaker format
+        const formattedText = formatPlainTextAsTvSpeaker(transcriptionText);
+        setLocalSpeakerText(formattedText);
+        lastTextRef.current = formattedText;
+        onTranscriptionChange(formattedText);
       }
     }
   }, [transcriptionResult, transcriptionText, setLocalSpeakerText, onTranscriptionChange, localSpeakerText]);
