@@ -20,31 +20,26 @@ export const SpeakerSegment = ({
   onTimestampClick,
   transcriptionId
 }: SpeakerSegmentProps) => {
-  const speakerColor = `hsl(${parseInt(speaker.split('_')[1] || '1') * 60}, 70%, 50%)`;
-  
-  // Extract Gemini-detected name if present: "speaker_2_(María Rivera)"
-  const geminiNameMatch = speaker.match(/_\(([^)]+)\)$/);
-  const geminiName = geminiNameMatch ? geminiNameMatch[1] : null;
-  const speakerNum = speaker.split('_')[1]?.split('(')[0] || speaker;
+  // Extract just the number for color calculation
+  const speakerNum = typeof speaker === 'string' && speaker.includes('_') 
+    ? speaker.split('_')[1] 
+    : speaker;
+  const speakerColor = `hsl(${parseInt(String(speakerNum)) * 60}, 70%, 50%)`;
   
   // Get custom speaker name if transcriptionId is available
   const { getDisplayName } = useSpeakerLabels({ transcriptionId });
   
-  // Priority: Custom name > Gemini name > Default "SPEAKER X"
+  // For display: Use custom name if set, otherwise just "SPEAKER X"
+  // Gemini names are now in the text content as prefixes
   let displayName: string;
   if (transcriptionId) {
     const customName = getDisplayName(speaker);
-    // If user has set a custom name (not just "SPEAKER X"), use it
+    // If user has set a custom name (not default), use it
     if (customName && !customName.startsWith('SPEAKER ')) {
       displayName = customName;
-    } else if (geminiName) {
-      // Use Gemini-detected name
-      displayName = `SPEAKER ${speakerNum} (${geminiName})`;
     } else {
       displayName = `SPEAKER ${speakerNum}`;
     }
-  } else if (geminiName) {
-    displayName = `SPEAKER ${speakerNum} (${geminiName})`;
   } else {
     displayName = `SPEAKER ${speakerNum}`;
   }

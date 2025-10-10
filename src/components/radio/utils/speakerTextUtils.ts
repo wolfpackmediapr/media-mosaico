@@ -16,8 +16,18 @@ export function formatSpeakerText(utterances: UtteranceTimestamp[]): string {
         const speakerNum = typeof u.speaker === 'string' ? 
           u.speaker.includes('_') ? u.speaker.split('_')[1] : u.speaker 
           : u.speaker;
-          
-        return `SPEAKER ${speakerNum}: ${u.text}`.trim();
+        
+        // Check if text has a name prefix: "Name: dialogue"
+        const nameMatch = u.text.match(/^([A-Za-zÁ-ÿ\s]+):\s/);
+        
+        if (nameMatch) {
+          const name = nameMatch[1];
+          // Reconstruct as: SPEAKER X (Name): dialogue (preserves format for database)
+          return `SPEAKER ${speakerNum} (${name}): ${u.text}`.trim();
+        } else {
+          // No name, simple format
+          return `SPEAKER ${speakerNum}: ${u.text}`.trim();
+        }
       }
     )
     .join("\n\n");
@@ -35,16 +45,25 @@ export function parseSpeakerTextToUtterances(text: string): UtteranceTimestamp[]
   const lineMatches: string[] = text.split(/\n\s*\n/);
 
   lineMatches.forEach((line, index) => {
-    // Match the format SPEAKER X: text
-    const prefixMatch = line.match(/^SPEAKER (\d+|[A-Z]):\s*/);
+    // Match format: SPEAKER X or SPEAKER X (Name): text
+    const prefixMatch = line.match(/^SPEAKER (\d+|[A-Z])(?:\s*\(([^)]+)\))?:\s*/);
     if (prefixMatch) {
       const speaker = prefixMatch[1];
-      const textOnly = line.replace(/^SPEAKER (\d+|[A-Z]):\s*/, "");
+      const geminiName = prefixMatch[2]; // Extract Gemini name like "Hombre"
+      
+      // Remove the SPEAKER prefix to get text
+      let textOnly = line.replace(/^SPEAKER (\d+|[A-Z])(?:\s*\(([^)]+)\))?:\s*/, "");
+      
+      // If Gemini name exists, prepend it to the text as "Name: text"
+      if (geminiName && !textOnly.startsWith(geminiName + ':')) {
+        textOnly = `${geminiName}: ${textOnly}`;
+      }
+      
       // For reconstructed utterances, we add dummy timestamps based on index
       // This helps with display ordering while still making them editable
       utterances.push({
         speaker,
-        text: textOnly,
+        text: textOnly, // Text now includes name prefix if available
         start: index * 5000, // 5 seconds per segment as placeholder
         end: (index + 1) * 5000,
       });
