@@ -242,15 +242,23 @@ async function generateComprehensiveAnalysis(fileUri: string, apiKey: string, ca
   const prompt = `
 Eres un analista experto en contenido de TV. Analiza este video de TV en español y proporciona DOS SECCIONES CLARAMENTE SEPARADAS:
 
-## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN DE HABLANTES
+## SECCIÓN 1: TRANSCRIPCIÓN CON IDENTIFICACIÓN VISUAL DE HABLANTES
 
-Proporciona una transcripción completa y precisa del contenido hablado en el video, identificando claramente a cada hablante cuando sea posible. Utiliza el formato:
+USA TU CAPACIDAD DE VISIÓN para identificar hablantes:
+- LEE los "lower thirds" y gráficos en pantalla con nombres
+- IDENTIFICA personalidades conocidas de Puerto Rico visualmente
+- LEE tarjetas de presentación y chyrons
+- OBSERVA logos de TV y contexto visual para identificar canales/programas
+- DISTINGUE roles: Presentador, Reportero, Invitado, Analista, etc.
 
-HABLANTE 1: [texto hablado]
-HABLANTE 2: [texto hablado]
-NARRADOR: [texto hablado]
+FORMATO REQUERIDO (con nombre y rol cuando sea posible):
+SPEAKER 1 (Aixa Vázquez - Presentadora): [texto hablado]
+SPEAKER 2 (José Rivera - Reportero): [texto hablado]
+SPEAKER 3 (Dr. María Sánchez - Invitada): [texto hablado]
 
-Si puedes identificar nombres específicos de los hablantes, utilízalos en lugar de "HABLANTE 1", etc.
+Si NO puedes identificar visualmente, usa:
+SPEAKER 1: [texto hablado]
+SPEAKER 2: [texto hablado]
 
 ## SECCIÓN 2: ANÁLISIS DE CONTENIDO
 

@@ -93,11 +93,20 @@ SPEAKER 2: [Transcripción textual exacta de todo lo que dice]
 SPEAKER 1: [Si el primer hablante vuelve a hablar]
 SPEAKER 3: [Si aparece un tercer hablante]
 
-REGLAS CRÍTICAS:
+IDENTIFICACIÓN VISUAL DE HABLANTES:
+✓ USA TU CAPACIDAD DE VISIÓN para identificar a los hablantes
+✓ LEE los "lower thirds" (subtítulos con nombres en la parte inferior de la pantalla)
+✓ LEE las tarjetas gráficas con nombres que aparezcan en pantalla
+✓ IDENTIFICA logos de TV y canales para contexto
+✓ RECONOCE personalidades conocidas de noticias de Puerto Rico visualmente
+✓ DISTINGUE entre: Presentador/Anchor, Reportero en campo, Invitado/Entrevistado, Voz en off
+✓ FORMATO CON NOMBRE Y ROL: SPEAKER 1 (Aixa Vázquez - Presentadora):
+✓ Si NO puedes identificar visualmente, usa solo: SPEAKER 1:
+
+REGLAS DE TRANSCRIPCIÓN:
 ✓ Transcribe TODO el diálogo palabra por palabra
 ✓ Identifica correctamente cuando cambia el hablante
 ✓ Mantén el orden cronológico estricto
-✓ Si identificas el nombre del hablante, añádelo: SPEAKER 1 (María González):
 ✓ Incluye pausas significativas con [pausa]
 ✓ Incluye eventos importantes como [aplausos], [risas], [música]
 ✓ NO resumas NI parafrasees - transcribe EXACTAMENTE lo que escuchas
