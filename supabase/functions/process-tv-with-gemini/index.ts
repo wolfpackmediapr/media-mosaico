@@ -1218,7 +1218,8 @@ function extractTranscriptionFromAnalysis(analysis: string): string {
   }
   
   // Strategy 4: Look for individual SPEAKER lines throughout the text
-  const speakerLines = analysis.match(/^SPEAKER\s+\d+:\s*[^:]+:\s*.+$/gm);
+  // Match both formats: "SPEAKER 1 (Name):" and "SPEAKER 1: Name:"
+  const speakerLines = analysis.match(/^SPEAKER\s+\d+\s*(?:\([^)]+\)|:\s*[^:]+):\s*.+$/gm);
   if (speakerLines && speakerLines.length > 1) {
     console.log('[extractTranscriptionFromAnalysis] Found multiple speaker lines');
     return speakerLines.join('\n');
@@ -1313,14 +1314,28 @@ function parseAndSeparateSpeakers(text: string): string {
     // Skip analysis content
     if (isAnalysisContent(trimmedLine)) continue;
     
-    // Look for existing SPEAKER format
-    const existingSpeaker = trimmedLine.match(/^SPEAKER\s+(\d+):\s*([^:]+):\s*(.+)$/);
-    if (existingSpeaker) {
-      speakerLines.push(trimmedLine);
+    // Pattern 1: Gemini format with parentheses (preferred format from prompts)
+    const geminiFormat = trimmedLine.match(/^SPEAKER\s+(\d+)\s*\(([^)]+)\):\s*(.+)$/);
+    if (geminiFormat) {
+      console.log('[parseAndSeparateSpeakers] Found Gemini format with parentheses:', trimmedLine.substring(0, 80));
+      speakerLines.push(trimmedLine); // Already correct format!
       continue;
     }
     
-    // Look for speaker patterns to convert
+    // Pattern 2: Existing SPEAKER format with double colon
+    const existingSpeaker = trimmedLine.match(/^SPEAKER\s+(\d+):\s*([^:]+):\s*(.+)$/);
+    if (existingSpeaker) {
+      // Convert to parentheses format
+      const speakerNum = existingSpeaker[1];
+      const speakerName = existingSpeaker[2].trim();
+      const dialogue = existingSpeaker[3].trim();
+      const formatted = `SPEAKER ${speakerNum} (${speakerName}): ${dialogue}`;
+      console.log('[parseAndSeparateSpeakers] Converted double colon to parentheses:', formatted.substring(0, 80));
+      speakerLines.push(formatted);
+      continue;
+    }
+    
+    // Pattern 3: Look for speaker patterns to convert
     const speakerPatterns = [
       /^([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{2,25}):\s*(.+)$/,  // "NOMBRE APELLIDO: texto"
       /^-\s*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{2,25}):\s*(.+)$/, // "- NOMBRE: texto"
@@ -1339,7 +1354,9 @@ function parseAndSeparateSpeakers(text: string): string {
         }
         
         const speakerNum = seenSpeakers.get(speakerName);
-        speakerLines.push(`SPEAKER ${speakerNum}: ${speakerName}: ${dialogue}`);
+        const formatted = `SPEAKER ${speakerNum} (${speakerName}): ${dialogue}`;
+        console.log('[parseAndSeparateSpeakers] Converted name pattern to parentheses:', formatted.substring(0, 80));
+        speakerLines.push(formatted);
         break;
       }
     }
