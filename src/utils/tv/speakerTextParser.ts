@@ -20,15 +20,18 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
     cleanedText.matchAll(/SPEAKER\s+(\d+)(?:\s*\(([^)]+)\))?:\s*([^]*?)(?=SPEAKER\s+\d+|$)/gi)
   );
   
-  // Extract segments preserving order - reconstruct without full label to avoid duplication
+  // Extract segments preserving order - preserve names for UI display
   speakerMatches.forEach(match => {
     const speakerNum = match[1]; // Just the number: "2"
-    const speakerName = match[2] || ''; // The name if present: "María Rivera" (not used in text)
+    const speakerName = match[2] || ''; // The name if present: "María Rivera"
     const content = match[3].trim(); // The dialogue content
     
     if (content) {
-      // Reconstruct as simple "SPEAKER X:" format - name will be displayed by UI component
-      segments.push(`SPEAKER ${speakerNum}: ${content}`);
+      // Preserve the name in the segment for UI display
+      const speakerLabel = speakerName 
+        ? `SPEAKER ${speakerNum} (${speakerName})`
+        : `SPEAKER ${speakerNum}`;
+      segments.push(`${speakerLabel}: ${content}`);
     }
   });
   
@@ -76,14 +79,22 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
         let textContent: string;
         
         if (i === 0) {
-          // Pattern 0: "SPEAKER 1 (Name): text" - Extract speaker number, ignore name in dialogue
-          const rawSpeaker = match[1]; // Just the number
+          // Pattern 0: "SPEAKER 1 (Name): text" - Preserve name in speaker field
+          const rawSpeaker = match[1]; // Just the number: "2"
+          const speakerName = match[2]; // "María Rivera"
+          
+          // Create speaker ID with name embedded: "speaker_2_(María Rivera)"
           speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
           if (!speakerMap.has(rawSpeaker)) {
             speakerMap.set(rawSpeaker, speaker);
             speakerCounter++;
           }
-          // Don't include speaker label or name in textContent - just the dialogue
+          
+          // Store the name in the speaker field for UI to extract
+          if (speakerName) {
+            speaker = `${speaker}_(${speakerName})`;
+          }
+          
           textContent = match[3].trim();
         } else if (i === 1) {
           // Pattern 1: "SPEAKER 1: ROLE: text"
