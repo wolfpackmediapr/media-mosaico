@@ -950,9 +950,62 @@ async function processAssembledVideoWithGemini(
     const fileInfo = await uploadVideoToGemini(videoBlob, videoPath.split('/').pop() || 'video.mp4');
     console.log('[gemini-unified] File processing completed successfully');
 
+    // Generate speaker-separated transcription
+    let speakerTranscription = null;
+    if (transcriptionId) {
+      await updateDatabaseProgress(transcriptionId, 40, 'Extracting speaker-separated transcription...');
+    }
+
+    console.log('[gemini-unified] Starting speaker-separated transcription...');
+
+    // Wait 3 seconds to avoid rate limits before making transcription call
+    console.log('[gemini-unified] Waiting 3s before transcription call to avoid rate limits...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    try {
+      console.log('[gemini-unified] Transcription attempt 1/5');
+      
+      const transcriptionResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { fileData: { mimeType: fileInfo.mimeType, fileUri: fileInfo.uri } },
+                { text: buildTranscriptionOnlyPrompt() }
+              ]
+            }],
+            generationConfig: {
+              temperature: 0.1,
+              topK: 32,
+              topP: 0.8,
+              maxOutputTokens: 8192
+            }
+          })
+        }
+      );
+
+      if (transcriptionResponse.ok) {
+        const transcriptionData = await transcriptionResponse.json();
+        if (transcriptionData.candidates?.[0]?.content?.parts?.[0]?.text) {
+          speakerTranscription = transcriptionData.candidates[0].content.parts[0].text;
+          console.log('[gemini-unified] Speaker transcription extracted successfully');
+        }
+      }
+    } catch (error) {
+      console.error('[gemini-unified] Transcription call failed:', error);
+      // Continue without speaker transcription - will fall back to extraction
+    }
+
+    // Wait 3 seconds before analysis call to avoid rate limits
+    console.log('[gemini-unified] Waiting 3s before analysis call to avoid rate limits...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
     // Update progress
     if (transcriptionId) {
-      await updateDatabaseProgress(transcriptionId, 50, 'Generating comprehensive analysis...');
+      await updateDatabaseProgress(transcriptionId, 60, 'Generating content analysis...');
     }
 
     // Generate analysis with retry logic
@@ -1053,7 +1106,7 @@ async function processAssembledVideoWithGemini(
 
     return {
       success: true,
-      transcription: extractTranscriptionFromAnalysis(analysisResult),
+      transcription: speakerTranscription || extractTranscriptionFromAnalysis(analysisResult),
       segments: extractSegmentsFromAnalysis(analysisResult),
       full_analysis: analysisResult,
       summary: extractSummaryFromAnalysis(analysisResult),
