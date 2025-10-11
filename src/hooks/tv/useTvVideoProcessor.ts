@@ -231,6 +231,55 @@ export const useTvVideoProcessor = () => {
         throw new Error(`Processing failed: ${processError.message}`);
       }
 
+      // Check if we got a 202 Accepted response (background processing)
+      if (result?.status === 'processing') {
+        console.log('[TvVideoProcessor] Background processing started, polling for completion...');
+        setProgress(20);
+        
+        toast.info("Procesamiento iniciado", {
+          description: "El video se está procesando en segundo plano. Esto puede tardar unos minutos..."
+        });
+
+        // Poll for completion
+        await pollForProcessingCompletion(actualTranscriptionId);
+        
+        // After polling completes, fetch the final results
+        const { data: finalTranscription, error: fetchError } = await supabase
+          .from('tv_transcriptions')
+          .select('*')
+          .eq('id', actualTranscriptionId)
+          .single();
+
+        if (fetchError || !finalTranscription) {
+          throw new Error('Failed to retrieve final transcription results');
+        }
+
+        // Set results from database
+        setTranscriptionText(finalTranscription.transcription_text || '');
+        setAnalysisResults(finalTranscription.full_analysis || '');
+        
+        // Parse transcription text into utterances for editor
+        if (finalTranscription.transcription_text) {
+          console.log('[TvVideoProcessor] Parsing transcription from database');
+          setTranscriptionResult({
+            text: finalTranscription.transcription_text,
+            utterances: [], // Will be populated by useSpeakerTextState
+            words: []
+          });
+        }
+        
+        setProgress(100);
+        
+        console.log('[TvVideoProcessor] Background processing completed successfully');
+        
+        toast.success("¡Procesamiento completado!", {
+          description: "Video analizado exitosamente."
+        });
+        
+        return; // Exit early for background processing flow
+      }
+
+      // Legacy sync response handling (if function doesn't return 202)
       if (!result?.success) {
         console.error('[TvVideoProcessor] Processing failed:', result);
         throw new Error(result?.error || 'Video processing failed');
@@ -240,8 +289,7 @@ export const useTvVideoProcessor = () => {
       setTranscriptionText(result.transcription || '');
       setNewsSegments(result.segments || []);
       
-      // NEW: Automatically set analysis results from Gemini processing
-      // Use full_analysis which should contain properly formatted content with type markers
+      // Automatically set analysis results from Gemini processing
       const analysisText = result.full_analysis || result.summary || '';
       setAnalysisResults(analysisText);
       console.log('[TvVideoProcessor] Analysis automatically populated:', {
@@ -269,7 +317,6 @@ export const useTvVideoProcessor = () => {
         setTranscriptionResult(mockTranscriptionResult);
       } else if (result.transcription) {
         // If no utterances but we have transcription text, let the editor handle speaker parsing
-        // This enables the same speaker functionality as Radio tab
         console.log('[TvVideoProcessor] No utterances from processing, will let editor parse speakers from text');
         setTranscriptionResult({
           text: result.transcription,
@@ -323,6 +370,54 @@ export const useTvVideoProcessor = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Poll for processing completion
+  const pollForProcessingCompletion = async (transcriptionId: string) => {
+    const maxAttempts = 120; // 10 minutes max (5-second intervals)
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      try {
+        const { data, error } = await supabase
+          .from('tv_transcriptions')
+          .select('status, progress')
+          .eq('id', transcriptionId)
+          .single();
+        
+        if (error) {
+          console.error('[TvVideoProcessor] Poll error:', error);
+          throw new Error('Failed to check processing status');
+        }
+        
+        console.log(`[TvVideoProcessor] Poll attempt ${attempts + 1}: status=${data.status}, progress=${data.progress}`);
+        
+        if (data.status === 'completed') {
+          setProgress(100);
+          return; // Success!
+        }
+        
+        if (data.status === 'failed') {
+          throw new Error('Processing failed on server');
+        }
+        
+        // Update progress in UI
+        if (data.progress) {
+          setProgress(Math.min(data.progress, 95)); // Cap at 95% until truly complete
+        }
+        
+        // Wait 5 seconds before next check
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        attempts++;
+        
+      } catch (error) {
+        console.error('[TvVideoProcessor] Polling error:', error);
+        throw error;
+      }
+    }
+    
+    // Timeout
+    throw new Error('Processing timeout - the video is taking too long to process');
   };
 
   return {

@@ -1712,14 +1712,72 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Update initial progress
+    await updateDatabaseProgress(transcriptionId, 5, 'Processing queued...');
+
+    // Start background processing (doesn't block response)
+    console.log(`[${requestId}] Starting background processing for transcription ${transcriptionId}`);
+    EdgeRuntime.waitUntil(
+      processVideoInBackground(requestId, videoPath, transcriptionId, supabaseUrl, supabaseServiceKey)
+    );
+
+    // Return immediately with 202 Accepted
+    console.log(`[${requestId}] Returning 202 Accepted - processing in background`);
+    return new Response(
+      JSON.stringify({
+        success: true,
+        transcriptionId,
+        message: 'Processing started in background',
+        status: 'processing'
+      }),
+      {
+        status: 202, // Accepted
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+
+  } catch (error) {
+    console.error(`[${requestId}] === INITIAL VALIDATION FAILED ===`);
+    console.error(`[${requestId}] Error details:`, {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Initial validation failed',
+        details: error instanceof Error ? error.message : String(error) 
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+});
+
+// Background processing function
+async function processVideoInBackground(
+  requestId: string,
+  videoPath: string,
+  transcriptionId: string,
+  supabaseUrl: string,
+  supabaseServiceKey: string
+): Promise<void> {
+  console.log(`[${requestId}] [Background] Starting background video processing...`);
+  
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
     // Detect MP4 files for enhanced processing
     const isMP4File = videoPath.toLowerCase().includes('.mp4');
     if (isMP4File) {
-      console.log(`[${requestId}] MP4 file detected - will use enhanced error handling`);
+      console.log(`[${requestId}] [Background] MP4 file detected - will use enhanced error handling`);
     }
 
     // Update progress to show we're starting
-    await updateDatabaseProgress(transcriptionId, 20, 'Starting AI processing...');
+    await updateDatabaseProgress(transcriptionId, 10, 'Starting AI processing...');
 
     // Step 1: Conditionally compress video for AI analysis
     const isChunkedPath = videoPath.startsWith('chunked:');
@@ -1961,14 +2019,10 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[${requestId}] === UNIFIED PROCESSING COMPLETED ===`);
-
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.log(`[${requestId}] [Background] === PROCESSING COMPLETED SUCCESSFULLY ===`);
 
   } catch (error) {
-    console.error(`[${requestId}] === UNIFIED PROCESSING FAILED ===`);
+    console.error(`[${requestId}] [Background] === PROCESSING FAILED ===`);
     console.error(`[${requestId}] Error details:`, {
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
@@ -1976,34 +2030,17 @@ serve(async (req) => {
       isMemoryError: (error instanceof Error && error.message?.includes('memory')) || (error instanceof Error && error.message?.includes('heap'))
     });
 
-    // Update transcription status to failed if we have an ID
+    // Update transcription status to failed
     try {
-      if (transcriptionId) {
-        const supabase = createClient(
-          Deno.env.get('SUPABASE_URL')!,
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        );
-        
-        await updateDatabaseProgress(transcriptionId, 100, 'failed');
-        console.log(`[${requestId}] Updated transcription status to failed`);
-      }
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      await updateDatabaseProgress(transcriptionId, 0, 'failed');
+      console.log(`[${requestId}] [Background] Updated transcription status to failed`);
     } catch (updateError) {
-      console.error(`[${requestId}] Could not update transcription status:`, updateError);
+      console.error(`[${requestId}] [Background] Could not update transcription status:`, updateError);
     }
 
-    // Categorize and return appropriate error
+    // Categorize error
     const errorMessage = categorizeError(error instanceof Error ? error.message : String(error));
-    
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: errorMessage,
-        details: error instanceof Error ? error.message : String(error) 
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    console.error(`[${requestId}] [Background] Final error:`, errorMessage);
   }
-});
+}
