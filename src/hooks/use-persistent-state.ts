@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+const DEBUG_STORAGE = false; // Set to true only for debugging
+
 type StorageType = 'localStorage' | 'sessionStorage';
 
 export interface PersistOptions {
@@ -31,7 +33,7 @@ export function usePersistentState<T>(
   const [state, setState] = useState<T>(() => {
     try {
       const storedValue = storageObject.getItem(key);
-      console.log(`[usePersistentState] [${storage}] READ "${key}":`, storedValue);
+      if (DEBUG_STORAGE) console.log(`[usePersistentState] [${storage}] READ "${key}":`, storedValue);
       return storedValue ? deserialize(storedValue) : initialValue;
     } catch (error) {
       console.error(`[usePersistentState] [${storage}] Error reading "${key}":`, error);
@@ -43,7 +45,7 @@ export function usePersistentState<T>(
   useEffect(() => {
     try {
       storageObject.setItem(key, serialize(state));
-      console.log(`[usePersistentState] [${storage}] SET "${key}" =`, state);
+      if (DEBUG_STORAGE) console.log(`[usePersistentState] [${storage}] SET "${key}" =`, state);
     } catch (error) {
       console.error(`[usePersistentState] [${storage}] Error writing "${key}":`, error);
     }
@@ -54,7 +56,7 @@ export function usePersistentState<T>(
     try {
       storageObject.removeItem(key);
       setState(initialValue);
-      console.log(`[usePersistentState] [${storage}] REMOVE "${key}"`);
+      if (DEBUG_STORAGE) console.log(`[usePersistentState] [${storage}] REMOVE "${key}"`);
     } catch (error) {
       console.error(`[usePersistentState] [${storage}] Error removing "${key}":`, error);
     }

@@ -23,6 +23,8 @@ interface VideoPlayerProps {
 
 const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const lastSaveTimeRef = useRef<number>(0);
+  const SAVE_INTERVAL_MS = 5000; // Save position every 5 seconds
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -57,12 +59,14 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
     const handleTimeUpdate = () => {
       setCurrentTime(video.currentTime);
       
-      // Save position periodically
-      if (src) {
+      // Throttle position saves to every 5 seconds
+      const now = Date.now();
+      if (src && (now - lastSaveTimeRef.current) >= SAVE_INTERVAL_MS) {
         setPlaybackPositions(prev => ({
           ...prev,
           [src]: video.currentTime
         }));
+        lastSaveTimeRef.current = now;
       }
     };
     
@@ -87,11 +91,18 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
     document.addEventListener("fullscreenchange", handleFullscreenChange);
 
     return () => {
+      // Save position on unmount
+      if (src && video.currentTime > 0) {
+        setPlaybackPositions(prev => ({
+          ...prev,
+          [src]: video.currentTime
+        }));
+      }
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
-  }, [src, playbackPositions]);
+  }, [src]);
 
   // Integrate with Media Session API
   useMediaSession({

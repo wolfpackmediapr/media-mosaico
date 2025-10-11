@@ -21,7 +21,17 @@ export const usePersistentVideoState = () => {
   const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
     "tv-uploaded-files",
     [],
-    { storage: 'sessionStorage' }
+    { 
+      storage: 'sessionStorage',
+      serialize: (files) => {
+        // Remove blob URLs before saving (they don't persist across page refreshes)
+        const sanitized = files.map(f => ({
+          ...f,
+          preview: f.preview?.startsWith('blob:') ? undefined : f.preview
+        }));
+        return JSON.stringify(sanitized);
+      }
+    }
   );
   
   // Video controls state
