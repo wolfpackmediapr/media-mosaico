@@ -49,11 +49,25 @@ export const useTvState = () => {
     setNotepadContent
   });
 
-  const handleProcess = (file: File) => {
-    processVideo(file);
+  const handleProcess = async (file: File) => {
     // Set the video path for analysis when processing starts
     const videoPath = `${file.name}-${Date.now()}`;
     setCurrentVideoPath(videoPath);
+    
+    // Process video and get storage path
+    const storagePath = await processVideo(file);
+    
+    // Update the uploaded file with storage path after processing
+    if (storagePath) {
+      setUploadedFiles(prevFiles => 
+        prevFiles.map(f => 
+          f.name === file.name && f.size === file.size
+            ? Object.assign(f, { filePath: storagePath, preview: undefined })
+            : f
+        )
+      );
+      console.log('[useTvState] Updated file with storage path:', storagePath);
+    }
   };
 
   const handleRemoveFile = (index: number) => {

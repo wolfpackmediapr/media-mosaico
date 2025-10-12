@@ -276,7 +276,8 @@ export const useTvVideoProcessor = () => {
           description: "Video analizado exitosamente."
         });
         
-        return; // Exit early for background processing flow
+        // Return the storage path so it can be persisted
+        return fileName;
       }
 
       // Legacy sync response handling (if function doesn't return 202)
@@ -330,6 +331,9 @@ export const useTvVideoProcessor = () => {
       toast.success("¡Procesamiento completado!", {
         description: `Video analizado exitosamente. Se generaron ${result.segments?.length || 0} segmentos de noticias.`
       });
+
+      // Return the storage path so it can be persisted
+      return fileName;
 
     } catch (error: any) {
       console.error('[TvVideoProcessor] Error in unified processing:', error);
