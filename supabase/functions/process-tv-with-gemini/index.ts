@@ -1830,9 +1830,18 @@ async function processVideoInBackground(
       await updateDatabaseProgress(transcriptionId, 20, wasCompressed ? 'Video compressed successfully, starting AI processing...' : 'Starting AI processing...');
     }
     
-    // User authentication already verified in main handler
-    // Background function uses service role key for database operations
-    console.log(`[${requestId}] Processing in background with service role`);
+    // Get user from auth header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Authorization header required');
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (authError || !user) {
+      throw new Error('Authentication failed');
+    }
+
+    console.log(`[${requestId}] Authenticated user:`, user.id);
 
     // Fetch categories and clients for dynamic prompt
     console.log(`[${requestId}] Fetching categories and clients for dynamic prompt...`);

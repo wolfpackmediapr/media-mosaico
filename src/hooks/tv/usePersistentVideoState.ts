@@ -5,7 +5,6 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface UploadedFile extends File {
   preview?: string;
-  filePath?: string;
 }
 
 export const usePersistentVideoState = () => {
@@ -22,36 +21,7 @@ export const usePersistentVideoState = () => {
   const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
     "tv-uploaded-files",
     [],
-    { 
-      storage: 'sessionStorage',
-      serialize: (files) => {
-        // Preserve file metadata and filePath, but remove blob URLs
-        const sanitized = files.map(f => ({
-          name: f.name,
-          size: f.size,
-          type: f.type,
-          lastModified: f.lastModified,
-          preview: f.preview?.startsWith('blob:') ? undefined : f.preview,
-          filePath: f.filePath // Preserve Supabase storage path
-        }));
-        return JSON.stringify(sanitized);
-      },
-      deserialize: (str) => {
-        const parsed = JSON.parse(str);
-        // Reconstruct file-like objects with preserved metadata
-        return parsed.map((fileData: any) => {
-          const file = new File([], fileData.name, {
-            type: fileData.type,
-            lastModified: fileData.lastModified
-          });
-          // Assign additional properties
-          return Object.assign(file, {
-            preview: fileData.preview,
-            filePath: fileData.filePath
-          });
-        });
-      }
-    }
+    { storage: 'sessionStorage' }
   );
   
   // Video controls state
