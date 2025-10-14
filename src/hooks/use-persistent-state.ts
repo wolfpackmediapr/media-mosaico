@@ -32,7 +32,13 @@ export function usePersistentState<T>(
     try {
       const storedValue = storageObject.getItem(key);
       console.log(`[usePersistentState] [${storage}] READ "${key}":`, storedValue);
-      return storedValue ? deserialize(storedValue) : initialValue;
+      
+      // Handle special case: literal string "undefined" should be treated as undefined
+      if (storedValue === null || storedValue === 'undefined' || storedValue === '') {
+        return initialValue;
+      }
+      
+      return deserialize(storedValue);
     } catch (error) {
       console.error(`[usePersistentState] [${storage}] Error reading "${key}":`, error);
       return initialValue;

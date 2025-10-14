@@ -201,6 +201,12 @@ export const usePersistentVideoState = () => {
 
   // Register video element reference for direct control
   const registerVideoElement = (element: HTMLVideoElement | null) => {
+    console.log('[usePersistentVideoState] registerVideoElement called', {
+      hasElement: !!element,
+      readyState: element?.readyState,
+      currentFileId
+    });
+    
     videoElementRef.current = element;
     
     if (element && currentFileId) {
@@ -219,7 +225,7 @@ export const usePersistentVideoState = () => {
       const handleCanPlay = () => {
         setIsLoading(false);
         setIsReady(true);
-        console.log('[usePersistentVideoState] Video ready to play');
+        console.log('[usePersistentVideoState] Video ready to play, readyState:', element.readyState);
       };
 
       const handleError = () => {

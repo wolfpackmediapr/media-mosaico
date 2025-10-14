@@ -56,11 +56,6 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement }: 
     const video = videoRef.current;
     if (!video) return;
 
-    // Register video element with parent for cross-tab sync
-    if (registerVideoElement) {
-      registerVideoElement(video);
-    }
-
     const handleTimeUpdate = () => {
       setCurrentTime(video.currentTime);
       
@@ -83,6 +78,14 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement }: 
       }
     };
     
+    const handleCanPlay = () => {
+      // Register video element when it's ready to play (readyState >= 3)
+      if (registerVideoElement && video.readyState >= 3) {
+        console.log('[VideoPlayer] Registering video element with readyState:', video.readyState);
+        registerVideoElement(video);
+      }
+    };
+    
     const handleFullscreenChange = () => 
       setIsFullscreen(document.fullscreenElement !== null);
 
@@ -91,19 +94,22 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement }: 
     
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("canplay", handleCanPlay);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
 
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("canplay", handleCanPlay);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       
       // Unregister on cleanup
       if (registerVideoElement) {
+        console.log('[VideoPlayer] Unregistering video element');
         registerVideoElement(null);
       }
     };
-  }, [src, playbackPositions, registerVideoElement]);
+  }, [src, playbackPositions, registerVideoElement, volume]);
 
   // Integrate with Media Session API
   useMediaSession({

@@ -30,16 +30,35 @@ export const useVideoVisibilitySync = ({
   const resumeAttemptCountRef = useRef<number>(0);
   const resumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  console.log('[useVideoVisibilitySync] Hook mounted/updated', {
+    isPlaying,
+    isLoading,
+    isReady,
+    hasVideoPath: !!currentVideoPath,
+    hasVideoElement: !!videoElementRef.current,
+    videoReadyState: videoElementRef.current?.readyState,
+  });
+
   useEffect(() => {
+    console.log('[useVideoVisibilitySync] Setting up visibilitychange listener');
     const handleVisibilityChange = () => {
       const now = Date.now();
+      const videoElement = videoElementRef.current;
+
+      console.log('[useVideoVisibilitySync] Visibility changed:', { 
+        hidden: document.hidden,
+        hasVideo: !!videoElement,
+        videoReadyState: videoElement?.readyState,
+        isPlaying,
+        isReady
+      });
 
       if (document.hidden) {
         // Tab is hidden
         wasPlayingBeforeTabChange.current = isPlaying;
         wasVideoLoadingOnHide.current = isLoading;
         lastSeenTabVisible.current = now;
-        console.log("[useVideoVisibilitySync] Tab hidden. Was playing:", isPlaying, "Was loading:", isLoading);
+        console.log("[useVideoVisibilitySync] Tab hidden. Was playing:", isPlaying, "Was loading:", isLoading, "Video ready state:", videoElement?.readyState);
 
         // Optionally pause video immediately when tab hides
         // Note: Most browsers auto-pause video, but keeping this as a reference
@@ -71,6 +90,18 @@ export const useVideoVisibilitySync = ({
                                resumeAttemptCountRef.current < 3 &&
                                isReady &&
                                videoIsReady; // Ensure video element is ready
+        
+        console.log("[useVideoVisibilitySync] Resume conditions check:", {
+          wasPlaying: wasPlayingBeforeTabChange.current,
+          isNowPlaying: isPlaying,
+          hasVideoPath: !!currentVideoPath,
+          lessThan30Min: wasAwayLessThan30Min,
+          attempts: resumeAttemptCountRef.current,
+          isReady,
+          videoIsReady,
+          videoReadyState: videoElement?.readyState,
+          shouldTryResume
+        });
 
         // Clear any pending resume timeout
         if (resumeTimeoutRef.current) {
@@ -87,14 +118,21 @@ export const useVideoVisibilitySync = ({
             // Double-check conditions before playing
             const stillReady = videoElementRef.current && videoElementRef.current.readyState >= 3;
             if (wasPlayingBeforeTabChange.current && !isPlaying && currentVideoPath && isReady && stillReady && !document.hidden) {
-              console.log("[useVideoVisibilitySync] Executing delayed play after tab visibility change.");
+              console.log("[useVideoVisibilitySync] Executing delayed play after tab visibility change. Video readyState:", videoElementRef.current?.readyState);
               try {
                 triggerPlay();
               } catch (e) {
                 console.error("[useVideoVisibilitySync] Error resuming playback:", e);
               }
             } else {
-              console.log("[useVideoVisibilitySync] Conditions for resume no longer met after delay.");
+              console.log("[useVideoVisibilitySync] Conditions for resume no longer met after delay:", {
+                wasPlaying: wasPlayingBeforeTabChange.current,
+                isPlaying,
+                hasVideoPath: !!currentVideoPath,
+                isReady,
+                stillReady,
+                hidden: document.hidden
+              });
             }
             resumeTimeoutRef.current = null;
           }, 800); // 800ms delay for stability
@@ -121,15 +159,17 @@ export const useVideoVisibilitySync = ({
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    console.log('[useVideoVisibilitySync] Event listener attached');
 
     return () => {
+      console.log('[useVideoVisibilitySync] Cleanup - removing event listener');
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (resumeTimeoutRef.current) {
         clearTimeout(resumeTimeoutRef.current);
         resumeTimeoutRef.current = null;
       }
     };
-  }, [isPlaying, isLoading, isReady, currentVideoPath, videoElementRef, triggerPlay, triggerPause]);
+  }, [isPlaying, isLoading, isReady, currentVideoPath, triggerPlay, triggerPause]);
 
   // No return value needed, purely side-effects
 };

@@ -42,13 +42,30 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
 
   // Register video element for cross-tab sync
   useEffect(() => {
-    if (registerVideoElement && videoRef.current) {
-      registerVideoElement(videoRef.current);
-      
-      return () => {
-        registerVideoElement(null);
-      };
+    const video = videoRef.current;
+    if (!video || !registerVideoElement) return;
+
+    const handleCanPlay = () => {
+      // Register video element when it's ready to play (readyState >= 3)
+      if (video.readyState >= 3) {
+        console.log('[ChunkedVideoPlayer] Registering video element with readyState:', video.readyState);
+        registerVideoElement(video);
+      }
+    };
+
+    // Listen for canplay event to register when ready
+    video.addEventListener('canplay', handleCanPlay);
+    
+    // If already ready, register immediately
+    if (video.readyState >= 3) {
+      handleCanPlay();
     }
+    
+    return () => {
+      video.removeEventListener('canplay', handleCanPlay);
+      console.log('[ChunkedVideoPlayer] Unregistering video element');
+      registerVideoElement(null);
+    };
   }, [registerVideoElement]);
 
   const loadChunkManifest = async () => {
@@ -223,66 +240,9 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
     }
   };
 
-  // Handle visibility changes for tab switching
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // Tab is hidden - save state
-        const wasPlaying = !video.paused;
-        const position = video.currentTime;
-        
-        sessionStorage.setItem(`chunked-video-was-playing-${sessionId}`, String(wasPlaying));
-        sessionStorage.setItem(`chunked-video-position-${sessionId}`, String(position));
-        
-        console.log('Tab hidden - Chunked video state saved:', { wasPlaying, position });
-      } else {
-        // Tab is visible again - try to restore state
-        const wasPlaying = sessionStorage.getItem(`chunked-video-was-playing-${sessionId}`) === 'true';
-        const savedPosition = sessionStorage.getItem(`chunked-video-position-${sessionId}`);
-        
-        if (savedPosition) {
-          video.currentTime = parseFloat(savedPosition);
-        }
-        
-        if (wasPlaying && video.paused) {
-          console.log('Tab visible - Auto-resuming chunked video playback');
-          
-          // Ensure MediaSource is ready before resuming
-          const mediaSource = mediaSourceRef.current;
-          if (mediaSource && mediaSource.readyState === 'open') {
-            // Small delay to ensure video element is ready
-            setTimeout(() => {
-              const playPromise = video.play();
-              
-              if (playPromise !== undefined) {
-                playPromise
-                  .then(() => {
-                    // Clean up session storage after successful resume
-                    sessionStorage.removeItem(`chunked-video-was-playing-${sessionId}`);
-                    sessionStorage.removeItem(`chunked-video-position-${sessionId}`);
-                  })
-                  .catch((error) => {
-                    console.warn('Auto-resume failed for chunked video:', error);
-                    toast.error('No se pudo reanudar el video automáticamente', {
-                      description: 'Haz clic en el botón de reproducción para continuar'
-                    });
-                  });
-              }
-            }, 300);
-          }
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [sessionId]);
+  // Handle visibility changes for tab switching - REMOVED
+  // This is now handled by useVideoVisibilitySync hook in usePersistentVideoState
+  // to ensure consistent behavior across all video players
 
   if (error) {
     return (
