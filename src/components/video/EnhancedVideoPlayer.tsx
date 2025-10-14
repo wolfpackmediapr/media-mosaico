@@ -33,6 +33,18 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       setIsLoading(true);
       setError(null);
       
+      // Handle blob URLs directly (uploaded files)
+      if (src.startsWith('blob:')) {
+        setVideoSource({
+          type: 'assembled',
+          path: src,
+          isAvailable: true
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Otherwise resolve from Supabase storage
       const source = await resolveVideoSource(src);
       setVideoSource(source);
       

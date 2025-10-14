@@ -23,7 +23,6 @@ interface VideoPlayerProps {
 
 const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const wasPlayingBeforeHidden = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -125,46 +124,6 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
     }
   });
 
-  // Handle visibility changes for background playback persistence
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      const video = videoRef.current;
-      if (!video) return;
-      
-      if (document.hidden) {
-        // Save playing state before hiding
-        wasPlayingBeforeHidden.current = !video.paused;
-        
-        // Save position
-        if (src && video.currentTime > 0) {
-          setPlaybackPositions(prev => ({
-            ...prev,
-            [src]: video.currentTime
-          }));
-        }
-        console.log('[VideoPlayer] Tab hidden, was playing:', wasPlayingBeforeHidden.current);
-      } else {
-        // Resume if was playing before
-        console.log('[VideoPlayer] Tab visible, resuming if needed...');
-        
-        if (wasPlayingBeforeHidden.current && video.paused) {
-          setTimeout(() => {
-            if (video.readyState >= 2 && !video.ended) {
-              video.play()
-                .then(() => {
-                  setIsPlaying(true);
-                  console.log('[VideoPlayer] Video resumed successfully');
-                })
-                .catch(err => console.error('[VideoPlayer] Resume error:', err));
-            }
-          }, 500);
-        }
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [src, setPlaybackPositions]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
