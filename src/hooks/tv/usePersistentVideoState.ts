@@ -62,7 +62,14 @@ export const usePersistentVideoState = () => {
   );
   
   const [currentTime, setCurrentTime] = useState(0);
-  const [currentVideoPath, setCurrentVideoPath] = useState<string>();
+  
+  // Phase 1: Make currentVideoPath persistent to survive route changes
+  const [currentVideoPath, setCurrentVideoPath] = usePersistentState<string | undefined>(
+    "tv-current-video-path",
+    undefined,
+    { storage: 'sessionStorage' }
+  );
+  
   const [currentFileId, setCurrentFileId] = useState<string>();
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -117,23 +124,40 @@ export const usePersistentVideoState = () => {
     };
   }, [setActiveMediaRoute, activeMediaRoute, currentFileId, isMediaPlaying, updatePlaybackPosition]);
 
-  // Phase 3: Improved auto-resume logic with better validation
+  // Phase 1: Sync currentVideoPath with uploaded files
+  useEffect(() => {
+    if (uploadedFiles.length > 0 && !currentVideoPath) {
+      // Prioritize filePath (Supabase storage) over preview (blob URL)
+      const firstFile = uploadedFiles[0];
+      const videoPath = firstFile.filePath || firstFile.preview;
+      if (videoPath) {
+        console.log('[usePersistentVideoState] Setting currentVideoPath from uploaded file:', videoPath);
+        setCurrentVideoPath(videoPath);
+      }
+    }
+  }, [uploadedFiles, currentVideoPath, setCurrentVideoPath]);
+
+  // Phase 3: Improved auto-resume logic with timeout and better validation
   useEffect(() => {
     if (activeMediaRoute === '/tv' && videoElementRef.current && !hasAttemptedAutoResume.current) {
       const wasPlaying = sessionStorage.getItem('tv-was-playing-before-unmount') === 'true';
       
-      if (wasPlaying && currentFileId) {
+      if (wasPlaying && currentFileId && currentVideoPath) {
         const savedPosition = lastPlaybackPosition[currentFileId];
         
         console.log('[usePersistentVideoState] Auto-resume conditions:', {
           wasPlaying,
           savedPosition,
           currentFileId,
+          currentVideoPath,
           hasAttempted: hasAttemptedAutoResume.current
         });
         
         if (savedPosition && savedPosition > 0) {
-          // Wait for video to be ready before resuming
+          // Phase 3: Add timeout to prevent infinite retry loops
+          let retryCount = 0;
+          const maxRetries = 30; // 3 seconds max
+          
           const attemptResume = () => {
             const video = videoElementRef.current;
             if (!video) {
@@ -141,15 +165,34 @@ export const usePersistentVideoState = () => {
               return;
             }
             
+            // Phase 3: Only attempt if readyState >= HAVE_FUTURE_DATA (3)
             if (video.readyState >= 3) {
               console.log(`[usePersistentVideoState] Auto-resuming video at ${savedPosition}s, readyState: ${video.readyState}`);
               video.currentTime = savedPosition;
-              setIsMediaPlaying(true);
+              
+              const playPromise = video.play();
+              if (playPromise) {
+                playPromise
+                  .then(() => {
+                    setIsMediaPlaying(true);
+                    console.log('[usePersistentVideoState] Auto-resume successful');
+                  })
+                  .catch(err => {
+                    console.error('[usePersistentVideoState] Auto-resume play failed:', err);
+                    // Don't set playing state if play failed
+                  });
+              }
+              
               hasAttemptedAutoResume.current = true;
               sessionStorage.removeItem('tv-was-playing-before-unmount');
-            } else {
-              console.log(`[usePersistentVideoState] Video not ready yet (readyState: ${video.readyState}), retrying in 100ms...`);
+            } else if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`[usePersistentVideoState] Video not ready yet (readyState: ${video.readyState}), retry ${retryCount}/${maxRetries}...`);
               setTimeout(attemptResume, 100);
+            } else {
+              console.log('[usePersistentVideoState] Auto-resume timed out after max retries');
+              hasAttemptedAutoResume.current = true;
+              sessionStorage.removeItem('tv-was-playing-before-unmount');
             }
           };
           
@@ -162,7 +205,7 @@ export const usePersistentVideoState = () => {
     if (currentFileId) {
       hasAttemptedAutoResume.current = false;
     }
-  }, [activeMediaRoute, currentFileId, lastPlaybackPosition, setIsMediaPlaying]);
+  }, [activeMediaRoute, currentFileId, currentVideoPath, lastPlaybackPosition, setIsMediaPlaying]);
 
   // Media Session API integration for better browser media controls
   useEffect(() => {
@@ -244,52 +287,71 @@ export const usePersistentVideoState = () => {
     }
   }, [uploadedFiles, currentFileId]);
 
-  // Register video element reference for direct control
+  // Phase 1: Register video element and capture its actual src
   const registerVideoElement = (element: HTMLVideoElement | null) => {
     console.log('[usePersistentVideoState] registerVideoElement called', {
       hasElement: !!element,
       readyState: element?.readyState,
+      src: element?.src,
       currentFileId
     });
     
     videoElementRef.current = element;
     
-    if (element && currentFileId) {
-      // Set up time update listener to track position
-      const handleTimeUpdate = () => {
-        setCurrentTime(element.currentTime);
-      };
-
-      // Track loading and ready states
-      const handleLoadStart = () => {
-        setIsLoading(true);
-        setIsReady(false);
-        console.log('[usePersistentVideoState] Video loading started');
-      };
-
-      const handleCanPlay = () => {
-        setIsLoading(false);
-        setIsReady(true);
-        console.log('[usePersistentVideoState] Video ready to play, readyState:', element.readyState);
-      };
-
-      const handleError = () => {
-        setIsLoading(false);
-        setIsReady(false);
-        console.error('[usePersistentVideoState] Video error');
-      };
+    if (element) {
+      // Phase 1: Capture the actual video src and update currentVideoPath
+      if (element.src && element.src !== currentVideoPath) {
+        console.log('[usePersistentVideoState] Updating currentVideoPath from video element:', element.src);
+        setCurrentVideoPath(element.src);
+      }
       
-      element.addEventListener('timeupdate', handleTimeUpdate);
-      element.addEventListener('loadstart', handleLoadStart);
-      element.addEventListener('canplay', handleCanPlay);
-      element.addEventListener('error', handleError);
-      
-      return () => {
-        element.removeEventListener('timeupdate', handleTimeUpdate);
-        element.removeEventListener('loadstart', handleLoadStart);
-        element.removeEventListener('canplay', handleCanPlay);
-        element.removeEventListener('error', handleError);
-      };
+      if (currentFileId) {
+        // Set up time update listener to track position
+        const handleTimeUpdate = () => {
+          setCurrentTime(element.currentTime);
+        };
+
+        // Track loading and ready states
+        const handleLoadStart = () => {
+          setIsLoading(true);
+          setIsReady(false);
+          console.log('[usePersistentVideoState] Video loading started');
+        };
+
+        const handleCanPlay = () => {
+          setIsLoading(false);
+          setIsReady(true);
+          console.log('[usePersistentVideoState] Video ready to play, readyState:', element.readyState);
+        };
+
+        const handleError = () => {
+          setIsLoading(false);
+          setIsReady(false);
+          console.error('[usePersistentVideoState] Video error');
+        };
+        
+        // Phase 1: Track when src changes to update currentVideoPath
+        const handleLoadedMetadata = () => {
+          if (element.src && element.src !== currentVideoPath) {
+            console.log('[usePersistentVideoState] Video src loaded, updating currentVideoPath:', element.src);
+            setCurrentVideoPath(element.src);
+          }
+        };
+        
+        element.addEventListener('timeupdate', handleTimeUpdate);
+        element.addEventListener('loadstart', handleLoadStart);
+        element.addEventListener('canplay', handleCanPlay);
+        element.addEventListener('error', handleError);
+        element.addEventListener('loadedmetadata', handleLoadedMetadata);
+        
+        return () => {
+          element.removeEventListener('timeupdate', handleTimeUpdate);
+          element.removeEventListener('loadstart', handleLoadStart);
+          element.removeEventListener('canplay', handleCanPlay);
+          element.removeEventListener('error', handleError);
+          element.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        };
+      }
     }
   };
 

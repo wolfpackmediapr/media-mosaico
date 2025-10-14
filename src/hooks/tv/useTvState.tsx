@@ -54,9 +54,7 @@ export const useTvState = () => {
 
   const handleProcess = (file: File) => {
     processVideo(file);
-    // Set the video path for analysis when processing starts
-    const videoPath = `${file.name}-${Date.now()}`;
-    setCurrentVideoPath(videoPath);
+    // Phase 1: Don't set mock video path - let the video player set the actual src
   };
 
   const handleRemoveFile = (index: number) => {
