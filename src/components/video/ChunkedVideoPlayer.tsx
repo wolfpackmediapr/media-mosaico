@@ -210,6 +210,44 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
     }
   };
 
+  // Handle visibility changes for background playback persistence
+  useEffect(() => {
+    const wasPlayingRef = { current: false };
+    
+    const handleVisibilityChange = () => {
+      const video = videoRef.current;
+      if (!video) return;
+      
+      if (document.hidden) {
+        // Save playing state before hiding
+        wasPlayingRef.current = !video.paused;
+        console.log('[ChunkedVideoPlayer] Tab hidden, was playing:', wasPlayingRef.current);
+      } else {
+        // Resume if was playing before
+        console.log('[ChunkedVideoPlayer] Tab visible, resuming if needed...');
+        
+        if (wasPlayingRef.current && video.paused) {
+          setTimeout(() => {
+            // Check if MediaSource is still in good state
+            const mediaSource = mediaSourceRef.current;
+            const isMediaSourceReady = !mediaSource || mediaSource.readyState === 'open';
+            
+            if (video.readyState >= 2 && !video.ended && isMediaSourceReady) {
+              video.play()
+                .then(() => {
+                  console.log('[ChunkedVideoPlayer] Video resumed successfully');
+                })
+                .catch(err => console.error('[ChunkedVideoPlayer] Resume error:', err));
+            }
+          }, 500);
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   if (error) {
     return (
       <div className={`flex items-center justify-center bg-muted rounded-md ${className}`}>

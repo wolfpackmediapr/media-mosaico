@@ -5,6 +5,7 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface UploadedFile extends File {
   preview?: string;
+  filePath?: string;
 }
 
 export const usePersistentVideoState = () => {
@@ -17,11 +18,39 @@ export const usePersistentVideoState = () => {
     lastPlaybackPosition 
   } = useMediaPersistence();
   
-  // File management state
+  // File management state with proper serialization
   const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
     "tv-uploaded-files",
     [],
-    { storage: 'sessionStorage' }
+    { 
+      storage: 'sessionStorage',
+      serialize: (files) => {
+        // Strip blob URLs but keep filePath and metadata
+        const sanitized = files.map(f => ({
+          name: f.name,
+          size: f.size,
+          type: f.type,
+          lastModified: f.lastModified,
+          preview: f.preview?.startsWith('blob:') ? undefined : f.preview,
+          filePath: f.filePath
+        }));
+        return JSON.stringify(sanitized);
+      },
+      deserialize: (str) => {
+        const parsed = JSON.parse(str);
+        // Reconstruct file-like objects with preserved metadata
+        return parsed.map((fileData: any) => {
+          const file = new File([], fileData.name, {
+            type: fileData.type,
+            lastModified: fileData.lastModified
+          });
+          return Object.assign(file, {
+            preview: fileData.preview,
+            filePath: fileData.filePath
+          }) as UploadedFile;
+        });
+      }
+    }
   );
   
   // Video controls state
@@ -64,34 +93,6 @@ export const usePersistentVideoState = () => {
       }
     }
   }, [activeMediaRoute, currentFileId, lastPlaybackPosition]);
-
-  // Handle visibility changes to maintain playback state
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (activeMediaRoute === '/tv') {
-        if (document.hidden) {
-          console.log('[usePersistentVideoState] Tab hidden - video can continue playing in background');
-          // Save current position when tab becomes hidden
-          if (currentFileId && currentTime > 0) {
-            updatePlaybackPosition(currentFileId, currentTime);
-          }
-        } else {
-          console.log('[usePersistentVideoState] Tab visible - resuming TV video state');
-          // Restore playback state when tab becomes visible
-          if (isMediaPlaying && videoElementRef.current) {
-            // Video should continue playing seamlessly
-            console.log('[usePersistentVideoState] Maintaining video playback state');
-          }
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [activeMediaRoute, isMediaPlaying, currentFileId, currentTime, updatePlaybackPosition]);
 
   // Media Session API integration for better browser media controls
   useEffect(() => {
