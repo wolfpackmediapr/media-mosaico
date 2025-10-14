@@ -23,6 +23,7 @@ interface VideoPlayerProps {
 
 const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const wasPlayingBeforeHidden = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -126,8 +127,6 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
 
   // Handle visibility changes for background playback persistence
   useEffect(() => {
-    const wasPlayingBeforeHidden = useRef(false);
-    
     const handleVisibilityChange = () => {
       const video = videoRef.current;
       if (!video) return;
