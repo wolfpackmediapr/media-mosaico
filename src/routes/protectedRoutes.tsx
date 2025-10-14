@@ -7,14 +7,32 @@ import ProtectedRoute from "../components/auth/ProtectedRoute";
 
 /**
  * Helper function to create a protected route with suspense
+ * Handles both lazy-loaded and directly imported components
  */
-export const createProtectedRoute = (Component: React.LazyExoticComponent<() => JSX.Element>, adminOnly = false) => (
-  <Suspense fallback={<PageLoader />}>
-    <ProtectedRoute adminOnly={adminOnly}>
-      <Component />
-    </ProtectedRoute>
-  </Suspense>
-);
+export const createProtectedRoute = (
+  Component: React.LazyExoticComponent<() => JSX.Element> | React.ComponentType<any>, 
+  adminOnly = false
+) => {
+  // Direct component (function) - no suspense needed
+  if (typeof Component === 'function') {
+    const DirectComponent = Component as React.ComponentType<any>;
+    return (
+      <ProtectedRoute adminOnly={adminOnly}>
+        <DirectComponent />
+      </ProtectedRoute>
+    );
+  }
+  
+  // Lazy component (object) - wrap with suspense
+  const LazyComponent = Component as React.LazyExoticComponent<() => JSX.Element>;
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ProtectedRoute adminOnly={adminOnly}>
+        <LazyComponent />
+      </ProtectedRoute>
+    </Suspense>
+  );
+};
 
 /**
  * Main application routes that require authentication

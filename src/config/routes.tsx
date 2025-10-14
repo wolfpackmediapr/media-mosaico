@@ -2,11 +2,13 @@ import React from "react";
 
 // Import directly instead of lazy loading the Index component
 import Index from "../pages/Index";
+// Import TV directly to prevent component unmounting on navigation
+import TvPage from "../pages/Tv";
 
 // Keep lazy loading for other components
 export const lazyRoutes = {
   Radio: React.lazy(() => import("../pages/Radio")),
-  Tv: React.lazy(() => import("../pages/Tv")),
+  Tv: TvPage, // Direct import to prevent unmounting
   Prensa: React.lazy(() => import("../pages/Prensa")),
   PrensaEscrita: React.lazy(() => import("../pages/PrensaEscrita")),
   RedesSociales: React.lazy(() => import("../pages/RedesSociales")),
