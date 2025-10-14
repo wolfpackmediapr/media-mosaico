@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useVideoVisibilitySync } from "./processing/useVideoVisibilitySync";
 
 interface UploadedFile extends File {
   preview?: string;
@@ -63,10 +64,34 @@ export const usePersistentVideoState = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [currentVideoPath, setCurrentVideoPath] = useState<string>();
   const [currentFileId, setCurrentFileId] = useState<string>();
+  const [isReady, setIsReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Auto-resume functionality
   const hasAttemptedAutoResume = useRef(false);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
+
+  // Trigger functions for visibility sync
+  const triggerPlay = () => {
+    setIsMediaPlaying(true);
+    console.log('[usePersistentVideoState] triggerPlay called');
+  };
+
+  const triggerPause = () => {
+    setIsMediaPlaying(false);
+    console.log('[usePersistentVideoState] triggerPause called');
+  };
+
+  // Integrate video visibility sync for browser tab switching
+  useVideoVisibilitySync({
+    isPlaying: isMediaPlaying,
+    isLoading,
+    isReady,
+    currentVideoPath,
+    videoElementRef,
+    triggerPlay,
+    triggerPause,
+  });
 
   // Register this component as the active media route
   useEffect(() => {
@@ -183,11 +208,36 @@ export const usePersistentVideoState = () => {
       const handleTimeUpdate = () => {
         setCurrentTime(element.currentTime);
       };
+
+      // Track loading and ready states
+      const handleLoadStart = () => {
+        setIsLoading(true);
+        setIsReady(false);
+        console.log('[usePersistentVideoState] Video loading started');
+      };
+
+      const handleCanPlay = () => {
+        setIsLoading(false);
+        setIsReady(true);
+        console.log('[usePersistentVideoState] Video ready to play');
+      };
+
+      const handleError = () => {
+        setIsLoading(false);
+        setIsReady(false);
+        console.error('[usePersistentVideoState] Video error');
+      };
       
       element.addEventListener('timeupdate', handleTimeUpdate);
+      element.addEventListener('loadstart', handleLoadStart);
+      element.addEventListener('canplay', handleCanPlay);
+      element.addEventListener('error', handleError);
       
       return () => {
         element.removeEventListener('timeupdate', handleTimeUpdate);
+        element.removeEventListener('loadstart', handleLoadStart);
+        element.removeEventListener('canplay', handleCanPlay);
+        element.removeEventListener('error', handleError);
       };
     }
   };
@@ -200,13 +250,18 @@ export const usePersistentVideoState = () => {
     currentVideoPath,
     currentTime,
     currentFileId,
+    isReady,
+    isLoading,
+    videoElementRef,
     onTogglePlayback,
     onVolumeChange,
     onPlayPause,
     onSeekToTimestamp,
-    registerVideoElement, // Now properly exported
+    registerVideoElement,
     isActiveMediaRoute: activeMediaRoute === '/tv',
     setIsMediaPlaying,
-    setCurrentVideoPath
+    setCurrentVideoPath,
+    triggerPlay,
+    triggerPause
   };
 };

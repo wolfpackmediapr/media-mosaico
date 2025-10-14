@@ -125,53 +125,28 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
     }
   });
 
-  // Handle visibility changes for tab switching
+  // Handle visibility changes for tab switching (simplified - main logic in useVideoVisibilitySync)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Tab is hidden - save state
+        // Tab is hidden - save essential state for component remount scenarios
         const wasPlaying = !video.paused;
         const position = video.currentTime;
         
         sessionStorage.setItem(`video-was-playing-${src}`, String(wasPlaying));
         sessionStorage.setItem(`video-position-${src}`, String(position));
         
-        console.log('Tab hidden - Video state saved:', { wasPlaying, position });
+        console.log('[VideoPlayer] Tab hidden - State saved:', { wasPlaying, position });
       } else {
-        // Tab is visible again - try to restore state
-        const wasPlaying = sessionStorage.getItem(`video-was-playing-${src}`) === 'true';
+        // Tab is visible again - restore position only (playback handled by hook)
         const savedPosition = sessionStorage.getItem(`video-position-${src}`);
         
         if (savedPosition) {
           video.currentTime = parseFloat(savedPosition);
-        }
-        
-        if (wasPlaying && video.paused) {
-          console.log('Tab visible - Auto-resuming video playback');
-          
-          // Small delay to ensure video element is ready
-          setTimeout(() => {
-            const playPromise = video.play();
-            
-            if (playPromise !== undefined) {
-              playPromise
-                .then(() => {
-                  setIsPlaying(true);
-                  // Clean up session storage after successful resume
-                  sessionStorage.removeItem(`video-was-playing-${src}`);
-                  sessionStorage.removeItem(`video-position-${src}`);
-                })
-                .catch((error) => {
-                  console.warn('Auto-resume failed:', error);
-                  toast.error('No se pudo reanudar el video automáticamente', {
-                    description: 'Haz clic en el botón de reproducción para continuar'
-                  });
-                });
-            }
-          }, 300);
+          console.log('[VideoPlayer] Tab visible - Position restored:', savedPosition);
         }
       }
     };
