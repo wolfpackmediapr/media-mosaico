@@ -133,6 +133,7 @@ const TvMainContent = ({
       onProcess={onProcess}
       onTranscriptionComplete={onTranscriptionComplete}
       onRemoveFile={onRemoveFile}
+      registerVideoElement={registerVideoElement}
     />
   );
 

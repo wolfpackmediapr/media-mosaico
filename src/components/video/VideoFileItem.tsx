@@ -16,6 +16,7 @@ interface VideoFileItemProps {
   progress: number;
   onProcess: (file: UploadedFile) => void;
   onRemove?: (index: number) => void;
+  registerVideoElement?: (element: HTMLVideoElement | null) => void;
 }
 
 const VideoFileItem = ({
@@ -25,6 +26,7 @@ const VideoFileItem = ({
   progress,
   onProcess,
   onRemove,
+  registerVideoElement
 }: VideoFileItemProps) => {
   const getButtonText = () => {
     if (!isProcessing) return "Procesar Video";
@@ -71,7 +73,8 @@ const VideoFileItem = ({
           <EnhancedVideoPlayer 
             src={file.filePath || file.preview!} 
             key={`${file.name}-${file.size}`}
-            className="aspect-video min-h-64" 
+            className="aspect-video min-h-64"
+            registerVideoElement={registerVideoElement}
           />
         </div>
       )}

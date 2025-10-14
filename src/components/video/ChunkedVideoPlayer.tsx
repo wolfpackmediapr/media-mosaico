@@ -15,13 +15,15 @@ interface ChunkedVideoPlayerProps {
   className?: string;
   onLoadedMetadata?: (duration: number) => void;
   onTimeUpdate?: (currentTime: number) => void;
+  registerVideoElement?: (element: HTMLVideoElement | null) => void;
 }
 
 export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
   sessionId,
   className,
   onLoadedMetadata,
-  onTimeUpdate
+  onTimeUpdate,
+  registerVideoElement
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaSourceRef = useRef<MediaSource | null>(null);
@@ -37,6 +39,17 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
   useEffect(() => {
     loadChunkManifest();
   }, [sessionId]);
+
+  // Register video element for cross-tab sync
+  useEffect(() => {
+    if (registerVideoElement && videoRef.current) {
+      registerVideoElement(videoRef.current);
+      
+      return () => {
+        registerVideoElement(null);
+      };
+    }
+  }, [registerVideoElement]);
 
   const loadChunkManifest = async () => {
     try {

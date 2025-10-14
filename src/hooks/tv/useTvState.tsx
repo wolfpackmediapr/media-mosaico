@@ -32,7 +32,9 @@ export const useTvState = () => {
     onPlayPause,
     onSeekToTimestamp,
     setCurrentVideoPath,
-    registerVideoElement
+    registerVideoElement,
+    isActiveMediaRoute,
+    setIsMediaPlaying
   } = usePersistentVideoState();
 
   const { notepadContent, setNotepadContent } = useTvNotepadState();
@@ -80,6 +82,8 @@ export const useTvState = () => {
     currentTime,
     onPlayPause,
     registerVideoElement,
+    isActiveMediaRoute,
+    setIsMediaPlaying,
     
     // Processing state
     isProcessing,

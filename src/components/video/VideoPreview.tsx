@@ -18,6 +18,7 @@ interface VideoPreviewProps {
   onTranscriptionComplete?: (text: string) => void;
   onRemoveFile?: (index: number) => void;
   isActiveMediaRoute?: boolean;
+  registerVideoElement?: (element: HTMLVideoElement | null) => void;
 }
 
 const VideoPreview = ({
@@ -31,7 +32,8 @@ const VideoPreview = ({
   onProcess,
   onTranscriptionComplete,
   onRemoveFile,
-  isActiveMediaRoute = true
+  isActiveMediaRoute = true,
+  registerVideoElement
 }: VideoPreviewProps) => {
   const handleProcess = (file: UploadedFile) => {
     onProcess(file);
@@ -62,6 +64,7 @@ const VideoPreview = ({
                 progress={progress}
                 onProcess={handleProcess}
                 onRemove={onRemoveFile}
+                registerVideoElement={registerVideoElement}
               />
             ))
           )}

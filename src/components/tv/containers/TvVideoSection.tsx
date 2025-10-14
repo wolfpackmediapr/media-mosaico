@@ -20,6 +20,7 @@ interface TvVideoSectionProps {
   onTranscriptionComplete: (text: string) => void;
   onRemoveFile: (index: number) => void;
   isActiveMediaRoute?: boolean;
+  registerVideoElement?: (element: HTMLVideoElement | null) => void;
 }
 
 const TvVideoSection = ({
@@ -34,7 +35,8 @@ const TvVideoSection = ({
   onProcess,
   onTranscriptionComplete,
   onRemoveFile,
-  isActiveMediaRoute = true
+  isActiveMediaRoute = true,
+  registerVideoElement
 }: TvVideoSectionProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -61,6 +63,7 @@ const TvVideoSection = ({
         onTranscriptionComplete={onTranscriptionComplete}
         onRemoveFile={onRemoveFile}
         isActiveMediaRoute={isActiveMediaRoute}
+        registerVideoElement={registerVideoElement}
       />
     </div>
   );

@@ -20,9 +20,10 @@ interface VideoPlayerProps {
   src: string;
   className?: string;
   title?: string;
+  registerVideoElement?: (element: HTMLVideoElement | null) => void;
 }
 
-const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
+const VideoPlayer = ({ src, className, title = "Video", registerVideoElement }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -54,6 +55,11 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Register video element with parent for cross-tab sync
+    if (registerVideoElement) {
+      registerVideoElement(video);
+    }
 
     const handleTimeUpdate = () => {
       setCurrentTime(video.currentTime);
@@ -91,8 +97,13 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      
+      // Unregister on cleanup
+      if (registerVideoElement) {
+        registerVideoElement(null);
+      }
     };
-  }, [src, playbackPositions]);
+  }, [src, playbackPositions, registerVideoElement]);
 
   // Integrate with Media Session API
   useMediaSession({
@@ -125,38 +136,8 @@ const VideoPlayer = ({ src, className, title = "Video" }: VideoPlayerProps) => {
     }
   });
 
-  // Handle visibility changes for tab switching (simplified - main logic in useVideoVisibilitySync)
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // Tab is hidden - save essential state for component remount scenarios
-        const wasPlaying = !video.paused;
-        const position = video.currentTime;
-        
-        sessionStorage.setItem(`video-was-playing-${src}`, String(wasPlaying));
-        sessionStorage.setItem(`video-position-${src}`, String(position));
-        
-        console.log('[VideoPlayer] Tab hidden - State saved:', { wasPlaying, position });
-      } else {
-        // Tab is visible again - restore position only (playback handled by hook)
-        const savedPosition = sessionStorage.getItem(`video-position-${src}`);
-        
-        if (savedPosition) {
-          video.currentTime = parseFloat(savedPosition);
-          console.log('[VideoPlayer] Tab visible - Position restored:', savedPosition);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [src]);
+  // Remove local visibility handler - now handled by useVideoVisibilitySync hook
+  // This ensures no conflicting logic between component and hook
 
   const togglePlay = () => {
     if (!videoRef.current) return;
