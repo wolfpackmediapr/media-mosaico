@@ -94,7 +94,11 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   }
 
   if (videoSource.type === 'assembled' && videoSource.path) {
-    const videoUrl = getAssembledVideoUrl(videoSource.path);
+    // For blob URLs, use them directly; for storage paths, get the public URL
+    const videoUrl = videoSource.path.startsWith('blob:') 
+      ? videoSource.path 
+      : getAssembledVideoUrl(videoSource.path);
+    
     return (
       <VideoPlayer
         src={videoUrl}
