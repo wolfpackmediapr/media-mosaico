@@ -21,9 +21,10 @@ interface VideoPlayerProps {
   className?: string;
   title?: string;
   registerVideoElement?: (element: HTMLVideoElement | null) => void;
+  isPlaying?: boolean;
 }
 
-const VideoPlayer = ({ src, className, title = "Video", registerVideoElement }: VideoPlayerProps) => {
+const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, isPlaying: externalIsPlaying }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -144,6 +145,26 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement }: 
 
   // Remove local visibility handler - now handled by useVideoVisibilitySync hook
   // This ensures no conflicting logic between component and hook
+
+  // Sync with external playing state (from global state management)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || externalIsPlaying === undefined) return;
+
+    console.log('[VideoPlayer] External isPlaying changed:', externalIsPlaying, 'Current paused:', video.paused);
+
+    if (externalIsPlaying && video.paused) {
+      console.log('[VideoPlayer] Playing video due to external state');
+      video.play().catch(err => {
+        console.error('[VideoPlayer] Failed to play:', err);
+      });
+      setIsPlaying(true);
+    } else if (!externalIsPlaying && !video.paused) {
+      console.log('[VideoPlayer] Pausing video due to external state');
+      video.pause();
+      setIsPlaying(false);
+    }
+  }, [externalIsPlaying]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;

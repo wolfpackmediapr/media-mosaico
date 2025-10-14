@@ -9,6 +9,7 @@ interface EnhancedVideoPlayerProps {
   onLoadedMetadata?: (duration: number) => void;
   onTimeUpdate?: (currentTime: number) => void;
   registerVideoElement?: (element: HTMLVideoElement | null) => void;
+  isPlaying?: boolean;
 }
 
 /**
@@ -20,7 +21,8 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   className,
   onLoadedMetadata,
   onTimeUpdate,
-  registerVideoElement
+  registerVideoElement,
+  isPlaying = false
 }) => {
   const [videoSource, setVideoSource] = useState<VideoSource | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -92,6 +94,7 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
         registerVideoElement={registerVideoElement}
+        isPlaying={isPlaying}
       />
     );
   }
@@ -107,6 +110,7 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
         src={videoUrl}
         className={className}
         registerVideoElement={registerVideoElement}
+        isPlaying={isPlaying}
       />
     );
   }
@@ -117,6 +121,7 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       src={src}
       className={className}
       registerVideoElement={registerVideoElement}
+      isPlaying={isPlaying}
     />
   );
 };

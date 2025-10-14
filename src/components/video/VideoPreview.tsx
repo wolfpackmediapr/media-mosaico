@@ -65,6 +65,7 @@ const VideoPreview = ({
                 onProcess={handleProcess}
                 onRemove={onRemoveFile}
                 registerVideoElement={registerVideoElement}
+                isPlaying={isPlaying}
               />
             ))
           )}

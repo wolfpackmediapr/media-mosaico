@@ -16,6 +16,7 @@ interface ChunkedVideoPlayerProps {
   onLoadedMetadata?: (duration: number) => void;
   onTimeUpdate?: (currentTime: number) => void;
   registerVideoElement?: (element: HTMLVideoElement | null) => void;
+  isPlaying?: boolean;
 }
 
 export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
@@ -23,7 +24,8 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
   className,
   onLoadedMetadata,
   onTimeUpdate,
-  registerVideoElement
+  registerVideoElement,
+  isPlaying: externalIsPlaying
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaSourceRef = useRef<MediaSource | null>(null);
@@ -243,6 +245,24 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
   // Handle visibility changes for tab switching - REMOVED
   // This is now handled by useVideoVisibilitySync hook in usePersistentVideoState
   // to ensure consistent behavior across all video players
+
+  // Sync with external playing state (from global state management)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || externalIsPlaying === undefined) return;
+
+    console.log('[ChunkedVideoPlayer] External isPlaying changed:', externalIsPlaying, 'Current paused:', video.paused);
+
+    if (externalIsPlaying && video.paused) {
+      console.log('[ChunkedVideoPlayer] Playing video due to external state');
+      video.play().catch(err => {
+        console.error('[ChunkedVideoPlayer] Failed to play:', err);
+      });
+    } else if (!externalIsPlaying && !video.paused) {
+      console.log('[ChunkedVideoPlayer] Pausing video due to external state');
+      video.pause();
+    }
+  }, [externalIsPlaying]);
 
   if (error) {
     return (
