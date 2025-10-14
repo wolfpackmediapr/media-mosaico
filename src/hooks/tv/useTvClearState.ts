@@ -120,6 +120,25 @@ export const useTvClearState = ({
       
       clearStorage();
       
+      // Clear new persisted state keys
+      sessionStorage.removeItem('tv-transcription-text');
+      sessionStorage.removeItem('tv-transcription-id');
+      sessionStorage.removeItem('tv-transcription-result');
+      sessionStorage.removeItem('tv-transcription-metadata');
+      sessionStorage.removeItem('tv-news-segments');
+      sessionStorage.removeItem('tv-analysis-results');
+      
+      // Clear video playback state
+      const keys = Object.keys(sessionStorage);
+      keys.forEach(key => {
+        if (key.startsWith('video-was-playing-') || 
+            key.startsWith('video-position-') ||
+            key.startsWith('chunked-video-was-playing-') ||
+            key.startsWith('chunked-video-position-')) {
+          sessionStorage.removeItem(key);
+        }
+      });
+      
       // Clear notepad content if function provided
       if (setNotepadContent) {
         setNotepadContent('');

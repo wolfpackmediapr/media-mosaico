@@ -5,21 +5,53 @@ import { toast } from "@/services/toastService";
 import { TvTranscriptionService } from "@/services/tv/tvTranscriptionService";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { NewsSegment, TranscriptionMetadata } from '@/types/media';
+import { usePersistentState } from "@/hooks/use-persistent-state";
 
 // Re-export for backward compatibility
 export type { NewsSegment, TranscriptionMetadata } from '@/types/media';
 
 export const useTvVideoProcessor = () => {
+  // Temporary processing state (not persisted)
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [transcriptionText, setTranscriptionText] = useState("");
-  const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata>();
-  const [transcriptionResult, setTranscriptionResult] = useState<TranscriptionResult | null>(null);
-  const [transcriptionId, setTranscriptionId] = useState<string | null>(null);
-  const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
   const [assemblyId, setAssemblyId] = useState<string | null>(null);
-  // NEW: Store analysis results directly from processing
-  const [analysisResults, setAnalysisResults] = useState<string>("");
+  
+  // Persistent state (survives component unmount)
+  const [transcriptionText, setTranscriptionText] = usePersistentState<string>(
+    "tv-transcription-text",
+    "",
+    { storage: 'sessionStorage' }
+  );
+  
+  const [transcriptionMetadata, setTranscriptionMetadata] = usePersistentState<TranscriptionMetadata | undefined>(
+    "tv-transcription-metadata",
+    undefined,
+    { storage: 'sessionStorage' }
+  );
+  
+  const [transcriptionResult, setTranscriptionResult] = usePersistentState<TranscriptionResult | null>(
+    "tv-transcription-result",
+    null,
+    { storage: 'sessionStorage' }
+  );
+  
+  const [transcriptionId, setTranscriptionId] = usePersistentState<string | null>(
+    "tv-transcription-id",
+    null,
+    { storage: 'sessionStorage' }
+  );
+  
+  const [newsSegments, setNewsSegments] = usePersistentState<NewsSegment[]>(
+    "tv-news-segments",
+    [],
+    { storage: 'sessionStorage' }
+  );
+  
+  const [analysisResults, setAnalysisResults] = usePersistentState<string>(
+    "tv-analysis-results",
+    "",
+    { storage: 'sessionStorage' }
+  );
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);

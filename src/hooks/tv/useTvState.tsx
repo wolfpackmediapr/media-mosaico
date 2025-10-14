@@ -31,7 +31,8 @@ export const useTvState = () => {
     currentTime,
     onPlayPause,
     onSeekToTimestamp,
-    setCurrentVideoPath
+    setCurrentVideoPath,
+    registerVideoElement
   } = usePersistentVideoState();
 
   const { notepadContent, setNotepadContent } = useTvNotepadState();
@@ -78,6 +79,7 @@ export const useTvState = () => {
     onVolumeChange,
     currentTime,
     onPlayPause,
+    registerVideoElement,
     
     // Processing state
     isProcessing,

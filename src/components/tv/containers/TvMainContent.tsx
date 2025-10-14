@@ -54,6 +54,7 @@ interface TvMainContentProps {
   clearingStage?: string;
   isClearing?: boolean;
   analysisResults?: string;
+  registerVideoElement?: (element: HTMLVideoElement | null) => void;
 }
 
 const TvMainContent = ({
@@ -88,7 +89,8 @@ const TvMainContent = ({
   clearingProgress = 0,
   clearingStage = '',
   isClearing = false,
-  analysisResults
+  analysisResults,
+  registerVideoElement
 }: TvMainContentProps) => {
   console.log('[TvMainContent] Component rendering with props:', {
     uploadedFiles: uploadedFiles?.length,

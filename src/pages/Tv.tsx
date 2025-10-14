@@ -1,4 +1,4 @@
-
+import { useEffect } from "react";
 import TvMainContent from "@/components/tv/containers/TvMainContent";
 import { useTvState } from "@/hooks/tv/useTvState";
 
@@ -6,6 +6,14 @@ const Tv = () => {
   console.log('[Tv] Component rendering');
   const tvState = useTvState();
   console.log('[Tv] TV state:', tvState);
+
+  // Log when returning from navigation with persisted state
+  useEffect(() => {
+    const hasPersistedData = sessionStorage.getItem('tv-transcription-text');
+    if (hasPersistedData) {
+      console.log('[Tv] Detected persisted state - UI auto-restoring from sessionStorage');
+    }
+  }, []);
 
   const testAnalysis = {
     quien: "José Luis Pérez, Secretario del Departamento de Desarrollo Económico",

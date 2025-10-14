@@ -204,7 +204,7 @@ export const usePersistentVideoState = () => {
     onVolumeChange,
     onPlayPause,
     onSeekToTimestamp,
-    registerVideoElement,
+    registerVideoElement, // Now properly exported
     isActiveMediaRoute: activeMediaRoute === '/tv',
     setIsMediaPlaying,
     setCurrentVideoPath
