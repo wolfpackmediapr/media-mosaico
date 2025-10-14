@@ -42,31 +42,18 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
     loadChunkManifest();
   }, [sessionId]);
 
-  // Register video element for cross-tab sync
+  // Phase 1 & 2: Register video element immediately on mount
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !registerVideoElement) return;
-
-    const handleCanPlay = () => {
-      // Register video element when it's ready to play (readyState >= 3)
-      if (video.readyState >= 3) {
-        console.log('[ChunkedVideoPlayer] Registering video element with readyState:', video.readyState);
-        registerVideoElement(video);
-      }
-    };
-
-    // Listen for canplay event to register when ready
-    video.addEventListener('canplay', handleCanPlay);
-    
-    // If already ready, register immediately
-    if (video.readyState >= 3) {
-      handleCanPlay();
+    if (videoRef.current && registerVideoElement) {
+      console.log('[ChunkedVideoPlayer] Registering video element immediately on mount');
+      registerVideoElement(videoRef.current);
     }
     
     return () => {
-      video.removeEventListener('canplay', handleCanPlay);
-      console.log('[ChunkedVideoPlayer] Unregistering video element');
-      registerVideoElement(null);
+      if (registerVideoElement) {
+        console.log('[ChunkedVideoPlayer] Unregistering video element on unmount');
+        registerVideoElement(null);
+      }
     };
   }, [registerVideoElement]);
 
@@ -242,22 +229,28 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
     }
   };
 
-  // Handle visibility changes for tab switching - REMOVED
-  // This is now handled by useVideoVisibilitySync hook in usePersistentVideoState
-  // to ensure consistent behavior across all video players
-
-  // Sync with external playing state (from global state management)
+  // Phase 1: Single source of truth - sync with external playing state only
   useEffect(() => {
     const video = videoRef.current;
     if (!video || externalIsPlaying === undefined) return;
 
-    console.log('[ChunkedVideoPlayer] External isPlaying changed:', externalIsPlaying, 'Current paused:', video.paused);
+    console.log('[ChunkedVideoPlayer] External isPlaying changed:', externalIsPlaying, 'Video paused:', video.paused, 'ReadyState:', video.readyState);
+
+    // Phase 5: Add validation before operations
+    if (video.readyState < 2) {
+      console.log('[ChunkedVideoPlayer] Video not ready yet, waiting for readyState >= 2');
+      return;
+    }
 
     if (externalIsPlaying && video.paused) {
       console.log('[ChunkedVideoPlayer] Playing video due to external state');
-      video.play().catch(err => {
-        console.error('[ChunkedVideoPlayer] Failed to play:', err);
-      });
+      const playPromise = video.play();
+      if (playPromise) {
+        playPromise.catch(err => {
+          console.error('[ChunkedVideoPlayer] Failed to play:', err);
+          toast.error('Error al reproducir video', { description: err.message });
+        });
+      }
     } else if (!externalIsPlaying && !video.paused) {
       console.log('[ChunkedVideoPlayer] Pausing video due to external state');
       video.pause();

@@ -11,6 +11,31 @@ interface VideoVisibilitySyncOptions {
   triggerPause: () => void;
 }
 
+// Phase 4 & 5: Helper to validate video element before operations
+const isVideoElementValid = (
+  videoElementRef: React.RefObject<HTMLVideoElement | null>,
+  currentVideoPath: string | undefined
+): boolean => {
+  const video = videoElementRef.current;
+  
+  if (!video) {
+    console.warn('[useVideoVisibilitySync] Video element is null');
+    return false;
+  }
+  
+  if (!currentVideoPath) {
+    console.warn('[useVideoVisibilitySync] No video path set');
+    return false;
+  }
+  
+  if (video.readyState < 2) {
+    console.warn('[useVideoVisibilitySync] Video not ready, readyState:', video.readyState);
+    return false;
+  }
+  
+  return true;
+};
+
 /**
  * Hook to handle pausing/resuming video playback when browser tab visibility changes.
  * Modeled after useAudioVisibilitySync for consistent behavior across media types.
@@ -80,8 +105,11 @@ export const useVideoVisibilitySync = ({
         }
 
         const wasAwayLessThan30Min = (now - lastSeenTabVisible.current) < 30 * 60 * 1000;
+        
+        // Phase 4: Use validation helper
+        const videoElementIsValid = isVideoElementValid(videoElementRef, currentVideoPath);
         const videoElement = videoElementRef.current;
-        const videoIsReady = videoElement && videoElement.readyState >= 3; // HAVE_FUTURE_DATA or better
+        const videoIsReady = videoElement && videoElement.readyState >= 3;
         
         const shouldTryResume = wasPlayingBeforeTabChange.current &&
                                !isPlaying && // Only resume if not already playing
@@ -89,7 +117,8 @@ export const useVideoVisibilitySync = ({
                                wasAwayLessThan30Min &&
                                resumeAttemptCountRef.current < 3 &&
                                isReady &&
-                               videoIsReady; // Ensure video element is ready
+                               videoElementIsValid &&
+                               videoIsReady;
         
         console.log("[useVideoVisibilitySync] Resume conditions check:", {
           wasPlaying: wasPlayingBeforeTabChange.current,
@@ -113,13 +142,31 @@ export const useVideoVisibilitySync = ({
           resumeAttemptCountRef.current += 1;
           console.log(`[useVideoVisibilitySync] Attempting resume (Attempt ${resumeAttemptCountRef.current}). Waiting for stability...`);
 
-          // Use a delay to ensure video element and audio context are stable after tab focus
+          // Phase 4: Enhanced resume with better error handling
           resumeTimeoutRef.current = setTimeout(() => {
             // Double-check conditions before playing
+            const stillValid = isVideoElementValid(videoElementRef, currentVideoPath);
             const stillReady = videoElementRef.current && videoElementRef.current.readyState >= 3;
-            if (wasPlayingBeforeTabChange.current && !isPlaying && currentVideoPath && isReady && stillReady && !document.hidden) {
+            
+            if (wasPlayingBeforeTabChange.current && !isPlaying && currentVideoPath && isReady && stillValid && stillReady && !document.hidden) {
               console.log("[useVideoVisibilitySync] Executing delayed play after tab visibility change. Video readyState:", videoElementRef.current?.readyState);
               try {
+                // Attempt to play with proper error handling
+                const video = videoElementRef.current;
+                if (video) {
+                  const playPromise = video.play();
+                  if (playPromise) {
+                    playPromise.catch(error => {
+                      console.error("[useVideoVisibilitySync] Autoplay blocked by browser:", error);
+                      // Import toast at top of file
+                      const { toast } = require('sonner');
+                      toast.info('Click video to continue playback', { 
+                        duration: 5000,
+                        description: 'Browser autoplay policy requires user interaction'
+                      });
+                    });
+                  }
+                }
                 triggerPlay();
               } catch (e) {
                 console.error("[useVideoVisibilitySync] Error resuming playback:", e);
@@ -130,6 +177,7 @@ export const useVideoVisibilitySync = ({
                 isPlaying,
                 hasVideoPath: !!currentVideoPath,
                 isReady,
+                stillValid,
                 stillReady,
                 hidden: document.hidden
               });

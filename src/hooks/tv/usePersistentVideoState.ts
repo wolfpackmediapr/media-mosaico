@@ -98,26 +98,71 @@ export const usePersistentVideoState = () => {
     setActiveMediaRoute('/tv');
     console.log('[usePersistentVideoState] TV route activated');
     
-    // Cleanup when unmounting
+    // Phase 3: Save state immediately on unmount/route change
     return () => {
       if (activeMediaRoute === '/tv') {
-        console.log('[usePersistentVideoState] TV route deactivated');
+        console.log('[usePersistentVideoState] TV route deactivating - saving state');
+        
+        // Save current playback position immediately
+        if (videoElementRef.current && currentFileId) {
+          const currentPos = videoElementRef.current.currentTime;
+          console.log(`[usePersistentVideoState] Saving position on unmount: ${currentPos}s`);
+          updatePlaybackPosition(currentFileId, currentPos);
+          
+          // Save playing state for auto-resume
+          sessionStorage.setItem('tv-was-playing-before-unmount', isMediaPlaying.toString());
+          console.log(`[usePersistentVideoState] Saved playing state: ${isMediaPlaying}`);
+        }
       }
     };
-  }, [setActiveMediaRoute]);
+  }, [setActiveMediaRoute, activeMediaRoute, currentFileId, isMediaPlaying, updatePlaybackPosition]);
 
-  // Auto-resume video when returning to this route
+  // Phase 3: Improved auto-resume logic with better validation
   useEffect(() => {
-    if (activeMediaRoute === '/tv' && !hasAttemptedAutoResume.current && currentFileId) {
-      const savedPosition = lastPlaybackPosition[currentFileId];
+    if (activeMediaRoute === '/tv' && videoElementRef.current && !hasAttemptedAutoResume.current) {
+      const wasPlaying = sessionStorage.getItem('tv-was-playing-before-unmount') === 'true';
       
-      if (savedPosition && savedPosition > 0) {
-        console.log(`[usePersistentVideoState] Auto-resuming video at ${savedPosition}s for file ${currentFileId}`);
-        setCurrentTime(savedPosition);
-        hasAttemptedAutoResume.current = true;
+      if (wasPlaying && currentFileId) {
+        const savedPosition = lastPlaybackPosition[currentFileId];
+        
+        console.log('[usePersistentVideoState] Auto-resume conditions:', {
+          wasPlaying,
+          savedPosition,
+          currentFileId,
+          hasAttempted: hasAttemptedAutoResume.current
+        });
+        
+        if (savedPosition && savedPosition > 0) {
+          // Wait for video to be ready before resuming
+          const attemptResume = () => {
+            const video = videoElementRef.current;
+            if (!video) {
+              console.log('[usePersistentVideoState] Video element lost during resume attempt');
+              return;
+            }
+            
+            if (video.readyState >= 3) {
+              console.log(`[usePersistentVideoState] Auto-resuming video at ${savedPosition}s, readyState: ${video.readyState}`);
+              video.currentTime = savedPosition;
+              setIsMediaPlaying(true);
+              hasAttemptedAutoResume.current = true;
+              sessionStorage.removeItem('tv-was-playing-before-unmount');
+            } else {
+              console.log(`[usePersistentVideoState] Video not ready yet (readyState: ${video.readyState}), retrying in 100ms...`);
+              setTimeout(attemptResume, 100);
+            }
+          };
+          
+          attemptResume();
+        }
       }
     }
-  }, [activeMediaRoute, currentFileId, lastPlaybackPosition]);
+    
+    // Reset attempt flag when video changes
+    if (currentFileId) {
+      hasAttemptedAutoResume.current = false;
+    }
+  }, [activeMediaRoute, currentFileId, lastPlaybackPosition, setIsMediaPlaying]);
 
   // Media Session API integration for better browser media controls
   useEffect(() => {

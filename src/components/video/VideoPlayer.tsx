@@ -53,6 +53,21 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
     { storage: 'sessionStorage' }
   );
 
+  // Phase 1 & 2: Register video element immediately on mount
+  useEffect(() => {
+    if (videoRef.current && registerVideoElement) {
+      console.log('[VideoPlayer] Registering video element immediately on mount');
+      registerVideoElement(videoRef.current);
+    }
+    
+    return () => {
+      if (registerVideoElement) {
+        console.log('[VideoPlayer] Unregistering video element on unmount');
+        registerVideoElement(null);
+      }
+    };
+  }, [registerVideoElement]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -80,11 +95,7 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
     };
     
     const handleCanPlay = () => {
-      // Register video element when it's ready to play (readyState >= 3)
-      if (registerVideoElement && video.readyState >= 3) {
-        console.log('[VideoPlayer] Registering video element with readyState:', video.readyState);
-        registerVideoElement(video);
-      }
+      console.log('[VideoPlayer] Video ready to play, readyState:', video.readyState);
     };
     
     const handleFullscreenChange = () => 
@@ -103,14 +114,8 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("canplay", handleCanPlay);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      
-      // Unregister on cleanup
-      if (registerVideoElement) {
-        console.log('[VideoPlayer] Unregistering video element');
-        registerVideoElement(null);
-      }
     };
-  }, [src, playbackPositions, registerVideoElement, volume]);
+  }, [src, playbackPositions, volume]);
 
   // Integrate with Media Session API
   useMediaSession({
@@ -143,21 +148,28 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
     }
   });
 
-  // Remove local visibility handler - now handled by useVideoVisibilitySync hook
-  // This ensures no conflicting logic between component and hook
-
-  // Sync with external playing state (from global state management)
+  // Phase 1: Single source of truth - sync with external playing state only
   useEffect(() => {
     const video = videoRef.current;
     if (!video || externalIsPlaying === undefined) return;
 
-    console.log('[VideoPlayer] External isPlaying changed:', externalIsPlaying, 'Current paused:', video.paused);
+    console.log('[VideoPlayer] External isPlaying changed:', externalIsPlaying, 'Video paused:', video.paused, 'ReadyState:', video.readyState);
+
+    // Phase 5: Add validation before operations
+    if (video.readyState < 2) {
+      console.log('[VideoPlayer] Video not ready yet, waiting for readyState >= 2');
+      return;
+    }
 
     if (externalIsPlaying && video.paused) {
       console.log('[VideoPlayer] Playing video due to external state');
-      video.play().catch(err => {
-        console.error('[VideoPlayer] Failed to play:', err);
-      });
+      const playPromise = video.play();
+      if (playPromise) {
+        playPromise.catch(err => {
+          console.error('[VideoPlayer] Failed to play:', err);
+          toast.info('Click video to continue playback', { duration: 5000 });
+        });
+      }
       setIsPlaying(true);
     } else if (!externalIsPlaying && !video.paused) {
       console.log('[VideoPlayer] Pausing video due to external state');
