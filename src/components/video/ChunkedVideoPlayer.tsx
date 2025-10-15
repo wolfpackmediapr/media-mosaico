@@ -284,6 +284,8 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
       ref={videoRef}
       className={className}
       controls
+      playsInline
+      preload="auto"
       onLoadedMetadata={handleLoadedMetadata}
       onTimeUpdate={handleTimeUpdate}
       onError={(e) => {

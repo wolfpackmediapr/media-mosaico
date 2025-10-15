@@ -78,26 +78,11 @@ export const usePersistentVideoState = () => {
   const hasAttemptedAutoResume = useRef(false);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
 
-  // Trigger functions for visibility sync
-  const triggerPlay = () => {
-    setIsMediaPlaying(true);
-    console.log('[usePersistentVideoState] triggerPlay called');
-  };
-
-  const triggerPause = () => {
-    setIsMediaPlaying(false);
-    console.log('[usePersistentVideoState] triggerPause called');
-  };
-
-  // Integrate video visibility sync for browser tab switching
+  // YouTube-style visibility sync - passive monitoring only, no playback control
   useVideoVisibilitySync({
     isPlaying: isMediaPlaying,
-    isLoading,
-    isReady,
     currentVideoPath,
     videoElementRef,
-    triggerPlay,
-    triggerPause,
   });
 
   // Register this component as the active media route
@@ -207,7 +192,7 @@ export const usePersistentVideoState = () => {
     }
   }, [activeMediaRoute, currentFileId, currentVideoPath, lastPlaybackPosition, setIsMediaPlaying]);
 
-  // Media Session API integration for better browser media controls
+  // Enhanced Media Session API - tells browser to prioritize this media
   useEffect(() => {
     if (activeMediaRoute === '/tv' && 'mediaSession' in navigator) {
       navigator.mediaSession.playbackState = isMediaPlaying ? 'playing' : 'paused';
@@ -218,27 +203,57 @@ export const usePersistentVideoState = () => {
           title: 'TV Video Analysis',
           artist: 'Medios Monitoring',
           artwork: [
-            { src: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' }
+            { src: '/favicon.ico', sizes: '96x96', type: 'image/x-icon' }
           ]
         });
+        
+        // Update position state for better OS integration (prevents throttling)
+        if (videoElementRef.current) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: videoElementRef.current.duration || 0,
+              playbackRate: videoElementRef.current.playbackRate || 1,
+              position: videoElementRef.current.currentTime || 0
+            });
+          } catch (e) {
+            // Some browsers don't support position state yet
+            console.warn('[usePersistentVideoState] Media Session position state not supported');
+          }
+        }
       }
 
       // Set up media session action handlers
       navigator.mediaSession.setActionHandler('play', () => {
+        if (videoElementRef.current) {
+          videoElementRef.current.play();
+        }
         setIsMediaPlaying(true);
       });
 
       navigator.mediaSession.setActionHandler('pause', () => {
+        if (videoElementRef.current) {
+          videoElementRef.current.pause();
+        }
         setIsMediaPlaying(false);
       });
 
       navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime !== undefined) {
+        if (details.seekTime !== undefined && videoElementRef.current) {
+          videoElementRef.current.currentTime = details.seekTime;
           setCurrentTime(details.seekTime);
         }
       });
+      
+      // Cleanup on unmount
+      return () => {
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.setActionHandler('play', null);
+          navigator.mediaSession.setActionHandler('pause', null);
+          navigator.mediaSession.setActionHandler('seekto', null);
+        }
+      };
     }
-  }, [activeMediaRoute, isMediaPlaying, currentVideoPath, setIsMediaPlaying]);
+  }, [activeMediaRoute, isMediaPlaying, currentVideoPath, currentTime, setIsMediaPlaying]);
 
   // Save playback position periodically
   useEffect(() => {
@@ -373,8 +388,6 @@ export const usePersistentVideoState = () => {
     registerVideoElement,
     isActiveMediaRoute: activeMediaRoute === '/tv',
     setIsMediaPlaying,
-    setCurrentVideoPath,
-    triggerPlay,
-    triggerPause
+    setCurrentVideoPath
   };
 };

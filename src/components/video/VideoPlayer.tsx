@@ -255,6 +255,8 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
         src={src}
         className={cn("w-full rounded-lg", isSticky ? "max-h-40" : "")}
         onClick={togglePlay}
+        playsInline
+        preload="auto"
       />
       
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
