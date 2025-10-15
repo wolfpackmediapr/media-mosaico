@@ -117,6 +117,8 @@ const TvMainContent = ({
       transcriptionText={transcriptionText}
       clearingProgress={clearingProgress}
       clearingStage={clearingStage}
+      isProcessing={isProcessing}
+      progress={progress}
     />
   );
 

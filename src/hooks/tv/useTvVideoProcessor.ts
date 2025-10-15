@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/services/toastService";
 import { TvTranscriptionService } from "@/services/tv/tvTranscriptionService";
@@ -50,6 +50,13 @@ export const useTvVideoProcessor = () => {
   const [analysisResults, setAnalysisResults] = usePersistentState<string>(
     "tv-analysis-results",
     "",
+    { storage: 'sessionStorage' }
+  );
+
+  // Active processing ID for background processing persistence
+  const [activeProcessingId, setActiveProcessingId] = usePersistentState<string | null>(
+    "tv-active-processing-id",
+    null,
     { storage: 'sessionStorage' }
   );
 
@@ -250,6 +257,9 @@ export const useTvVideoProcessor = () => {
         skipUpload
       });
       
+      // Save active processing ID for background persistence
+      setActiveProcessingId(actualTranscriptionId);
+      
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-gemini', {
           body: { 
@@ -302,6 +312,9 @@ export const useTvVideoProcessor = () => {
         
         setProgress(100);
         
+        // Clear active processing ID on completion
+        setActiveProcessingId(null);
+        
         console.log('[TvVideoProcessor] Background processing completed successfully');
         
         toast.success("¡Procesamiento completado!", {
@@ -331,6 +344,9 @@ export const useTvVideoProcessor = () => {
       });
       
       setProgress(100);
+      
+      // Clear active processing ID on completion
+      setActiveProcessingId(null);
 
       // Create TranscriptionResult for compatibility
       if (result.utterances && Array.isArray(result.utterances)) {
@@ -383,6 +399,9 @@ export const useTvVideoProcessor = () => {
         console.warn('[TvVideoProcessor] No transcription ID available to update error status');
       }
       
+      // Clear active processing ID on error
+      setActiveProcessingId(null);
+      
       // Display user-friendly error messages based on error type
       if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
         toast.error("Límite temporal de API alcanzado", {
@@ -404,53 +423,165 @@ export const useTvVideoProcessor = () => {
     }
   };
 
-  // Poll for processing completion
+  // Poll for processing completion with visibility-aware adaptive intervals
   const pollForProcessingCompletion = async (transcriptionId: string) => {
-    const maxAttempts = 120; // 10 minutes max (5-second intervals)
+    const maxAttempts = 120; // 10 minutes max with adaptive intervals
     let attempts = 0;
+    let isTabVisible = !document.hidden;
     
-    while (attempts < maxAttempts) {
-      try {
-        const { data, error } = await supabase
-          .from('tv_transcriptions')
-          .select('status, progress')
-          .eq('id', transcriptionId)
-          .single();
-        
-        if (error) {
-          console.error('[TvVideoProcessor] Poll error:', error);
-          throw new Error('Failed to check processing status');
-        }
-        
-        console.log(`[TvVideoProcessor] Poll attempt ${attempts + 1}: status=${data.status}, progress=${data.progress}`);
-        
-        if (data.status === 'completed') {
-          setProgress(100);
-          return; // Success!
-        }
-        
-        if (data.status === 'failed') {
-          throw new Error('Processing failed on server');
-        }
-        
-        // Update progress in UI
-        if (data.progress) {
-          setProgress(Math.min(data.progress, 95)); // Cap at 95% until truly complete
-        }
-        
-        // Wait 5 seconds before next check
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        attempts++;
-        
-      } catch (error) {
-        console.error('[TvVideoProcessor] Polling error:', error);
-        throw error;
+    // Listen for visibility changes during polling
+    const handleVisibilityChange = () => {
+      const wasVisible = isTabVisible;
+      isTabVisible = !document.hidden;
+      console.log(`[TvVideoProcessor] Tab visibility changed during polling: ${wasVisible ? 'visible' : 'hidden'} -> ${isTabVisible ? 'visible' : 'hidden'}`);
+      
+      if (isTabVisible && !wasVisible) {
+        toast.info('Procesamiento continúa', {
+          description: `El video sigue procesándose en segundo plano`,
+          duration: 3000
+        });
       }
-    }
+    };
     
-    // Timeout
-    throw new Error('Processing timeout - the video is taking too long to process');
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    try {
+      while (attempts < maxAttempts) {
+        try {
+          const { data, error } = await supabase
+            .from('tv_transcriptions')
+            .select('status, progress')
+            .eq('id', transcriptionId)
+            .single();
+          
+          if (error) {
+            console.error('[TvVideoProcessor] Poll error:', error);
+            throw new Error('Failed to check processing status');
+          }
+          
+          console.log(`[TvVideoProcessor] Poll attempt ${attempts + 1} (tab ${isTabVisible ? 'visible' : 'hidden'}): status=${data.status}, progress=${data.progress}`);
+          
+          if (data.status === 'completed') {
+            setProgress(100);
+            return; // Success!
+          }
+          
+          if (data.status === 'failed') {
+            throw new Error('Processing failed on server');
+          }
+          
+          // Update progress in UI
+          if (data.progress) {
+            setProgress(Math.min(data.progress, 95)); // Cap at 95% until truly complete
+          }
+          
+          // Adaptive polling interval based on visibility
+          const pollInterval = isTabVisible ? 5000 : 15000; // 5s visible, 15s hidden
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          attempts++;
+          
+        } catch (error) {
+          console.error('[TvVideoProcessor] Polling error:', error);
+          throw error;
+        }
+      }
+      
+      // Timeout
+      throw new Error('Processing timeout - the video is taking too long to process');
+    } finally {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
   };
+
+  // Auto-resume processing on mount if there's an active job
+  useEffect(() => {
+    if (activeProcessingId && !isProcessing) {
+      console.log('[TvVideoProcessor] Found active processing job on mount, resuming polling:', activeProcessingId);
+      
+      (async () => {
+        try {
+          setIsProcessing(true);
+          
+          toast.info('Reanudando procesamiento', {
+            description: 'Continuando con el video en curso...',
+            duration: 3000
+          });
+          
+          await pollForProcessingCompletion(activeProcessingId);
+          
+          // Fetch and display results
+          const { data, error } = await supabase
+            .from('tv_transcriptions')
+            .select('*')
+            .eq('id', activeProcessingId)
+            .single();
+            
+          if (!error && data) {
+            setTranscriptionText(data.transcription_text || '');
+            setAnalysisResults(data.full_analysis || '');
+            
+            if (data.transcription_text) {
+              setTranscriptionResult({
+                text: data.transcription_text,
+                utterances: [],
+                words: []
+              });
+            }
+            
+            setActiveProcessingId(null);
+            toast.success('¡Procesamiento completado!', {
+              description: 'El video fue procesado exitosamente'
+            });
+          }
+        } catch (error) {
+          console.error('[TvVideoProcessor] Error resuming processing:', error);
+          setActiveProcessingId(null);
+          toast.error('Error al reanudar procesamiento', {
+            description: 'Por favor intenta de nuevo'
+          });
+        } finally {
+          setIsProcessing(false);
+        }
+      })();
+    }
+  }, []); // Only run on mount
+
+  // Sync UI state when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && transcriptionId && isProcessing) {
+        console.log('[TvVideoProcessor] Tab visible - checking processing status');
+        
+        try {
+          const { data, error } = await supabase
+            .from('tv_transcriptions')
+            .select('status, progress, transcription_text, full_analysis')
+            .eq('id', transcriptionId)
+            .single();
+          
+          if (!error && data) {
+            // Update UI with latest data
+            if (data.status === 'completed' && !transcriptionText) {
+              console.log('[TvVideoProcessor] Processing completed while tab was hidden');
+              setTranscriptionText(data.transcription_text || '');
+              setAnalysisResults(data.full_analysis || '');
+              setProgress(100);
+              setActiveProcessingId(null);
+              toast.success('¡Procesamiento completado mientras estabas ausente!');
+            } else if (data.status === 'processing' && data.progress > progress) {
+              console.log('[TvVideoProcessor] Syncing progress from background:', data.progress);
+              setProgress(data.progress);
+            }
+          }
+        } catch (error) {
+          console.error('[TvVideoProcessor] Error checking processing status:', error);
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [transcriptionId, transcriptionText, progress, isProcessing]);
 
   return {
     isProcessing,
