@@ -78,11 +78,33 @@ export const usePersistentVideoState = () => {
   const hasAttemptedAutoResume = useRef(false);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
 
-  // YouTube-style visibility sync - passive monitoring only, no playback control
+  // Radio-style visibility sync - no pause on hide, but resume on show
+  const triggerPlay = () => {
+    if (videoElementRef.current && !videoElementRef.current.paused) {
+      console.log('[usePersistentVideoState] Video already playing, skipping triggerPlay');
+      return;
+    }
+    if (videoElementRef.current) {
+      const playPromise = videoElementRef.current.play();
+      if (playPromise) {
+        playPromise
+          .then(() => {
+            setIsMediaPlaying(true);
+            console.log('[usePersistentVideoState] Video play successful');
+          })
+          .catch(err => {
+            console.error('[usePersistentVideoState] Video play failed:', err);
+          });
+      }
+    }
+  };
+
   useVideoVisibilitySync({
     isPlaying: isMediaPlaying,
+    isReady,
     currentVideoPath,
     videoElementRef,
+    triggerPlay,
   });
 
   // Register this component as the active media route
