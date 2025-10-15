@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import React, { useState } from "react";
 import VideoUploadSection from "../VideoUploadSection";
 import VideoPreview from "@/components/video/VideoPreview";
 
@@ -69,4 +69,22 @@ const TvVideoSection = ({
   );
 };
 
-export default TvVideoSection;
+// Memoize to prevent unnecessary re-renders from parent
+export default React.memo(TvVideoSection, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  const filesEqual = 
+    prevProps.uploadedFiles.length === nextProps.uploadedFiles.length &&
+    prevProps.uploadedFiles.every((file, idx) => {
+      const prevId = (file as any)._fileId || (file as any).filePath || (file as any).preview;
+      const nextId = (nextProps.uploadedFiles[idx] as any)._fileId || (nextProps.uploadedFiles[idx] as any).filePath || (nextProps.uploadedFiles[idx] as any).preview;
+      return prevId === nextId;
+    });
+  
+  return (
+    filesEqual &&
+    prevProps.isPlaying === nextProps.isPlaying &&
+    prevProps.isProcessing === nextProps.isProcessing &&
+    prevProps.progress === nextProps.progress &&
+    JSON.stringify(prevProps.volume) === JSON.stringify(nextProps.volume)
+  );
+});
