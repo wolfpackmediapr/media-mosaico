@@ -1,10 +1,10 @@
 project_id = "qpozetnbnzdinqkrafze"
 
 [functions.compress-tv-video]
-verify_jwt = false
+verify_jwt = true
 
 [functions.process-tv-with-gemini]
-verify_jwt = false
+verify_jwt = true
 
 [functions.process-press-pdf]
-verify_jwt = false
+verify_jwt = true
