@@ -1,4 +1,5 @@
 
+import { useEffect } from "react";
 import { FileVideo, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -30,6 +31,28 @@ const VideoFileItem = ({
   registerVideoElement,
   isPlaying = false
 }: VideoFileItemProps) => {
+  // Phase 7: Diagnostic logging for component lifecycle
+  useEffect(() => {
+    console.log('[VideoFileItem] Mounted with file:', {
+      name: file.name,
+      hasPreview: !!file.preview,
+      hasFilePath: !!file.filePath,
+      _fileId: (file as any)._fileId
+    });
+    
+    return () => {
+      console.log('[VideoFileItem] Unmounting file:', file.name);
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('[VideoFileItem] File prop changed:', {
+      name: file.name,
+      hasPreview: !!file.preview,
+      hasFilePath: !!file.filePath
+    });
+  }, [file]);
+
   const getButtonText = () => {
     if (!isProcessing) return "Procesar Video";
     if (progress < 15) return "Subiendo video...";
@@ -74,7 +97,7 @@ const VideoFileItem = ({
         <div className="relative mb-4">
           <EnhancedVideoPlayer 
             src={file.filePath || file.preview!} 
-            key={`${file.name}-${file.size}`}
+            key={(file as any)._fileId || file.filePath || file.preview || `${file.name}-${file.size}-${index}`}
             className="aspect-video min-h-64"
             registerVideoElement={registerVideoElement}
             isPlaying={isPlaying}

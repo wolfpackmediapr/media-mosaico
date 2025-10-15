@@ -39,6 +39,7 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
   
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isTabVisible, setIsTabVisible] = useState(!document.hidden);
   
   // Use sticky state for the player (optional floating mode)
   const { isSticky, stickyRef, toggleSticky } = useStickyState({
@@ -52,6 +53,27 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
     {},
     { storage: 'sessionStorage' }
   );
+
+  // Phase 5: Add visibility tracking
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const visible = !document.hidden;
+      setIsTabVisible(visible);
+      console.log('[VideoPlayer] Tab visibility changed:', visible ? 'visible' : 'hidden');
+      
+      // Don't unmount the video element, just log for debugging
+      if (visible && videoRef.current) {
+        console.log('[VideoPlayer] Tab visible - video element still mounted:', {
+          src: videoRef.current.src,
+          paused: videoRef.current.paused,
+          currentTime: videoRef.current.currentTime
+        });
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   // Phase 1 & 2: Register video element immediately on mount
   useEffect(() => {
@@ -354,4 +376,12 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
   );
 };
 
-export default VideoPlayer;
+// Phase 3: Memoize to prevent re-renders when parent updates
+export default React.memo(VideoPlayer, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.src === nextProps.src &&
+    prevProps.isPlaying === nextProps.isPlaying &&
+    prevProps.title === nextProps.title
+  );
+});

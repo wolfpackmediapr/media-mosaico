@@ -19,32 +19,35 @@ export const usePersistentVideoState = () => {
     lastPlaybackPosition 
   } = useMediaPersistence();
   
-  // File management state with proper serialization
+  // Phase 4: File management state with stable ID serialization
   const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
     "tv-uploaded-files",
     [],
     { 
       storage: 'sessionStorage',
       serialize: (files) => {
-        // Strip blob URLs but keep filePath and metadata
+        // Strip blob URLs but keep filePath and metadata, add stable _fileId
         const sanitized = files.map(f => ({
           name: f.name,
           size: f.size,
           type: f.type,
           lastModified: f.lastModified,
           preview: f.preview?.startsWith('blob:') ? undefined : f.preview,
-          filePath: f.filePath
+          filePath: f.filePath,
+          _fileId: f.filePath || f.preview || `${f.name}-${f.size}-${f.lastModified}`
         }));
         return JSON.stringify(sanitized);
       },
       deserialize: (str) => {
         const parsed = JSON.parse(str);
-        // Reconstruct file-like objects with preserved metadata
+        // Reconstruct file-like objects with preserved metadata and stable ID
         return parsed.map((fileData: any) => {
           const file = new File([], fileData.name, {
             type: fileData.type,
             lastModified: fileData.lastModified
           });
+          // Attach stable ID and other properties
+          (file as any)._fileId = fileData._fileId;
           return Object.assign(file, {
             preview: fileData.preview,
             filePath: fileData.filePath

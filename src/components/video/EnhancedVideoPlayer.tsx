@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import VideoPlayer from './VideoPlayer';
 import { ChunkedVideoPlayer } from './ChunkedVideoPlayer';
 import { resolveVideoSource, getAssembledVideoUrl, type VideoSource } from '@/services/video/videoSourceResolver';
@@ -27,40 +27,60 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   const [videoSource, setVideoSource] = useState<VideoSource | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const prevSrcRef = useRef<string>('');
 
+  // Phase 2: Only resolve if src actually changed
   useEffect(() => {
-    resolveSource();
+    if (prevSrcRef.current !== src) {
+      prevSrcRef.current = src;
+      resolveSource();
+    }
   }, [src]);
 
   const resolveSource = async () => {
+    let isMounted = true;
+    
     try {
       setIsLoading(true);
       setError(null);
       
       // Handle blob URLs directly (uploaded files)
       if (src.startsWith('blob:')) {
-        setVideoSource({
-          type: 'assembled',
-          path: src,
-          isAvailable: true
-        });
-        setIsLoading(false);
+        if (isMounted) {
+          setVideoSource({
+            type: 'assembled',
+            path: src,
+            isAvailable: true
+          });
+          setIsLoading(false);
+        }
         return;
       }
       
       // Otherwise resolve from Supabase storage
       const source = await resolveVideoSource(src);
-      setVideoSource(source);
       
-      if (!source.isAvailable) {
-        setError('Video file not available');
+      if (isMounted) {
+        setVideoSource(source);
+        
+        if (!source.isAvailable) {
+          setError('Video file not available');
+        }
       }
     } catch (err) {
       console.error('Error resolving video source:', err);
-      setError('Failed to load video');
+      if (isMounted) {
+        setError('Failed to load video');
+      }
     } finally {
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     }
+    
+    return () => {
+      isMounted = false;
+    };
   };
 
   if (isLoading) {

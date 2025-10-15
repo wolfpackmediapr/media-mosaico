@@ -297,3 +297,11 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
     </video>
   );
 };
+
+// Phase 3: Memoize to prevent unnecessary re-renders
+export default React.memo(ChunkedVideoPlayer, (prevProps, nextProps) => {
+  return (
+    prevProps.sessionId === nextProps.sessionId &&
+    prevProps.isPlaying === nextProps.isPlaying
+  );
+});
