@@ -1,12 +1,33 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useVideoVisibilitySync } from "./processing/useVideoVisibilitySync";
 
+// Module-level cache for blob URLs (survives tab switches, not page reloads)
+const blobUrlMemoryCache = new Map<string, string>();
+
+// Helper to generate stable file IDs
+const getFileId = (file: any): string => {
+  return file._fileId || file.filePath || `${file.name}-${file.size}-${file.lastModified}`;
+};
+
+// Debug helper for monitoring blob cache
+if (typeof window !== 'undefined') {
+  (window as any).debugTvBlobCache = () => {
+    console.log('Blob URL Memory Cache:', {
+      size: blobUrlMemoryCache.size,
+      entries: Array.from(blobUrlMemoryCache.entries()).map(([id, url]) => ({
+        id,
+        url: url.substring(0, 50) + '...'
+      }))
+    });
+  };
+}
+
 interface UploadedFile extends File {
   preview?: string;
   filePath?: string;
+  _fileId?: string;
 }
 
 export const usePersistentVideoState = () => {
@@ -26,31 +47,61 @@ export const usePersistentVideoState = () => {
     { 
       storage: 'sessionStorage',
       serialize: (files) => {
-        // Strip blob URLs but keep filePath and metadata, add stable _fileId
-        const sanitized = files.map(f => ({
-          name: f.name,
-          size: f.size,
-          type: f.type,
-          lastModified: f.lastModified,
-          preview: f.preview?.startsWith('blob:') ? undefined : f.preview,
-          filePath: f.filePath,
-          _fileId: f.filePath || f.preview || `${f.name}-${f.size}-${f.lastModified}`
-        }));
+        const sanitized = files.map(f => {
+          const fileId = getFileId(f);
+          
+          // CRITICAL: Cache blob URLs in memory before serializing
+          if (f.preview?.startsWith('blob:')) {
+            console.log(`[usePersistentVideoState] Caching blob URL for ${fileId}:`, f.preview.substring(0, 50));
+            blobUrlMemoryCache.set(fileId, f.preview);
+          }
+          
+          return {
+            name: f.name,
+            size: f.size,
+            type: f.type,
+            lastModified: f.lastModified,
+            // Keep blob URLs in sessionStorage for same-session recovery
+            preview: f.preview,
+            filePath: f.filePath,
+            _fileId: fileId
+          };
+        });
+        console.log(`[usePersistentVideoState] Serialized ${files.length} files`);
         return JSON.stringify(sanitized);
       },
       deserialize: (str) => {
+        if (!str || str === '[]') {
+          console.log('[usePersistentVideoState] Empty file list in sessionStorage');
+          return [];
+        }
+        
         const parsed = JSON.parse(str);
-        // Reconstruct file-like objects with preserved metadata and stable ID
+        console.log(`[usePersistentVideoState] Deserializing ${parsed.length} files`);
+        
         return parsed.map((fileData: any) => {
+          const fileId = fileData._fileId;
+          
+          // Try to restore blob URL from memory cache first
+          const cachedBlobUrl = blobUrlMemoryCache.get(fileId);
+          const effectivePreview = cachedBlobUrl || fileData.preview;
+          
+          console.log(`[usePersistentVideoState] Restoring file ${fileId}:`, {
+            hadCachedBlob: !!cachedBlobUrl,
+            hadStoredPreview: !!fileData.preview,
+            hasFilePath: !!fileData.filePath,
+            effectivePreview: effectivePreview?.substring(0, 50)
+          });
+          
           const file = new File([], fileData.name, {
             type: fileData.type,
             lastModified: fileData.lastModified
           });
-          // Attach stable ID and other properties
-          (file as any)._fileId = fileData._fileId;
+          
           return Object.assign(file, {
-            preview: fileData.preview,
-            filePath: fileData.filePath
+            preview: effectivePreview,
+            filePath: fileData.filePath,
+            _fileId: fileId
           }) as UploadedFile;
         });
       }
@@ -130,6 +181,10 @@ export const usePersistentVideoState = () => {
           sessionStorage.setItem('tv-was-playing-before-unmount', isMediaPlaying.toString());
           console.log(`[usePersistentVideoState] Saved playing state: ${isMediaPlaying}`);
         }
+        
+        // Clear memory cache when route changes (not on tab switches)
+        console.log('[usePersistentVideoState] Clearing blob URL memory cache');
+        blobUrlMemoryCache.clear();
       }
     };
   }, [setActiveMediaRoute, activeMediaRoute, currentFileId, isMediaPlaying, updatePlaybackPosition]);
