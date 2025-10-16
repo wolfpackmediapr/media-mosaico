@@ -1715,10 +1715,16 @@ serve(async (req) => {
     // Update initial progress
     await updateDatabaseProgress(transcriptionId, 5, 'Processing queued...');
 
+    // Extract Authorization header before background processing
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Authorization header required');
+    }
+
     // Start background processing (doesn't block response)
     console.log(`[${requestId}] Starting background processing for transcription ${transcriptionId}`);
     EdgeRuntime.waitUntil(
-      processVideoInBackground(requestId, videoPath, transcriptionId, supabaseUrl, supabaseServiceKey)
+      processVideoInBackground(requestId, videoPath, transcriptionId, supabaseUrl, supabaseServiceKey, authHeader)
     );
 
     // Return immediately with 202 Accepted
@@ -1763,7 +1769,8 @@ async function processVideoInBackground(
   videoPath: string,
   transcriptionId: string,
   supabaseUrl: string,
-  supabaseServiceKey: string
+  supabaseServiceKey: string,
+  authHeader: string
 ): Promise<void> {
   console.log(`[${requestId}] [Background] Starting background video processing...`);
   
@@ -1830,12 +1837,7 @@ async function processVideoInBackground(
       await updateDatabaseProgress(transcriptionId, 20, wasCompressed ? 'Video compressed successfully, starting AI processing...' : 'Starting AI processing...');
     }
     
-    // Get user from auth header
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('Authorization header required');
-    }
-
+    // Get user from auth header (passed from main handler)
     const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
     if (authError || !user) {
       throw new Error('Authentication failed');
