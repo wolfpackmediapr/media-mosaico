@@ -128,20 +128,28 @@ export function MediaPersistenceProvider({ children }: { children: ReactNode }) 
   
   // Handle page visibility changes to help maintain audio state
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && activeMediaRoute) {
-        console.log("[MediaPersistenceContext] Tab visible again, active route:", activeMediaRoute);
-        
-        // When coming back from hidden state, check if we need to re-initialize media
-        if (isMediaPlaying) {
-          console.log("[MediaPersistenceContext] Media was playing, ensuring state is consistent");
-        }
-      } else if (document.hidden) {
-        console.log("[MediaPersistenceContext] Tab hidden, persisting state");
-        // Save current state immediately when tab is hidden
-        debouncedSavePositions.flush();
+  const handleVisibilityChange = () => {
+    if (!document.hidden && activeMediaRoute) {
+      console.log("[MediaPersistenceContext] Tab visible again, active route:", activeMediaRoute);
+      
+      // CRITICAL FIX: Restore playing state from sessionStorage
+      const savedPlayingState = sessionStorage.getItem('media-playing');
+      if (savedPlayingState === 'true' && !isMediaPlaying) {
+        console.log("[MediaPersistenceContext] Restoring playing state from sessionStorage");
+        setIsMediaPlaying(true);
       }
-    };
+      
+      // When coming back from hidden state, check if we need to re-initialize media
+      if (isMediaPlaying) {
+        console.log("[MediaPersistenceContext] Media was playing, ensuring state is consistent");
+      }
+    } else if (document.hidden) {
+      console.log("[MediaPersistenceContext] Tab hidden, persisting state");
+      // Save current state immediately when tab is hidden
+      sessionStorage.setItem('media-playing', isMediaPlaying.toString());
+      debouncedSavePositions.flush();
+    }
+  };
     
     // Handle page unload to save state
     const handleBeforeUnload = () => {
