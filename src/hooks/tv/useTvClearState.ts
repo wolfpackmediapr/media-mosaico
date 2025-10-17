@@ -17,6 +17,12 @@ interface UseTvClearStateOptions {
   resetTranscription?: () => void;
   setUploadedFiles?: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
   setNotepadContent?: React.Dispatch<React.SetStateAction<string>>;
+  // New setters for comprehensive clearing
+  setTranscriptionId?: React.Dispatch<React.SetStateAction<string | null>>;
+  setTranscriptionMetadata?: React.Dispatch<React.SetStateAction<any>>;
+  setTranscriptionResult?: React.Dispatch<React.SetStateAction<any>>;
+  setAnalysisResults?: React.Dispatch<React.SetStateAction<string>>;
+  setAssemblyId?: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export const useTvClearState = ({
@@ -29,6 +35,11 @@ export const useTvClearState = ({
   resetTranscription,
   setUploadedFiles,
   setNotepadContent,
+  setTranscriptionId,
+  setTranscriptionMetadata,
+  setTranscriptionResult,
+  setAnalysisResults,
+  setAssemblyId,
 }: UseTvClearStateOptions = {}) => {
   const [isClearing, setIsClearing] = useState(false);
   const [clearProgress, setClearProgress] = useState(0);
@@ -81,6 +92,29 @@ export const useTvClearState = ({
       
       // Step 2: Clear transcription
       clearTranscription();
+      
+      // Step 2.5: CRITICAL - Clear React state BEFORE clearing sessionStorage
+      // This prevents usePersistentState from re-writing stale values
+      if (setTranscriptionId) {
+        setTranscriptionId(null);
+        console.log('[useTvClearState] Cleared transcriptionId React state');
+      }
+      if (setTranscriptionMetadata) {
+        setTranscriptionMetadata(undefined);
+        console.log('[useTvClearState] Cleared transcriptionMetadata React state');
+      }
+      if (setTranscriptionResult) {
+        setTranscriptionResult(null);
+        console.log('[useTvClearState] Cleared transcriptionResult React state');
+      }
+      if (setAnalysisResults) {
+        setAnalysisResults('');
+        console.log('[useTvClearState] Cleared analysisResults React state');
+      }
+      if (setAssemblyId) {
+        setAssemblyId(null);
+        console.log('[useTvClearState] Cleared assemblyId React state');
+      }
       
       // Step 3: Clear editor
       setClearingStage('Limpiando editor...');
@@ -174,7 +208,12 @@ export const useTvClearState = ({
     cleanupBlobUrls,
     clearStorage,
     setLastAction,
-    setNotepadContent
+    setNotepadContent,
+    setTranscriptionId,
+    setTranscriptionMetadata,
+    setTranscriptionResult,
+    setAnalysisResults,
+    setAssemblyId
   ]);
 
   const handleEditorRegisterReset = useCallback((resetFn: () => void) => {

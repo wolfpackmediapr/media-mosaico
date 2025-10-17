@@ -595,6 +595,12 @@ export const useTvVideoProcessor = () => {
     analysisResults, // NEW: Return analysis results
     processVideo,
     setTranscriptionText,
-    setNewsSegments
+    setNewsSegments,
+    // Export setters for clear functionality
+    setTranscriptionId,
+    setTranscriptionMetadata,
+    setTranscriptionResult,
+    setAnalysisResults,
+    setAssemblyId
   };
 };

@@ -17,7 +17,12 @@ export const useTvState = () => {
     analysisResults,
     processVideo,
     setTranscriptionText,
-    setNewsSegments
+    setNewsSegments,
+    setTranscriptionId,
+    setTranscriptionMetadata,
+    setTranscriptionResult,
+    setAnalysisResults,
+    setAssemblyId
   } = useTvVideoProcessor();
 
   const {
@@ -49,7 +54,12 @@ export const useTvState = () => {
     setUploadedFiles,
     setTranscriptionText,
     setNewsSegments,
-    setNotepadContent
+    setNotepadContent,
+    setTranscriptionId,
+    setTranscriptionMetadata,
+    setTranscriptionResult,
+    setAnalysisResults,
+    setAssemblyId
   });
 
   const handleProcess = (file: File) => {
