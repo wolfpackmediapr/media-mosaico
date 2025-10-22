@@ -93,64 +93,9 @@ export const useTvClearState = ({
       // Step 2: Clear transcription
       clearTranscription();
       
-      // Step 2.5: CRITICAL - Clear React state BEFORE clearing sessionStorage
-      // This prevents usePersistentState from re-writing stale values
-      if (setTranscriptionId) {
-        setTranscriptionId(null);
-        console.log('[useTvClearState] Cleared transcriptionId React state');
-      }
-      if (setTranscriptionMetadata) {
-        setTranscriptionMetadata(undefined);
-        console.log('[useTvClearState] Cleared transcriptionMetadata React state');
-      }
-      if (setTranscriptionResult) {
-        setTranscriptionResult(null);
-        console.log('[useTvClearState] Cleared transcriptionResult React state');
-      }
-      if (setAnalysisResults) {
-        setAnalysisResults('');
-        console.log('[useTvClearState] Cleared analysisResults React state');
-      }
-      if (setAssemblyId) {
-        setAssemblyId(null);
-        console.log('[useTvClearState] Cleared assemblyId React state');
-      }
-      
-      // Step 3: Clear editor
-      setClearingStage('Limpiando editor...');
-      setClearProgress(60);
-      
-      if (editorResetFn) {
-        try {
-          editorResetFn();
-          console.log('[useTvClearState] Editor reset complete');
-        } catch (err) {
-          console.error('[useTvClearState] Error during editor reset:', err);
-        }
-      }
-      
-      // Step 4: Clear analysis
-      setClearingStage('Limpiando análisis...');
-      setClearProgress(80);
-      
-      if (clearAnalysisFn) {
-        try {
-          clearAnalysisFn();
-          console.log('[useTvClearState] Analysis reset complete');
-        } catch (err) {
-          console.error('[useTvClearState] Error during analysis reset:', err);
-        }
-      }
-      
-      // Step 5: Clean up resources
-      setClearingStage('Limpiando recursos...');
-      setClearProgress(90);
-      
-      cleanupBlobUrls(filesToCleanup);
-      
-      // Step 6: Clear storage
-      setClearingStage('Finalizando...');
-      setClearProgress(95);
+      // Step 3: CRITICAL - Clear sessionStorage FIRST
+      setClearingStage('Limpiando almacenamiento...');
+      setClearProgress(50);
       
       clearStorage();
       
@@ -172,6 +117,68 @@ export const useTvClearState = ({
           sessionStorage.removeItem(key);
         }
       });
+      
+      console.log('[useTvClearState] sessionStorage cleared, waiting for persistence to settle');
+      
+      // Step 4: CRITICAL - Add microtask delay to let usePersistentState settle
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      // Step 5: NOW clear React state (after storage is cleared and settled)
+      setClearingStage('Limpiando estado de React...');
+      setClearProgress(60);
+      
+      if (setTranscriptionId) {
+        setTranscriptionId(null);
+        console.log('[useTvClearState] Cleared transcriptionId React state');
+      }
+      if (setTranscriptionMetadata) {
+        setTranscriptionMetadata(undefined);
+        console.log('[useTvClearState] Cleared transcriptionMetadata React state');
+      }
+      if (setTranscriptionResult) {
+        setTranscriptionResult(null);
+        console.log('[useTvClearState] Cleared transcriptionResult React state');
+      }
+      if (setAnalysisResults) {
+        setAnalysisResults('');
+        console.log('[useTvClearState] Cleared analysisResults React state');
+      }
+      if (setAssemblyId) {
+        setAssemblyId(null);
+        console.log('[useTvClearState] Cleared assemblyId React state');
+      }
+      
+      // Step 6: Clear editor
+      setClearingStage('Limpiando editor...');
+      setClearProgress(70);
+      
+      if (editorResetFn) {
+        try {
+          editorResetFn();
+          console.log('[useTvClearState] Editor reset complete');
+        } catch (err) {
+          console.error('[useTvClearState] Error during editor reset:', err);
+        }
+      }
+      
+      // Step 7: Clear analysis
+      setClearingStage('Limpiando análisis...');
+      setClearProgress(80);
+      
+      if (clearAnalysisFn) {
+        try {
+          clearAnalysisFn();
+          console.log('[useTvClearState] Analysis reset complete');
+        } catch (err) {
+          console.error('[useTvClearState] Error during analysis reset:', err);
+        }
+      }
+      
+      // Step 8: Clean up resources
+      setClearingStage('Limpiando recursos...');
+      setClearProgress(90);
+      
+      cleanupBlobUrls(filesToCleanup);
       
       // Clear notepad content if function provided
       if (setNotepadContent) {
