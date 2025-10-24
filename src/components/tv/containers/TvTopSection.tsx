@@ -1,10 +1,7 @@
-
 import React from "react";
 import ClearAllButton from "@/components/radio/ClearAllButton";
-import CompressionTestButton from "../CompressionTestButton";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 import { Loader2 } from "lucide-react";
-
 interface UploadedFile extends File {
   preview?: string;
 }
@@ -39,7 +36,6 @@ const TvTopSection = ({
         </div>
       )}
       <div className="flex justify-end gap-2">
-        <CompressionTestButton />
         <ClearAllButton 
           onClearAll={handleClearAll}
           clearingProgress={clearingProgress}

@@ -7,7 +7,6 @@ import TvVideoSection from "./TvVideoSection";
 import TvTranscriptionSection from "../TvTranscriptionSection";
 import TvAnalysisSection from "../TvAnalysisSection";
 import TvNotePadSection from "../TvNotePadSection";
-import CompressionTestButton from "../CompressionTestButton";
 
 import TvTypeformEmbed from "../TvTypeformEmbed";
 import { NewsSegment, UploadedFile } from "@/types/media";
