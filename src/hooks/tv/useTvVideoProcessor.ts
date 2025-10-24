@@ -17,44 +17,44 @@ export const useTvVideoProcessor = () => {
   const [assemblyId, setAssemblyId] = useState<string | null>(null);
   
   // Persistent state (survives component unmount)
-  const [transcriptionText, setTranscriptionText] = usePersistentState<string>(
+  const [transcriptionText, setTranscriptionText, removeTranscriptionText] = usePersistentState<string>(
     "tv-transcription-text",
     "",
     { storage: 'sessionStorage' }
   );
   
-  const [transcriptionMetadata, setTranscriptionMetadata] = usePersistentState<TranscriptionMetadata | undefined>(
+  const [transcriptionMetadata, setTranscriptionMetadata, removeTranscriptionMetadata] = usePersistentState<TranscriptionMetadata | undefined>(
     "tv-transcription-metadata",
     undefined,
     { storage: 'sessionStorage' }
   );
   
-  const [transcriptionResult, setTranscriptionResult] = usePersistentState<TranscriptionResult | null>(
+  const [transcriptionResult, setTranscriptionResult, removeTranscriptionResult] = usePersistentState<TranscriptionResult | null>(
     "tv-transcription-result",
     null,
     { storage: 'sessionStorage' }
   );
   
-  const [transcriptionId, setTranscriptionId] = usePersistentState<string | null>(
+  const [transcriptionId, setTranscriptionId, removeTranscriptionId] = usePersistentState<string | null>(
     "tv-transcription-id",
     null,
     { storage: 'sessionStorage' }
   );
   
-  const [newsSegments, setNewsSegments] = usePersistentState<NewsSegment[]>(
+  const [newsSegments, setNewsSegments, removeNewsSegments] = usePersistentState<NewsSegment[]>(
     "tv-news-segments",
     [],
     { storage: 'sessionStorage' }
   );
   
-  const [analysisResults, setAnalysisResults] = usePersistentState<string>(
+  const [analysisResults, setAnalysisResults, removeAnalysisResults] = usePersistentState<string>(
     "tv-analysis-results",
     "",
     { storage: 'sessionStorage' }
   );
 
   // Active processing ID for background processing persistence
-  const [activeProcessingId, setActiveProcessingId] = usePersistentState<string | null>(
+  const [activeProcessingId, setActiveProcessingId, removeActiveProcessingId] = usePersistentState<string | null>(
     "tv-active-processing-id",
     null,
     { storage: 'sessionStorage' }
@@ -601,6 +601,14 @@ export const useTvVideoProcessor = () => {
     setTranscriptionMetadata,
     setTranscriptionResult,
     setAnalysisResults,
-    setAssemblyId
+    setAssemblyId,
+    // Export remove functions for proper clearing
+    removeTranscriptionText,
+    removeTranscriptionMetadata,
+    removeTranscriptionResult,
+    removeTranscriptionId,
+    removeNewsSegments,
+    removeAnalysisResults,
+    removeActiveProcessingId
   };
 };

@@ -22,7 +22,14 @@ export const useTvState = () => {
     setTranscriptionMetadata,
     setTranscriptionResult,
     setAnalysisResults,
-    setAssemblyId
+    setAssemblyId,
+    removeTranscriptionText,
+    removeTranscriptionMetadata,
+    removeTranscriptionResult,
+    removeTranscriptionId,
+    removeNewsSegments,
+    removeAnalysisResults,
+    removeActiveProcessingId
   } = useTvVideoProcessor();
 
   const {
@@ -59,7 +66,14 @@ export const useTvState = () => {
     setTranscriptionMetadata,
     setTranscriptionResult,
     setAnalysisResults,
-    setAssemblyId
+    setAssemblyId,
+    removeTranscriptionText,
+    removeTranscriptionMetadata,
+    removeTranscriptionResult,
+    removeTranscriptionId,
+    removeNewsSegments,
+    removeAnalysisResults,
+    removeActiveProcessingId
   });
 
   const handleProcess = (file: File) => {

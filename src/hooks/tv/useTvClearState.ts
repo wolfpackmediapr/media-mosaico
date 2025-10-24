@@ -23,6 +23,14 @@ interface UseTvClearStateOptions {
   setTranscriptionResult?: React.Dispatch<React.SetStateAction<any>>;
   setAnalysisResults?: React.Dispatch<React.SetStateAction<string>>;
   setAssemblyId?: React.Dispatch<React.SetStateAction<string | null>>;
+  // Remove functions from usePersistentState (prevents re-write)
+  removeTranscriptionText?: () => void;
+  removeTranscriptionMetadata?: () => void;
+  removeTranscriptionResult?: () => void;
+  removeTranscriptionId?: () => void;
+  removeNewsSegments?: () => void;
+  removeAnalysisResults?: () => void;
+  removeActiveProcessingId?: () => void;
 }
 
 export const useTvClearState = ({
@@ -40,6 +48,13 @@ export const useTvClearState = ({
   setTranscriptionResult,
   setAnalysisResults,
   setAssemblyId,
+  removeTranscriptionText,
+  removeTranscriptionMetadata,
+  removeTranscriptionResult,
+  removeTranscriptionId,
+  removeNewsSegments,
+  removeAnalysisResults,
+  removeActiveProcessingId,
 }: UseTvClearStateOptions = {}) => {
   const [isClearing, setIsClearing] = useState(false);
   const [clearProgress, setClearProgress] = useState(0);
@@ -120,32 +135,41 @@ export const useTvClearState = ({
       
       console.log('[useTvClearState] sessionStorage cleared, waiting for persistence to settle');
       
-      // Step 4: CRITICAL - Add microtask delay to let usePersistentState settle
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // Step 4: CRITICAL - Increase delay to allow usePersistentState to fully settle
+      await new Promise(resolve => setTimeout(resolve, 50));
       
-      // Step 5: NOW clear React state (after storage is cleared and settled)
+      // Step 5: NOW clear React state using removeItem functions (prevents re-write)
       setClearingStage('Limpiando estado de React...');
       setClearProgress(60);
       
-      if (setTranscriptionId) {
-        setTranscriptionId(null);
-        console.log('[useTvClearState] Cleared transcriptionId React state');
+      // Use removeItem functions instead of setState to prevent usePersistentState from re-writing
+      if (removeTranscriptionId) {
+        removeTranscriptionId();
+        console.log('[useTvClearState] Removed transcriptionId via removeItem');
       }
-      if (setTranscriptionMetadata) {
-        setTranscriptionMetadata(undefined);
-        console.log('[useTvClearState] Cleared transcriptionMetadata React state');
+      if (removeTranscriptionMetadata) {
+        removeTranscriptionMetadata();
+        console.log('[useTvClearState] Removed transcriptionMetadata via removeItem');
       }
-      if (setTranscriptionResult) {
-        setTranscriptionResult(null);
-        console.log('[useTvClearState] Cleared transcriptionResult React state');
+      if (removeTranscriptionResult) {
+        removeTranscriptionResult();
+        console.log('[useTvClearState] Removed transcriptionResult via removeItem');
       }
-      if (setAnalysisResults) {
-        setAnalysisResults('');
-        console.log('[useTvClearState] Cleared analysisResults React state');
+      if (removeAnalysisResults) {
+        removeAnalysisResults();
+        console.log('[useTvClearState] Removed analysisResults via removeItem');
       }
-      if (setAssemblyId) {
-        setAssemblyId(null);
-        console.log('[useTvClearState] Cleared assemblyId React state');
+      if (removeTranscriptionText) {
+        removeTranscriptionText();
+        console.log('[useTvClearState] Removed transcriptionText via removeItem');
+      }
+      if (removeNewsSegments) {
+        removeNewsSegments();
+        console.log('[useTvClearState] Removed newsSegments via removeItem');
+      }
+      if (removeActiveProcessingId) {
+        removeActiveProcessingId();
+        console.log('[useTvClearState] Removed activeProcessingId via removeItem');
       }
       
       // Step 6: Clear editor
@@ -176,13 +200,41 @@ export const useTvClearState = ({
       
       // Step 8: Clean up resources
       setClearingStage('Limpiando recursos...');
-      setClearProgress(90);
+      setClearProgress(85);
       
       cleanupBlobUrls(filesToCleanup);
       
       // Clear notepad content if function provided
       if (setNotepadContent) {
         setNotepadContent('');
+      }
+      
+      // Step 9: Validate clearing (like Radio)
+      setClearingStage('Validando limpieza...');
+      setClearProgress(95);
+      
+      const keysToCheck = [
+        'tv-transcription-text',
+        'tv-transcription-id',
+        'tv-transcription-result',
+        'tv-transcription-metadata',
+        'tv-analysis-results',
+        'tv-news-segments'
+      ];
+      
+      const remainingKeys = keysToCheck.filter(key => 
+        sessionStorage.getItem(key) !== null
+      );
+      
+      if (remainingKeys.length > 0) {
+        console.warn('[useTvClearState] Keys still present after clear:', remainingKeys);
+        // Retry clearing those specific keys
+        remainingKeys.forEach(key => {
+          sessionStorage.removeItem(key);
+          console.log(`[useTvClearState] Force-removed remaining key: ${key}`);
+        });
+      } else {
+        console.log('[useTvClearState] Validation passed - all keys cleared');
       }
       
       // Mark as clear action

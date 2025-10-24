@@ -58,6 +58,15 @@ export const useTvAnalysisDisplay = ({
     fetchExistingAnalysis();
   }, [transcriptionId, forceRefresh]);
 
+  // Force reset internal state when transcriptionId becomes null
+  useEffect(() => {
+    if (!transcriptionId) {
+      console.log('[useTvAnalysisDisplay] transcriptionId cleared, resetting internal state');
+      setExistingAnalysis("");
+      setHasAnalysis(false);
+    }
+  }, [transcriptionId]);
+
   return {
     existingAnalysis,
     hasAnalysis,
