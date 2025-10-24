@@ -122,14 +122,28 @@ export const useTvClearState = ({
       sessionStorage.removeItem('tv-news-segments');
       sessionStorage.removeItem('tv-analysis-results');
       
-      // Clear video playback state
+      // Clear video playback state and editor-related keys
       const keys = Object.keys(sessionStorage);
       keys.forEach(key => {
+        // Clear video playback state
         if (key.startsWith('video-was-playing-') || 
             key.startsWith('video-position-') ||
             key.startsWith('chunked-video-was-playing-') ||
             key.startsWith('chunked-video-position-')) {
           sessionStorage.removeItem(key);
+        }
+        
+        // Clear editor state keys (speaker text and edit mode)
+        if (key.startsWith('radio-transcription-speaker-') ||
+            key.startsWith('transcription-editor-mode-')) {
+          sessionStorage.removeItem(key);
+          console.log(`[useTvClearState] Cleared editor key: ${key}`);
+        }
+        
+        // Clear TV view mode keys
+        if (key.startsWith('tv-transcription-view-mode-')) {
+          sessionStorage.removeItem(key);
+          console.log(`[useTvClearState] Cleared view mode key: ${key}`);
         }
       });
       
@@ -222,14 +236,27 @@ export const useTvClearState = ({
         'tv-news-segments'
       ];
       
+      // Check fixed keys
       const remainingKeys = keysToCheck.filter(key => 
         sessionStorage.getItem(key) !== null
       );
       
-      if (remainingKeys.length > 0) {
-        console.warn('[useTvClearState] Keys still present after clear:', remainingKeys);
-        // Retry clearing those specific keys
-        remainingKeys.forEach(key => {
+      // Check pattern-based keys (editor-related)
+      const allKeys = Object.keys(sessionStorage);
+      const editorKeys = allKeys.filter(key => 
+        key.startsWith('radio-transcription-speaker-') ||
+        key.startsWith('transcription-editor-mode-') ||
+        key.startsWith('tv-transcription-view-mode-')
+      );
+      
+      if (remainingKeys.length > 0 || editorKeys.length > 0) {
+        console.warn('[useTvClearState] Keys still present after clear:', {
+          fixed: remainingKeys,
+          editor: editorKeys
+        });
+        
+        // Force-remove remaining keys
+        [...remainingKeys, ...editorKeys].forEach(key => {
           sessionStorage.removeItem(key);
           console.log(`[useTvClearState] Force-removed remaining key: ${key}`);
         });
