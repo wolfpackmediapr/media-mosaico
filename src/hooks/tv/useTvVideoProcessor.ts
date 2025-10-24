@@ -217,7 +217,7 @@ export const useTvVideoProcessor = () => {
       }
 
       toast.info("Procesando video", {
-        description: "Analizando contenido con IA avanzada..."
+        description: "Analizando contenido con IA..."
       });
 
       // Call unified processing function with correct path format

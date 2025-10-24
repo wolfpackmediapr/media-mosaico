@@ -66,7 +66,7 @@ const VideoFileItem = ({
   const getProgressDescription = () => {
     if (progress < 15) return "Subiendo archivo al servidor";
     if (progress < 30) return "Validando y preparando video";
-    if (progress < 60) return "Analizando contenido con Gemini AI";
+    if (progress < 60) return "Analizando contenido con IA";
     if (progress < 90) return "Generando transcripción y segmentos";
     return "Finalizando procesamiento";
   };
