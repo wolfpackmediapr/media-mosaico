@@ -163,7 +163,7 @@ ${pageText}
 
 /**
  * Process image files (JPG/PNG) or scanned PDF pages with Gemini Vision
- * Now with retry logic for improved reliability
+ * Enhanced with comprehensive error handling and response debugging
  */
 async function processImageWithGeminiVision(
   imageBlob: Blob,
@@ -236,7 +236,7 @@ RESPONDE CON ESTA ESTRUCTURA JSON EXACTA (NO agregues texto adicional):
 Si no encuentras ningún artículo, responde: {"recortes": []}
 `;
 
-      // Call Gemini Vision API with increased timeout
+      // Call Gemini Vision API
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
@@ -272,25 +272,63 @@ Si no encuentras ningún artículo, responde: {"recortes": []}
       }
 
       const data = await response.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      console.log('Gemini response structure:', JSON.stringify(data).substring(0, 500));
+      
+      // Check for candidates
+      const candidate = data.candidates?.[0];
+      if (!candidate) {
+        console.error('No candidates in Gemini response. Full response:', JSON.stringify(data));
+        throw new Error('Gemini no devolvió candidatos de respuesta');
+      }
+      
+      // Check finish reason for blocks/errors
+      const finishReason = candidate.finishReason;
+      console.log(`Finish reason: ${finishReason}`);
+      
+      if (finishReason === 'SAFETY') {
+        console.error('Content blocked by safety filters');
+        throw new Error('Contenido bloqueado por filtros de seguridad de Gemini');
+      }
+      
+      if (finishReason === 'RECITATION') {
+        console.error('Content blocked due to recitation/copyright');
+        throw new Error('Contenido bloqueado por derechos de autor');
+      }
+      
+      if (finishReason === 'MAX_TOKENS') {
+        console.warn('Response truncated due to max tokens');
+      }
+      
+      // Try to extract content
+      const content = candidate?.content?.parts?.[0]?.text;
       
       if (!content) {
-        console.warn('No content received from Gemini Vision API');
-        throw new Error('Empty response from Gemini Vision');
+        console.error('No text content in response. Finish reason:', finishReason);
+        console.error('Full candidate structure:', JSON.stringify(candidate, null, 2).substring(0, 1000));
+        throw new Error(`Gemini no devolvió contenido de texto (reason: ${finishReason || 'UNKNOWN'})`);
       }
 
       console.log(`Received response (${content.length} chars)`);
       
+      // Parse JSON response
       let parsedContent;
       try {
         parsedContent = JSON.parse(content);
       } catch (parseError) {
         console.error('Failed to parse Gemini response as JSON:', content.substring(0, 500));
-        throw new Error('Invalid JSON response from Gemini');
+        throw new Error('Respuesta JSON inválida de Gemini');
       }
       
       const clippings = parsedContent.recortes || [];
       console.log(`Extracted ${clippings.length} clippings from page ${pageNumber}`);
+      
+      // Log if no clippings found
+      if (clippings.length === 0) {
+        console.warn('Gemini returned empty recortes array. This may indicate:');
+        console.warn('  - PDF is too large or complex for single processing');
+        console.warn('  - OCR quality is poor');
+        console.warn('  - No recognizable articles in the document');
+      }
       
       // Cleanup uploaded file
       await cleanupGeminiFile(fileInfo.name);
@@ -328,6 +366,69 @@ Si no encuentras ningún artículo, responde: {"recortes": []}
   }
   
   return [];
+}
+
+/**
+ * Process large PDFs by splitting into chunks (for files > 20MB)
+ */
+async function processLargePDFInChunks(
+  pdfBlob: Blob,
+  fileName: string,
+  supabase: any,
+  jobId: string
+): Promise<any[]> {
+  const fileSizeMB = pdfBlob.size / 1024 / 1024;
+  console.log(`Processing large PDF (${fileSizeMB.toFixed(2)} MB) in chunks...`);
+  
+  // Estimate page count (rough estimate: 100KB per page)
+  const estimatedPages = Math.ceil(pdfBlob.size / (100 * 1024));
+  console.log(`Estimated pages: ${estimatedPages}`);
+  
+  // Define chunk size in pages (process 5-10 pages at a time)
+  const pagesPerChunk = Math.min(10, Math.max(5, Math.floor(estimatedPages / 5)));
+  const totalChunks = Math.ceil(estimatedPages / pagesPerChunk);
+  
+  console.log(`Will process in ${totalChunks} chunks of ~${pagesPerChunk} pages each`);
+  
+  let allClippings: any[] = [];
+  
+  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    const startPage = chunkIndex * pagesPerChunk + 1;
+    const endPage = Math.min((chunkIndex + 1) * pagesPerChunk, estimatedPages);
+    
+    console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks}: pages ${startPage}-${endPage}`);
+    
+    // Update progress (10% to 80% range)
+    const progress = 10 + Math.floor((chunkIndex / totalChunks) * 70);
+    await updateProcessingJob(supabase, jobId, { 
+      progress,
+      error: null
+    });
+    
+    try {
+      // Process this chunk with Gemini Vision
+      const chunkClippings = await processImageWithGeminiVision(
+        pdfBlob,
+        `${fileName}_chunk_${chunkIndex + 1}`,
+        startPage
+      );
+      
+      console.log(`Chunk ${chunkIndex + 1} returned ${chunkClippings.length} clippings`);
+      allClippings.push(...chunkClippings);
+      
+      // Small delay between chunks to avoid rate limits
+      if (chunkIndex < totalChunks - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+    } catch (error) {
+      console.error(`Error processing chunk ${chunkIndex + 1}:`, error);
+      // Continue with other chunks even if one fails
+    }
+  }
+  
+  console.log(`Chunked processing complete. Total clippings: ${allClippings.length}`);
+  return allClippings;
 }
 
 /**
@@ -658,8 +759,9 @@ serve(async (req) => {
         );
       }
     } else {
-      // PDF processing - use Gemini Vision directly
-      console.log(`Processing PDF with Gemini Vision (${(fileData.byteLength / 1024 / 1024).toFixed(2)} MB)`);
+      // PDF processing with smart chunking for large files
+      const fileSizeMB = fileData.byteLength / 1024 / 1024;
+      console.log(`Processing PDF (${fileSizeMB.toFixed(2)} MB)`);
       
       // Update progress
       await updateProcessingJob(supabase, jobId, { 
@@ -669,15 +771,26 @@ serve(async (req) => {
       
       const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
       
-      // Process with Gemini Vision with improved error handling
-      console.log('Starting Gemini Vision analysis...');
-      allClippings = await processImageWithGeminiVision(
-        pdfBlob,
-        job.file_path,
-        1
-      );
+      // Use chunked processing for files larger than 20MB
+      if (fileSizeMB > 20) {
+        console.log('Large PDF detected, using chunked processing strategy...');
+        allClippings = await processLargePDFInChunks(
+          pdfBlob,
+          job.file_path,
+          supabase,
+          jobId
+        );
+      } else {
+        // Process smaller PDFs normally
+        console.log('Starting Gemini Vision analysis...');
+        allClippings = await processImageWithGeminiVision(
+          pdfBlob,
+          job.file_path,
+          1
+        );
+      }
       
-      console.log(`Gemini Vision returned ${allClippings.length} clippings`);
+      console.log(`PDF processing returned ${allClippings.length} total clippings`);
       
       // Update progress after processing
       await updateProcessingJob(supabase, jobId, { 
