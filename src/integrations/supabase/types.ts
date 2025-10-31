@@ -1936,15 +1936,12 @@ export type Database = {
     }
     Functions: {
       create_processing_errors_if_not_exists: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: undefined
       }
-      delete_user: {
-        Args: { user_id: string }
-        Returns: undefined
-      }
+      delete_user: { Args: { user_id: string }; Returns: undefined }
       get_platforms_with_counts: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           count: number
           id: string
@@ -1952,7 +1949,7 @@ export type Database = {
         }[]
       }
       get_user_audio_files: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           created_at: string
           duration: number | null
@@ -1964,11 +1961,14 @@ export type Database = {
           transcription_id: string | null
           user_id: string
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "audio_files"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
-      get_user_role: {
-        Args: { user_id: string }
-        Returns: string
-      }
+      get_user_role: { Args: { user_id: string }; Returns: string }
       get_users_email: {
         Args: { user_ids: string[] }
         Returns: {
@@ -2044,13 +2044,10 @@ export type Database = {
         }[]
       }
       schedule_content_notification_processing: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: undefined
       }
-      update_tv_programs: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      update_tv_programs: { Args: never; Returns: undefined }
     }
     Enums: {
       content_category:
