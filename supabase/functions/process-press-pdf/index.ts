@@ -163,114 +163,171 @@ ${pageText}
 
 /**
  * Process image files (JPG/PNG) or scanned PDF pages with Gemini Vision
+ * Now with retry logic for improved reliability
  */
 async function processImageWithGeminiVision(
   imageBlob: Blob,
   fileName: string,
   pageNumber: number
 ): Promise<any[]> {
-  try {
-    console.log(`Processing image with Gemini Vision: ${fileName}, page ${pageNumber}`);
-    
-    // Upload image to Gemini File API
-    const fileInfo = await uploadImageToGemini(imageBlob, fileName);
-    
-    // Build analysis prompt
-    const prompt = `
+  const maxRetries = 3;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Processing with Gemini Vision: ${fileName} (${(imageBlob.size / 1024 / 1024).toFixed(2)} MB), page ${pageNumber}, attempt ${attempt}/${maxRetries}`);
+      
+      // Upload image to Gemini File API
+      const fileInfo = await uploadImageToGemini(imageBlob, fileName);
+      console.log(`File uploaded successfully: ${fileInfo.uri}`);
+      
+      // Enhanced prompt for better article detection in complex layouts
+      const prompt = `
 INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con estructura JSON exacta.
 
-Eres un experto analista de prensa escrita de Puerto Rico y el Caribe.
+Eres un experto analista de prensa escrita de Puerto Rico y el Caribe especializado en OCR y extracción de contenido.
 
-Analiza esta imagen de un periódico o revista. Primero, extrae TODO el texto visible usando OCR.
-Luego, identifica todos los recortes de prensa (artículos de noticias) que encuentres.
+IMPORTANTE: Este puede ser un documento PDF de múltiples páginas o un periódico escaneado con diseño complejo.
+Tu tarea es extraer TODOS los artículos de noticias que encuentres, sin importar el diseño o la calidad del escaneo.
+
+Instrucciones detalladas:
+1. Usa OCR para extraer TODO el texto visible, incluso si está en columnas múltiples o tiene diseño complejo
+2. Identifica los límites de cada artículo individual (título, cuerpo, conclusión)
+3. Si encuentras artículos parciales o cortados, extrae el contenido disponible
+4. Busca artículos en TODAS las áreas de la página: arriba, abajo, izquierda, derecha, esquinas
+5. No ignores artículos pequeños o recuadros de texto
+6. Si el texto está borroso o difícil de leer, haz tu mejor esfuerzo con OCR
 
 Categorías disponibles: ${publimediaCategories.join(', ')}
 
-Clientes relevantes: ${Object.entries(publimediaClients)
+Clientes que monitoreamos: ${Object.entries(publimediaClients)
   .map(([cat, clients]) => `${cat}: ${(clients as string[]).join(', ')}`)
   .join('; ')}
 
-RESPONDE CON ESTA ESTRUCTURA JSON EXACTA:
+Para CADA artículo que encuentres, extrae:
+- Título (puede estar en negrita o tamaño mayor)
+- Contenido completo del artículo
+- Categoría que mejor describa el tema
+- Quién: personas, organizaciones, instituciones mencionadas
+- Qué: evento, situación o hecho principal
+- Cuándo: fechas, horarios, períodos temporales
+- Dónde: lugares, ciudades, regiones
+- Por qué: causas, razones, motivaciones
+- Palabras clave relevantes (nombres propios, términos técnicos, etc.)
+- Clientes que podrían estar interesados en esta noticia
+
+RESPONDE CON ESTA ESTRUCTURA JSON EXACTA (NO agregues texto adicional):
 {
   "recortes": [
     {
-      "titulo": "título",
+      "titulo": "título del artículo",
       "contenido": "texto completo extraído con OCR",
       "categoria": "categoría",
-      "quien": "personas/organizaciones",
-      "que": "evento principal",
-      "cuando": "fecha/hora",
-      "donde": "lugar",
-      "porque": "razones",
-      "palabras_clave": ["palabra1", "palabra2"],
+      "quien": "personas/organizaciones mencionadas",
+      "que": "descripción del evento principal",
+      "cuando": "información temporal",
+      "donde": "ubicación geográfica",
+      "porque": "causas o razones",
+      "palabras_clave": ["palabra1", "palabra2", "palabra3"],
       "relevancia_clientes": ["cliente1", "cliente2"]
     }
   ]
 }
+
+Si no encuentras ningún artículo, responde: {"recortes": []}
 `;
 
-    // Call Gemini Vision API
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              {
-                fileData: {
-                  mimeType: fileInfo.mimeType,
-                  fileUri: fileInfo.uri
-                }
-              },
-              { text: prompt }
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.3,
-            topK: 32,
-            topP: 0.8,
-            maxOutputTokens: 8192,
-            responseMimeType: "application/json"
-          }
-        })
+      // Call Gemini Vision API with increased timeout
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                {
+                  fileData: {
+                    mimeType: fileInfo.mimeType,
+                    fileUri: fileInfo.uri
+                  }
+                },
+                { text: prompt }
+              ]
+            }],
+            generationConfig: {
+              temperature: 0.3,
+              topK: 32,
+              topP: 0.8,
+              maxOutputTokens: 8192,
+              responseMimeType: "application/json"
+            }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Gemini Vision API error (${response.status}):`, errorText);
+        throw new Error(`Gemini Vision API error: ${response.status}`);
       }
-    );
 
-    if (!response.ok) {
-      throw new Error(`Gemini Vision API error: ${response.status}`);
+      const data = await response.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!content) {
+        console.warn('No content received from Gemini Vision API');
+        throw new Error('Empty response from Gemini Vision');
+      }
+
+      console.log(`Received response (${content.length} chars)`);
+      
+      let parsedContent;
+      try {
+        parsedContent = JSON.parse(content);
+      } catch (parseError) {
+        console.error('Failed to parse Gemini response as JSON:', content.substring(0, 500));
+        throw new Error('Invalid JSON response from Gemini');
+      }
+      
+      const clippings = parsedContent.recortes || [];
+      console.log(`Extracted ${clippings.length} clippings from page ${pageNumber}`);
+      
+      // Cleanup uploaded file
+      await cleanupGeminiFile(fileInfo.name);
+      
+      const mappedClippings = clippings.map((clip: any) => ({
+        title: clip.titulo || "",
+        content: clip.contenido || "",
+        category: clip.categoria || "OTRAS",
+        summary_who: clip.quien || "",
+        summary_what: clip.que || "",
+        summary_when: clip.cuando || "",
+        summary_where: clip.donde || "",
+        summary_why: clip.porque || "",
+        keywords: clip.palabras_clave || [],
+        client_relevance: clip.relevancia_clientes || [],
+        page_number: pageNumber
+      }));
+      
+      return mappedClippings;
+
+    } catch (error) {
+      console.error(`Error on attempt ${attempt}/${maxRetries}:`, error);
+      
+      // If this was the last attempt, return empty array
+      if (attempt === maxRetries) {
+        console.error(`Failed after ${maxRetries} attempts, returning empty result`);
+        return [];
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const waitTime = 2000 * attempt;
+      console.log(`Retrying in ${waitTime}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
     }
-
-    const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!content) return [];
-
-    const parsedContent = JSON.parse(content);
-    const clippings = parsedContent.recortes || [];
-    
-    // Cleanup uploaded file
-    await cleanupGeminiFile(fileInfo.name);
-    
-    return clippings.map((clip: any) => ({
-      title: clip.titulo || "",
-      content: clip.contenido || "",
-      category: clip.categoria || "OTRAS",
-      summary_who: clip.quien || "",
-      summary_what: clip.que || "",
-      summary_when: clip.cuando || "",
-      summary_where: clip.donde || "",
-      summary_why: clip.porque || "",
-      keywords: clip.palabras_clave || [],
-      client_relevance: clip.relevancia_clientes || [],
-      page_number: pageNumber
-    }));
-
-  } catch (error) {
-    console.error("Error processing image with Gemini Vision:", error);
-    return [];
   }
+  
+  return [];
 }
 
 /**
@@ -340,10 +397,11 @@ async function uploadImageToGemini(
 
 /**
  * Wait for Gemini to finish processing uploaded file
+ * Increased timeout for large PDF files (40-50 MB)
  */
 async function waitForFileProcessing(fileName: string): Promise<void> {
-  const maxAttempts = 15;
-  const baseDelay = 3000;
+  const maxAttempts = 60; // Increased from 15 to 60 (5 minutes total)
+  const baseDelay = 5000; // Increased from 3s to 5s
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -357,6 +415,7 @@ async function waitForFileProcessing(fileName: string): Promise<void> {
 
       if (!response.ok) {
         if (response.status === 404) {
+          console.log(`Waiting for file processing... Attempt ${attempt}/${maxAttempts}`);
           await new Promise(resolve => setTimeout(resolve, baseDelay));
           continue;
         }
@@ -364,22 +423,27 @@ async function waitForFileProcessing(fileName: string): Promise<void> {
       }
 
       const fileInfo = await response.json();
+      console.log(`File state: ${fileInfo.state} (attempt ${attempt}/${maxAttempts})`);
       
       if (fileInfo.state === 'ACTIVE') {
-        console.log('File processing completed');
+        console.log('File processing completed successfully');
         return;
       } else if (fileInfo.state === 'FAILED') {
-        throw new Error('File processing failed');
+        throw new Error('Gemini file processing failed');
+      } else if (fileInfo.state === 'PROCESSING') {
+        console.log('File still processing...');
       }
 
       await new Promise(resolve => setTimeout(resolve, baseDelay));
       
     } catch (error) {
+      console.error(`Error checking file status (attempt ${attempt}/${maxAttempts}):`, error);
       if (attempt === maxAttempts) {
-        console.log('File processing timeout, continuing...');
+        console.warn('File processing timeout reached, continuing with best effort...');
         return;
       }
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Exponential backoff for errors
+      await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
     }
   }
 }
@@ -595,16 +659,31 @@ serve(async (req) => {
       }
     } else {
       // PDF processing - use Gemini Vision directly
-      console.log('Processing PDF with Gemini Vision');
+      console.log(`Processing PDF with Gemini Vision (${(fileData.byteLength / 1024 / 1024).toFixed(2)} MB)`);
+      
+      // Update progress
+      await updateProcessingJob(supabase, jobId, { 
+        progress: 10,
+        error: null
+      });
       
       const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
       
-      // Process with Gemini Vision
+      // Process with Gemini Vision with improved error handling
+      console.log('Starting Gemini Vision analysis...');
       allClippings = await processImageWithGeminiVision(
         pdfBlob,
         job.file_path,
         1
       );
+      
+      console.log(`Gemini Vision returned ${allClippings.length} clippings`);
+      
+      // Update progress after processing
+      await updateProcessingJob(supabase, jobId, { 
+        progress: 80,
+        error: null
+      });
     }
     
     // Handle case where no clippings were found
