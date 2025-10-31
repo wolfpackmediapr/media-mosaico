@@ -3,9 +3,6 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-// Import PDF.js using a web-compatible version that doesn't require Node.js canvas
-import * as pdfjs from "https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js?external=canvas";
-
 const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -467,48 +464,6 @@ async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 /**
- * Extract text from PDF pages
- */
-async function processTextPages(
-  supabase: any,
-  jobId: string,
-  pages: {pageNumber: number, text: string}[]
-): Promise<any[]> {
-  const allClippings = [];
-  const totalPages = pages.length;
-  
-  console.log(`Processing ${totalPages} pages`);
-  
-  for (let i = 0; i < totalPages; i++) {
-    const page = pages[i];
-    
-    try {
-      // Update progress
-      const progress = Math.floor((i / totalPages) * 90) + 5;
-      await updateProcessingJob(supabase, jobId, { progress });
-      
-      const textToAnalyze = page.text;
-      
-      // Check if we have enough text
-      if (textToAnalyze.length < 50) {
-        console.warn(`Page ${page.pageNumber} has insufficient text, skipping`);
-        continue;
-      }
-      
-      // Analyze with Gemini
-      const clippings = await analyzePressClippings(textToAnalyze, page.pageNumber);
-      console.log(`Found ${clippings.length} clippings on page ${page.pageNumber}`);
-      allClippings.push(...clippings);
-      
-    } catch (error) {
-      console.error(`Error processing page ${page.pageNumber}:`, error);
-    }
-  }
-  
-  return allClippings;
-}
-
-/**
  * Download a file from Supabase Storage
  */
 async function downloadFileFromStorage(supabase: any, filePath: string): Promise<ArrayBuffer> {
@@ -539,65 +494,6 @@ async function downloadFileFromStorage(supabase: any, filePath: string): Promise
   }
 }
 
-/**
- * Extract text from a PDF file using PDF.js
- */
-async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: number, text: string}[]> {
-  try {
-    console.log("Starting PDF text extraction with PDF.js...");
-    
-    const uint8Array = pdfData instanceof Uint8Array ? pdfData : new Uint8Array(pdfData);
-    const loadingTask = pdfjs.getDocument({ data: uint8Array });
-    
-    console.log("PDF document loading task created");
-    
-    const pdfDocument = await loadingTask.promise;
-    const numPages = pdfDocument.numPages;
-    console.log(`PDF document loaded with ${numPages} pages`);
-    
-    const textPages = [];
-    
-    for (let i = 1; i <= numPages; i++) {
-      try {
-        console.log(`Getting page ${i}...`);
-        const page = await pdfDocument.getPage(i);
-        
-        console.log(`Getting text content for page ${i}...`);
-        const textContent = await page.getTextContent();
-        
-        let pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        console.log(`Extracted ${pageText.length} characters from page ${i}`);
-        
-        if (pageText.length < 100) {
-          console.log(`Page ${i} appears to be mostly image-based (only ${pageText.length} chars extracted)`);
-        }
-        
-        textPages.push({
-          pageNumber: i,
-          text: pageText
-        });
-      } catch (pageError) {
-        console.error(`Error extracting text from page ${i}:`, pageError);
-        textPages.push({
-          pageNumber: i,
-          text: ""
-        });
-      }
-    }
-    
-    console.log(`Successfully processed ${textPages.length} pages`);
-    return textPages;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("Error extracting text from PDF:", error);
-    throw new Error(`Failed to extract text from PDF: ${errorMessage}`);
-  }
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -698,35 +594,17 @@ serve(async (req) => {
         );
       }
     } else {
-      // PDF processing
-      let textPages;
-      try {
-        textPages = await extractTextFromPdf(fileData);
-        await updateProcessingJob(supabase, jobId, { progress: 15 });
-        
-        const totalCharacters = textPages.reduce((sum, page) => sum + page.text.length, 0);
-        const avgCharPerPage = Math.round(totalCharacters / textPages.length);
-        console.log(`Total extracted text: ${totalCharacters} characters, avg ${avgCharPerPage} per page`);
-        
-        const hasSubstantialText = textPages.some(page => page.text.length > 200);
-        if (!hasSubstantialText) {
-          console.log("PDF appears to have limited text");
-        }
-      } catch (error) {
-        console.error("Error extracting text from PDF:", error);
-        await updateProcessingJob(supabase, jobId, { 
-          status: 'error',
-          error: 'Error extracting text from PDF'
-        });
-        
-        return new Response(JSON.stringify({ error: 'Error extracting text from PDF' }), { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        });
-      }
+      // PDF processing - use Gemini Vision directly
+      console.log('Processing PDF with Gemini Vision');
       
-      // Process the text pages
-      allClippings = await processTextPages(supabase, jobId, textPages);
+      const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
+      
+      // Process with Gemini Vision
+      allClippings = await processImageWithGeminiVision(
+        pdfBlob,
+        job.file_path,
+        1
+      );
     }
     
     // Handle case where no clippings were found
