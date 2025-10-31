@@ -4,10 +4,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
 // Import PDF.js using a web-compatible version that doesn't require Node.js canvas
-// The ?external=canvas parameter tells esm.sh to skip bundling the canvas dependency
 import * as pdfjs from "https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js?external=canvas";
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -53,132 +52,352 @@ async function updateProcessingJob(supabase: any, jobId: string, updates: any) {
 }
 
 /**
- * Uses OpenAI to analyze text and identify press clippings
+ * Uses Gemini API to analyze text and identify press clippings
  */
 async function analyzePressClippings(pageText: string, pageNumber: number): Promise<any[]> {
   try {
-    console.log(`Analyzing page ${pageNumber} content with ${pageText.length} characters...`);
+    console.log(`Analyzing page ${pageNumber} with Gemini (${pageText.length} chars)...`);
     
     const prompt = `
-      Analiza el siguiente texto de un periódico digital y extrae los recortes de prensa (press clippings).
-      Para cada recorte, proporciona:
-      - title: Un título conciso para la noticia
-      - content: El texto completo de la noticia
-      - category: Selecciona UNA categoría de la lista: ${publimediaCategories.join(', ')}
-      - summary_who: Personas o entidades involucradas
-      - summary_what: El evento o situación principal
-      - summary_when: Fecha y hora del evento
-      - summary_where: Lugar del evento
-      - summary_why: Razones o causas
-      - keywords: Un array de palabras relevantes para la categoría
+INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con estructura JSON exacta.
 
-      Formato la respuesta como un array JSON, con una clave "clippings" que contiene un array de objetos con las propiedades anteriores.
-      Texto: ${pageText}
-    `;
+Eres un experto analista de prensa escrita de Puerto Rico y el Caribe.
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-        response_format: { type: "json_object" }
-      })
-    });
+Analiza el siguiente texto de un periódico y extrae TODOS los recortes de prensa (press clippings).
+
+Categorías disponibles: ${publimediaCategories.join(', ')}
+
+Clientes relevantes: ${Object.entries(publimediaClients)
+  .map(([cat, clients]) => `${cat}: ${(clients as string[]).join(', ')}`)
+  .join('; ')}
+
+Para CADA recorte encontrado, extrae:
+- título de la noticia
+- texto completo del artículo
+- categoría (de la lista disponible)
+- quién (personas/organizaciones mencionadas)
+- qué (evento o situación principal)
+- cuándo (fecha/hora del evento)
+- dónde (lugar del evento)
+- por qué (razones o causas)
+- palabras clave relevantes
+- clientes potencialmente interesados
+
+RESPONDE CON ESTA ESTRUCTURA JSON EXACTA:
+{
+  "recortes": [
+    {
+      "titulo": "título",
+      "contenido": "texto completo",
+      "categoria": "categoría",
+      "quien": "personas/organizaciones",
+      "que": "evento principal",
+      "cuando": "fecha/hora",
+      "donde": "lugar",
+      "porque": "razones",
+      "palabras_clave": ["palabra1", "palabra2"],
+      "relevancia_clientes": ["cliente1", "cliente2"]
+    }
+  ]
+}
+
+Texto de la página ${pageNumber}:
+${pageText}
+`;
+
+    // Call Gemini API with structured JSON output
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: prompt }]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            topK: 32,
+            topP: 0.8,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json"
+          }
+        })
+      }
+    );
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("OpenAI API error:", error);
-      throw new Error(`OpenAI API error: ${error}`);
+      const errorText = await response.text();
+      console.error("Gemini API error:", errorText);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log("OpenAI response:", JSON.stringify(data).substring(0, 200) + "...");
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
-    let clippings = [];
-    try {
-      const responseContent = data.choices[0].message.content;
-      const parsedContent = JSON.parse(responseContent);
-      clippings = parsedContent.clippings || [];
-    } catch (e) {
-      console.error("Error parsing OpenAI response:", e);
+    if (!content) {
+      console.error("No content in Gemini response");
       return [];
     }
 
-    // Add page number to each clipping
+    const parsedContent = JSON.parse(content);
+    const clippings = parsedContent.recortes || [];
+    
+    // Map Spanish fields to database schema
     return clippings.map((clip: any) => ({
-      ...clip,
+      title: clip.titulo || "",
+      content: clip.contenido || "",
+      category: clip.categoria || "OTRAS",
+      summary_who: clip.quien || "",
+      summary_what: clip.que || "",
+      summary_when: clip.cuando || "",
+      summary_where: clip.donde || "",
+      summary_why: clip.porque || "",
+      keywords: clip.palabras_clave || [],
+      client_relevance: clip.relevancia_clientes || [],
       page_number: pageNumber
     }));
+
   } catch (error) {
-    console.error("Error analyzing press clippings:", error);
+    console.error("Error analyzing with Gemini:", error);
     return [];
   }
 }
 
 /**
- * Use OpenAI Vision API to extract text from image-based PDFs
+ * Process image files (JPG/PNG) or scanned PDF pages with Gemini Vision
  */
-async function extractTextWithVisionAPI(pdfBytes: Uint8Array, pageNumber: number): Promise<{pageNumber: number, text: string}> {
+async function processImageWithGeminiVision(
+  imageBlob: Blob,
+  fileName: string,
+  pageNumber: number
+): Promise<any[]> {
   try {
-    console.log(`Processing page ${pageNumber} with OpenAI Vision API...`);
+    console.log(`Processing image with Gemini Vision: ${fileName}, page ${pageNumber}`);
     
-    // Convert PDF to base64 and create data URL
-    const base64Pdf = btoa(String.fromCharCode(...pdfBytes));
-    const dataUrl = `data:application/pdf;base64,${base64Pdf}#page=${pageNumber}`;
+    // Upload image to Gemini File API
+    const fileInfo = await uploadImageToGemini(imageBlob, fileName);
     
-    // Updated to use gpt-4o model which handles PDFs better
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { 
-                type: 'text', 
-                text: 'Extract ALL text content from this page of a newspaper or magazine. Return ONLY the extracted text, with paragraph breaks preserved. Do not include any commentary, analysis, or description of images.' 
-              },
+    // Build analysis prompt
+    const prompt = `
+INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con estructura JSON exacta.
+
+Eres un experto analista de prensa escrita de Puerto Rico y el Caribe.
+
+Analiza esta imagen de un periódico o revista. Primero, extrae TODO el texto visible usando OCR.
+Luego, identifica todos los recortes de prensa (artículos de noticias) que encuentres.
+
+Categorías disponibles: ${publimediaCategories.join(', ')}
+
+Clientes relevantes: ${Object.entries(publimediaClients)
+  .map(([cat, clients]) => `${cat}: ${(clients as string[]).join(', ')}`)
+  .join('; ')}
+
+RESPONDE CON ESTA ESTRUCTURA JSON EXACTA:
+{
+  "recortes": [
+    {
+      "titulo": "título",
+      "contenido": "texto completo extraído con OCR",
+      "categoria": "categoría",
+      "quien": "personas/organizaciones",
+      "que": "evento principal",
+      "cuando": "fecha/hora",
+      "donde": "lugar",
+      "porque": "razones",
+      "palabras_clave": ["palabra1", "palabra2"],
+      "relevancia_clientes": ["cliente1", "cliente2"]
+    }
+  ]
+}
+`;
+
+    // Call Gemini Vision API
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
               {
-                type: 'image_url',
-                image_url: {
-                  url: dataUrl
+                fileData: {
+                  mimeType: fileInfo.mimeType,
+                  fileUri: fileInfo.uri
                 }
-              }
+              },
+              { text: prompt }
             ]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            topK: 32,
+            topP: 0.8,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json"
           }
-        ],
-        max_tokens: 4000
-      })
-    });
+        })
+      }
+    );
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("OpenAI Vision API error:", error);
-      throw new Error(`OpenAI Vision API error: ${error}`);
+      throw new Error(`Gemini Vision API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const extractedText = data.choices[0].message.content;
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
-    console.log(`Vision API extracted ${extractedText.length} characters from page ${pageNumber}`);
+    if (!content) return [];
+
+    const parsedContent = JSON.parse(content);
+    const clippings = parsedContent.recortes || [];
     
+    // Cleanup uploaded file
+    await cleanupGeminiFile(fileInfo.name);
+    
+    return clippings.map((clip: any) => ({
+      title: clip.titulo || "",
+      content: clip.contenido || "",
+      category: clip.categoria || "OTRAS",
+      summary_who: clip.quien || "",
+      summary_what: clip.que || "",
+      summary_when: clip.cuando || "",
+      summary_where: clip.donde || "",
+      summary_why: clip.porque || "",
+      keywords: clip.palabras_clave || [],
+      client_relevance: clip.relevancia_clientes || [],
+      page_number: pageNumber
+    }));
+
+  } catch (error) {
+    console.error("Error processing image with Gemini Vision:", error);
+    return [];
+  }
+}
+
+/**
+ * Upload image to Gemini File API
+ */
+async function uploadImageToGemini(
+  imageBlob: Blob,
+  displayName: string
+): Promise<{ uri: string; mimeType: string; name: string }> {
+  try {
+    // Initialize resumable upload
+    const initResponse = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'X-Goog-Upload-Protocol': 'resumable',
+          'X-Goog-Upload-Command': 'start',
+          'X-Goog-Upload-Header-Content-Length': imageBlob.size.toString(),
+          'X-Goog-Upload-Header-Content-Type': imageBlob.type,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file: { display_name: displayName }
+        })
+      }
+    );
+
+    if (!initResponse.ok) {
+      throw new Error(`Failed to initialize upload: ${initResponse.status}`);
+    }
+
+    const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
+    if (!uploadUrl) throw new Error('No upload URL received');
+
+    // Upload the image data
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Length': imageBlob.size.toString(),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+      },
+      body: imageBlob
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Upload failed: ${uploadResponse.status}`);
+    }
+
+    const uploadResult = await uploadResponse.json();
+    const fileUri = uploadResult.file?.uri;
+    if (!fileUri) throw new Error('No file URI received');
+
+    // Wait for Gemini to process the file
+    await waitForFileProcessing(uploadResult.file.name);
+
     return {
-      pageNumber,
-      text: extractedText
+      uri: fileUri,
+      mimeType: imageBlob.type,
+      name: uploadResult.file.name
     };
   } catch (error) {
-    console.error("Error using Vision API for text extraction:", error);
-    throw error;
+    throw new Error(`Image upload failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Wait for Gemini to finish processing uploaded file
+ */
+async function waitForFileProcessing(fileName: string): Promise<void> {
+  const maxAttempts = 15;
+  const baseDelay = 3000;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${GEMINI_API_KEY}`,
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          await new Promise(resolve => setTimeout(resolve, baseDelay));
+          continue;
+        }
+        throw new Error(`Failed to check file status: ${response.status}`);
+      }
+
+      const fileInfo = await response.json();
+      
+      if (fileInfo.state === 'ACTIVE') {
+        console.log('File processing completed');
+        return;
+      } else if (fileInfo.state === 'FAILED') {
+        throw new Error('File processing failed');
+      }
+
+      await new Promise(resolve => setTimeout(resolve, baseDelay));
+      
+    } catch (error) {
+      if (attempt === maxAttempts) {
+        console.log('File processing timeout, continuing...');
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+}
+
+/**
+ * Delete uploaded file from Gemini
+ */
+async function cleanupGeminiFile(fileName: string): Promise<void> {
+  try {
+    await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${GEMINI_API_KEY}`,
+      { method: 'DELETE' }
+    );
+  } catch (error) {
+    console.error('Failed to cleanup Gemini file:', error);
   }
 }
 
@@ -215,30 +434,32 @@ function identifyClientRelevance(clipping: any): string[] {
 }
 
 /**
- * Generates embedding for text content using OpenAI
+ * Generate embedding using Gemini text-embedding-004 model
  */
 async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'text-embedding-3-small',
-        input: text
-      })
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: {
+            parts: [{ text: text }]
+          }
+        })
+      }
+    );
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("OpenAI Embedding API error:", error);
-      throw new Error(`OpenAI Embedding API error: ${error}`);
+      const errorText = await response.text();
+      console.error("Gemini Embedding API error:", errorText);
+      throw new Error(`Embedding generation failed: ${response.status}`);
     }
 
     const data = await response.json();
-    return data.data[0].embedding;
+    return data.embedding?.values || [];
+    
   } catch (error) {
     console.error("Error generating embedding:", error);
     throw error;
@@ -246,56 +467,39 @@ async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 /**
- * Extract text from PDF pages with Vision API fallback for low-text pages
+ * Extract text from PDF pages
  */
-async function processTextPages(supabase: any, jobId: string, pages: {pageNumber: number, text: string}[], pdfData: ArrayBuffer): Promise<any[]> {
+async function processTextPages(
+  supabase: any,
+  jobId: string,
+  pages: {pageNumber: number, text: string}[]
+): Promise<any[]> {
   const allClippings = [];
   const totalPages = pages.length;
   
-  console.log(`Processing ${totalPages} pages of text`);
-  
-  // Convert ArrayBuffer to Uint8Array for Vision API
-  const pdfBytes = new Uint8Array(pdfData);
+  console.log(`Processing ${totalPages} pages`);
   
   for (let i = 0; i < totalPages; i++) {
     const page = pages[i];
-    console.log(`Processing page ${page.pageNumber} (${page.text.length} characters)`);
     
     try {
       // Update progress
-      const progress = Math.floor((i / totalPages) * 90) + 5; // 5-95% range for processing
+      const progress = Math.floor((i / totalPages) * 90) + 5;
       await updateProcessingJob(supabase, jobId, { progress });
       
-      // For pages with very little text, try Vision API
-      let textToAnalyze = page.text;
+      const textToAnalyze = page.text;
       
-      if (page.text.length < 200) {
-        console.log(`Page ${page.pageNumber} has limited text (${page.text.length} chars), trying Vision API...`);
-        try {
-          // Use Vision API to extract text
-          const visionResult = await extractTextWithVisionAPI(pdfBytes, page.pageNumber);
-          
-          // If Vision API returned text, use it
-          if (visionResult.text && visionResult.text.length > page.text.length) {
-            console.log(`Vision API extracted ${visionResult.text.length} chars (vs ${page.text.length} from PDF.js)`);
-            textToAnalyze = visionResult.text;
-          }
-        } catch (visionError) {
-          console.error(`Vision API fallback failed for page ${page.pageNumber}:`, visionError);
-          // Continue with original text if Vision API fails
-        }
-      }
-      
-      // Check if we have enough text to analyze
+      // Check if we have enough text
       if (textToAnalyze.length < 50) {
-        console.warn(`Page ${page.pageNumber} has insufficient text (${textToAnalyze.length} chars), skipping analysis`);
+        console.warn(`Page ${page.pageNumber} has insufficient text, skipping`);
         continue;
       }
       
-      // Process the page text (either original or enhanced by Vision API)
+      // Analyze with Gemini
       const clippings = await analyzePressClippings(textToAnalyze, page.pageNumber);
       console.log(`Found ${clippings.length} clippings on page ${page.pageNumber}`);
       allClippings.push(...clippings);
+      
     } catch (error) {
       console.error(`Error processing page ${page.pageNumber}:`, error);
     }
@@ -305,13 +509,12 @@ async function processTextPages(supabase: any, jobId: string, pages: {pageNumber
 }
 
 /**
- * Download a PDF file from Supabase Storage
+ * Download a file from Supabase Storage
  */
-async function downloadPdfFromStorage(supabase: any, filePath: string): Promise<ArrayBuffer> {
-  console.log(`Downloading PDF from storage: ${filePath}`);
+async function downloadFileFromStorage(supabase: any, filePath: string): Promise<ArrayBuffer> {
+  console.log(`Downloading file from storage: ${filePath}`);
   
   try {
-    // Extract bucket and path from filePath (format: bucket_id/path/to/file.pdf)
     const [bucketId, ...pathParts] = filePath.split('/');
     const path = pathParts.join('/');
     
@@ -321,8 +524,8 @@ async function downloadPdfFromStorage(supabase: any, filePath: string): Promise<
       .download(path);
     
     if (error) {
-      console.error("Error downloading PDF from storage:", error);
-      throw new Error("Failed to download PDF from storage");
+      console.error("Error downloading file from storage:", error);
+      throw new Error("Failed to download file from storage");
     }
     
     if (!data) {
@@ -331,7 +534,7 @@ async function downloadPdfFromStorage(supabase: any, filePath: string): Promise<
     
     return await data.arrayBuffer();
   } catch (error) {
-    console.error("Exception downloading PDF from storage:", error);
+    console.error("Exception downloading file from storage:", error);
     throw error;
   }
 }
@@ -343,7 +546,6 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
   try {
     console.log("Starting PDF text extraction with PDF.js...");
     
-    // Create a PDF.js loading task - ensure pdfData is a Uint8Array
     const uint8Array = pdfData instanceof Uint8Array ? pdfData : new Uint8Array(pdfData);
     const loadingTask = pdfjs.getDocument({ data: uint8Array });
     
@@ -355,7 +557,6 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
     
     const textPages = [];
     
-    // Extract text from each page
     for (let i = 1; i <= numPages; i++) {
       try {
         console.log(`Getting page ${i}...`);
@@ -364,7 +565,6 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
         console.log(`Getting text content for page ${i}...`);
         const textContent = await page.getTextContent();
         
-        // Combine all text items into a single string
         let pageText = textContent.items
           .map((item: any) => item.str)
           .join(' ')
@@ -373,7 +573,6 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
         
         console.log(`Extracted ${pageText.length} characters from page ${i}`);
         
-        // If very little text was extracted (possibly a scan), log this
         if (pageText.length < 100) {
           console.log(`Page ${i} appears to be mostly image-based (only ${pageText.length} chars extracted)`);
         }
@@ -384,10 +583,9 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
         });
       } catch (pageError) {
         console.error(`Error extracting text from page ${i}:`, pageError);
-        // Continue with next page if one fails
         textPages.push({
           pageNumber: i,
-          text: ""  // Empty text will be handled by Vision API later
+          text: ""
         });
       }
     }
@@ -402,16 +600,14 @@ async function extractTextFromPdf(pdfData: ArrayBuffer): Promise<{pageNumber: nu
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests - IMMEDIATELY to avoid function failing before handling OPTIONS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
   
   try {
-    console.log("Received request to process PDF");
+    console.log("Received request to process file");
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    // Parse the request JSON
     const { jobId } = await req.json();
     
     if (!jobId) {
@@ -441,73 +637,111 @@ serve(async (req) => {
     // Update job status to processing
     await updateProcessingJob(supabase, jobId, { 
       status: 'processing',
-      progress: 5, // Start at 5%
-      error: null // Clear any previous error
+      progress: 5,
+      error: null
     });
     
-    // Download the PDF from storage
-    let pdfData;
+    // Download the file from storage
+    let fileData;
     try {
-      pdfData = await downloadPdfFromStorage(supabase, job.file_path);
-      console.log(`Successfully downloaded PDF with size: ${pdfData.byteLength} bytes`);
+      fileData = await downloadFileFromStorage(supabase, job.file_path);
+      console.log(`Successfully downloaded file with size: ${fileData.byteLength} bytes`);
     } catch (error) {
-      console.error("Error downloading PDF:", error);
+      console.error("Error downloading file:", error);
       await updateProcessingJob(supabase, jobId, { 
         status: 'error',
-        error: 'Failed to download PDF file'
+        error: 'Failed to download file'
       });
       
-      return new Response(JSON.stringify({ error: 'Failed to download PDF file' }), { 
+      return new Response(JSON.stringify({ error: 'Failed to download file' }), { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
     
-    // Extract text from PDF
-    let textPages;
-    try {
-      textPages = await extractTextFromPdf(pdfData);
-      await updateProcessingJob(supabase, jobId, { progress: 15 });
+    // Detect file type
+    const fileExtension = job.file_path.split('.').pop()?.toLowerCase();
+    const isImageFile = ['jpg', 'jpeg', 'png', 'webp'].includes(fileExtension || '');
+
+    let allClippings = [];
+
+    if (isImageFile) {
+      console.log('Processing image file directly with Gemini Vision');
       
-      // Log total text extraction results
-      const totalCharacters = textPages.reduce((sum, page) => sum + page.text.length, 0);
-      const avgCharPerPage = Math.round(totalCharacters / textPages.length);
-      console.log(`Total extracted text: ${totalCharacters} characters, avg ${avgCharPerPage} per page`);
+      // Convert ArrayBuffer to Blob
+      const mimeType = fileExtension === 'png' ? 'image/png' : 
+                       fileExtension === 'webp' ? 'image/webp' : 'image/jpeg';
+      const imageBlob = new Blob([fileData], { type: mimeType });
       
-      // Check if we got meaningful text
-      const hasSubstantialText = textPages.some(page => page.text.length > 200);
-      if (!hasSubstantialText) {
-        console.log("PDF appears to have limited text, Vision API will be used extensively");
+      // Process with Gemini Vision
+      allClippings = await processImageWithGeminiVision(
+        imageBlob,
+        job.file_path,
+        1
+      );
+      
+      if (allClippings.length === 0) {
+        await updateProcessingJob(supabase, jobId, {
+          status: 'completed',
+          progress: 100,
+          error: 'No se encontraron recortes en la imagen'
+        });
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'No clippings found in image',
+            clippings: [],
+            jobId
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
-    } catch (error) {
-      console.error("Error extracting text from PDF:", error);
-      await updateProcessingJob(supabase, jobId, { 
-        status: 'error',
-        error: 'Error extracting text from PDF'
-      });
+    } else {
+      // PDF processing
+      let textPages;
+      try {
+        textPages = await extractTextFromPdf(fileData);
+        await updateProcessingJob(supabase, jobId, { progress: 15 });
+        
+        const totalCharacters = textPages.reduce((sum, page) => sum + page.text.length, 0);
+        const avgCharPerPage = Math.round(totalCharacters / textPages.length);
+        console.log(`Total extracted text: ${totalCharacters} characters, avg ${avgCharPerPage} per page`);
+        
+        const hasSubstantialText = textPages.some(page => page.text.length > 200);
+        if (!hasSubstantialText) {
+          console.log("PDF appears to have limited text");
+        }
+      } catch (error) {
+        console.error("Error extracting text from PDF:", error);
+        await updateProcessingJob(supabase, jobId, { 
+          status: 'error',
+          error: 'Error extracting text from PDF'
+        });
+        
+        return new Response(JSON.stringify({ error: 'Error extracting text from PDF' }), { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
       
-      return new Response(JSON.stringify({ error: 'Error extracting text from PDF' }), { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      // Process the text pages
+      allClippings = await processTextPages(supabase, jobId, textPages);
     }
-    
-    // Process the text pages with Vision API fallback
-    const allClippings = await processTextPages(supabase, jobId, textPages, pdfData);
     
     // Handle case where no clippings were found
     if (allClippings.length === 0) {
-      console.warn("No clippings found in any page");
-      await updateProcessingJob(supabase, jobId, { 
+      console.warn("No clippings found");
+      await updateProcessingJob(supabase, jobId, {
         status: 'completed',
         progress: 100,
-        error: 'No se encontraron recortes de prensa en el PDF'
+        error: 'No se encontraron recortes'
       });
       
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'PDF processed but no clippings found',
+        JSON.stringify({
+          success: true,
+          message: 'No clippings found',
           clippings: [],
           jobId
         }),
@@ -515,119 +749,90 @@ serve(async (req) => {
       );
     }
     
-    console.log(`Found ${allClippings.length} press clippings in total`);
+    console.log(`Processing ${allClippings.length} total clippings...`);
     await updateProcessingJob(supabase, jobId, { progress: 95 });
     
-    // Process each clipping
+    // Get authenticated user ID
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || job.user_id;
+    
+    // Process and store clippings
     const processedClippings = [];
     for (const clipping of allClippings) {
       try {
-        // Identify client relevance
-        const clientRelevance = identifyClientRelevance(clipping);
+        // Enhance client relevance with additional matching
+        const enhancedClientRelevance = [
+          ...new Set([
+            ...(clipping.client_relevance || []),
+            ...identifyClientRelevance(clipping)
+          ])
+        ];
         
-        // Generate embedding
-        const embedding = await generateEmbedding(clipping.content || "");
+        // Generate embedding for semantic search
+        const embeddingText = `${clipping.title} ${clipping.content}`.substring(0, 8000);
+        const embedding = await generateEmbedding(embeddingText);
         
         // Store in database
-        const { data, error: insertError } = await supabase
+        const { data: savedClipping, error: insertError } = await supabase
           .from('press_clippings')
           .insert({
-            title: clipping.title || "Sin título",
-            content: clipping.content || "",
-            publication_name: job.publication_name,
+            title: clipping.title,
+            content: clipping.content,
+            category: clipping.category,
+            summary_who: clipping.summary_who,
+            summary_what: clipping.summary_what,
+            summary_when: clipping.summary_when,
+            summary_where: clipping.summary_where,
+            summary_why: clipping.summary_why,
+            keywords: clipping.keywords,
+            client_relevance: enhancedClientRelevance,
             page_number: clipping.page_number,
-            category: clipping.category || "OTRAS",
-            summary_who: clipping.summary_who || "",
-            summary_what: clipping.summary_what || "",
-            summary_when: clipping.summary_when || "",
-            summary_where: clipping.summary_where || "",
-            summary_why: clipping.summary_why || "",
-            keywords: clipping.keywords || [],
-            client_relevance: clientRelevance,
-            embedding,
-            user_id: job.user_id
+            publication_name: job.publication_name,
+            publication_date: new Date().toISOString(),
+            user_id: userId,
+            embedding: `[${embedding.join(',')}]`
           })
           .select()
           .single();
         
         if (insertError) {
           console.error("Error inserting clipping:", insertError);
-          continue;
+        } else {
+          processedClippings.push(savedClipping);
         }
-        
-        // Create alert for relevant clients
-        if (clientRelevance.length > 0) {
-          const alertTitle = `Noticia relevante: ${clipping.title || "Sin título"}`;
-          const alertDescription = `Se encontró una noticia relevante en la categoría ${clipping.category || "OTRAS"} en la página ${clipping.page_number} de ${job.publication_name}`;
-          
-          await supabase
-            .from('client_alerts')
-            .insert({
-              title: alertTitle,
-              description: alertDescription,
-              priority: 'normal',
-              client_id: null // We don't have specific client IDs yet
-            });
-        }
-        
-        processedClippings.push({
-          id: data?.id || `temp-${Date.now()}`,
-          title: clipping.title || "Sin título",
-          content: clipping.content || "",
-          page_number: clipping.page_number,
-          category: clipping.category || "OTRAS",
-          summary_who: clipping.summary_who || "",
-          summary_what: clipping.summary_what || "",
-          summary_when: clipping.summary_when || "",
-          summary_where: clipping.summary_where || "",
-          summary_why: clipping.summary_why || "",
-          keywords: clipping.keywords || [],
-          client_relevance: clientRelevance
-        });
       } catch (error) {
         console.error("Error processing clipping:", error);
       }
     }
     
-    // Update job status to completed
-    await updateProcessingJob(supabase, jobId, { 
+    // Update job to completed
+    await updateProcessingJob(supabase, jobId, {
       status: 'completed',
       progress: 100
     });
     
+    console.log(`Successfully processed ${processedClippings.length} clippings`);
+    
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Processed ${processedClippings.length} press clippings`,
+      JSON.stringify({
+        success: true,
+        message: `Processed ${processedClippings.length} clippings`,
         clippings: processedClippings,
         jobId
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+    
   } catch (error) {
-    console.error('Error processing press PDF:', error);
-    
-    // Try to update job status if possible
-    try {
-      const { jobId } = await req.json();
-      if (jobId) {
-        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        await updateProcessingJob(supabase, jobId, { 
-          status: 'error',
-          error: errorMessage || 'Unknown error occurred'
-        });
-      }
-    } catch (e) {
-      // Ignore errors here
-    }
-    
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Edge function error:", error);
     return new Response(
-      JSON.stringify({ error: errorMessage || 'Unknown error occurred' }),
+      JSON.stringify({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error)
+      }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
   }

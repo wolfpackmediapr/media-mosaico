@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { validatePdfFile } from "@/utils/file-validators";
+import { validatePressFile } from "@/utils/file-validators";
 import { toast } from "@/services/toastService";
 
 interface PDFDropZoneProps {
@@ -31,7 +31,7 @@ const PDFDropZone = ({ onFileSelect, maxFileSizeMB, isUploading }: PDFDropZonePr
     const droppedFile = e.dataTransfer.files[0];
     if (!droppedFile) return;
     
-    if (!validatePdfFile(droppedFile, maxFileSizeMB)) {
+    if (!validatePressFile(droppedFile, maxFileSizeMB)) {
       return;
     }
     
@@ -46,7 +46,7 @@ const PDFDropZone = ({ onFileSelect, maxFileSizeMB, isUploading }: PDFDropZonePr
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       
-      if (!validatePdfFile(selectedFile, maxFileSizeMB)) {
+      if (!validatePressFile(selectedFile, maxFileSizeMB)) {
         return;
       }
       
@@ -69,7 +69,7 @@ const PDFDropZone = ({ onFileSelect, maxFileSizeMB, isUploading }: PDFDropZonePr
     >
       <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
       <p className="mb-2 text-sm text-gray-500">
-        Arrastra y suelta un archivo PDF aquí o selecciónalo manualmente
+        Arrastra y suelta un archivo PDF o imagen aquí o selecciónalo manualmente
       </p>
       <Button
         variant="outline"
@@ -77,13 +77,13 @@ const PDFDropZone = ({ onFileSelect, maxFileSizeMB, isUploading }: PDFDropZonePr
         className="mb-4"
         disabled={isUploading}
       >
-        Seleccionar PDF
+        Seleccionar Archivo
       </Button>
       <input
         id="fileInput"
         type="file"
         className="hidden"
-        accept=".pdf"
+        accept=".pdf,.jpg,.jpeg,.png,.webp"
         onChange={handleFileInput}
         disabled={isUploading}
       />

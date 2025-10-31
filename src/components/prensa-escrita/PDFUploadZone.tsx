@@ -96,9 +96,9 @@ const PDFUploadZone = ({
           <div className="flex items-center gap-4">
             <FileText className="h-6 w-6 text-primary" />
             <div>
-              <h3 className="text-lg font-medium">Subir PDF de Prensa Escrita</h3>
+              <h3 className="text-lg font-medium">Subir PDF o Imagen de Prensa Escrita</h3>
               <p className="text-sm text-gray-500">
-                Sube un PDF de periódico o revista para analizar su contenido
+                Sube un PDF de periódico o una imagen (JPG/PNG) para analizar su contenido
               </p>
             </div>
           </div>
@@ -175,7 +175,7 @@ const PDFUploadZone = ({
               ) : isUploading ? (
                 "Procesando..."
               ) : (
-                "Procesar PDF"
+                "Procesar Archivo"
               )}
             </Button>
           )}
