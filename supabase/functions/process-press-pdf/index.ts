@@ -162,6 +162,79 @@ ${pageText}
 }
 
 /**
+ * Attempt to repair truncated JSON by extracting complete entries
+ */
+function attemptJSONRepair(truncatedJSON: string): any {
+  try {
+    console.log('Attempting JSON repair on truncated response...');
+    
+    // Try to extract the recortes array
+    const match = truncatedJSON.match(/"recortes"\s*:\s*\[(.*)/s);
+    if (!match) {
+      console.log('No recortes array found in response');
+      return null;
+    }
+    
+    const arrayContent = match[1];
+    const entries = [];
+    let depth = 0;
+    let currentEntry = '';
+    let inString = false;
+    let escapeNext = false;
+    
+    // Parse each complete object in the array
+    for (const char of arrayContent) {
+      if (escapeNext) {
+        escapeNext = false;
+        currentEntry += char;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        currentEntry += char;
+        continue;
+      }
+      
+      if (char === '"') {
+        inString = !inString;
+      }
+      
+      if (!inString) {
+        if (char === '{') depth++;
+        if (char === '}') {
+          depth--;
+          currentEntry += char;
+          
+          if (depth === 0 && currentEntry.trim()) {
+            try {
+              const cleaned = currentEntry.trim().replace(/,$/, '');
+              const parsed = JSON.parse(cleaned);
+              entries.push(parsed);
+              currentEntry = '';
+            } catch (e) {
+              console.log('Failed to parse entry, continuing...', e);
+              currentEntry = '';
+            }
+          }
+          continue;
+        }
+      }
+      
+      if (depth > 0) {
+        currentEntry += char;
+      }
+    }
+    
+    console.log(`JSON repair extracted ${entries.length} complete entries`);
+    return entries.length > 0 ? { recortes: entries } : null;
+  } catch (error) {
+    console.error('JSON repair failed:', error);
+    return null;
+  }
+}
+
+/**
  * Process image files (JPG/PNG) or scanned PDF pages with Gemini Vision
  * Enhanced with comprehensive error handling and response debugging
  */
@@ -220,7 +293,7 @@ RESPONDE CON ESTA ESTRUCTURA JSON EXACTA (NO agregues texto adicional):
   "recortes": [
     {
       "titulo": "título del artículo",
-      "contenido": "texto completo extraído con OCR",
+      "contenido": "resumen conciso del artículo en máximo 3 oraciones",
       "categoria": "categoría",
       "quien": "personas/organizaciones mencionadas",
       "que": "descripción del evento principal",
@@ -296,7 +369,35 @@ Si no encuentras ningún artículo, responde: {"recortes": []}
       }
       
       if (finishReason === 'MAX_TOKENS') {
-        console.warn('Response truncated due to max tokens');
+        console.warn('Response truncated due to max tokens, attempting to parse partial results');
+        
+        // Try to extract content even if truncated
+        const content = candidate?.content?.parts?.[0]?.text;
+        
+        if (content && content.includes('"recortes"')) {
+          console.log('Attempting to repair truncated JSON...');
+          const repairedData = attemptJSONRepair(content);
+          if (repairedData && repairedData.recortes && repairedData.recortes.length > 0) {
+            console.log(`Successfully extracted ${repairedData.recortes.length} clippings from truncated response`);
+            await cleanupGeminiFile(fileInfo.name);
+            
+            return repairedData.recortes.map((clip: any) => ({
+              title: clip.titulo || "",
+              content: clip.contenido || "",
+              category: clip.categoria || "OTRAS",
+              summary_who: clip.quien || "",
+              summary_what: clip.que || "",
+              summary_when: clip.cuando || "",
+              summary_where: clip.donde || "",
+              summary_why: clip.porque || "",
+              keywords: Array.isArray(clip.palabras_clave) ? clip.palabras_clave : [],
+              relevant_clients: Array.isArray(clip.relevancia_clientes) ? clip.relevancia_clientes : []
+            }));
+          }
+        }
+        
+        console.error('Could not repair truncated JSON, retrying with smaller chunk...');
+        throw new Error('MAX_TOKENS_RETRY');
       }
       
       // Try to extract content
@@ -316,7 +417,15 @@ Si no encuentras ningún artículo, responde: {"recortes": []}
         parsedContent = JSON.parse(content);
       } catch (parseError) {
         console.error('Failed to parse Gemini response as JSON:', content.substring(0, 500));
-        throw new Error('Respuesta JSON inválida de Gemini');
+        
+        // Try to repair JSON before giving up
+        const repairedData = attemptJSONRepair(content);
+        if (repairedData && repairedData.recortes) {
+          console.log(`JSON repair successful, recovered ${repairedData.recortes.length} clippings`);
+          parsedContent = repairedData;
+        } else {
+          throw new Error('Respuesta JSON inválida de Gemini');
+        }
       }
       
       const clippings = parsedContent.recortes || [];
