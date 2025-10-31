@@ -70,7 +70,7 @@ Clientes relevantes: ${Object.entries(publimediaClients)
 
 Para CADA recorte encontrado, extrae:
 - título de la noticia
-- texto completo del artículo
+- resumen conciso del artículo (máximo 3 oraciones)
 - categoría (de la lista disponible)
 - quién (personas/organizaciones mencionadas)
 - qué (evento o situación principal)
@@ -85,7 +85,7 @@ RESPONDE CON ESTA ESTRUCTURA JSON EXACTA:
   "recortes": [
     {
       "titulo": "título",
-      "contenido": "texto completo",
+      "contenido": "resumen conciso del artículo en máximo 3 oraciones",
       "categoria": "categoría",
       "quien": "personas/organizaciones",
       "que": "evento principal",
