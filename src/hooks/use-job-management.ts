@@ -89,22 +89,34 @@ export const useJobManagement = () => {
         console.error("Error checking job status:", error);
         setConsecutiveErrors(prev => prev + 1);
         
+        // Handle specific error cases
+        if (error.message?.includes('FunctionsHttpError') || error.message?.includes('404')) {
+          console.warn("Edge function not responding, job may still be processing");
+        }
+        
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          const errorMessage = error.message?.includes('404') 
+            ? "El servicio de verificación no está disponible. El procesamiento puede continuar en segundo plano."
+            : "Múltiples errores al verificar el estado del proceso";
+            
           toast({
-            title: "Error",
-            description: "Múltiples errores al verificar el estado del proceso",
+            title: "Advertencia",
+            description: errorMessage,
             variant: "destructive"
           });
           
-          // Update the job status to error after max consecutive errors
-          setCurrentJob(prev => {
-            if (!prev) return null;
-            return {
-              ...prev,
-              status: 'error',
-              error: "Error de conexión al verificar el estado"
-            };
-          });
+          // Don't immediately fail the job on connection errors
+          // Only fail if we also have a job error status
+          if (currentJob.status === 'error') {
+            setCurrentJob(prev => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                status: 'error',
+                error: error.message || "Error de conexión al verificar el estado"
+              };
+            });
+          }
         }
         
         return null;
@@ -125,7 +137,7 @@ export const useJobManagement = () => {
           publication_name: jobData.publication_name
         };
         
-        console.log("Updating job status to:", typedJob.status);
+        console.log("Updating job status to:", typedJob.status, `(${typedJob.progress}%)`);
         setCurrentJob(typedJob);
         setUploadProgress(jobData.progress || 0);
         return data;
@@ -139,7 +151,7 @@ export const useJobManagement = () => {
       if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
         toast({
           title: "Error",
-          description: "Error al verificar el estado del proceso",
+          description: "Error al verificar el estado del proceso. El trabajo puede continuar en segundo plano.",
           variant: "destructive"
         });
       }

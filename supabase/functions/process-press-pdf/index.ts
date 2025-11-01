@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import { PDFDocument } from "npm:pdf-lib@1.17.1";
 
 const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -478,7 +479,49 @@ Si no encuentras ningún artículo, responde: {"recortes": []}
 }
 
 /**
- * Process large PDFs by splitting into chunks (for files > 20MB)
+ * Extract a specific page from a PDF and return it as a single-page PDF Blob
+ */
+async function extractPDFPage(pdfBlob: Blob, pageNumber: number): Promise<Blob | null> {
+  try {
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    const totalPages = pdfDoc.getPageCount();
+    
+    if (pageNumber < 1 || pageNumber > totalPages) {
+      console.warn(`Page ${pageNumber} out of range (total: ${totalPages})`);
+      return null;
+    }
+    
+    // Create a new PDF with just the requested page
+    const newPdf = await PDFDocument.create();
+    const [copiedPage] = await newPdf.copyPages(pdfDoc, [pageNumber - 1]);
+    newPdf.addPage(copiedPage);
+    
+    const pdfBytes = await newPdf.save();
+    return new Blob([pdfBytes], { type: 'application/pdf' });
+  } catch (error) {
+    console.error(`Error extracting page ${pageNumber}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Get the actual page count from a PDF
+ */
+async function getPDFPageCount(pdfBlob: Blob): Promise<number> {
+  try {
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    return pdfDoc.getPageCount();
+  } catch (error) {
+    console.error('Error getting PDF page count:', error);
+    // Fallback to estimation
+    return Math.ceil(pdfBlob.size / (100 * 1024));
+  }
+}
+
+/**
+ * Process large PDFs by extracting and processing individual pages
  */
 async function processLargePDFInChunks(
   pdfBlob: Blob,
@@ -487,56 +530,56 @@ async function processLargePDFInChunks(
   jobId: string
 ): Promise<any[]> {
   const fileSizeMB = pdfBlob.size / 1024 / 1024;
-  console.log(`Processing large PDF (${fileSizeMB.toFixed(2)} MB) in chunks...`);
+  console.log(`Processing large PDF (${fileSizeMB.toFixed(2)} MB) page by page...`);
   
-  // Estimate page count (rough estimate: 100KB per page)
-  const estimatedPages = Math.ceil(pdfBlob.size / (100 * 1024));
-  console.log(`Estimated pages: ${estimatedPages}`);
-  
-  // Define chunk size in pages (process 5-10 pages at a time)
-  const pagesPerChunk = Math.min(10, Math.max(5, Math.floor(estimatedPages / 5)));
-  const totalChunks = Math.ceil(estimatedPages / pagesPerChunk);
-  
-  console.log(`Will process in ${totalChunks} chunks of ~${pagesPerChunk} pages each`);
+  // Get actual page count from PDF
+  const totalPages = await getPDFPageCount(pdfBlob);
+  console.log(`PDF has ${totalPages} pages`);
   
   let allClippings: any[] = [];
   
-  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-    const startPage = chunkIndex * pagesPerChunk + 1;
-    const endPage = Math.min((chunkIndex + 1) * pagesPerChunk, estimatedPages);
-    
-    console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks}: pages ${startPage}-${endPage}`);
+  // Process each page individually
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    console.log(`Processing page ${pageNum}/${totalPages}...`);
     
     // Update progress (10% to 80% range)
-    const progress = 10 + Math.floor((chunkIndex / totalChunks) * 70);
+    const progress = 10 + Math.floor((pageNum / totalPages) * 70);
     await updateProcessingJob(supabase, jobId, { 
       progress,
       error: null
     });
     
     try {
-      // Process this chunk with Gemini Vision
-      const chunkClippings = await processImageWithGeminiVision(
-        pdfBlob,
-        `${fileName}_chunk_${chunkIndex + 1}`,
-        startPage
+      // Extract this specific page as a single-page PDF
+      const pageBlob = await extractPDFPage(pdfBlob, pageNum);
+      
+      if (!pageBlob) {
+        console.warn(`Skipping page ${pageNum} - extraction failed`);
+        continue;
+      }
+      
+      // Process this single page with Gemini Vision
+      const pageClippings = await processImageWithGeminiVision(
+        pageBlob,
+        `${fileName}_page_${pageNum}`,
+        pageNum
       );
       
-      console.log(`Chunk ${chunkIndex + 1} returned ${chunkClippings.length} clippings`);
-      allClippings.push(...chunkClippings);
+      console.log(`Page ${pageNum} returned ${pageClippings.length} clippings`);
+      allClippings.push(...pageClippings);
       
-      // Small delay between chunks to avoid rate limits
-      if (chunkIndex < totalChunks - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      // Small delay between pages to avoid rate limits
+      if (pageNum < totalPages) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
       
     } catch (error) {
-      console.error(`Error processing chunk ${chunkIndex + 1}:`, error);
-      // Continue with other chunks even if one fails
+      console.error(`Error processing page ${pageNum}:`, error);
+      // Continue with other pages even if one fails
     }
   }
   
-  console.log(`Chunked processing complete. Total clippings: ${allClippings.length}`);
+  console.log(`Page-by-page processing complete. Total clippings: ${allClippings.length}`);
   return allClippings;
 }
 
@@ -868,7 +911,7 @@ serve(async (req) => {
         );
       }
     } else {
-      // PDF processing with smart chunking for large files
+      // PDF processing with page-by-page extraction
       const fileSizeMB = fileData.byteLength / 1024 / 1024;
       console.log(`Processing PDF (${fileSizeMB.toFixed(2)} MB)`);
       
@@ -880,9 +923,13 @@ serve(async (req) => {
       
       const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
       
-      // Use chunked processing for files larger than 20MB
-      if (fileSizeMB > 20) {
-        console.log('Large PDF detected, using chunked processing strategy...');
+      // Get page count first
+      const pageCount = await getPDFPageCount(pdfBlob);
+      console.log(`PDF contains ${pageCount} pages`);
+      
+      // Use page-by-page processing for multi-page PDFs
+      if (pageCount > 1 || fileSizeMB > 10) {
+        console.log('Multi-page PDF detected, using page-by-page processing...');
         allClippings = await processLargePDFInChunks(
           pdfBlob,
           job.file_path,
@@ -890,8 +937,8 @@ serve(async (req) => {
           jobId
         );
       } else {
-        // Process smaller PDFs normally
-        console.log('Starting Gemini Vision analysis...');
+        // Process single-page PDFs directly
+        console.log('Single-page PDF, processing directly with Gemini Vision...');
         allClippings = await processImageWithGeminiVision(
           pdfBlob,
           job.file_path,
