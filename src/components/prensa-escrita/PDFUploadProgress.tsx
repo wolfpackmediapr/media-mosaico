@@ -9,56 +9,62 @@ interface PDFUploadProgressProps {
 
 const PDFUploadProgress = ({ progress }: PDFUploadProgressProps) => {
   const getStatusMessage = () => {
-    if (progress < 15) {
+    if (progress < 10) {
+      return "Inicializando procesamiento...";
+    } else if (progress < 20) {
       return "Subiendo archivo...";
     } else if (progress < 30) {
-      return "Analizando estructura del PDF...";
+      return "Analizando estructura del documento...";
     } else if (progress < 50) {
-      return "Extrayendo páginas del documento...";
+      return "Creando lotes de procesamiento...";
     } else if (progress < 70) {
-      return "Procesando contenido con IA...";
+      return "Procesando páginas (lote en curso)...";
     } else if (progress < 85) {
-      return "Identificando recortes de prensa...";
+      return "Extrayendo recortes de prensa...";
     } else if (progress < 95) {
-      return "Generando análisis semántico...";
+      return "Analizando contenido con IA...";
     } else {
-      return "Guardando resultados...";
+      return "Generando embeddings y guardando...";
     }
   };
 
   const getStageLabel = () => {
-    if (progress < 15) {
+    if (progress < 10) {
+      return "Inicialización";
+    } else if (progress < 20) {
       return "Subida";
     } else if (progress < 30) {
       return "Análisis inicial";
     } else if (progress < 50) {
-      return "Extracción";
+      return "Preparación de lotes";
     } else if (progress < 70) {
-      return "Procesamiento IA";
+      return "Procesamiento por lotes";
     } else if (progress < 85) {
-      return "Identificación";
+      return "Extracción";
     } else if (progress < 95) {
-      return "Análisis semántico";
+      return "Análisis IA";
     } else {
       return "Finalización";
     }
   };
 
   const getDetailedMessage = () => {
-    if (progress < 15) {
-      return "Transfiriendo archivo al servidor...";
+    if (progress < 10) {
+      return "Preparando el sistema para procesar tu documento...";
+    } else if (progress < 20) {
+      return "Transfiriendo el archivo de forma segura a nuestros servidores...";
     } else if (progress < 30) {
-      return "Verificando formato y contenido del PDF...";
+      return "Detectando páginas, tamaño y características del PDF...";
     } else if (progress < 50) {
-      return "Separando páginas individuales para análisis...";
+      return "Dividiendo el documento en lotes para procesamiento eficiente...";
     } else if (progress < 70) {
-      return "Analizando cada página con inteligencia artificial...";
+      return "Extrayendo páginas y procesándolas por lotes...";
     } else if (progress < 85) {
-      return "Extrayendo artículos y noticias...";
+      return "Identificando y separando cada artículo o recorte individual...";
     } else if (progress < 95) {
-      return "Generando embeddings para búsqueda semántica...";
+      return "Utilizando IA avanzada para comprender el contenido de cada recorte...";
     } else {
-      return "Almacenando recortes en la base de datos...";
+      return "Creando vectores semánticos y guardando todos los recortes...";
     }
   };
 

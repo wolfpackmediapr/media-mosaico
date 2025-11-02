@@ -812,6 +812,38 @@ async function downloadFileFromStorage(supabase: any, filePath: string): Promise
 }
 
 
+// Batch processing configuration
+const PAGES_PER_BATCH = 8;
+const MAX_SYNC_PAGES = 10;
+const MAX_SYNC_SIZE_MB = 15;
+
+// Create batch tasks for large PDF processing
+async function createBatchTasks(
+  supabase: any,
+  jobId: string,
+  totalPages: number
+): Promise<number> {
+  const batches = [];
+  for (let i = 1; i <= totalPages; i += PAGES_PER_BATCH) {
+    const startPage = i;
+    const endPage = Math.min(i + PAGES_PER_BATCH - 1, totalPages);
+    batches.push({
+      job_id: jobId,
+      batch_number: Math.floor((i - 1) / PAGES_PER_BATCH) + 1,
+      start_page: startPage,
+      end_page: endPage,
+      status: 'pending'
+    });
+  }
+  
+  const { error } = await supabase
+    .from('pdf_batch_tasks')
+    .insert(batches);
+    
+  if (error) throw error;
+  return batches.length;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -927,23 +959,51 @@ serve(async (req) => {
       const pageCount = await getPDFPageCount(pdfBlob);
       console.log(`PDF contains ${pageCount} pages`);
       
-      // Use page-by-page processing for multi-page PDFs
-      if (pageCount > 1 || fileSizeMB > 10) {
-        console.log('Multi-page PDF detected, using page-by-page processing...');
-        allClippings = await processLargePDFInChunks(
-          pdfBlob,
-          job.file_path,
-          supabase,
-          jobId
+      // Decide processing strategy based on size/pages
+      if (pageCount > MAX_SYNC_PAGES || fileSizeMB > MAX_SYNC_SIZE_MB) {
+        // Large PDF: Use batch processing
+        console.log(`Large PDF detected (${pageCount} pages, ${fileSizeMB.toFixed(2)}MB). Creating batch tasks...`);
+        
+        const batchCount = await createBatchTasks(supabase, jobId, pageCount);
+        console.log(`Created ${batchCount} batch tasks`);
+        
+        // Update job status
+        await updateProcessingJob(supabase, jobId, { progress: 20 });
+        
+        // Trigger first batch asynchronously (don't await)
+        console.log('Triggering first batch...');
+        supabase.functions.invoke('process-pdf-batch', {
+          body: { jobId, batchNumber: 1 }
+        }).catch(err => console.error('Error triggering first batch:', err));
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: `Batch processing started for ${pageCount} pages`,
+            batchCount,
+            jobId,
+            pageCount
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } else {
-        // Process single-page PDFs directly
-        console.log('Single-page PDF, processing directly with Gemini Vision...');
-        allClippings = await processImageWithGeminiVision(
-          pdfBlob,
-          job.file_path,
-          1
-        );
+        // Small PDF: Process synchronously
+        console.log('Small PDF, processing synchronously...');
+        if (pageCount > 1 || fileSizeMB > 10) {
+          allClippings = await processLargePDFInChunks(
+            pdfBlob,
+            job.file_path,
+            supabase,
+            jobId
+          );
+        } else {
+          // Single-page PDF
+          allClippings = await processImageWithGeminiVision(
+            pdfBlob,
+            job.file_path,
+            1
+          );
+        }
       }
       
       console.log(`PDF processing returned ${allClippings.length} total clippings`);

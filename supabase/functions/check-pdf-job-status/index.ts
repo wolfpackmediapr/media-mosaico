@@ -43,46 +43,68 @@ serve(async (req) => {
       });
     }
     
-    // If job is completed, fetch the related clippings
+    // Fetch batch task progress
+    const { data: batches } = await supabase
+      .from('pdf_batch_tasks')
+      .select('*')
+      .eq('job_id', jobId)
+      .order('batch_number');
+
+    // Calculate overall progress from batches
+    let overallProgress = job.progress || 0;
+    let batchInfo = null;
+
+    if (batches && batches.length > 0) {
+      const completedBatches = batches.filter(b => b.status === 'completed').length;
+      const processingBatch = batches.find(b => b.status === 'processing');
+      const totalBatches = batches.length;
+      
+      overallProgress = Math.floor((completedBatches / totalBatches) * 100);
+      
+      batchInfo = {
+        total: totalBatches,
+        completed: completedBatches,
+        processing: batches.filter(b => b.status === 'processing').length,
+        pending: batches.filter(b => b.status === 'pending').length,
+        currentBatch: processingBatch?.batch_number,
+        currentBatchProgress: processingBatch?.progress
+      };
+    }
+
+    // Fetch clippings
     let clippings = [];
-    if (job.status === 'completed') {
-      const { data: clippingsData, error: clippingsError } = await supabase
+    let clippingsCount = 0;
+
+    if (job.status === 'completed' || (batches && batches.some(b => b.status === 'completed'))) {
+      console.log('Fetching clippings...');
+      
+      const { data: foundClippings, count, error: clippingsError } = await supabase
         .from('press_clippings')
-        .select('*')
-        .eq('file_path', job.file_path)
+        .select('*', { count: 'exact' })
+        .eq('user_id', job.user_id)
+        .eq('publication_name', job.publication_name)
+        .gte('created_at', new Date(job.created_at).toISOString())
         .order('page_number', { ascending: true });
-      
-      if (!clippingsError && clippingsData) {
-        clippings = clippingsData;
-      }
-      
-      // If no clippings found but job is completed, fetch the most recent clippings for this user
-      if (clippings.length === 0) {
-        const { data: recentClippings, error: recentError } = await supabase
-          .from('press_clippings')
-          .select('*')
-          .eq('user_id', job.user_id)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        
-        if (!recentError && recentClippings) {
-          // Filter clippings that match the publication name and were created recently
-          const maxAge = new Date();
-          maxAge.setMinutes(maxAge.getMinutes() - 15); // 15 minutes
-          
-          clippings = recentClippings.filter(clip => 
-            clip.publication_name === job.publication_name && 
-            new Date(clip.created_at) > maxAge
-          );
-        }
+
+      if (clippingsError) {
+        console.error('Error fetching clippings:', clippingsError);
+      } else {
+        clippings = foundClippings || [];
+        clippingsCount = count || 0;
+        console.log(`Found ${clippingsCount} clippings`);
       }
     }
     
     return new Response(
       JSON.stringify({ 
         success: true, 
-        job,
-        clippings: clippings.length > 0 ? clippings : [],
+        job: {
+          ...job,
+          progress: overallProgress,
+          batches: batchInfo
+        },
+        clippings,
+        clippingsCount
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
