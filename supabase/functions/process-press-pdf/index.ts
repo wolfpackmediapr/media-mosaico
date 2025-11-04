@@ -259,16 +259,22 @@ INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con estructura JSON exac
 
 Eres un experto analista de prensa escrita de Puerto Rico y el Caribe especializado en OCR y extracción de contenido.
 
-IMPORTANTE: Este puede ser un documento PDF de múltiples páginas o un periódico escaneado con diseño complejo.
-Tu tarea es extraer TODOS los artículos de noticias que encuentres, sin importar el diseño o la calidad del escaneo.
+IMPORTANTE: Este es un documento PDF que puede contener MÚLTIPLES PÁGINAS.
+Tu tarea es analizar TODAS LAS PÁGINAS del documento y extraer TODOS los recortes de prensa (artículos completos) que encuentres.
+
+FILTRADO CRÍTICO: Solo extrae recortes que sean relevantes para nuestros clientes monitoreados.
+- Analiza si el contenido menciona o está relacionado con alguno de nuestros clientes
+- Si un recorte NO tiene relevancia para ningún cliente, NO lo incluyas en la respuesta
+- Prioriza calidad sobre cantidad: mejor tener 5 recortes muy relevantes que 50 irrelevantes
 
 Instrucciones detalladas:
-1. Usa OCR para extraer TODO el texto visible, incluso si está en columnas múltiples o tiene diseño complejo
-2. Identifica los límites de cada artículo individual (título, cuerpo, conclusión)
-3. Si encuentras artículos parciales o cortados, extrae el contenido disponible
-4. Busca artículos en TODAS las áreas de la página: arriba, abajo, izquierda, derecha, esquinas
-5. No ignores artículos pequeños o recuadros de texto
-6. Si el texto está borroso o difícil de leer, haz tu mejor esfuerzo con OCR
+1. Analiza TODAS las páginas del documento, no solo la primera
+2. Usa OCR para extraer TODO el texto visible, incluso si está en columnas múltiples o tiene diseño complejo
+3. Identifica los límites de cada artículo individual (título, cuerpo, conclusión)
+4. Si encuentras artículos parciales o cortados, extrae el contenido disponible
+5. Busca artículos en TODAS las áreas de la página: arriba, abajo, izquierda, derecha, esquinas
+6. No ignores artículos pequeños o recuadros de texto
+7. Si el texto está borroso o difícil de leer, haz tu mejor esfuerzo con OCR
 
 Categorías disponibles: ${publimediaCategories.join(', ')}
 
@@ -276,9 +282,9 @@ Clientes que monitoreamos: ${Object.entries(publimediaClients)
   .map(([cat, clients]) => `${cat}: ${(clients as string[]).join(', ')}`)
   .join('; ')}
 
-Para CADA artículo que encuentres, extrae:
-- Título (puede estar en negrita o tamaño mayor)
-- Contenido completo del artículo
+Para CADA recorte RELEVANTE que encuentres en CUALQUIER página:
+- Título del artículo (puede estar en negrita o tamaño mayor)
+- Contenido completo o resumen conciso (máximo 3 oraciones)
 - Categoría que mejor describa el tema
 - Quién: personas, organizaciones, instituciones mencionadas
 - Qué: evento, situación o hecho principal
@@ -286,7 +292,7 @@ Para CADA artículo que encuentres, extrae:
 - Dónde: lugares, ciudades, regiones
 - Por qué: causas, razones, motivaciones
 - Palabras clave relevantes (nombres propios, términos técnicos, etc.)
-- Clientes que podrían estar interesados en esta noticia
+- Clientes específicos que deberían recibir este recorte (basado en keywords y categorías)
 
 RESPONDE CON ESTA ESTRUCTURA JSON EXACTA (NO agregues texto adicional):
 {
@@ -306,7 +312,7 @@ RESPONDE CON ESTA ESTRUCTURA JSON EXACTA (NO agregues texto adicional):
   ]
 }
 
-Si no encuentras ningún artículo, responde: {"recortes": []}
+Si no encuentras ningún recorte RELEVANTE para nuestros clientes, responde: {"recortes": []}
 `;
 
       // Call Gemini Vision API
@@ -872,6 +878,10 @@ serve(async (req) => {
       const fileSizeMB = fileData.byteLength / 1024 / 1024;
       console.log(`Processing PDF (${fileSizeMB.toFixed(2)} MB)`);
       
+      // Estimate page count (rough estimate: 100KB per page)
+      const estimatedPages = Math.ceil(fileData.byteLength / (100 * 1024));
+      console.log(`Estimated pages: ${estimatedPages}`);
+      
       // Update progress
       await updateProcessingJob(supabase, jobId, { 
         progress: 10,
@@ -880,9 +890,12 @@ serve(async (req) => {
       
       const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
       
-      // Use chunked processing for files larger than 20MB
-      if (fileSizeMB > 20) {
-        console.log('Large PDF detected, using chunked processing strategy...');
+      // Use batch processing for multi-page PDFs or files larger than 5MB
+      // This ensures ALL pages are analyzed, not just the first page
+      const shouldUseBatchProcessing = fileSizeMB > 5 || estimatedPages > 3;
+      
+      if (shouldUseBatchProcessing) {
+        console.log(`Multi-page PDF detected (est. ${estimatedPages} pages), using batch processing to analyze ALL pages...`);
         allClippings = await processLargePDFInChunks(
           pdfBlob,
           job.file_path,
@@ -890,8 +903,8 @@ serve(async (req) => {
           jobId
         );
       } else {
-        // Process smaller PDFs normally
-        console.log('Starting Gemini Vision analysis...');
+        // Only for very small single-page PDFs (< 5MB and < 3 pages)
+        console.log('Processing small single-page PDF directly...');
         allClippings = await processImageWithGeminiVision(
           pdfBlob,
           job.file_path,
@@ -928,7 +941,20 @@ serve(async (req) => {
       );
     }
     
-    console.log(`Processing ${allClippings.length} total clippings...`);
+    // Filter for client-relevant clippings only
+    const preFilterCount = allClippings.length;
+    allClippings = allClippings.filter(clipping => {
+      const clientRelevance = [
+        ...new Set([
+          ...(clipping.client_relevance || []),
+          ...identifyClientRelevance(clipping)
+        ])
+      ];
+      return clientRelevance.length > 0;
+    });
+    
+    console.log(`Filtered to ${allClippings.length} client-relevant clippings (from ${preFilterCount} total)`);
+    console.log(`Processing ${allClippings.length} client-relevant clippings...`);
     await updateProcessingJob(supabase, jobId, { progress: 95 });
     
     // Get authenticated user ID
