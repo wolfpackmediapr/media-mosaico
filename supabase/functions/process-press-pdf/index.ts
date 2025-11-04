@@ -495,12 +495,12 @@ async function processLargePDFInChunks(
   const fileSizeMB = pdfBlob.size / 1024 / 1024;
   console.log(`Processing large PDF (${fileSizeMB.toFixed(2)} MB) in chunks...`);
   
-  // Estimate page count (rough estimate: 100KB per page)
-  const estimatedPages = Math.ceil(pdfBlob.size / (100 * 1024));
+  // Estimate page count (more realistic estimate: 500KB per page)
+  const estimatedPages = Math.ceil(pdfBlob.size / (500 * 1024));
   console.log(`Estimated pages: ${estimatedPages}`);
   
-  // Define chunk size in pages (process 5-10 pages at a time)
-  const pagesPerChunk = Math.min(10, Math.max(5, Math.floor(estimatedPages / 5)));
+  // Define chunk size in pages (smaller chunks for reliability: 3-5 pages at a time)
+  const pagesPerChunk = Math.min(5, Math.max(3, Math.floor(estimatedPages / 8)));
   const totalChunks = Math.ceil(estimatedPages / pagesPerChunk);
   
   console.log(`Will process in ${totalChunks} chunks of ~${pagesPerChunk} pages each`);
@@ -531,13 +531,20 @@ async function processLargePDFInChunks(
       console.log(`Chunk ${chunkIndex + 1} returned ${chunkClippings.length} clippings`);
       allClippings.push(...chunkClippings);
       
-      // Small delay between chunks to avoid rate limits
+      // Longer delay between chunks to avoid rate limits
       if (chunkIndex < totalChunks - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
       
     } catch (error) {
-      console.error(`Error processing chunk ${chunkIndex + 1}:`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`Error processing chunk ${chunkIndex + 1}:`, errorMsg);
+      
+      // Update job with error details but continue processing other chunks
+      await updateProcessingJob(supabase, jobId, {
+        error: `Error en chunk ${chunkIndex + 1}/${totalChunks}: ${errorMsg}`
+      });
+      
       // Continue with other chunks even if one fails
     }
   }
@@ -878,8 +885,8 @@ serve(async (req) => {
       const fileSizeMB = fileData.byteLength / 1024 / 1024;
       console.log(`Processing PDF (${fileSizeMB.toFixed(2)} MB)`);
       
-      // Estimate page count (rough estimate: 100KB per page)
-      const estimatedPages = Math.ceil(fileData.byteLength / (100 * 1024));
+      // Estimate page count (more realistic estimate: 500KB per page)
+      const estimatedPages = Math.ceil(fileData.byteLength / (500 * 1024));
       console.log(`Estimated pages: ${estimatedPages}`);
       
       // Update progress
@@ -890,9 +897,9 @@ serve(async (req) => {
       
       const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
       
-      // Use batch processing for multi-page PDFs or files larger than 5MB
+      // Use batch processing for larger multi-page PDFs (>10MB or >10 pages)
       // This ensures ALL pages are analyzed, not just the first page
-      const shouldUseBatchProcessing = fileSizeMB > 5 || estimatedPages > 3;
+      const shouldUseBatchProcessing = fileSizeMB > 10 || estimatedPages > 10;
       
       if (shouldUseBatchProcessing) {
         console.log(`Multi-page PDF detected (est. ${estimatedPages} pages), using batch processing to analyze ALL pages...`);
