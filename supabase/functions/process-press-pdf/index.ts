@@ -244,6 +244,7 @@ async function processImageWithGeminiVision(
   pageNumber: number
 ): Promise<any[]> {
   const maxRetries = 3;
+  let lastError;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -465,22 +466,25 @@ Si no encuentras ningún recorte RELEVANTE para nuestros clientes, responde: {"r
       return mappedClippings;
 
     } catch (error) {
-      console.error(`Error on attempt ${attempt}/${maxRetries}:`, error);
+      lastError = error;
+      console.error(`Attempt ${attempt}/${maxRetries} failed:`, error);
       
-      // If this was the last attempt, return empty array
+      // If this is the last attempt, throw the error with full details
       if (attempt === maxRetries) {
-        console.error(`Failed after ${maxRetries} attempts, returning empty result`);
-        return [];
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`CRITICAL: Gemini Vision failed after ${maxRetries} attempts`);
+        throw new Error(`Gemini Vision processing failed after ${maxRetries} attempts: ${errorMsg}`);
       }
       
       // Wait before retrying (exponential backoff)
-      const waitTime = 2000 * attempt;
-      console.log(`Retrying in ${waitTime}ms...`);
+      const waitTime = Math.min(2000 * attempt, 10000);
+      console.log(`Waiting ${waitTime}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
   
-  return [];
+  // Should never reach here, but just in case
+  throw lastError || new Error('Gemini Vision processing failed for unknown reason');
 }
 
 /**
@@ -847,8 +851,10 @@ serve(async (req) => {
     const isImageFile = ['jpg', 'jpeg', 'png', 'webp'].includes(fileExtension || '');
 
     let allClippings = [];
-
-    if (isImageFile) {
+    
+    // Wrap processing in comprehensive try-catch
+    try {
+      if (isImageFile) {
       console.log('Processing image file directly with Gemini Vision');
       
       // Convert ArrayBuffer to Blob
@@ -926,6 +932,31 @@ serve(async (req) => {
         progress: 80,
         error: null
       });
+      }
+      
+    } catch (processingError) {
+      const errorMsg = processingError instanceof Error ? processingError.message : String(processingError);
+      console.error("CRITICAL: PDF/Image processing failed:", errorMsg);
+      console.error("Full error details:", processingError);
+      
+      // Update database with detailed error
+      await updateProcessingJob(supabase, jobId, {
+        status: 'error',
+        error: `Error procesando archivo: ${errorMsg}`,
+        progress: 60
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Processing failed',
+          details: errorMsg,
+          jobId
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
     
     // Handle case where no clippings were found
@@ -1036,11 +1067,36 @@ serve(async (req) => {
     );
     
   } catch (error) {
-    console.error("Edge function error:", error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("CRITICAL: Edge function error:", errorMsg);
+    console.error("Full error stack:", error);
+    
+    // Try to extract jobId from request if available
+    let jobId;
+    try {
+      const body = await req.clone().json();
+      jobId = body.jobId;
+    } catch {}
+    
+    // Update database if we have a jobId
+    if (jobId) {
+      try {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        await updateProcessingJob(supabase, jobId, {
+          status: 'error',
+          error: `Error crítico: ${errorMsg}`,
+          progress: 0
+        });
+      } catch (dbError) {
+        console.error("Failed to update job status in error handler:", dbError);
+      }
+    }
+    
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : String(error)
+        details: errorMsg,
+        jobId
       }),
       { 
         status: 500,
