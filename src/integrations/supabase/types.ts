@@ -812,56 +812,6 @@ export type Database = {
         }
         Relationships: []
       }
-      pdf_batch_tasks: {
-        Row: {
-          batch_number: number
-          clippings_count: number | null
-          created_at: string | null
-          end_page: number
-          error: string | null
-          id: string
-          job_id: string | null
-          progress: number | null
-          start_page: number
-          status: string
-          updated_at: string | null
-        }
-        Insert: {
-          batch_number: number
-          clippings_count?: number | null
-          created_at?: string | null
-          end_page: number
-          error?: string | null
-          id?: string
-          job_id?: string | null
-          progress?: number | null
-          start_page: number
-          status?: string
-          updated_at?: string | null
-        }
-        Update: {
-          batch_number?: number
-          clippings_count?: number | null
-          created_at?: string | null
-          end_page?: number
-          error?: string | null
-          id?: string
-          job_id?: string | null
-          progress?: number | null
-          start_page?: number
-          status?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pdf_batch_tasks_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "pdf_processing_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       pdf_processing_jobs: {
         Row: {
           created_at: string | null
