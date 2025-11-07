@@ -3,8 +3,8 @@ import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Search } from "lucide-react";
 import UploadContentTab from "./UploadContentTab";
-import ResultsContentTab from "./ResultsContentTab";
-import { PressClipping } from "@/hooks/use-pdf-processing";
+import ResultsContainer from "./results/ResultsContainer";
+import { PressClipping } from "@/hooks/prensa/types";
 
 interface PressTabsContainerProps {
   activeTab: string;
@@ -57,7 +57,7 @@ const PressTabsContainer = ({
       </TabsContent>
       
       <TabsContent value="results" className="space-y-6 mt-6">
-        <ResultsContentTab 
+        <ResultsContainer 
           isUploading={isUploading}
           clippings={clippings}
           publicationName={publicationName}
