@@ -102,7 +102,7 @@ ${pageText}
             temperature: 0.2,
             topK: 20,
             topP: 0.7,
-            maxOutputTokens: 1800,
+            maxOutputTokens: 4000,
             responseMimeType: "application/json"
           }
         })
@@ -273,7 +273,7 @@ Si NO aplica: {"recortes":[]}
               temperature: 0.2,
               topK: 20,
               topP: 0.7,
-              maxOutputTokens: 1800,
+              maxOutputTokens: 4000,
               responseMimeType: "application/json"
             }
           })
@@ -435,7 +435,7 @@ async function processLargePDFInChunks(
   console.log(`Will process in ${totalChunks} chunks of 1 page each`);
   
   let allClippings: any[] = [];
-  const PROCESSING_TIMEOUT_MS = 240000; // 4 minutes max
+  const PROCESSING_TIMEOUT_MS = 480000; // 8 minutes max
   const processingStartTime = Date.now();
   
   for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
@@ -487,9 +487,9 @@ async function processLargePDFInChunks(
         error: null
       });
       
-      // Longer delay between chunks to avoid rate limits
+      // Shorter delay between chunks for faster processing
       if (chunkIndex < totalChunks - 1) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
       
     } catch (error) {
