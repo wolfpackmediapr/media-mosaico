@@ -56,49 +56,35 @@ async function analyzePressClippings(pageText: string, pageNumber: number): Prom
     console.log(`Analyzing page ${pageNumber} with Gemini (${pageText.length} chars)...`);
     
     const prompt = `
-INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con estructura JSON exacta.
+INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con JSON válido.
 
-Eres un experto analista de prensa escrita de Puerto Rico y el Caribe.
+Eres un analista de prensa de Puerto Rico.
 
-Analiza el siguiente texto de un periódico y extrae TODOS los recortes de prensa (press clippings).
+FILTRO ESTRICTO: Solo incluye artículos/anuncios si:
+- Menciona uno de estos clientes por nombre, O
+- Trata del sector específico del cliente
 
-Categorías disponibles: ${publimediaCategories.join(', ')}
-
-Clientes relevantes: ${Object.entries(publimediaClients)
+Clientes: ${Object.entries(publimediaClients)
   .map(([cat, clients]) => `${cat}: ${(clients as string[]).join(', ')}`)
   .join('; ')}
 
-Para CADA recorte encontrado, extrae:
-- título de la noticia
-- resumen conciso del artículo (máximo 3 oraciones)
-- categoría (de la lista disponible)
-- quién (personas/organizaciones mencionadas)
-- qué (evento o situación principal)
-- cuándo (fecha/hora del evento)
-- dónde (lugar del evento)
-- por qué (razones o causas)
-- palabras clave relevantes
-- clientes potencialmente interesados
+Categorías: ${publimediaCategories.join(', ')}
 
-RESPONDE CON ESTA ESTRUCTURA JSON EXACTA:
+Extrae SOLO: título, categoría, keywords (máx 5), clientes relevantes.
+
+RESPONDE JSON:
 {
   "recortes": [
     {
-      "titulo": "título",
-      "contenido": "resumen conciso del artículo en máximo 3 oraciones",
+      "titulo": "título completo",
       "categoria": "categoría",
-      "quien": "personas/organizaciones",
-      "que": "evento principal",
-      "cuando": "fecha/hora",
-      "donde": "lugar",
-      "porque": "razones",
       "palabras_clave": ["palabra1", "palabra2"],
-      "relevancia_clientes": ["cliente1", "cliente2"]
+      "relevancia_clientes": ["cliente1"]
     }
   ]
 }
 
-Texto de la página ${pageNumber}:
+Texto página ${pageNumber}:
 ${pageText}
 `;
 
@@ -113,10 +99,10 @@ ${pageText}
             parts: [{ text: prompt }]
           }],
           generationConfig: {
-            temperature: 0.3,
-            topK: 32,
-            topP: 0.8,
-            maxOutputTokens: 8192,
+            temperature: 0.2,
+            topK: 20,
+            topP: 0.7,
+            maxOutputTokens: 3500,
             responseMimeType: "application/json"
           }
         })
@@ -143,13 +129,8 @@ ${pageText}
     // Map Spanish fields to database schema
     return clippings.map((clip: any) => ({
       title: clip.titulo || "",
-      content: clip.contenido || "",
+      content: "",
       category: clip.categoria || "OTRAS",
-      summary_who: clip.quien || "",
-      summary_what: clip.que || "",
-      summary_when: clip.cuando || "",
-      summary_where: clip.donde || "",
-      summary_why: clip.porque || "",
       keywords: clip.palabras_clave || [],
       client_relevance: clip.relevancia_clientes || [],
       page_number: pageNumber
@@ -254,48 +235,37 @@ async function processImageWithGeminiVision(
       const fileInfo = await uploadImageToGemini(imageBlob, fileName);
       console.log(`File uploaded successfully: ${fileInfo.uri}`);
       
-      // Enhanced prompt for better article detection in complex layouts
+      // Highly optimized prompt - only extract client-relevant articles, minimal fields
       const prompt = `
-INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con estructura JSON exacta.
+INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con JSON válido.
 
-Eres un experto analista de prensa escrita de Puerto Rico y el Caribe.
+Eres un analista de prensa de Puerto Rico.
 
-IMPORTANTE: SOLO extrae artículos/anuncios que sean DIRECTAMENTE RELEVANTES para nuestros clientes.
+FILTRO ESTRICTO: Solo incluye artículos/anuncios si:
+- Menciona uno de estos clientes por nombre, O
+- Trata del sector específico del cliente
 
-FILTRADO ESTRICTO - Solo incluye un recorte si:
-1. Menciona explícitamente uno de nuestros clientes por nombre
-2. Está directamente relacionado con la industria/sector del cliente
-3. Contiene keywords específicos del cliente
-
-NO extraigas noticias genéricas. Prioriza precisión sobre cantidad.
-
-Clientes monitoreados: ${Object.entries(publimediaClients)
+Clientes: ${Object.entries(publimediaClients)
   .map(([cat, clients]) => `${cat}: ${(clients as string[]).join(', ')}`)
   .join('; ')}
 
 Categorías: ${publimediaCategories.join(', ')}
 
-Para CADA recorte RELEVANTE encontrado:
-- Título del artículo
-- Resumen conciso (máximo 2-3 oraciones)
-- Categoría
-- Palabras clave relevantes
-- Clientes específicos que deben recibir este recorte
+Extrae SOLO: título, categoría, keywords (máx 5), clientes relevantes.
 
-RESPONDE SOLO CON JSON (no texto adicional):
+RESPONDE JSON:
 {
   "recortes": [
     {
-      "titulo": "título del artículo",
-      "contenido": "resumen en 2-3 oraciones máximo",
+      "titulo": "título completo",
       "categoria": "categoría",
       "palabras_clave": ["palabra1", "palabra2"],
-      "relevancia_clientes": ["cliente1", "cliente2"]
+      "relevancia_clientes": ["cliente1"]
     }
   ]
 }
 
-Si NO hay recortes relevantes para nuestros clientes: {"recortes": []}
+Si NO hay recortes relevantes: {"recortes": []}
 `;
 
       // Call Gemini Vision API
@@ -317,10 +287,10 @@ Si NO hay recortes relevantes para nuestros clientes: {"recortes": []}
               ]
             }],
             generationConfig: {
-              temperature: 0.3,
-              topK: 32,
-              topP: 0.8,
-              maxOutputTokens: 6000,
+              temperature: 0.2,
+              topK: 20,
+              topP: 0.7,
+              maxOutputTokens: 3500,
               responseMimeType: "application/json"
             }
           })
@@ -372,15 +342,11 @@ Si NO hay recortes relevantes para nuestros clientes: {"recortes": []}
             
             return repairedData.recortes.map((clip: any) => ({
               title: clip.titulo || "",
-              content: clip.contenido || "",
+              content: "",
               category: clip.categoria || "OTRAS",
-              summary_who: clip.quien || "",
-              summary_what: clip.que || "",
-              summary_when: clip.cuando || "",
-              summary_where: clip.donde || "",
-              summary_why: clip.porque || "",
               keywords: Array.isArray(clip.palabras_clave) ? clip.palabras_clave : [],
-              relevant_clients: Array.isArray(clip.relevancia_clientes) ? clip.relevancia_clientes : []
+              relevant_clients: Array.isArray(clip.relevancia_clientes) ? clip.relevancia_clientes : [],
+              page_number: pageNumber
             }));
           }
         }
@@ -433,7 +399,7 @@ Si NO hay recortes relevantes para nuestros clientes: {"recortes": []}
       
       const mappedClippings = clippings.map((clip: any) => ({
         title: clip.titulo || "",
-        content: clip.contenido || "",
+        content: "",
         category: clip.categoria || "OTRAS",
         keywords: clip.palabras_clave || [],
         client_relevance: clip.relevancia_clientes || [],
