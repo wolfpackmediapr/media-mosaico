@@ -8,3 +8,8 @@ verify_jwt = true
 
 [functions.process-press-pdf]
 verify_jwt = true
+import_map = "./functions/process-press-pdf/import_map.json"
+
+[functions.process-press-pdf.limits]
+cpu_ms = 300000
+memory_mb = 512
