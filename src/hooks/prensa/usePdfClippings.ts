@@ -1,9 +1,10 @@
 import { useState, useCallback } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { PressClipping } from "./types";
 import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "./constants";
-import { showSuccessToast, showErrorToast } from "./errors";
 
 export const usePdfClippings = () => {
+  const { toast } = useToast();
   const [clippings, setClippings] = useState<PressClipping[]>([]);
   const [publicationName, setPublicationName] = useState("");
   const [processingError, setProcessingError] = useState<string | null>(null);
@@ -22,21 +23,22 @@ export const usePdfClippings = () => {
     setProcessingComplete(true);
     setProcessingError(null);
     
-    showSuccessToast(
-      SUCCESS_MESSAGES.PDF_PROCESSED,
-      `Se encontraron ${newClippings.length} recortes de prensa`
-    );
-  }, []);
+    toast({
+      title: SUCCESS_MESSAGES.PDF_PROCESSED,
+      description: `Se encontraron ${newClippings.length} recortes de prensa`,
+    });
+  }, [toast]);
 
   const handleProcessingError = useCallback((error: string) => {
     setProcessingError(error);
     setProcessingComplete(true);
     
-    showErrorToast(
-      "Error al procesar el PDF",
-      error || ERROR_MESSAGES.PROCESSING_ERROR
-    );
-  }, []);
+    toast({
+      title: "Error al procesar el PDF",
+      description: error || ERROR_MESSAGES.PROCESSING_ERROR,
+      variant: "destructive"
+    });
+  }, [toast]);
 
   return {
     clippings,

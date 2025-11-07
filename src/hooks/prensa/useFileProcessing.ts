@@ -27,8 +27,12 @@ export const useFileProcessing = ({
     try {
       console.log(`Starting upload of file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
       
-      // Create processing job
-      const jobData = await createProcessingJob(file.name, publicationName);
+      // Generate file path once and use it for both job creation and upload
+      const filePath = getFilePathFromJob(file.name);
+      console.log("Generated file path:", filePath);
+      
+      // Create processing job with the file path
+      const jobData = await createProcessingJob(file.name, publicationName, filePath);
       
       if (!jobData) {
         throw new Error("No se pudo crear el trabajo de procesamiento");
@@ -36,8 +40,7 @@ export const useFileProcessing = ({
       
       onJobCreated(jobData);
       
-      // Upload file to storage
-      const filePath = getFilePathFromJob(file.name);
+      // Upload file to storage using the SAME file path
       await uploadFileToStorage(file, filePath);
       
       // Trigger processing

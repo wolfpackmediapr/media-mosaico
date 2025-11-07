@@ -1,12 +1,14 @@
 import { useCallback } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { useJobManagement } from "./useJobManagement";
 import { usePdfClippings } from "./usePdfClippings";
 import { useFileProcessing } from "./useFileProcessing";
 import { PressClipping, ProcessingJob } from "./types";
 import { PROCESSING_CONFIG, SUCCESS_MESSAGES } from "./constants";
-import { showSuccessToast, handleError } from "./errors";
+import { handleError } from "./errors";
 
 export const usePdfProcessing = () => {
+  const { toast } = useToast();
   const {
     clippings,
     setClippings,
@@ -114,10 +116,10 @@ export const usePdfProcessing = () => {
       
       clearInterval(uploadProgressInterval);
       
-      showSuccessToast(
-        SUCCESS_MESSAGES.PDF_UPLOADED,
-        SUCCESS_MESSAGES.PDF_PROCESSING
-      );
+      toast({
+        title: SUCCESS_MESSAGES.PDF_UPLOADED,
+        description: SUCCESS_MESSAGES.PDF_PROCESSING,
+      });
     } catch (error) {
       console.error("Error processing PDF:", error);
       const errorMessage = handleError(error, "Error desconocido");
@@ -147,11 +149,11 @@ export const usePdfProcessing = () => {
     setIsUploading(false);
     setProcessingError(SUCCESS_MESSAGES.PROCESSING_CANCELLED_DESC);
     
-    showSuccessToast(
-      SUCCESS_MESSAGES.PROCESSING_CANCELLED,
-      SUCCESS_MESSAGES.PROCESSING_CANCELLED_DESC
-    );
-  }, [cancelCurrentJob, setProcessingError]);
+    toast({
+      title: SUCCESS_MESSAGES.PROCESSING_CANCELLED,
+      description: SUCCESS_MESSAGES.PROCESSING_CANCELLED_DESC,
+    });
+  }, [cancelCurrentJob, setProcessingError, toast]);
 
   return {
     isUploading,

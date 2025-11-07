@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchResult } from "./types";
 import { ERROR_MESSAGES } from "./constants";
-import { showErrorToast } from "./errors";
 
 const DEBOUNCE_DELAY_MS = 300;
 
 export const usePressSearch = () => {
+  const { toast } = useToast();
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -60,7 +61,11 @@ export const usePressSearch = () => {
             console.error("Error searching clippings:", error);
             const errorMessage = `Error en la búsqueda: ${error.message}`;
             setSearchError(errorMessage);
-            showErrorToast("Error de búsqueda", errorMessage);
+            toast({
+              title: "Error de búsqueda",
+              description: errorMessage,
+              variant: "destructive"
+            });
             resolve([]);
             return;
           }
@@ -76,14 +81,18 @@ export const usePressSearch = () => {
           console.error("Exception during search:", err);
           const errorMessage = err instanceof Error ? err.message : "Error desconocido en la búsqueda";
           setSearchError(errorMessage);
-          showErrorToast("Error de búsqueda", errorMessage);
+          toast({
+            title: "Error de búsqueda",
+            description: errorMessage,
+            variant: "destructive"
+          });
           resolve([]);
         } finally {
           setIsSearching(false);
         }
       }, DEBOUNCE_DELAY_MS);
     });
-  }, [cachedResults]);
+  }, [cachedResults, toast]);
 
   const clearSearch = useCallback(() => {
     setSearchResults([]);

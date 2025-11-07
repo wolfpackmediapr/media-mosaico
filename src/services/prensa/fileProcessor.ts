@@ -4,7 +4,8 @@ import { ERROR_MESSAGES } from "@/hooks/prensa/constants";
 
 export const createProcessingJob = async (
   fileName: string,
-  publicationName: string
+  publicationName: string,
+  filePath: string
 ): Promise<ProcessingJob> => {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   
@@ -18,11 +19,7 @@ export const createProcessingJob = async (
     throw new Error(ERROR_MESSAGES.AUTHENTICATION_ERROR);
   }
 
-  const timestamp = Date.now();
-  const sanitizedFileName = fileName.replace(/\s+/g, '_');
-  const filePath = `${timestamp}_${sanitizedFileName}`;
-
-  console.log("Creating new processing job...");
+  console.log("Creating new processing job with path:", filePath);
   
   const { data: jobData, error: jobError } = await supabase
     .from('pdf_processing_jobs')

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { ProcessingJob } from "./types";
 import { useJobPolling } from "./useJobPolling";
 import { useJobStatusCheck } from "./useJobStatusCheck";
 import { PROCESSING_CONFIG, ERROR_MESSAGES } from "./constants";
-import { showErrorToast } from "./errors";
 
 export const useJobManagement = () => {
+  const { toast } = useToast();
   const [currentJob, setCurrentJob] = useState<ProcessingJob | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -32,7 +33,11 @@ export const useJobManagement = () => {
   // Handle consecutive errors
   useEffect(() => {
     if (consecutiveErrors >= PROCESSING_CONFIG.MAX_CONSECUTIVE_ERRORS) {
-      showErrorToast("Error", ERROR_MESSAGES.MULTIPLE_STATUS_CHECK_ERRORS);
+      toast({
+        title: "Error",
+        description: ERROR_MESSAGES.MULTIPLE_STATUS_CHECK_ERRORS,
+        variant: "destructive"
+      });
       
       setCurrentJob(prev => {
         if (!prev) return null;
@@ -43,7 +48,7 @@ export const useJobManagement = () => {
         };
       });
     }
-  }, [consecutiveErrors]);
+  }, [consecutiveErrors, toast]);
 
   // Failsafe timeout for stuck jobs
   useEffect(() => {
@@ -60,13 +65,17 @@ export const useJobManagement = () => {
             };
           });
           
-          showErrorToast("Error de procesamiento", ERROR_MESSAGES.PROCESSING_TIMEOUT);
+          toast({
+            title: "Error de procesamiento",
+            description: ERROR_MESSAGES.PROCESSING_TIMEOUT,
+            variant: "destructive"
+          });
         }
       }, PROCESSING_CONFIG.FAILSAFE_TIMEOUT_MS);
       
       return () => clearTimeout(failsafeTimeout);
     }
-  }, [currentJob?.id, currentJob?.status]);
+  }, [currentJob?.id, currentJob?.status, toast]);
 
   const cancelCurrentJob = useCallback(() => {
     if (!currentJob) return;

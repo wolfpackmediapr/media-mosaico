@@ -2,7 +2,6 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ProcessingJob, JobStatusResponse } from "./types";
 import { ERROR_MESSAGES } from "./constants";
-import { showErrorToast } from "./errors";
 
 export const useJobStatusCheck = () => {
   const [isChecking, setIsChecking] = useState(false);
