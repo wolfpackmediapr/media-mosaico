@@ -258,62 +258,44 @@ async function processImageWithGeminiVision(
       const prompt = `
 INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con estructura JSON exacta.
 
-Eres un experto analista de prensa escrita de Puerto Rico y el Caribe especializado en OCR y extracción de contenido.
+Eres un experto analista de prensa escrita de Puerto Rico y el Caribe.
 
-IMPORTANTE: Este es un documento PDF que puede contener MÚLTIPLES PÁGINAS.
-Tu tarea es analizar TODAS LAS PÁGINAS del documento y extraer TODOS los recortes de prensa (artículos completos) que encuentres.
+IMPORTANTE: SOLO extrae artículos/anuncios que sean DIRECTAMENTE RELEVANTES para nuestros clientes.
 
-FILTRADO CRÍTICO: Solo extrae recortes que sean relevantes para nuestros clientes monitoreados.
-- Analiza si el contenido menciona o está relacionado con alguno de nuestros clientes
-- Si un recorte NO tiene relevancia para ningún cliente, NO lo incluyas en la respuesta
-- Prioriza calidad sobre cantidad: mejor tener 5 recortes muy relevantes que 50 irrelevantes
+FILTRADO ESTRICTO - Solo incluye un recorte si:
+1. Menciona explícitamente uno de nuestros clientes por nombre
+2. Está directamente relacionado con la industria/sector del cliente
+3. Contiene keywords específicos del cliente
 
-Instrucciones detalladas:
-1. Analiza TODAS las páginas del documento, no solo la primera
-2. Usa OCR para extraer TODO el texto visible, incluso si está en columnas múltiples o tiene diseño complejo
-3. Identifica los límites de cada artículo individual (título, cuerpo, conclusión)
-4. Si encuentras artículos parciales o cortados, extrae el contenido disponible
-5. Busca artículos en TODAS las áreas de la página: arriba, abajo, izquierda, derecha, esquinas
-6. No ignores artículos pequeños o recuadros de texto
-7. Si el texto está borroso o difícil de leer, haz tu mejor esfuerzo con OCR
+NO extraigas noticias genéricas. Prioriza precisión sobre cantidad.
 
-Categorías disponibles: ${publimediaCategories.join(', ')}
-
-Clientes que monitoreamos: ${Object.entries(publimediaClients)
+Clientes monitoreados: ${Object.entries(publimediaClients)
   .map(([cat, clients]) => `${cat}: ${(clients as string[]).join(', ')}`)
   .join('; ')}
 
-Para CADA recorte RELEVANTE que encuentres en CUALQUIER página:
-- Título del artículo (puede estar en negrita o tamaño mayor)
-- Contenido completo o resumen conciso (máximo 3 oraciones)
-- Categoría que mejor describa el tema
-- Quién: personas, organizaciones, instituciones mencionadas
-- Qué: evento, situación o hecho principal
-- Cuándo: fechas, horarios, períodos temporales
-- Dónde: lugares, ciudades, regiones
-- Por qué: causas, razones, motivaciones
-- Palabras clave relevantes (nombres propios, términos técnicos, etc.)
-- Clientes específicos que deberían recibir este recorte (basado en keywords y categorías)
+Categorías: ${publimediaCategories.join(', ')}
 
-RESPONDE CON ESTA ESTRUCTURA JSON EXACTA (NO agregues texto adicional):
+Para CADA recorte RELEVANTE encontrado:
+- Título del artículo
+- Resumen conciso (máximo 2-3 oraciones)
+- Categoría
+- Palabras clave relevantes
+- Clientes específicos que deben recibir este recorte
+
+RESPONDE SOLO CON JSON (no texto adicional):
 {
   "recortes": [
     {
       "titulo": "título del artículo",
-      "contenido": "resumen conciso del artículo en máximo 3 oraciones",
+      "contenido": "resumen en 2-3 oraciones máximo",
       "categoria": "categoría",
-      "quien": "personas/organizaciones mencionadas",
-      "que": "descripción del evento principal",
-      "cuando": "información temporal",
-      "donde": "ubicación geográfica",
-      "porque": "causas o razones",
-      "palabras_clave": ["palabra1", "palabra2", "palabra3"],
+      "palabras_clave": ["palabra1", "palabra2"],
       "relevancia_clientes": ["cliente1", "cliente2"]
     }
   ]
 }
 
-Si no encuentras ningún recorte RELEVANTE para nuestros clientes, responde: {"recortes": []}
+Si NO hay recortes relevantes para nuestros clientes: {"recortes": []}
 `;
 
       // Call Gemini Vision API
@@ -338,7 +320,7 @@ Si no encuentras ningún recorte RELEVANTE para nuestros clientes, responde: {"r
               temperature: 0.3,
               topK: 32,
               topP: 0.8,
-              maxOutputTokens: 8192,
+              maxOutputTokens: 6000,
               responseMimeType: "application/json"
             }
           })
@@ -453,11 +435,6 @@ Si no encuentras ningún recorte RELEVANTE para nuestros clientes, responde: {"r
         title: clip.titulo || "",
         content: clip.contenido || "",
         category: clip.categoria || "OTRAS",
-        summary_who: clip.quien || "",
-        summary_what: clip.que || "",
-        summary_when: clip.cuando || "",
-        summary_where: clip.donde || "",
-        summary_why: clip.porque || "",
         keywords: clip.palabras_clave || [],
         client_relevance: clip.relevancia_clientes || [],
         page_number: pageNumber
@@ -503,8 +480,8 @@ async function processLargePDFInChunks(
   const estimatedPages = Math.ceil(pdfBlob.size / (500 * 1024));
   console.log(`Estimated pages: ${estimatedPages}`);
   
-  // Define chunk size in pages (smaller chunks for reliability: 3-5 pages at a time)
-  const pagesPerChunk = Math.min(5, Math.max(3, Math.floor(estimatedPages / 8)));
+  // Define chunk size in pages (smaller chunks for reliability: 1-2 pages at a time)
+  const pagesPerChunk = Math.min(2, Math.max(1, Math.floor(estimatedPages / 12)));
   const totalChunks = Math.ceil(estimatedPages / pagesPerChunk);
   
   console.log(`Will process in ${totalChunks} chunks of ~${pagesPerChunk} pages each`);
@@ -979,6 +956,46 @@ serve(async (req) => {
       );
     }
     
+    // Generate document-level summary
+    console.log('Generating document summary...');
+    let documentSummary = '';
+    
+    if (allClippings.length > 0) {
+      try {
+        const allTitles = allClippings.map(c => c.title).join(', ');
+        const allCategories = [...new Set(allClippings.map(c => c.category))].join(', ');
+        
+        const summaryPrompt = `Resume este documento de prensa en 2-3 oraciones. 
+Artículos encontrados: ${allTitles}
+Categorías: ${allCategories}
+Proporciona un resumen ejecutivo general.`;
+
+        const summaryResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: summaryPrompt }] }],
+              generationConfig: {
+                temperature: 0.5,
+                maxOutputTokens: 500
+              }
+            })
+          }
+        );
+
+        if (summaryResponse.ok) {
+          const summaryData = await summaryResponse.json();
+          documentSummary = summaryData.candidates?.[0]?.content?.parts?.[0]?.text || 
+            `Documento de ${job.publication_name} con ${allClippings.length} artículos relevantes en categorías: ${allCategories}`;
+        }
+      } catch (error) {
+        console.error('Error generating summary:', error);
+        documentSummary = `Documento de ${job.publication_name} con ${allClippings.length} artículos relevantes`;
+      }
+    }
+    
     // Filter for client-relevant clippings only
     const preFilterCount = allClippings.length;
     allClippings = allClippings.filter(clipping => {
@@ -1022,11 +1039,6 @@ serve(async (req) => {
             title: clipping.title,
             content: clipping.content,
             category: clipping.category,
-            summary_who: clipping.summary_who,
-            summary_what: clipping.summary_what,
-            summary_when: clipping.summary_when,
-            summary_where: clipping.summary_where,
-            summary_why: clipping.summary_why,
             keywords: clipping.keywords,
             client_relevance: enhancedClientRelevance,
             page_number: clipping.page_number,
@@ -1048,10 +1060,11 @@ serve(async (req) => {
       }
     }
     
-    // Update job to completed
+    // Update job to completed with document summary
     await updateProcessingJob(supabase, jobId, {
       status: 'completed',
-      progress: 100
+      progress: 100,
+      document_summary: documentSummary
     });
     
     console.log(`Successfully processed ${processedClippings.length} clippings`);

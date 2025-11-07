@@ -13,6 +13,7 @@ interface PressTabsContainerProps {
   isUploading: boolean;
   uploadProgress: number;
   publicationName: string;
+  documentSummary?: string;
   onFileSelect: (file: File, publicationName: string) => void;
   onCancelProcessing?: () => void;
 }
@@ -24,6 +25,7 @@ const PressTabsContainer = ({
   isUploading,
   uploadProgress,
   publicationName,
+  documentSummary,
   onFileSelect,
   onCancelProcessing
 }: PressTabsContainerProps) => {
@@ -59,6 +61,7 @@ const PressTabsContainer = ({
           isUploading={isUploading}
           clippings={clippings}
           publicationName={publicationName}
+          documentSummary={documentSummary}
           setActiveTab={setActiveTab}
         />
       </TabsContent>

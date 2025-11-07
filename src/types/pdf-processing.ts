@@ -5,11 +5,6 @@ export interface PressClipping {
   content: string;
   category: string;
   page_number: number;
-  summary_who?: string;
-  summary_what?: string;
-  summary_when?: string;
-  summary_where?: string;
-  summary_why?: string;
   keywords?: string[];
   client_relevance?: string[];
 }
@@ -20,4 +15,5 @@ export interface ProcessingJob {
   progress: number;
   error?: string;
   publication_name: string;
+  document_summary?: string;
 }

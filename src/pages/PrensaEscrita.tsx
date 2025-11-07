@@ -16,7 +16,8 @@ export default function PrensaEscrita() {
     processingError,
     processFile,
     resetProcessing,
-    cancelProcessing
+    cancelProcessing,
+    currentJob
   } = usePdfProcessing();
   
   // Demo toast (keep as-is)
@@ -72,6 +73,7 @@ export default function PrensaEscrita() {
         isUploading={isUploading}
         uploadProgress={uploadProgress}
         publicationName={publicationName}
+        documentSummary={currentJob?.document_summary}
         onFileSelect={handleFileSelect}
         onCancelProcessing={handleCancelProcessing}
       />

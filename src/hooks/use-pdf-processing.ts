@@ -194,7 +194,8 @@ export const usePdfProcessing = () => {
     processFile,
     setClippings,
     resetProcessing,
-    cancelProcessing
+    cancelProcessing,
+    currentJob
   };
 };
 

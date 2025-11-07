@@ -11,13 +11,15 @@ interface ResultsContentTabProps {
   clippings: PressClipping[];
   publicationName: string;
   setActiveTab: (tab: string) => void;
+  documentSummary?: string;
 }
 
 const ResultsContentTab = ({
   isUploading,
   clippings,
   publicationName,
-  setActiveTab
+  setActiveTab,
+  documentSummary
 }: ResultsContentTabProps) => {
   if (isUploading) {
     return (
@@ -45,6 +47,16 @@ const ResultsContentTab = ({
 
   return (
     <>
+      {documentSummary && (
+        <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+          <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Resumen del Documento
+          </h3>
+          <p className="text-sm text-muted-foreground">{documentSummary}</p>
+        </div>
+      )}
+      
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h2 className="text-xl font-semibold">
           Recortes de prensa: {publicationName}
@@ -56,13 +68,6 @@ const ResultsContentTab = ({
             content: clip.content,
             category: clip.category,
             pageNumber: clip.page_number,
-            summary: {
-              who: clip.summary_who || '',
-              what: clip.summary_what || '',
-              when: clip.summary_when || '',
-              where: clip.summary_where || '',
-              why: clip.summary_why || ''
-            },
             keywords: clip.keywords,
             clientRelevance: clip.client_relevance,
             publicationName
@@ -80,13 +85,6 @@ const ResultsContentTab = ({
             content={clipping.content}
             category={clipping.category}
             pageNumber={clipping.page_number}
-            summary={clipping.summary_who ? {
-              who: clipping.summary_who,
-              what: clipping.summary_what || '',
-              when: clipping.summary_when || '',
-              where: clipping.summary_where || '',
-              why: clipping.summary_why || ''
-            } : undefined}
             keywords={clipping.keywords}
             clientRelevance={clipping.client_relevance}
             publicationName={publicationName}

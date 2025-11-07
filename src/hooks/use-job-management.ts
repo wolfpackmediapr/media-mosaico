@@ -122,7 +122,8 @@ export const useJobManagement = () => {
           status: jobData.status as "pending" | "processing" | "completed" | "error",
           progress: jobData.progress || 0,
           error: jobData.error,
-          publication_name: jobData.publication_name
+          publication_name: jobData.publication_name,
+          document_summary: jobData.document_summary
         };
         
         console.log("Updating job status to:", typedJob.status);
