@@ -102,7 +102,7 @@ ${pageText}
             temperature: 0.2,
             topK: 20,
             topP: 0.7,
-            maxOutputTokens: 3500,
+            maxOutputTokens: 1800,
             responseMimeType: "application/json"
           }
         })
@@ -235,37 +235,20 @@ async function processImageWithGeminiVision(
       const fileInfo = await uploadImageToGemini(imageBlob, fileName);
       console.log(`File uploaded successfully: ${fileInfo.uri}`);
       
-      // Highly optimized prompt - only extract client-relevant articles, minimal fields
+      // Ultra-strict prompt - limit to 3 clippings max per page
       const prompt = `
-INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con JSON válido.
+RESPONDE SOLO JSON. NO explicaciones.
 
-Eres un analista de prensa de Puerto Rico.
+Extrae ÚNICAMENTE artículos que:
+1. Mencionan EXACTAMENTE estos nombres: ${Object.values(publimediaClients).flat().join(', ')}
+2. O tratan sector específico: ${Object.keys(publimediaClients).join(', ')}
 
-FILTRO ESTRICTO: Solo incluye artículos/anuncios si:
-- Menciona uno de estos clientes por nombre, O
-- Trata del sector específico del cliente
+LÍMITE: Máximo 3 recortes por página.
 
-Clientes: ${Object.entries(publimediaClients)
-  .map(([cat, clients]) => `${cat}: ${(clients as string[]).join(', ')}`)
-  .join('; ')}
+JSON:
+{"recortes":[{"titulo":"...","categoria":"...","palabras_clave":["..."],"relevancia_clientes":["..."]}]}
 
-Categorías: ${publimediaCategories.join(', ')}
-
-Extrae SOLO: título, categoría, keywords (máx 5), clientes relevantes.
-
-RESPONDE JSON:
-{
-  "recortes": [
-    {
-      "titulo": "título completo",
-      "categoria": "categoría",
-      "palabras_clave": ["palabra1", "palabra2"],
-      "relevancia_clientes": ["cliente1"]
-    }
-  ]
-}
-
-Si NO hay recortes relevantes: {"recortes": []}
+Si NO aplica: {"recortes":[]}
 `;
 
       // Call Gemini Vision API
@@ -290,7 +273,7 @@ Si NO hay recortes relevantes: {"recortes": []}
               temperature: 0.2,
               topK: 20,
               topP: 0.7,
-              maxOutputTokens: 3500,
+              maxOutputTokens: 1800,
               responseMimeType: "application/json"
             }
           })
@@ -330,29 +313,28 @@ Si NO hay recortes relevantes: {"recortes": []}
       if (finishReason === 'MAX_TOKENS') {
         console.warn('Response truncated due to max tokens, attempting to parse partial results');
         
-        // Try to extract content even if truncated
-        const content = candidate?.content?.parts?.[0]?.text;
+        // Try ONCE to repair JSON, then skip this page instead of retrying
+        const textContent = candidate.content?.parts?.[0]?.text || '';
+        const repaired = attemptJSONRepair(textContent);
         
-        if (content && content.includes('"recortes"')) {
-          console.log('Attempting to repair truncated JSON...');
-          const repairedData = attemptJSONRepair(content);
-          if (repairedData && repairedData.recortes && repairedData.recortes.length > 0) {
-            console.log(`Successfully extracted ${repairedData.recortes.length} clippings from truncated response`);
-            await cleanupGeminiFile(fileInfo.name);
-            
-            return repairedData.recortes.map((clip: any) => ({
-              title: clip.titulo || "",
-              content: "",
-              category: clip.categoria || "OTRAS",
-              keywords: Array.isArray(clip.palabras_clave) ? clip.palabras_clave : [],
-              relevant_clients: Array.isArray(clip.relevancia_clientes) ? clip.relevancia_clientes : [],
-              page_number: pageNumber
-            }));
-          }
+        if (repaired && repaired.recortes && repaired.recortes.length > 0) {
+          console.log(`Successfully extracted ${repaired.recortes.length} clippings from truncated response`);
+          await cleanupGeminiFile(fileInfo.name);
+          
+          return repaired.recortes.map((clip: any) => ({
+            title: clip.titulo || "",
+            content: "",
+            category: clip.categoria || "OTRAS",
+            keywords: clip.palabras_clave || [],
+            client_relevance: clip.relevancia_clientes || [],
+            page_number: pageNumber
+          }));
         }
         
-        console.error('Could not repair truncated JSON, retrying with smaller chunk...');
-        throw new Error('MAX_TOKENS_RETRY');
+        // Don't retry - just skip this page and continue
+        console.error('Could not repair truncated JSON, skipping page');
+        await cleanupGeminiFile(fileInfo.name);
+        return []; // Return empty array instead of throwing error
       }
       
       // Try to extract content
@@ -446,15 +428,31 @@ async function processLargePDFInChunks(
   const estimatedPages = Math.ceil(pdfBlob.size / (500 * 1024));
   console.log(`Estimated pages: ${estimatedPages}`);
   
-  // Define chunk size in pages (smaller chunks for reliability: 1-2 pages at a time)
-  const pagesPerChunk = Math.min(2, Math.max(1, Math.floor(estimatedPages / 12)));
-  const totalChunks = Math.ceil(estimatedPages / pagesPerChunk);
+  // Process ONE page at a time for maximum reliability
+  const pagesPerChunk = 1;
+  const totalChunks = estimatedPages;
   
-  console.log(`Will process in ${totalChunks} chunks of ~${pagesPerChunk} pages each`);
+  console.log(`Will process in ${totalChunks} chunks of 1 page each`);
   
   let allClippings: any[] = [];
+  const PROCESSING_TIMEOUT_MS = 240000; // 4 minutes max
+  const processingStartTime = Date.now();
   
   for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    // Check timeout
+    if (Date.now() - processingStartTime > PROCESSING_TIMEOUT_MS) {
+      console.error(`Processing timeout exceeded after ${chunkIndex} pages`);
+      
+      // Save what we have so far
+      await updateProcessingJob(supabase, jobId, {
+        status: 'completed',
+        progress: 100,
+        error: `Procesamiento parcial: ${allClippings.length} recortes extraídos de ${chunkIndex} de ${totalChunks} páginas antes del límite de tiempo`,
+        document_summary: `Documento procesado parcialmente. Se analizaron ${chunkIndex} de ${totalChunks} páginas.`
+      });
+      
+      break; // Exit loop gracefully
+    }
     const startPage = chunkIndex * pagesPerChunk + 1;
     const endPage = Math.min((chunkIndex + 1) * pagesPerChunk, estimatedPages);
     
@@ -475,8 +473,19 @@ async function processLargePDFInChunks(
         startPage
       );
       
-      console.log(`Chunk ${chunkIndex + 1} returned ${chunkClippings.length} clippings`);
+      console.log(`Page ${chunkIndex + 1} returned ${chunkClippings.length} clippings`);
       allClippings.push(...chunkClippings);
+      
+      // Log progress
+      const elapsedSeconds = Math.round((Date.now() - processingStartTime) / 1000);
+      console.log(`Progress: ${chunkIndex + 1}/${totalChunks} pages, ${allClippings.length} clippings found, ${elapsedSeconds}s elapsed`);
+      
+      // Update job progress (10% to 80% range)
+      const progress = 10 + Math.floor(((chunkIndex + 1) / totalChunks) * 70);
+      await updateProcessingJob(supabase, jobId, { 
+        progress,
+        error: null
+      });
       
       // Longer delay between chunks to avoid rate limits
       if (chunkIndex < totalChunks - 1) {
