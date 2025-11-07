@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "@/services/toastService";
 import PressTabsContainer from "@/components/prensa-escrita/PressTabsContainer";
-import { usePdfProcessing } from "@/hooks/use-pdf-processing";
+import { usePdfProcessing } from "@/hooks/prensa/usePdfProcessing";
 
 export default function PrensaEscrita() {
   const [activeTab, setActiveTab] = useState("upload");

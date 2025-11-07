@@ -4,21 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Tag, Users } from "lucide-react";
 
-interface PressClippingSummary {
-  who: string;
-  what: string;
-  when: string;
-  where: string;
-  why: string;
-}
-
 interface PressClippingCardProps {
   id: string;
   title: string;
   content: string;
   category: string;
   pageNumber: number;
-  summary?: PressClippingSummary;
   keywords?: string[];
   clientRelevance?: string[];
   publicationName?: string;
@@ -30,17 +21,30 @@ const PressClippingCard = ({
   content,
   category,
   pageNumber,
-  summary,
   keywords,
   clientRelevance,
   publicationName,
   similarity
 }: PressClippingCardProps) => {
+  const getCategoryColor = () => {
+    switch (category.toLowerCase()) {
+      case 'política':
+        return 'bg-blue-500 text-white';
+      case 'economía':
+        return 'bg-green-500 text-white';
+      case 'deportes':
+        return 'bg-orange-500 text-white';
+      case 'cultura':
+        return 'bg-purple-500 text-white';
+      default:
+        return 'bg-primary text-primary-foreground';
+    }
+  };
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="bg-gradient-to-r from-primary-50 to-transparent pb-3">
+      <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent pb-3">
         <div className="flex items-center justify-between gap-2">
-          <Badge variant="outline" className="bg-primary text-primary-foreground">
+          <Badge variant="outline" className={getCategoryColor()}>
             {category}
           </Badge>
           <Badge variant="outline">
@@ -61,30 +65,7 @@ const PressClippingCard = ({
         )}
       </CardHeader>
       <CardContent className="p-4 pt-2 space-y-3">
-        <p className="text-sm text-gray-600 line-clamp-3">{content}</p>
-        
-        {summary && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-semibold">Análisis 5W:</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-              <div className="bg-muted rounded p-2">
-                <span className="font-semibold">¿Quién?:</span> {summary.who}
-              </div>
-              <div className="bg-muted rounded p-2">
-                <span className="font-semibold">¿Qué?:</span> {summary.what}
-              </div>
-              <div className="bg-muted rounded p-2">
-                <span className="font-semibold">¿Cuándo?:</span> {summary.when}
-              </div>
-              <div className="bg-muted rounded p-2">
-                <span className="font-semibold">¿Dónde?:</span> {summary.where}
-              </div>
-              <div className="bg-muted rounded p-2 md:col-span-2">
-                <span className="font-semibold">¿Por qué?:</span> {summary.why}
-              </div>
-            </div>
-          </div>
-        )}
+        <p className="text-sm text-muted-foreground line-clamp-3">{content}</p>
         
         {clientRelevance && clientRelevance.length > 0 && (
           <div className="flex flex-wrap gap-1 items-center">

@@ -1,7 +1,7 @@
 
 import React from "react";
-import PDFUploadZone from "@/components/prensa-escrita/PDFUploadZone";
-import SearchClippingsSection from "@/components/prensa-escrita/SearchClippingsSection";
+import PDFUploadContainer from "@/components/prensa-escrita/upload/PDFUploadContainer";
+import SearchClippingsContainer from "@/components/prensa-escrita/search/SearchClippingsContainer";
 
 interface UploadContentTabProps {
   onFileSelect: (file: File, publicationName: string) => void;
@@ -18,14 +18,14 @@ const UploadContentTab = ({
 }: UploadContentTabProps) => {
   return (
     <div className="space-y-6">
-      <PDFUploadZone 
+      <PDFUploadContainer 
         onFileSelect={onFileSelect}
         onCancelProcessing={onCancelProcessing}
         isUploading={isUploading}
         uploadProgress={uploadProgress}
       />
       
-      <SearchClippingsSection />
+      <SearchClippingsContainer />
     </div>
   );
 };
