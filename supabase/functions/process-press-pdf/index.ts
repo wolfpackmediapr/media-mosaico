@@ -70,13 +70,19 @@ Clientes: ${Object.entries(publimediaClients)
 
 Categorías: ${publimediaCategories.join(', ')}
 
-Extrae SOLO: título, categoría, keywords (máx 5), clientes relevantes.
+Para cada artículo relevante, extrae:
+- Título completo
+- Contenido: 2-3 oraciones resumiendo el artículo y su relevancia para el cliente
+- Categoría
+- Keywords (máx 5)
+- Clientes relevantes
 
 RESPONDE JSON:
 {
   "recortes": [
     {
       "titulo": "título completo",
+      "contenido": "Breve análisis de 2-3 oraciones sobre el artículo y su relevancia",
       "categoria": "categoría",
       "palabras_clave": ["palabra1", "palabra2"],
       "relevancia_clientes": ["cliente1"]
@@ -129,7 +135,7 @@ ${pageText}
     // Map Spanish fields to database schema
     return clippings.map((clip: any) => ({
       title: clip.titulo || "",
-      content: "",
+      content: clip.contenido || clip.content || "",
       category: clip.categoria || "OTRAS",
       keywords: clip.palabras_clave || [],
       client_relevance: clip.relevancia_clientes || [],
@@ -243,10 +249,17 @@ Extrae ÚNICAMENTE artículos que:
 1. Mencionan EXACTAMENTE estos nombres: ${Object.values(publimediaClients).flat().join(', ')}
 2. O tratan sector específico: ${Object.keys(publimediaClients).join(', ')}
 
+Para cada artículo relevante proporciona:
+- Título
+- Contenido: 2-3 oraciones analizando el artículo y su relevancia
+- Categoría
+- Keywords
+- Clientes relevantes
+
 LÍMITE: Máximo 3 recortes por página.
 
 JSON:
-{"recortes":[{"titulo":"...","categoria":"...","palabras_clave":["..."],"relevancia_clientes":["..."]}]}
+{"recortes":[{"titulo":"...","contenido":"Análisis breve...","categoria":"...","palabras_clave":["..."],"relevancia_clientes":["..."]}]}
 
 Si NO aplica: {"recortes":[]}
 `;
@@ -323,7 +336,7 @@ Si NO aplica: {"recortes":[]}
           
           return repaired.recortes.map((clip: any) => ({
             title: clip.titulo || "",
-            content: "",
+            content: clip.contenido || clip.content || "",
             category: clip.categoria || "OTRAS",
             keywords: clip.palabras_clave || [],
             client_relevance: clip.relevancia_clientes || [],
@@ -381,7 +394,7 @@ Si NO aplica: {"recortes":[]}
       
       const mappedClippings = clippings.map((clip: any) => ({
         title: clip.titulo || "",
-        content: "",
+        content: clip.contenido || clip.content || "",
         category: clip.categoria || "OTRAS",
         keywords: clip.palabras_clave || [],
         client_relevance: clip.relevancia_clientes || [],
