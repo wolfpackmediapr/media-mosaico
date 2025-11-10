@@ -54,15 +54,13 @@ export const useFileProcessing = ({
         console.log(`⚠ Using original file: ${filePath}`);
       }
       
-      // Trigger processing
+      // Trigger processing (fire-and-forget pattern)
       console.log("Triggering processing for job:", jobData.id);
-      const processingResult = await triggerJobProcessing(jobData.id);
-      
-      if (processingResult?.clippings?.length > 0) {
-        console.log(`Processing returned ${processingResult.clippings.length} clippings immediately`);
-        onProcessingComplete(processingResult.clippings, publicationName);
-      }
-      
+      await triggerJobProcessing(jobData.id);
+
+      // Processing continues in background - polling will detect completion
+      console.log("✓ Processing started successfully, polling will track progress");
+
       // Note: We don't set isUploading to false here - it will be managed by the parent hook
     } catch (error) {
       console.error("Error in processFile:", error);

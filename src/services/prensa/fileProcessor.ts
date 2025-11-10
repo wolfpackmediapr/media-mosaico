@@ -97,8 +97,12 @@ export const triggerJobProcessing = async (jobId: string) => {
     throw new Error(`Error al iniciar el procesamiento: ${error.message}`);
   }
   
-  console.log("Processing triggered successfully:", data);
-  return data;
+  // Function now returns immediately (202 Accepted)
+  // Processing continues in background, polling will track progress
+  console.log("✓ Processing started successfully (background mode):", data);
+  
+  // Return simplified response - no clippings yet (polling will handle that)
+  return { success: true, jobId, status: 'processing' };
 };
 
 export const getFilePathFromJob = (fileName: string): string => {

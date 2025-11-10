@@ -793,281 +793,274 @@ serve(async (req) => {
       error: null
     });
     
-    // Download the file from storage (use compressed if available)
-    let fileData;
-    try {
-      const filePathToDownload = job.compressed_file_path || job.file_path;
-      console.log(`Downloading PDF: ${filePathToDownload}${job.compressed_file_path ? ' (compressed)' : ' (original)'}`);
-      
-      fileData = await downloadFileFromStorage(supabase, filePathToDownload);
-      console.log(`Successfully downloaded file with size: ${fileData.byteLength} bytes`);
-    } catch (error) {
-      console.error("Error downloading file:", error);
-      await updateProcessingJob(supabase, jobId, { 
-        status: 'error',
-        error: 'Failed to download file'
-      });
-      
-      return new Response(JSON.stringify({ error: 'Failed to download file' }), { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
+    console.log(`✓ Job ${jobId} started, returning to client while processing continues in background...`);
     
-    // Detect file type (use original file_path for extension detection)
-    const fileExtension = job.file_path.split('.').pop()?.toLowerCase();
-    const isImageFile = ['jpg', 'jpeg', 'png', 'webp'].includes(fileExtension || '');
-
-    let allClippings = [];
-    
-    // Wrap processing in comprehensive try-catch
-    try {
-      if (isImageFile) {
-      console.log('Processing image file directly with Gemini Vision');
-      
-      // Convert ArrayBuffer to Blob
-      const mimeType = fileExtension === 'png' ? 'image/png' : 
-                       fileExtension === 'webp' ? 'image/webp' : 'image/jpeg';
-      const imageBlob = new Blob([fileData], { type: mimeType });
-      
-      // Process with Gemini Vision
-      allClippings = await processImageWithGeminiVision(
-        imageBlob,
-        job.file_path,
-        1
-      );
-      
-      if (allClippings.length === 0) {
-        await updateProcessingJob(supabase, jobId, {
-          status: 'completed',
-          progress: 100,
-          error: 'No se encontraron recortes en la imagen'
-        });
-        
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'No clippings found in image',
-            clippings: [],
-            jobId
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    } else {
-      // PDF processing with smart chunking for large files
-      const fileSizeMB = fileData.byteLength / 1024 / 1024;
-      console.log(`Processing PDF (${fileSizeMB.toFixed(2)} MB)`);
-      
-      // Estimate page count (more realistic estimate: 500KB per page)
-      const estimatedPages = Math.ceil(fileData.byteLength / (500 * 1024));
-      console.log(`Estimated pages: ${estimatedPages}`);
-      
-      // Update progress
-      await updateProcessingJob(supabase, jobId, { 
-        progress: 10,
-        error: null
-      });
-      
-      const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
-      
-      // Use batch processing for larger multi-page PDFs (>10MB or >10 pages)
-      // This ensures ALL pages are analyzed, not just the first page
-      const shouldUseBatchProcessing = fileSizeMB > 10 || estimatedPages > 10;
-      
-      if (shouldUseBatchProcessing) {
-        console.log(`Multi-page PDF detected (est. ${estimatedPages} pages), using batch processing to analyze ALL pages...`);
-        allClippings = await processLargePDFInChunks(
-          pdfBlob,
-          job.file_path,
-          supabase,
-          jobId
-        );
-      } else {
-        // Only for very small single-page PDFs (< 5MB and < 3 pages)
-        console.log('Processing small single-page PDF directly...');
-        allClippings = await processImageWithGeminiVision(
-          pdfBlob,
-          job.file_path,
-          1
-        );
-      }
-      
-      console.log(`PDF processing returned ${allClippings.length} total clippings`);
-      
-      // Update progress after processing
-      await updateProcessingJob(supabase, jobId, { 
-        progress: 80,
-        error: null
-      });
-      }
-      
-    } catch (processingError) {
-      const errorMsg = processingError instanceof Error ? processingError.message : String(processingError);
-      console.error("CRITICAL: PDF/Image processing failed:", errorMsg);
-      console.error("Full error details:", processingError);
-      
-      // Update database with detailed error
-      await updateProcessingJob(supabase, jobId, {
-        status: 'error',
-        error: `Error procesando archivo: ${errorMsg}`,
-        progress: 60
-      });
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'Processing failed',
-          details: errorMsg,
-          jobId
-        }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-    
-    // Handle case where no clippings were found
-    if (allClippings.length === 0) {
-      console.warn("No clippings found");
-      await updateProcessingJob(supabase, jobId, {
-        status: 'completed',
-        progress: 100,
-        error: 'No se encontraron recortes'
-      });
-      
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'No clippings found',
-          clippings: [],
-          jobId
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    // Generate document-level summary
-    console.log('Generating document summary...');
-    let documentSummary = '';
-    
-    if (allClippings.length > 0) {
+    // Start background processing (fire-and-forget pattern)
+    const processingPromise = (async () => {
       try {
-        const allTitles = allClippings.map(c => c.title).join(', ');
-        const allCategories = [...new Set(allClippings.map(c => c.category))].join(', ');
+        // Download the file from storage (use compressed if available)
+        let fileData;
+        try {
+          const filePathToDownload = job.compressed_file_path || job.file_path;
+          console.log(`Downloading PDF: ${filePathToDownload}${job.compressed_file_path ? ' (compressed)' : ' (original)'}`);
+          
+          fileData = await downloadFileFromStorage(supabase, filePathToDownload);
+          console.log(`Successfully downloaded file with size: ${fileData.byteLength} bytes`);
+        } catch (error) {
+          console.error("Error downloading file:", error);
+          await updateProcessingJob(supabase, jobId, { 
+            status: 'error',
+            error: 'Failed to download file'
+          });
+          return;
+        }
         
-        const summaryPrompt = `Resume este documento de prensa en 2-3 oraciones. 
+        // Detect file type (use original file_path for extension detection)
+        const fileExtension = job.file_path.split('.').pop()?.toLowerCase();
+        const isImageFile = ['jpg', 'jpeg', 'png', 'webp'].includes(fileExtension || '');
+
+        let allClippings = [];
+        
+        // Wrap processing in comprehensive try-catch
+        try {
+          if (isImageFile) {
+            console.log('Processing image file directly with Gemini Vision');
+            
+            // Convert ArrayBuffer to Blob
+            const mimeType = fileExtension === 'png' ? 'image/png' : 
+                             fileExtension === 'webp' ? 'image/webp' : 'image/jpeg';
+            const imageBlob = new Blob([fileData], { type: mimeType });
+            
+            // Process with Gemini Vision
+            allClippings = await processImageWithGeminiVision(
+              imageBlob,
+              job.file_path,
+              1
+            );
+            
+            if (allClippings.length === 0) {
+              await updateProcessingJob(supabase, jobId, {
+                status: 'completed',
+                progress: 100,
+                error: 'No se encontraron recortes en la imagen'
+              });
+              return;
+            }
+          } else {
+            // PDF processing with smart chunking for large files
+            const fileSizeMB = fileData.byteLength / 1024 / 1024;
+            console.log(`Processing PDF (${fileSizeMB.toFixed(2)} MB)`);
+            
+            // Estimate page count (more realistic estimate: 500KB per page)
+            const estimatedPages = Math.ceil(fileData.byteLength / (500 * 1024));
+            console.log(`Estimated pages: ${estimatedPages}`);
+            
+            // Update progress
+            await updateProcessingJob(supabase, jobId, { 
+              progress: 10,
+              error: null
+            });
+            
+            const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
+            
+            // Use batch processing for larger multi-page PDFs (>10MB or >10 pages)
+            const shouldUseBatchProcessing = fileSizeMB > 10 || estimatedPages > 10;
+            
+            if (shouldUseBatchProcessing) {
+              console.log(`Multi-page PDF detected (est. ${estimatedPages} pages), using batch processing to analyze ALL pages...`);
+              allClippings = await processLargePDFInChunks(
+                pdfBlob,
+                job.file_path,
+                supabase,
+                jobId
+              );
+            } else {
+              console.log('Processing small single-page PDF directly...');
+              allClippings = await processImageWithGeminiVision(
+                pdfBlob,
+                job.file_path,
+                1
+              );
+            }
+            
+            console.log(`PDF processing returned ${allClippings.length} total clippings`);
+            
+            // Update progress after processing
+            await updateProcessingJob(supabase, jobId, { 
+              progress: 80,
+              error: null
+            });
+          }
+          
+        } catch (processingError) {
+          const errorMsg = processingError instanceof Error ? processingError.message : String(processingError);
+          console.error("CRITICAL: PDF/Image processing failed:", errorMsg);
+          console.error("Full error details:", processingError);
+          
+          await updateProcessingJob(supabase, jobId, {
+            status: 'error',
+            error: `Error procesando archivo: ${errorMsg}`,
+            progress: 60
+          });
+          return;
+        }
+        
+        // Handle case where no clippings were found
+        if (allClippings.length === 0) {
+          console.warn("No clippings found");
+          await updateProcessingJob(supabase, jobId, {
+            status: 'completed',
+            progress: 100,
+            error: 'No se encontraron recortes'
+          });
+          return;
+        }
+        
+        // Generate document-level summary
+        console.log('Generating document summary...');
+        let documentSummary = '';
+        
+        if (allClippings.length > 0) {
+          try {
+            const allTitles = allClippings.map(c => c.title).join(', ');
+            const allCategories = [...new Set(allClippings.map(c => c.category))].join(', ');
+            
+            const summaryPrompt = `Resume este documento de prensa en 2-3 oraciones. 
 Artículos encontrados: ${allTitles}
 Categorías: ${allCategories}
 Proporciona un resumen ejecutivo general.`;
 
-        const summaryResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: summaryPrompt }] }],
-              generationConfig: {
-                temperature: 0.5,
-                maxOutputTokens: 500
+            const summaryResponse = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: summaryPrompt }] }],
+                  generationConfig: {
+                    temperature: 0.5,
+                    maxOutputTokens: 500
+                  }
+                })
               }
-            })
-          }
-        );
+            );
 
-        if (summaryResponse.ok) {
-          const summaryData = await summaryResponse.json();
-          documentSummary = summaryData.candidates?.[0]?.content?.parts?.[0]?.text || 
-            `Documento de ${job.publication_name} con ${allClippings.length} artículos relevantes en categorías: ${allCategories}`;
+            if (summaryResponse.ok) {
+              const summaryData = await summaryResponse.json();
+              documentSummary = summaryData.candidates?.[0]?.content?.parts?.[0]?.text || 
+                `Documento de ${job.publication_name} con ${allClippings.length} artículos relevantes en categorías: ${allCategories}`;
+            }
+          } catch (error) {
+            console.error('Error generating summary:', error);
+            documentSummary = `Documento de ${job.publication_name} con ${allClippings.length} artículos relevantes`;
+          }
         }
-      } catch (error) {
-        console.error('Error generating summary:', error);
-        documentSummary = `Documento de ${job.publication_name} con ${allClippings.length} artículos relevantes`;
+        
+        // Filter for client-relevant clippings only
+        const preFilterCount = allClippings.length;
+        allClippings = allClippings.filter(clipping => {
+          const clientRelevance = [
+            ...new Set([
+              ...(clipping.client_relevance || []),
+              ...identifyClientRelevance(clipping)
+            ])
+          ];
+          return clientRelevance.length > 0;
+        });
+        
+        console.log(`Filtered to ${allClippings.length} client-relevant clippings (from ${preFilterCount} total)`);
+        console.log(`Processing ${allClippings.length} client-relevant clippings...`);
+        await updateProcessingJob(supabase, jobId, { progress: 95 });
+        
+        // Get authenticated user ID
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id || job.user_id;
+        
+        // Process and store clippings
+        const processedClippings = [];
+        for (const clipping of allClippings) {
+          try {
+            // Enhance client relevance with additional matching
+            const enhancedClientRelevance = [
+              ...new Set([
+                ...(clipping.client_relevance || []),
+                ...identifyClientRelevance(clipping)
+              ])
+            ];
+            
+            // Generate embedding for semantic search
+            const embeddingText = `${clipping.title} ${clipping.content}`.substring(0, 8000);
+            const embedding = await generateEmbedding(embeddingText);
+            
+            // Store in database
+            const { data: savedClipping, error: insertError } = await supabase
+              .from('press_clippings')
+              .insert({
+                title: clipping.title,
+                content: clipping.content,
+                category: clipping.category,
+                keywords: clipping.keywords,
+                client_relevance: enhancedClientRelevance,
+                page_number: clipping.page_number,
+                publication_name: job.publication_name,
+                publication_date: new Date().toISOString(),
+                user_id: userId,
+                embedding: `[${embedding.join(',')}]`
+              })
+              .select()
+              .single();
+            
+            if (insertError) {
+              console.error("Error inserting clipping:", insertError);
+            } else {
+              processedClippings.push(savedClipping);
+            }
+          } catch (error) {
+            console.error("Error processing clipping:", error);
+          }
+        }
+        
+        // Update job to completed with document summary
+        await updateProcessingJob(supabase, jobId, {
+          status: 'completed',
+          progress: 100,
+          document_summary: documentSummary
+        });
+        
+        console.log(`✓ Background processing complete: ${processedClippings.length} clippings saved`);
+        
+      } catch (backgroundError) {
+        console.error("Background processing error:", backgroundError);
+        await updateProcessingJob(supabase, jobId, {
+          status: 'error',
+          error: backgroundError instanceof Error ? backgroundError.message : String(backgroundError),
+          progress: 0
+        });
       }
+    })();
+    
+    // Use EdgeRuntime.waitUntil to keep processing alive after returning response
+    // @ts-ignore - EdgeRuntime is available in Deno Deploy
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(processingPromise);
+    } else {
+      // Fallback for local testing - don't await
+      processingPromise.catch(err => console.error("Processing promise error:", err));
     }
     
-    // Filter for client-relevant clippings only
-    const preFilterCount = allClippings.length;
-    allClippings = allClippings.filter(clipping => {
-      const clientRelevance = [
-        ...new Set([
-          ...(clipping.client_relevance || []),
-          ...identifyClientRelevance(clipping)
-        ])
-      ];
-      return clientRelevance.length > 0;
-    });
-    
-    console.log(`Filtered to ${allClippings.length} client-relevant clippings (from ${preFilterCount} total)`);
-    console.log(`Processing ${allClippings.length} client-relevant clippings...`);
-    await updateProcessingJob(supabase, jobId, { progress: 95 });
-    
-    // Get authenticated user ID
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || job.user_id;
-    
-    // Process and store clippings
-    const processedClippings = [];
-    for (const clipping of allClippings) {
-      try {
-        // Enhance client relevance with additional matching
-        const enhancedClientRelevance = [
-          ...new Set([
-            ...(clipping.client_relevance || []),
-            ...identifyClientRelevance(clipping)
-          ])
-        ];
-        
-        // Generate embedding for semantic search
-        const embeddingText = `${clipping.title} ${clipping.content}`.substring(0, 8000);
-        const embedding = await generateEmbedding(embeddingText);
-        
-        // Store in database
-        const { data: savedClipping, error: insertError } = await supabase
-          .from('press_clippings')
-          .insert({
-            title: clipping.title,
-            content: clipping.content,
-            category: clipping.category,
-            keywords: clipping.keywords,
-            client_relevance: enhancedClientRelevance,
-            page_number: clipping.page_number,
-            publication_name: job.publication_name,
-            publication_date: new Date().toISOString(),
-            user_id: userId,
-            embedding: `[${embedding.join(',')}]`
-          })
-          .select()
-          .single();
-        
-        if (insertError) {
-          console.error("Error inserting clipping:", insertError);
-        } else {
-          processedClippings.push(savedClipping);
-        }
-      } catch (error) {
-        console.error("Error processing clipping:", error);
-      }
-    }
-    
-    // Update job to completed with document summary
-    await updateProcessingJob(supabase, jobId, {
-      status: 'completed',
-      progress: 100,
-      document_summary: documentSummary
-    });
-    
-    console.log(`Successfully processed ${processedClippings.length} clippings`);
-    
+    // Return immediately to client (202 Accepted - processing continues in background)
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Processed ${processedClippings.length} clippings`,
-        clippings: processedClippings,
-        jobId
+        message: 'Processing started',
+        jobId,
+        status: 'processing'
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 202,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
     
   } catch (error) {
