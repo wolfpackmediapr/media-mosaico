@@ -36,9 +36,16 @@ serve(async (req) => {
 
     // Download original PDF from storage
     console.log('[compress-press-pdf] Downloading original PDF...');
+    
+    // Split bucket and path (filePath format: "bucket_name/path/to/file.pdf")
+    const [bucketId, ...pathParts] = filePath.split('/');
+    const path = pathParts.join('/');
+    
+    console.log(`[compress-press-pdf] Bucket: ${bucketId}, Path: ${path}`);
+    
     const { data: fileData, error: downloadError } = await supabase.storage
-      .from('pdf_uploads')
-      .download(filePath);
+      .from(bucketId)
+      .download(path);
 
     if (!fileData || downloadError) {
       throw new Error('Error downloading PDF: ' + downloadError?.message);
@@ -157,16 +164,15 @@ serve(async (req) => {
     console.log(`[compress-press-pdf] Compressed size: ${(compressedSize / 1024 / 1024).toFixed(2)} MB`);
     console.log(`[compress-press-pdf] Compression ratio: ${compressionRatio}%`);
     
-    // Generate compressed file path
-    const pathWithoutBucket = filePath.replace('pdf_uploads/', '');
-    const pathWithoutExtension = pathWithoutBucket.replace(/\.[^/.]+$/, '');
+    // Generate compressed file path (use the same bucket as source)
+    const pathWithoutExtension = path.replace(/\.[^/.]+$/, '');
     const compressedPath = `${pathWithoutExtension}_compressed.pdf`;
     
-    // Upload compressed PDF to Supabase storage
-    console.log('[compress-press-pdf] Uploading compressed PDF:', compressedPath);
+    // Upload compressed PDF to Supabase storage (use same bucket)
+    console.log(`[compress-press-pdf] Uploading compressed PDF to ${bucketId}:`, compressedPath);
     const { error: uploadError } = await supabase
       .storage
-      .from('pdf_uploads')
+      .from(bucketId)
       .upload(compressedPath, compressedPdfBlob, {
         cacheControl: '3600',
         upsert: true,
@@ -177,13 +183,13 @@ serve(async (req) => {
       throw new Error('Error uploading compressed PDF: ' + uploadError.message);
     }
 
-    // Update job with compressed file path
+    // Update job with compressed file path (include bucket prefix)
     await supabase
       .from('pdf_processing_jobs')
       .update({ 
         status: 'pending',
         progress: 20,
-        compressed_file_path: `pdf_uploads/${compressedPath}`,
+        compressed_file_path: `${bucketId}/${compressedPath}`,
         original_size_bytes: originalSize,
         compressed_size_bytes: compressedSize,
         compression_ratio: parseFloat(compressionRatio)
@@ -195,7 +201,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        compressedPath: `pdf_uploads/${compressedPath}`,
+        compressedPath: `${bucketId}/${compressedPath}`,
         originalPath: filePath,
         originalSize,
         compressedSize,
