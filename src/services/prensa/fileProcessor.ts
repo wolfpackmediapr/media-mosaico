@@ -119,14 +119,20 @@ export const compressPdfFile = async (
     });
 
     if (error) {
-      console.warn("Compression failed, will use original:", error);
+      console.warn("Compression failed (edge function error), will use original file:", error);
+      return { compressedPath: `pdf_uploads/${filePath}`, success: false };
+    }
+    
+    // Check if compression succeeded
+    if (!data.success) {
+      console.warn("Compression failed gracefully, will use original file:", data.error || "Unknown reason");
       return { compressedPath: `pdf_uploads/${filePath}`, success: false };
     }
     
     console.log("Compression successful:", data);
     return { 
       compressedPath: data.compressedPath || `pdf_uploads/${filePath}`, 
-      success: data.success 
+      success: true
     };
   } catch (error) {
     console.warn("Compression error, using original:", error);

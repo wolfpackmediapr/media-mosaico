@@ -141,7 +141,30 @@ serve(async (req) => {
     } while (jobStatus.data?.status === 'waiting' || jobStatus.data?.status === 'processing');
 
     if (jobStatus.data?.status !== 'finished') {
-      throw new Error(`Compression job failed: ${jobStatus.data?.status}`);
+      console.error('[compress-press-pdf] CloudConvert job failed with status:', jobStatus.data?.status);
+      console.error('[compress-press-pdf] Full job response:', JSON.stringify(jobStatus.data, null, 2));
+      
+      // Log task-level errors if available
+      if (jobStatus.data?.tasks) {
+        jobStatus.data.tasks.forEach((task: any) => {
+          if (task.status === 'error') {
+            console.error(`[compress-press-pdf] Task ${task.operation} failed:`, task.message || task.code);
+          }
+        });
+      }
+      
+      // Return failure instead of throwing - let the upload continue with original file
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Compression failed: ${jobStatus.data?.status}. Using original file.`,
+          details: jobStatus.data?.tasks?.[0]?.message || 'No additional details'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200  // Return 200 to indicate graceful degradation
+        }
+      );
     }
 
     // Get the compressed PDF download URL
@@ -216,14 +239,18 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('[compress-press-pdf] Error:', error);
+    console.error('[compress-press-pdf] Error stack:', error.stack);
+    
+    // Return failure instead of 500 - graceful degradation
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: error.message,
+        gracefulDegradation: true
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 200  // Return 200 to allow processing to continue with original file
       }
     );
   }
