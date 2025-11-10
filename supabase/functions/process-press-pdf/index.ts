@@ -7,6 +7,16 @@ const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// Retry configuration
+const RETRY_CONFIG = {
+  MAX_VISION_RETRIES: 3,        // Per-page API retries
+  MAX_CHUNK_RETRIES: 2,          // Per-chunk retries
+  MAX_PAGE_RETRIES: 2,           // Failed page retry pass
+  CHUNK_RETRY_DELAY_MS: 3000,    // Base delay for chunk retries
+  PAGE_RETRY_DELAY_MS: 5000,     // Delay for final retry pass
+  MAX_BACKOFF_MS: 10000          // Maximum backoff time
+};
+
 // Predefined categories from Publimedia
 const publimediaCategories = [
   'ACCIDENTES', 'AGENCIAS DE GOBIERNO', 'AMBIENTE', 'AMBIENTE & EL TIEMPO', 'CIENCIA & TECNOLOGIA',
@@ -324,14 +334,13 @@ Si NO aplica: {"recortes":[]}
       }
       
       if (finishReason === 'MAX_TOKENS') {
-        console.warn('Response truncated due to max tokens, attempting to parse partial results');
+        console.warn(`Response truncated due to max tokens (attempt ${attempt}/${maxRetries})`);
         
-        // Try ONCE to repair JSON, then skip this page instead of retrying
         const textContent = candidate.content?.parts?.[0]?.text || '';
         const repaired = attemptJSONRepair(textContent);
         
         if (repaired && repaired.recortes && repaired.recortes.length > 0) {
-          console.log(`Successfully extracted ${repaired.recortes.length} clippings from truncated response`);
+          console.log(`✓ JSON repair recovered ${repaired.recortes.length} clippings`);
           await cleanupGeminiFile(fileInfo.name);
           
           return repaired.recortes.map((clip: any) => ({
@@ -344,10 +353,9 @@ Si NO aplica: {"recortes":[]}
           }));
         }
         
-        // Don't retry - just skip this page and continue
-        console.error('Could not repair truncated JSON, skipping page');
+        // ✅ Throw error to trigger retry mechanism
         await cleanupGeminiFile(fileInfo.name);
-        return []; // Return empty array instead of throwing error
+        throw new Error(`MAX_TOKENS: JSON repair failed (attempt ${attempt}/${maxRetries})`);
       }
       
       // Try to extract content
@@ -433,7 +441,7 @@ async function processLargePDFInChunks(
   fileName: string,
   supabase: any,
   jobId: string
-): Promise<any[]> {
+): Promise<{ clippings: any[], retryStats: { totalPages: number, failedInitial: number, recovered: number, finalSuccessRate: number } }> {
   const fileSizeMB = pdfBlob.size / 1024 / 1024;
   console.log(`Processing large PDF (${fileSizeMB.toFixed(2)} MB) in chunks...`);
   
@@ -448,6 +456,13 @@ async function processLargePDFInChunks(
   console.log(`Will process in ${totalChunks} chunks of 1 page each`);
   
   let allClippings: any[] = [];
+  const failedPages: Array<{
+    chunkIndex: number;
+    pageNumber: number;
+    fileName: string;
+    reason: string;
+    attemptCount: number;
+  }> = [];
   const PROCESSING_TIMEOUT_MS = 480000; // 8 minutes max
   const processingStartTime = Date.now();
   
@@ -478,48 +493,123 @@ async function processLargePDFInChunks(
       error: null
     });
     
-    try {
-      // Process this chunk with Gemini Vision
-      const chunkClippings = await processImageWithGeminiVision(
-        pdfBlob,
-        `${fileName}_chunk_${chunkIndex + 1}`,
-        startPage
-      );
-      
-      console.log(`Page ${chunkIndex + 1} returned ${chunkClippings.length} clippings`);
-      allClippings.push(...chunkClippings);
-      
-      // Log progress
-      const elapsedSeconds = Math.round((Date.now() - processingStartTime) / 1000);
-      console.log(`Progress: ${chunkIndex + 1}/${totalChunks} pages, ${allClippings.length} clippings found, ${elapsedSeconds}s elapsed`);
-      
-      // Update job progress (10% to 80% range)
-      const progress = 10 + Math.floor(((chunkIndex + 1) / totalChunks) * 70);
-      await updateProcessingJob(supabase, jobId, { 
-        progress,
-        error: null
-      });
-      
-      // Shorter delay between chunks for faster processing
-      if (chunkIndex < totalChunks - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+    let chunkRetryCount = 0;
+    let chunkSuccess = false;
+
+    while (!chunkSuccess && chunkRetryCount <= RETRY_CONFIG.MAX_CHUNK_RETRIES) {
+      try {
+        const chunkClippings = await processImageWithGeminiVision(
+          pdfBlob,
+          `${fileName}_chunk_${chunkIndex + 1}`,
+          startPage
+        );
+        
+        console.log(`Page ${chunkIndex + 1} returned ${chunkClippings.length} clippings`);
+        allClippings.push(...chunkClippings);
+        chunkSuccess = true; // ✓ Success, exit retry loop
+        
+        // Log progress with enhanced metrics
+        const elapsedSeconds = Math.round((Date.now() - processingStartTime) / 1000);
+        const failedCount = failedPages.length;
+        const successRate = ((chunkIndex + 1 - failedCount) / (chunkIndex + 1) * 100).toFixed(1);
+        
+        console.log(`Progress: ${chunkIndex + 1}/${totalChunks} pages | ${allClippings.length} clippings | ${failedCount} failed | ${successRate}% success | ${elapsedSeconds}s elapsed`);
+        
+        // Shorter delay between chunks for faster processing
+        if (chunkIndex < totalChunks - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        chunkRetryCount++;
+        
+        if (chunkRetryCount <= RETRY_CONFIG.MAX_CHUNK_RETRIES) {
+          const waitTime = Math.min(RETRY_CONFIG.CHUNK_RETRY_DELAY_MS * chunkRetryCount, RETRY_CONFIG.MAX_BACKOFF_MS);
+          console.warn(`⚠ Chunk ${chunkIndex + 1} failed (attempt ${chunkRetryCount}/${RETRY_CONFIG.MAX_CHUNK_RETRIES}): ${errorMsg}`);
+          console.log(`Retrying in ${waitTime}ms...`);
+          
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        } else {
+          // Final failure - add to retry queue
+          console.error(`✗ Chunk ${chunkIndex + 1} failed after ${RETRY_CONFIG.MAX_CHUNK_RETRIES} retries: ${errorMsg}`);
+          
+          failedPages.push({
+            chunkIndex,
+            pageNumber: startPage,
+            fileName: `${fileName}_chunk_${chunkIndex + 1}`,
+            reason: errorMsg,
+            attemptCount: 0
+          });
+          
+          await updateProcessingJob(supabase, jobId, {
+            error: `Error en página ${startPage} (se reintentará): ${errorMsg}`
+          });
+          
+          break; // Exit retry loop, continue with next chunk
+        }
       }
-      
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error(`Error processing chunk ${chunkIndex + 1}:`, errorMsg);
-      
-      // Update job with error details but continue processing other chunks
-      await updateProcessingJob(supabase, jobId, {
-        error: `Error en chunk ${chunkIndex + 1}/${totalChunks}: ${errorMsg}`
-      });
-      
-      // Continue with other chunks even if one fails
     }
   }
   
   console.log(`Chunked processing complete. Total clippings: ${allClippings.length}`);
-  return allClippings;
+  
+  // Retry failed pages with adjusted settings
+  if (failedPages.length > 0) {
+    console.log(`\n=== RETRY PHASE: ${failedPages.length} failed pages ===`);
+    
+    for (const failedPage of failedPages) {
+      if (failedPage.attemptCount >= RETRY_CONFIG.MAX_PAGE_RETRIES) {
+        console.log(`Skipping page ${failedPage.pageNumber} (max retries reached)`);
+        continue;
+      }
+      
+      console.log(`Retrying page ${failedPage.pageNumber} (retry ${failedPage.attemptCount + 1}/${RETRY_CONFIG.MAX_PAGE_RETRIES})`);
+      
+      try {
+        // Retry with increased delay
+        await new Promise(resolve => setTimeout(resolve, RETRY_CONFIG.PAGE_RETRY_DELAY_MS));
+        
+        const retryClippings = await processImageWithGeminiVision(
+          pdfBlob,
+          failedPage.fileName,
+          failedPage.pageNumber
+        );
+        
+        console.log(`✓ Retry successful: ${retryClippings.length} clippings recovered from page ${failedPage.pageNumber}`);
+        allClippings.push(...retryClippings);
+        
+        // Mark as successfully recovered
+        failedPage.attemptCount = RETRY_CONFIG.MAX_PAGE_RETRIES;
+        
+      } catch (error) {
+        failedPage.attemptCount++;
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`✗ Retry failed for page ${failedPage.pageNumber}: ${errorMsg}`);
+      }
+    }
+    
+    // Calculate success rate
+    const successfulRetries = failedPages.filter(p => p.attemptCount >= RETRY_CONFIG.MAX_PAGE_RETRIES).length;
+    console.log(`Retry phase complete: ${successfulRetries}/${failedPages.length} pages recovered`);
+  }
+  
+  // Calculate retry statistics
+  const totalPages = totalChunks;
+  const failedInitial = failedPages.length;
+  const recovered = failedPages.filter(p => p.attemptCount >= RETRY_CONFIG.MAX_PAGE_RETRIES).length;
+  const successfulPages = totalPages - failedInitial + recovered;
+  const finalSuccessRate = (successfulPages / totalPages * 100);
+  
+  return {
+    clippings: allClippings,
+    retryStats: {
+      totalPages,
+      failedInitial,
+      recovered,
+      finalSuccessRate
+    }
+  };
 }
 
 /**
@@ -868,12 +958,16 @@ serve(async (req) => {
             
             if (shouldUseBatchProcessing) {
               console.log(`Multi-page PDF detected (est. ${estimatedPages} pages), using batch processing to analyze ALL pages...`);
-              allClippings = await processLargePDFInChunks(
+              const result = await processLargePDFInChunks(
                 pdfBlob,
                 job.file_path,
                 supabase,
                 jobId
               );
+              allClippings = result.clippings;
+              
+              // Store retry stats for document summary
+              (allClippings as any).retryStats = result.retryStats;
             } else {
               console.log('Processing small single-page PDF directly...');
               allClippings = await processImageWithGeminiVision(
@@ -916,7 +1010,7 @@ serve(async (req) => {
           return;
         }
         
-        // Generate document-level summary
+        // Generate document-level summary with retry statistics
         console.log('Generating document summary...');
         let documentSummary = '';
         
@@ -949,6 +1043,12 @@ Proporciona un resumen ejecutivo general.`;
               const summaryData = await summaryResponse.json();
               documentSummary = summaryData.candidates?.[0]?.content?.parts?.[0]?.text || 
                 `Documento de ${job.publication_name} con ${allClippings.length} artículos relevantes en categorías: ${allCategories}`;
+            }
+            
+            // Add retry statistics if available
+            const retryStats = (allClippings as any).retryStats;
+            if (retryStats && retryStats.failedInitial > 0) {
+              documentSummary += `\n\n📊 Estadísticas de reintentos:\n- Páginas con errores iniciales: ${retryStats.failedInitial}\n- Páginas recuperadas: ${retryStats.recovered}\n- Tasa de éxito final: ${retryStats.finalSuccessRate.toFixed(1)}%`;
             }
           } catch (error) {
             console.error('Error generating summary:', error);
