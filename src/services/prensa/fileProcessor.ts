@@ -107,6 +107,33 @@ export const getFilePathFromJob = (fileName: string): string => {
   return `${timestamp}_${sanitizedFileName}`;
 };
 
+export const compressPdfFile = async (
+  jobId: string,
+  filePath: string
+): Promise<{ compressedPath: string; success: boolean }> => {
+  console.log("Triggering PDF compression for job:", jobId);
+  
+  try {
+    const { data, error } = await supabase.functions.invoke("compress-press-pdf", {
+      body: { jobId, filePath: `pdf_uploads/${filePath}` },
+    });
+
+    if (error) {
+      console.warn("Compression failed, will use original:", error);
+      return { compressedPath: `pdf_uploads/${filePath}`, success: false };
+    }
+    
+    console.log("Compression successful:", data);
+    return { 
+      compressedPath: data.compressedPath || `pdf_uploads/${filePath}`, 
+      success: data.success 
+    };
+  } catch (error) {
+    console.warn("Compression error, using original:", error);
+    return { compressedPath: `pdf_uploads/${filePath}`, success: false };
+  }
+};
+
 export const cleanupFailedJob = async (jobId: string): Promise<void> => {
   try {
     await supabase

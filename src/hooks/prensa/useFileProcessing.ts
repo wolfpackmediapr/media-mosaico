@@ -5,7 +5,8 @@ import {
   uploadFileToStorage, 
   triggerJobProcessing,
   getFilePathFromJob,
-  cleanupFailedJob 
+  cleanupFailedJob,
+  compressPdfFile
 } from "@/services/prensa/fileProcessor";
 
 interface UseFileProcessingProps {
@@ -42,6 +43,16 @@ export const useFileProcessing = ({
       
       // Upload file to storage using the SAME file path
       await uploadFileToStorage(file, filePath);
+      
+      // Compress PDF before processing
+      console.log("Compressing PDF before AI analysis...");
+      const { compressedPath, success } = await compressPdfFile(jobData.id, filePath);
+      
+      if (success) {
+        console.log(`✓ Compression successful, using: ${compressedPath}`);
+      } else {
+        console.log(`⚠ Using original file: ${filePath}`);
+      }
       
       // Trigger processing
       console.log("Triggering processing for job:", jobData.id);

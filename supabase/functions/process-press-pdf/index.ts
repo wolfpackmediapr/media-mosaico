@@ -793,10 +793,13 @@ serve(async (req) => {
       error: null
     });
     
-    // Download the file from storage
+    // Download the file from storage (use compressed if available)
     let fileData;
     try {
-      fileData = await downloadFileFromStorage(supabase, job.file_path);
+      const filePathToDownload = job.compressed_file_path || job.file_path;
+      console.log(`Downloading PDF: ${filePathToDownload}${job.compressed_file_path ? ' (compressed)' : ' (original)'}`);
+      
+      fileData = await downloadFileFromStorage(supabase, filePathToDownload);
       console.log(`Successfully downloaded file with size: ${fileData.byteLength} bytes`);
     } catch (error) {
       console.error("Error downloading file:", error);
@@ -811,7 +814,7 @@ serve(async (req) => {
       });
     }
     
-    // Detect file type
+    // Detect file type (use original file_path for extension detection)
     const fileExtension = job.file_path.split('.').pop()?.toLowerCase();
     const isImageFile = ['jpg', 'jpeg', 'png', 'webp'].includes(fileExtension || '');
 
