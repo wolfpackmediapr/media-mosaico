@@ -864,11 +864,15 @@ export type Database = {
       }
       pdf_processing_jobs: {
         Row: {
+          compressed_file_path: string | null
+          compressed_size_bytes: number | null
+          compression_ratio: number | null
           created_at: string | null
           document_summary: string | null
           error: string | null
           file_path: string
           id: string
+          original_size_bytes: number | null
           progress: number | null
           publication_name: string
           status: string
@@ -876,11 +880,15 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          compressed_file_path?: string | null
+          compressed_size_bytes?: number | null
+          compression_ratio?: number | null
           created_at?: string | null
           document_summary?: string | null
           error?: string | null
           file_path: string
           id?: string
+          original_size_bytes?: number | null
           progress?: number | null
           publication_name: string
           status?: string
@@ -888,11 +896,15 @@ export type Database = {
           user_id: string
         }
         Update: {
+          compressed_file_path?: string | null
+          compressed_size_bytes?: number | null
+          compression_ratio?: number | null
           created_at?: string | null
           document_summary?: string | null
           error?: string | null
           file_path?: string
           id?: string
+          original_size_bytes?: number | null
           progress?: number | null
           publication_name?: string
           status?: string
