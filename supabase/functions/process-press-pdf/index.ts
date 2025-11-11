@@ -7,6 +7,17 @@ const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// Timeout helper to prevent hanging requests
+function fetchWithTimeout(url: string | Request, options: RequestInit = {}, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  return fetch(url, {
+    ...options,
+    signal: controller.signal
+  }).finally(() => clearTimeout(timeoutId));
+}
+
 // Retry configuration
 const RETRY_CONFIG = {
   MAX_VISION_RETRIES: 3,        // Per-page API retries
@@ -104,8 +115,8 @@ Texto página ${pageNumber}:
 ${pageText}
 `;
 
-    // Call Gemini API with structured JSON output
-    const response = await fetch(
+    // Call Gemini API with structured JSON output (60s timeout)
+    const response = await fetchWithTimeout(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
@@ -122,7 +133,8 @@ ${pageText}
             responseMimeType: "application/json"
           }
         })
-      }
+      },
+      60000
     );
 
     if (!response.ok) {
@@ -274,8 +286,8 @@ JSON:
 Si NO aplica: {"recortes":[]}
 `;
 
-      // Call Gemini Vision API
-      const response = await fetch(
+      // Call Gemini Vision API (120s timeout for image processing)
+      const response = await fetchWithTimeout(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
           method: 'POST',
@@ -300,7 +312,8 @@ Si NO aplica: {"recortes":[]}
               responseMimeType: "application/json"
             }
           })
-        }
+        },
+        120000
       );
 
       if (!response.ok) {
@@ -620,8 +633,8 @@ async function uploadImageToGemini(
   displayName: string
 ): Promise<{ uri: string; mimeType: string; name: string }> {
   try {
-    // Initialize resumable upload
-    const initResponse = await fetch(
+    // Initialize resumable upload (30s timeout)
+    const initResponse = await fetchWithTimeout(
       `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
@@ -635,7 +648,8 @@ async function uploadImageToGemini(
         body: JSON.stringify({
           file: { display_name: displayName }
         })
-      }
+      },
+      30000
     );
 
     if (!initResponse.ok) {
@@ -645,8 +659,8 @@ async function uploadImageToGemini(
     const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
     if (!uploadUrl) throw new Error('No upload URL received');
 
-    // Upload the image data
-    const uploadResponse = await fetch(uploadUrl, {
+    // Upload the image data (60s timeout for large files)
+    const uploadResponse = await fetchWithTimeout(uploadUrl, {
       method: 'POST',
       headers: {
         'Content-Length': imageBlob.size.toString(),
@@ -654,7 +668,7 @@ async function uploadImageToGemini(
         'X-Goog-Upload-Command': 'upload, finalize',
       },
       body: imageBlob
-    });
+    }, 60000);
 
     if (!uploadResponse.ok) {
       throw new Error(`Upload failed: ${uploadResponse.status}`);
@@ -687,12 +701,14 @@ async function waitForFileProcessing(fileName: string): Promise<void> {
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const response = await fetch(
+      // 15s timeout for status checks
+      const response = await fetchWithTimeout(
         `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${GEMINI_API_KEY}`,
         {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
-        }
+        },
+        15000
       );
 
       if (!response.ok) {
@@ -735,9 +751,11 @@ async function waitForFileProcessing(fileName: string): Promise<void> {
  */
 async function cleanupGeminiFile(fileName: string): Promise<void> {
   try {
-    await fetch(
+    // 10s timeout for cleanup (non-critical operation)
+    await fetchWithTimeout(
       `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${GEMINI_API_KEY}`,
-      { method: 'DELETE' }
+      { method: 'DELETE' },
+      10000
     );
   } catch (error) {
     console.error('Failed to cleanup Gemini file:', error);
