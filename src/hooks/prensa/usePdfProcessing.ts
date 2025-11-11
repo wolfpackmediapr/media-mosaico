@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useJobManagement } from "./useJobManagement";
 import { usePdfClippings } from "./usePdfClippings";
@@ -53,7 +53,7 @@ export const usePdfProcessing = () => {
   });
 
   // Monitor job completion
-  useCallback(() => {
+  useEffect(() => {
     if (!currentJob) return;
     
     if (currentJob.status === 'completed' && !processingComplete) {
@@ -83,13 +83,12 @@ export const usePdfProcessing = () => {
       setIsUploading(false);
     }
   }, [
-    currentJob?.status,
+    currentJob,
     checkJobStatus,
     setIsUploading,
     processingComplete,
     handleProcessingSuccess,
-    handleProcessingError,
-    currentJob?.publication_name
+    handleProcessingError
   ]);
 
   const processFile = useCallback(async (file: File, newPublicationName: string) => {
