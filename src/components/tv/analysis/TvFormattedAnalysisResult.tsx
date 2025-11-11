@@ -58,7 +58,7 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
         <Textarea
           value={editableContent}
           onChange={(e) => setEditableContent(e.target.value)}
-          className="min-h-[100px] text-foreground whitespace-pre-wrap"
+          className="min-h-[200px] max-h-[600px] overflow-y-auto text-foreground whitespace-pre-wrap resize-y"
         />
       </Card>
     );
@@ -105,7 +105,7 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
             
             setEditableContent(updatedContent);
           }}
-          className="min-h-[100px] text-foreground"
+          className="min-h-[200px] max-h-[600px] overflow-y-auto text-foreground whitespace-pre-wrap resize-y"
         />
       </Card>
     );
