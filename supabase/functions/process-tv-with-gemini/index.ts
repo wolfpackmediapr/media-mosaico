@@ -683,7 +683,7 @@ async function processChunkedUploadWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384
               }
             })
           }
@@ -734,9 +734,31 @@ async function processChunkedUploadWithGemini(
 
         const transcriptionData = await transcriptionResponse.json();
         if (transcriptionData.candidates?.[0]?.content?.parts?.[0]?.text) {
-          speakerTranscription = transcriptionData.candidates[0].content.parts[0].text.trim();
-          console.log('[gemini-unified] Speaker transcription extracted successfully');
-          break;
+          const rawTranscription = transcriptionData.candidates[0].content.parts[0].text.trim();
+          
+          // Validate transcription format
+          const hasProperFormat = /SPEAKER\s+\d+:/i.test(rawTranscription);
+          const speakerCount = (rawTranscription.match(/SPEAKER\s+\d+:/gi) || []).length;
+          
+          console.log('[gemini-unified] Transcription response preview:', {
+            length: rawTranscription.length,
+            firstLine: rawTranscription.split('\n')[0],
+            lastLine: rawTranscription.split('\n').slice(-1)[0],
+            speakerMatches: speakerCount,
+            hasProperFormat
+          });
+          
+          if (hasProperFormat && speakerCount >= 2) {
+            speakerTranscription = rawTranscription;
+            console.log('[gemini-unified] Speaker transcription validated and accepted', { speakerCount });
+            break;
+          } else {
+            console.warn('[gemini-unified] Transcription format invalid, retrying...', {
+              hasProperFormat,
+              speakerCount,
+              preview: rawTranscription.substring(0, 200)
+            });
+          }
         }
       } catch (error) {
         console.error(`[gemini-unified] Transcription attempt ${attempt} failed:`, error);
@@ -880,9 +902,14 @@ async function processChunkedUploadWithGemini(
     await cleanupGeminiFile(displayName);
     console.log('[gemini-unified] File cleanup completed successfully');
 
+    // Normalize and finalize transcription
+    const finalTranscription = speakerTranscription 
+      ? normalizeTranscriptionFormat(speakerTranscription)
+      : extractTranscriptionFromAnalysis(analysisResult);
+
     return {
       success: true,
-      transcription: speakerTranscription || extractTranscriptionFromAnalysis(analysisResult),
+      transcription: finalTranscription,
       segments: extractSegmentsFromAnalysis(analysisResult),
       full_analysis: analysisResult,
       summary: extractSummaryFromAnalysis(analysisResult),
@@ -981,7 +1008,7 @@ async function processAssembledVideoWithGemini(
               temperature: 0.1,
               topK: 32,
               topP: 0.8,
-              maxOutputTokens: 8192
+              maxOutputTokens: 16384
             }
           })
         }
@@ -990,8 +1017,32 @@ async function processAssembledVideoWithGemini(
       if (transcriptionResponse.ok) {
         const transcriptionData = await transcriptionResponse.json();
         if (transcriptionData.candidates?.[0]?.content?.parts?.[0]?.text) {
-          speakerTranscription = transcriptionData.candidates[0].content.parts[0].text;
-          console.log('[gemini-unified] Speaker transcription extracted successfully');
+          const rawTranscription = transcriptionData.candidates[0].content.parts[0].text.trim();
+          
+          // Validate transcription format
+          const hasProperFormat = /SPEAKER\s+\d+:/i.test(rawTranscription);
+          const speakerCount = (rawTranscription.match(/SPEAKER\s+\d+:/gi) || []).length;
+          
+          console.log('[gemini-unified] Transcription response preview:', {
+            length: rawTranscription.length,
+            firstLine: rawTranscription.split('\n')[0],
+            lastLine: rawTranscription.split('\n').slice(-1)[0],
+            speakerMatches: speakerCount,
+            hasProperFormat
+          });
+          
+          if (hasProperFormat && speakerCount >= 2) {
+            speakerTranscription = rawTranscription;
+            console.log('[gemini-unified] Speaker transcription validated and accepted');
+          } else {
+            console.warn('[gemini-unified] Transcription format invalid, will try extraction from analysis', {
+              hasProperFormat,
+              speakerCount,
+              preview: rawTranscription.substring(0, 200)
+            });
+            // Keep it for potential normalization, don't discard
+            speakerTranscription = rawTranscription;
+          }
         }
       }
     } catch (error) {
@@ -1043,7 +1094,7 @@ async function processAssembledVideoWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384
                 // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
@@ -1104,9 +1155,14 @@ async function processAssembledVideoWithGemini(
     await cleanupGeminiFile(videoPath);
     console.log('[gemini-unified] File cleanup completed successfully');
 
+    // Normalize and finalize transcription
+    const finalTranscription = speakerTranscription 
+      ? normalizeTranscriptionFormat(speakerTranscription)
+      : extractTranscriptionFromAnalysis(analysisResult);
+
     return {
       success: true,
-      transcription: speakerTranscription || extractTranscriptionFromAnalysis(analysisResult),
+      transcription: finalTranscription,
       segments: extractSegmentsFromAnalysis(analysisResult),
       full_analysis: analysisResult,
       summary: extractSummaryFromAnalysis(analysisResult),
@@ -1219,6 +1275,30 @@ La transcripción incluye nombres específicos de hablantes (pueden ser nombres 
 - Proporcionar un análisis más personalizado y profesional
 
 Evita usar referencias genéricas como "hablante 1", "participante A", etc., cuando tengas nombres específicos disponibles.`;
+}
+
+// Normalize mixed-format transcriptions to standard SPEAKER format
+function normalizeTranscriptionFormat(text: string): string {
+  if (!text) return '';
+  
+  return text
+    .split('\n')
+    .map(line => {
+      // Convert "VOZ EN OFF:" to "SPEAKER 0 (Voz en off):"
+      if (/^VOZ EN OFF:/i.test(line)) {
+        return line.replace(/^VOZ EN OFF:/i, 'SPEAKER 0 (Voz en off):');
+      }
+      // Fix typos like "SPEcker" -> "SPEAKER"
+      if (/^SPE[A-Z]*[a-z]+\s+\d+/i.test(line)) {
+        return line.replace(/^SPE[A-Z]*[a-z]+/i, 'SPEAKER');
+      }
+      // Normalize "SPEAKER X (Name):" format inconsistencies
+      if (/^SPEAKER\s+\d+\s*\([^)]*\)\s*:/i.test(line)) {
+        return line.replace(/^SPEAKER\s+(\d+)\s*\(([^)]*)\)\s*:/i, 'SPEAKER $1 ($2):');
+      }
+      return line;
+    })
+    .join('\n');
 }
 
 // Helper functions to extract data from analysis
