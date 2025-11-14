@@ -15,4 +15,4 @@ cpu_ms = 300000
 memory_mb = 512
 
 [functions.compress-press-pdf]
-verify_jwt = false
+verify_jwt = true
