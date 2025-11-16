@@ -175,7 +175,7 @@ export async function generateAnalysisWithVideo(videoBlob: Blob, apiKey: string,
       ],
       generationConfig: {
         temperature: 0.1,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 16384, // Increased from 8192 to prevent analysis truncation
       }
     };
 
