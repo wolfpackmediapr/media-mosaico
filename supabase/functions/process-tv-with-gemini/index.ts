@@ -801,7 +801,7 @@ async function processChunkedUploadWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384, // Increased from 8192 to prevent analysis truncation
                 // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
@@ -1069,7 +1069,7 @@ async function processAssembledVideoWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 16384
+                maxOutputTokens: 16384, // Increased from 8192 to prevent analysis truncation
                 // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
@@ -1332,7 +1332,20 @@ function extractTranscriptionFromAnalysis(analysis: string): string {
     return enhancedParsing;
   }
   
-  console.log('[extractTranscriptionFromAnalysis] All strategies failed, returning fallback');
+  // Strategy 6: FINAL FALLBACK - Return raw analysis text if it contains any content
+  // This ensures users see SOMETHING rather than an error message
+  const cleanedAnalysis = analysis.trim();
+  if (cleanedAnalysis.length > 100) {
+    console.log('[extractTranscriptionFromAnalysis] Using raw analysis text as final fallback');
+    // Try to extract just the meaningful content, removing JSON structures
+    const withoutJson = cleanedAnalysis.replace(/\{[\s\S]*\}/g, '').trim();
+    if (withoutJson.length > 50) {
+      return withoutJson;
+    }
+    return cleanedAnalysis;
+  }
+  
+  console.log('[extractTranscriptionFromAnalysis] All strategies failed, analysis too short');
   return 'Transcripción no disponible - no se pudieron identificar speakers separados';
 }
 
