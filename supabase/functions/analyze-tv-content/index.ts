@@ -20,7 +20,7 @@ serve(async (req) => {
     // Validate all required environment variables first
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
-    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
     
     console.log('[analyze-tv-content] Environment check:', {
       hasSupabaseUrl: !!supabaseUrl,
@@ -39,7 +39,7 @@ serve(async (req) => {
     }
 
     if (!geminiApiKey) {
-      console.error('[analyze-tv-content] Missing GOOGLE_GEMINI_API_KEY');
+      console.error('[analyze-tv-content] Missing GOOGLE_GEMINI_API_KEY_TV');
       throw new Error('Clave API de Google Gemini no configurada');
     }
 

@@ -139,7 +139,7 @@ function categorizeError(message: string): string {
 async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{ uri: string; mimeType: string }> {
   console.log('[gemini-unified] Uploading video to Gemini...', fileName);
   
-  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
   if (!geminiApiKey) {
     throw new Error('Google Gemini API key not configured');
   }
@@ -218,7 +218,7 @@ async function uploadVideoToGeminiStream(
   dataStream: ReadableStream<Uint8Array>
 ): Promise<{ uri: string; mimeType: string }> {
   console.log('[gemini-unified] Streaming upload to Gemini...', { fileName, totalSize, mimeType });
-  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
   if (!geminiApiKey) {
     throw new Error('Google Gemini API key not configured');
   }
@@ -348,7 +348,7 @@ function extractRetryDelay(errorData: any): number {
 async function cleanupGeminiFile(fileName: string): Promise<void> {
   console.log('[gemini-unified] Cleaning up Gemini file...', fileName);
   
-  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
   if (!geminiApiKey) {
     console.error('[gemini-unified] No API key for cleanup');
     return;
@@ -407,7 +407,7 @@ async function generateComprehensiveAnalysis(
 ): Promise<string> {
   console.log('[gemini-unified] Generating comprehensive analysis...');
   
-  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
   if (!geminiApiKey) {
     throw new Error('Google Gemini API key not configured');
   }
@@ -668,7 +668,7 @@ async function processChunkedUploadWithGemini(
         console.log(`[gemini-unified] Transcription attempt ${attempt}/${maxTranscriptionAttempts}`);
         
         const transcriptionResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -775,7 +775,7 @@ async function processChunkedUploadWithGemini(
         console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
         
         const analysisResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
           {
             method: 'POST',
             headers: {
@@ -981,7 +981,7 @@ async function processAssembledVideoWithGemini(
       console.log('[gemini-unified] Transcription attempt 1/5');
       
       const transcriptionResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1043,7 +1043,7 @@ async function processAssembledVideoWithGemini(
         console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
         
         const analysisResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
           {
             method: 'POST',
             headers: {
@@ -1724,7 +1724,7 @@ serve(async (req) => {
     // Environment validation
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
 
     console.log('[process-tv-with-gemini] Environment validation:', {
       hasSupabaseUrl: !!supabaseUrl,
