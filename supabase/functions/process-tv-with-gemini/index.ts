@@ -2026,12 +2026,25 @@ async function processVideoInBackground(
       // Parse analysis to extract structured data for TV table
       const parsedAnalysis = parseAnalysisForTvDatabase(result.full_analysis || '');
       
-      // Validate transcription before saving - only save if it contains SPEAKER format
-      const validTranscription = (result.transcription && result.transcription.includes('SPEAKER ')) 
-        ? result.transcription 
+      // Prefer SPEAKER-formatted transcription, but fallback to raw content
+      const validTranscription = 
+        (result.transcription && result.transcription.includes('SPEAKER ')) 
+          ? result.transcription 
         : (parsedAnalysis.transcription && parsedAnalysis.transcription.includes('SPEAKER '))
           ? parsedAnalysis.transcription
-          : ''; // Save empty if no valid SPEAKER transcription
+        : result.transcription  // Fallback to raw transcription
+          ? result.transcription
+        : parsedAnalysis.transcription // Or parsed version
+          ? parsedAnalysis.transcription
+          : ''; // Only save empty as last resort
+      
+      console.log(`[${requestId}] Transcription validation:`, {
+        hasSpeakerInResult: result.transcription?.includes('SPEAKER '),
+        hasSpeakerInParsed: parsedAnalysis.transcription?.includes('SPEAKER '),
+        hasRawResult: !!result.transcription,
+        hasRawParsed: !!parsedAnalysis.transcription,
+        selectedLength: validTranscription.length
+      });
       
       // Store complete analysis with correct TV table structure
       await supabase
