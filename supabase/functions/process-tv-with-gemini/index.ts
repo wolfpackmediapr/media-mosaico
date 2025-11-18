@@ -736,9 +736,9 @@ async function processChunkedUploadWithGemini(
         if (transcriptionData.candidates?.[0]?.content?.parts?.[0]?.text) {
           const rawTranscription = transcriptionData.candidates[0].content.parts[0].text.trim();
           
-          // Simple validation
+          // Simple validation - accept any video with at least one speaker
           const upper = rawTranscription.toUpperCase();
-          const hasSpeaker = upper.includes('SPEAKER 1:') && upper.includes('SPEAKER 2:');
+          const hasSpeaker = upper.includes('SPEAKER 1:');
           
           if (hasSpeaker) {
             speakerTranscription = rawTranscription;
@@ -1339,69 +1339,43 @@ function extractTranscriptionFromAnalysis(analysis: string): string {
     return enhancedParsing;
   }
   
-  console.log('[extractTranscriptionFromAnalysis] All SPEAKER strategies failed, extracting from analysis');
+  console.log('[extractTranscriptionFromAnalysis] All SPEAKER strategies failed, returning simple fallback');
 
-  // Simpler, safer extraction that won't crash
+  // Simple, crash-proof extraction without complex regex
   try {
-    // Remove JSON blocks and section markers
-    let cleanText = analysis
+    // Remove JSON blocks and obvious non-transcription content
+    const cleaned = analysis
       .replace(/```json[\s\S]*?```/g, '')
+      .replace(/\[TIPO DE CONTENIDO:.*?\]/g, '')
       .replace(/##\s*SECCIÓN.*$/gm, '')
-      .replace(/\[TIPO DE CONTENIDO:.*$/gm, '')
-      .replace(/\*\*(QUIEN|QUE|CUANDO|DONDE|PORQUE|RESUMEN|PALABRAS CLAVE):\*\*/gi, '');
+      .trim();
     
-    // Look for quoted dialogue (safe regex with limits)
-    const quotePattern = /"([^"]{10,300})"/g;
-    const quotes = [];
-    let match;
-    let matchCount = 0;
-    
-    while ((match = quotePattern.exec(cleanText)) !== null && matchCount < 50) {
-      quotes.push(match[1].trim());
-      matchCount++;
-    }
-    
-    if (quotes.length > 0) {
-      console.log(`[extractTranscriptionFromAnalysis] Extracted ${quotes.length} quotes`);
-      return quotes
-        .map((text, i) => `SPEAKER ${i + 1}: ${text}`)
+    // If we have reasonable content, wrap it minimally
+    if (cleaned.length > 50) {
+      // Simple split on newlines, take meaningful ones
+      const lines = cleaned
+        .split('\n')
+        .filter(line => {
+          const trimmed = line.trim();
+          return trimmed.length > 15 && 
+                 !trimmed.startsWith('**') &&
+                 !trimmed.match(/^(Marca|Mensajes|Llamada|Tono|Duración|QUIEN|QUE|CUANDO|DONDE|PORQUE)/i);
+        })
+        .slice(0, 20) // Limit lines
         .join('\n');
-    }
-    
-    // Fallback: extract bullet points (safe pattern)
-    const bullets = cleanText
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => {
-        return line.length > 20 && 
-               line.length < 500 &&
-               (line.startsWith('*') || line.startsWith('-') || line.startsWith('•'));
-      })
-      .slice(0, 20);
-    
-    if (bullets.length > 0) {
-      console.log(`[extractTranscriptionFromAnalysis] Extracted ${bullets.length} bullets`);
-      return bullets
-        .map((text, i) => `SPEAKER ${i + 1}: ${text.replace(/^[*\-•]\s*/, '')}`)
-        .join('\n');
-    }
-    
-    // Final fallback: return truncated analysis
-    const truncated = cleanText
-      .split('\n')
-      .filter(line => line.trim().length > 10)
-      .slice(0, 10)
-      .join(' ')
-      .substring(0, 500);
-    
-    console.log('[extractTranscriptionFromAnalysis] Using truncated analysis fallback');
-    return truncated.length > 50 
-      ? `SPEAKER 1: ${truncated}` 
-      : 'Contenido procesado - transcripción no disponible en formato esperado';
       
+      if (lines.length > 30) {
+        console.log('[extractTranscriptionFromAnalysis] Returning cleaned content');
+        return `SPEAKER 1: ${lines}`;
+      }
+    }
+    
+    // Final minimal fallback
+    return 'Contenido procesado sin transcripción detallada disponible';
+    
   } catch (error) {
-    console.error('[extractTranscriptionFromAnalysis] Extraction error:', error);
-    return 'Error al extraer transcripción del análisis';
+    console.error('[extractTranscriptionFromAnalysis] Extraction failed:', error);
+    return 'Error al procesar contenido';
   }
 }
 
