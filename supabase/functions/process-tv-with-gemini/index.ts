@@ -890,19 +890,26 @@ async function processChunkedUploadWithGemini(
     await cleanupGeminiFile(displayName);
     console.log('[gemini-unified] File cleanup completed successfully');
 
-    // Normalize and finalize transcription
-    const finalTranscription = speakerTranscription 
+  // Normalize and finalize transcription with error handling
+  let finalTranscription = '';
+  try {
+    finalTranscription = speakerTranscription 
       ? normalizeTranscriptionFormat(speakerTranscription)
       : extractTranscriptionFromAnalysis(analysisResult);
+  } catch (extractionError) {
+    console.error('[gemini-unified] Transcription extraction failed:', extractionError);
+    // Fallback: return first 1000 chars of analysis as transcription
+    finalTranscription = `SPEAKER 1: ${analysisResult.substring(0, 1000).trim()}`;
+  }
 
-    return {
-      success: true,
-      transcription: finalTranscription,
-      segments: extractSegmentsFromAnalysis(analysisResult),
-      full_analysis: analysisResult,
-      summary: extractSummaryFromAnalysis(analysisResult),
-      keywords: extractKeywordsFromAnalysis(analysisResult)
-    };
+  return {
+    success: true,
+    transcription: finalTranscription,
+    segments: extractSegmentsFromAnalysis(analysisResult),
+    full_analysis: analysisResult,
+    summary: extractSummaryFromAnalysis(analysisResult),
+    keywords: extractKeywordsFromAnalysis(analysisResult)
+  };
 
   } catch (error) {
     console.error('[gemini-unified] Chunked upload processing error:', error);
@@ -1334,69 +1341,68 @@ function extractTranscriptionFromAnalysis(analysis: string): string {
   
   console.log('[extractTranscriptionFromAnalysis] All SPEAKER strategies failed, extracting from analysis');
 
-  // NEW: Extract transcript from the TIPO DE CONTENIDO analysis format
-  // When Gemini returns only analysis without SPEAKER format, extract the content intelligently
-
-  // Look for dialogue in "Mensajes clave" sections
-  const mensajesMatch = analysis.match(/Mensajes clave del anuncio:\*\*\s*([\s\S]*?)(?=\n\n\*\*|\n\*\*|$)/i);
-  if (mensajesMatch && mensajesMatch[1].trim().length > 100) {
-    const content = mensajesMatch[1]
-      .replace(/\*\*/g, '')
-      .replace(/^\s*\*\s*/gm, '')
-      .trim();
-    console.log('[extractTranscriptionFromAnalysis] Extracted from Mensajes clave');
-    return `SPEAKER 1: ${content}`;
-  }
-
-  // Look for any quoted dialogue or text content
-  const quotes = analysis.match(/"([^"]{20,})"/g);
-  if (quotes && quotes.length > 0) {
-    const dialogue = quotes
-      .map(q => q.replace(/"/g, '').trim())
-      .filter(q => q.length > 10)
-      .map((text, i) => `SPEAKER ${i + 1}: ${text}`)
-      .join('\n');
+  // Simpler, safer extraction that won't crash
+  try {
+    // Remove JSON blocks and section markers
+    let cleanText = analysis
+      .replace(/```json[\s\S]*?```/g, '')
+      .replace(/##\s*SECCIÓN.*$/gm, '')
+      .replace(/\[TIPO DE CONTENIDO:.*$/gm, '')
+      .replace(/\*\*(QUIEN|QUE|CUANDO|DONDE|PORQUE|RESUMEN|PALABRAS CLAVE):\*\*/gi, '');
     
-    if (dialogue.length > 50) {
-      console.log('[extractTranscriptionFromAnalysis] Extracted from quoted dialogue');
-      return dialogue;
-    }
-  }
-
-  // Extract bullet points as speech
-  const bullets = analysis.match(/^\s*[•\-\*]\s*(.+)$/gm);
-  if (bullets && bullets.length > 2) {
-    const content = bullets
-      .map(b => b.replace(/^\s*[•\-\*]\s*/, '').trim())
-      .filter(b => b.length > 10)
-      .map((text, i) => `SPEAKER ${i + 1}: ${text}`)
-      .join('\n');
+    // Look for quoted dialogue (safe regex with limits)
+    const quotePattern = /"([^"]{10,300})"/g;
+    const quotes = [];
+    let match;
+    let matchCount = 0;
     
-    if (content.length > 50) {
-      console.log('[extractTranscriptionFromAnalysis] Extracted from bullet points');
-      return content;
+    while ((match = quotePattern.exec(cleanText)) !== null && matchCount < 50) {
+      quotes.push(match[1].trim());
+      matchCount++;
     }
+    
+    if (quotes.length > 0) {
+      console.log(`[extractTranscriptionFromAnalysis] Extracted ${quotes.length} quotes`);
+      return quotes
+        .map((text, i) => `SPEAKER ${i + 1}: ${text}`)
+        .join('\n');
+    }
+    
+    // Fallback: extract bullet points (safe pattern)
+    const bullets = cleanText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => {
+        return line.length > 20 && 
+               line.length < 500 &&
+               (line.startsWith('*') || line.startsWith('-') || line.startsWith('•'));
+      })
+      .slice(0, 20);
+    
+    if (bullets.length > 0) {
+      console.log(`[extractTranscriptionFromAnalysis] Extracted ${bullets.length} bullets`);
+      return bullets
+        .map((text, i) => `SPEAKER ${i + 1}: ${text.replace(/^[*\-•]\s*/, '')}`)
+        .join('\n');
+    }
+    
+    // Final fallback: return truncated analysis
+    const truncated = cleanText
+      .split('\n')
+      .filter(line => line.trim().length > 10)
+      .slice(0, 10)
+      .join(' ')
+      .substring(0, 500);
+    
+    console.log('[extractTranscriptionFromAnalysis] Using truncated analysis fallback');
+    return truncated.length > 50 
+      ? `SPEAKER 1: ${truncated}` 
+      : 'Contenido procesado - transcripción no disponible en formato esperado';
+      
+  } catch (error) {
+    console.error('[extractTranscriptionFromAnalysis] Extraction error:', error);
+    return 'Error al extraer transcripción del análisis';
   }
-
-  // Final fallback: clean the analysis and extract meaningful text
-  const cleanedText = analysis
-    .replace(/\[TIPO DE CONTENIDO:[^\]]+\]/g, '')
-    .replace(/\*\*[^:]+:\*\*/g, '')
-    .replace(/^\d+\.\s*/gm, '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 20 && !line.match(/^(Marca|Mensajes|Llamada|Tono|Duración)/i))
-    .join(' ')
-    .trim();
-
-  if (cleanedText.length > 100) {
-    console.log('[extractTranscriptionFromAnalysis] Extracted cleaned analysis text');
-    return `SPEAKER 1: ${cleanedText.substring(0, 500)}...`; // Limit to reasonable length
-  }
-
-  // Absolute final fallback
-  console.log('[extractTranscriptionFromAnalysis] No extractable content found');
-  return 'Contenido analizado sin transcripción detallada disponible';
 }
 
 // Clean transcription content only - remove all analysis
