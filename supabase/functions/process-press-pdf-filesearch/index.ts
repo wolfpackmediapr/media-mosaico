@@ -319,7 +319,11 @@ async function analyzeDocumentWithFileSearch(
   relevantClients: string[];
 }> {
   
-  const analysisPrompt = `Analiza este documento de prensa de "${publicationName}".
+  const analysisPrompt = `Utiliza la herramienta File Search para leer y analizar el documento de prensa completo de "${publicationName}".
+
+**PASO 1**: Lee el documento completo usando File Search para acceder a su contenido.
+
+**PASO 2**: Analiza el contenido y genera un resumen ejecutivo del documento.
 
 **IMPORTANTE**: Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después. No incluyas explicaciones, preámbulos ni comentarios.
 
@@ -368,10 +372,39 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
   }
 
   const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  
+  // Log full response structure for debugging
+  console.log('[FileSearch] Full API response structure:', JSON.stringify(data, null, 2).substring(0, 500));
+  
+  // Try to extract content from different possible locations in the response
+  let content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  
+  // Check if there's grounding metadata or alternative response structure
+  if (!content && data.candidates?.[0]?.content?.parts) {
+    // Sometimes with File Search, the response might be in a different part
+    const parts = data.candidates[0].content.parts;
+    console.log('[FileSearch] Checking alternative parts structure:', JSON.stringify(parts));
+    
+    // Look for text in any part
+    for (const part of parts) {
+      if (part.text) {
+        content = part.text;
+        break;
+      }
+    }
+  }
   
   if (!content) {
-    throw new Error('No analysis content received');
+    console.error('[FileSearch] No content found in any part. Full response:', JSON.stringify(data));
+    console.error('[FileSearch] Candidates structure:', JSON.stringify(data.candidates));
+    
+    // Check if there's a finish reason that explains why no content
+    const finishReason = data.candidates?.[0]?.finishReason;
+    if (finishReason) {
+      throw new Error(`No content generated. Finish reason: ${finishReason}`);
+    }
+    
+    throw new Error(`No analysis content received. API returned: ${JSON.stringify(data).substring(0, 300)}`);
   }
 
   console.log('[FileSearch] Raw API response:', content.substring(0, 200));
