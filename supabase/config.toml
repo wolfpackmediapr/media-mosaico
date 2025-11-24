@@ -20,5 +20,9 @@ verify_jwt = false
 [functions.process-press-pdf-filesearch]
 verify_jwt = true
 
+[functions.process-press-pdf-filesearch.limits]
+cpu_ms = 600000
+memory_mb = 1024
+
 [functions.search-press-filesearch]
 verify_jwt = true
