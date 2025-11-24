@@ -49,7 +49,13 @@ export const usePressSearch = () => {
         try {
           console.log(`Searching for: "${query}" with limit ${limit} and threshold ${threshold}`);
 
-          const { data, error } = await supabase.functions.invoke("search-press-clippings", {
+          // Check feature flag for File Search
+          const useFileSearch = import.meta.env.VITE_USE_FILE_SEARCH === 'true';
+          const functionName = useFileSearch ? 'search-press-filesearch' : 'search-press-clippings';
+          
+          console.log(`[Search] Using ${useFileSearch ? 'File Search API' : 'Legacy search'}`);
+
+          const { data, error } = await supabase.functions.invoke(functionName, {
             body: {
               query: query.trim(),
               limit,

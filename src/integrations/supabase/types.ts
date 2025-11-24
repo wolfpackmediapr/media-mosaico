@@ -976,6 +976,66 @@ export type Database = {
         }
         Relationships: []
       }
+      press_file_search_documents: {
+        Row: {
+          categories: string[] | null
+          created_at: string | null
+          document_summary: string | null
+          error: string | null
+          file_search_document_id: string
+          file_search_store_id: string
+          file_size_bytes: number | null
+          id: string
+          keywords: string[] | null
+          original_filename: string
+          publication_date: string | null
+          publication_name: string
+          relevant_clients: string[] | null
+          status: string
+          total_clippings_found: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          categories?: string[] | null
+          created_at?: string | null
+          document_summary?: string | null
+          error?: string | null
+          file_search_document_id: string
+          file_search_store_id: string
+          file_size_bytes?: number | null
+          id?: string
+          keywords?: string[] | null
+          original_filename: string
+          publication_date?: string | null
+          publication_name: string
+          relevant_clients?: string[] | null
+          status?: string
+          total_clippings_found?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          categories?: string[] | null
+          created_at?: string | null
+          document_summary?: string | null
+          error?: string | null
+          file_search_document_id?: string
+          file_search_store_id?: string
+          file_size_bytes?: number | null
+          id?: string
+          keywords?: string[] | null
+          original_filename?: string
+          publication_date?: string | null
+          publication_name?: string
+          relevant_clients?: string[] | null
+          status?: string
+          total_clippings_found?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       press_genres: {
         Row: {
           created_at: string
