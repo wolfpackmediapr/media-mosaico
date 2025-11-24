@@ -44,13 +44,20 @@ serve(async (req) => {
 
     console.log(`[FileSearch] Processing: ${publicationName} from storage: ${storagePath}`);
     
+    // Detect file type
+    const fileExtension = fileName.toLowerCase().split('.').pop();
+    const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(fileExtension || '');
+    const isPDF = fileExtension === 'pdf';
+    
+    if (!isImage && !isPDF) {
+      throw new Error(`Unsupported file type: ${fileExtension}. Only PDF and image files (JPG, PNG) are supported.`);
+    }
+    
+    console.log(`[FileSearch] File type: ${isImage ? 'Image' : 'PDF'}`);
+    
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Step 1: Get or create File Search Store
-    const fileSearchStoreId = await getOrCreateFileSearchStore();
-    console.log(`[FileSearch] Using store: ${fileSearchStoreId}`);
-
-    // Step 2: Download file from Supabase Storage
+    // Step 1: Download file from Supabase Storage
     console.log('[FileSearch] Downloading from storage...');
     const { data: fileData, error: downloadError } = await supabase
       .storage
@@ -63,35 +70,47 @@ serve(async (req) => {
     
     console.log(`[FileSearch] Downloaded file: ${(fileData.size / 1024 / 1024).toFixed(2)} MB`);
 
-    // Step 3: Upload to File Search Store with metadata
-    console.log('[FileSearch] Uploading to File Search Store...');
-    const uploadResult = await uploadToFileSearchStore(
-      fileSearchStoreId,
-      fileData,
-      fileName,
-      {
-        publication_name: publicationName,
-        publication_date: new Date().toISOString(),
-        user_id: userId,
-        categories: PUBLIMEDIA_CATEGORIES.join(','),
-        clients: Object.keys(PUBLIMEDIA_CLIENTS).join(',')
-      }
-    );
+    let analysisResult;
+    let fileSearchStoreId = 'direct-vision'; // Placeholder for images
+    let documentId = storagePath;
 
-    console.log('[FileSearch] ✓ Upload complete');
+    if (isImage) {
+      // For images: Use Gemini Vision API directly
+      console.log('[FileSearch] Processing image with Vision API...');
+      analysisResult = await analyzeImageWithVision(fileData, publicationName);
+    } else {
+      // For PDFs: Use File Search Store
+      fileSearchStoreId = await getOrCreateFileSearchStore();
+      console.log(`[FileSearch] Using store: ${fileSearchStoreId}`);
 
-    // Step 4: Wait for indexing
-    console.log('[FileSearch] Waiting for indexing...');
-    await waitForFileIndexing(uploadResult.operationName);
+      console.log('[FileSearch] Uploading to File Search Store...');
+      const uploadResult = await uploadToFileSearchStore(
+        fileSearchStoreId,
+        fileData,
+        fileName,
+        {
+          publication_name: publicationName,
+          publication_date: new Date().toISOString(),
+          user_id: userId,
+          categories: PUBLIMEDIA_CATEGORIES.join(','),
+          clients: Object.keys(PUBLIMEDIA_CLIENTS).join(',')
+        }
+      );
 
-    // Step 5: Analyze document
-    console.log('[FileSearch] Analyzing document...');
-    const analysisResult = await analyzeDocumentWithFileSearch(
-      fileSearchStoreId,
-      publicationName
-    );
+      console.log('[FileSearch] ✓ Upload complete');
+      documentId = uploadResult.documentId;
 
-    // Step 6: Store metadata in database
+      console.log('[FileSearch] Waiting for indexing...');
+      await waitForFileIndexing(uploadResult.operationName);
+
+      console.log('[FileSearch] Analyzing document...');
+      analysisResult = await analyzeDocumentWithFileSearch(
+        fileSearchStoreId,
+        publicationName
+      );
+    }
+
+    // Step 2: Store metadata in database
     console.log('[FileSearch] Storing metadata...');
     const { data: doc, error: dbError } = await supabase
       .from('press_file_search_documents')
@@ -99,7 +118,7 @@ serve(async (req) => {
         user_id: userId,
         publication_name: publicationName,
         file_search_store_id: fileSearchStoreId,
-        file_search_document_id: uploadResult.documentId,
+        file_search_document_id: documentId,
         original_filename: fileName,
         file_size_bytes: fileSize,
         status: 'active',
@@ -385,6 +404,116 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
   
   return {
     summary: parsed.summary || `Documento de ${publicationName}`,
+    clippingsCount: parsed.clippings_count || 0,
+    categories: parsed.categories || [],
+    keywords: parsed.keywords || [],
+    relevantClients: parsed.relevant_clients || []
+  };
+}
+
+async function analyzeImageWithVision(
+  imageBlob: Blob,
+  publicationName: string
+): Promise<{
+  summary: string;
+  clippingsCount: number;
+  categories: string[];
+  keywords: string[];
+  relevantClients: string[];
+}> {
+  
+  console.log('[Vision] Converting image to base64...');
+  const arrayBuffer = await imageBlob.arrayBuffer();
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  
+  const analysisPrompt = `Analiza esta imagen de un documento de prensa de "${publicationName}".
+
+**IMPORTANTE**: Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después. No incluyas explicaciones, preámbulos ni comentarios.
+
+**FILTRO ESTRICTO**: Solo incluye artículos que mencionan EXACTAMENTE estos clientes o sus sectores:
+${Object.entries(PUBLIMEDIA_CLIENTS).map(([sector, clients]) => 
+  `${sector}: ${clients.join(', ')}`
+).join('\n')}
+
+**CATEGORÍAS VÁLIDAS**: ${PUBLIMEDIA_CATEGORIES.join(', ')}
+
+Extrae y analiza el texto visible en la imagen. Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
+{
+  "summary": "Resumen ejecutivo en 2-3 oraciones del contenido visible",
+  "clippings_count": 5,
+  "categories": ["SALUD", "ECONOMIA & NEGOCIOS"],
+  "keywords": ["hospital", "presupuesto", "medicaid"],
+  "relevant_clients": ["MMM", "Auxilio Mutuo"]
+}`;
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: analysisPrompt },
+            {
+              inline_data: {
+                mime_type: imageBlob.type || 'image/jpeg',
+                data: base64
+              }
+            }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.3,
+          topK: 20,
+          topP: 0.8,
+          maxOutputTokens: 2048
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[Vision] Analysis failed:', response.status, errorText);
+    throw new Error(`Vision analysis failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  
+  if (!content) {
+    throw new Error('No analysis content received from Vision API');
+  }
+
+  console.log('[Vision] Raw API response:', content.substring(0, 200));
+
+  // Parse JSON response
+  let parsed: any;
+  try {
+    parsed = JSON.parse(content);
+  } catch (e) {
+    console.log('[Vision] Direct JSON parse failed, trying to extract from text');
+    
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                      content.match(/```\s*([\s\S]*?)\s*```/) ||
+                      content.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+        console.log('[Vision] Successfully extracted JSON from markdown');
+      } catch (e2) {
+        console.error('[Vision] Failed to parse extracted JSON:', e2);
+        throw new Error(`Failed to parse Vision API response as JSON. Response starts with: ${content.substring(0, 100)}`);
+      }
+    } else {
+      throw new Error(`No JSON found in Vision API response. Response starts with: ${content.substring(0, 100)}`);
+    }
+  }
+  
+  return {
+    summary: parsed.summary || `Imagen de ${publicationName}`,
     clippingsCount: parsed.clippings_count || 0,
     categories: parsed.categories || [],
     keywords: parsed.keywords || [],
