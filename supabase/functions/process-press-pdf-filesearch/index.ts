@@ -61,7 +61,7 @@ serve(async (req) => {
       throw new Error(`Failed to download file: ${downloadError?.message}`);
     }
     
-    console.log(`[FileSearch] File size: ${(fileData.size / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`[FileSearch] Downloaded file: ${(fileData.size / 1024 / 1024).toFixed(2)} MB`);
 
     // Step 3: Upload to File Search Store with metadata
     console.log('[FileSearch] Uploading to File Search Store...');
@@ -199,6 +199,15 @@ async function uploadToFileSearchStore(
   metadata: Record<string, string>
 ): Promise<{ documentId: string; operationName: string }> {
   
+  const requestBody = {
+    file: {
+      display_name: fileName
+    }
+  };
+  
+  console.log('[FileSearch] Initializing resumable upload...');
+  console.log('[FileSearch] File size:', fileBlob.size, 'bytes');
+  
   const initResponse = await fetch(
     `https://generativelanguage.googleapis.com/upload/v1beta/${storeId}:uploadToFileSearchStore?key=${GEMINI_API_KEY}`,
     {
@@ -207,31 +216,25 @@ async function uploadToFileSearchStore(
         'X-Goog-Upload-Protocol': 'resumable',
         'X-Goog-Upload-Command': 'start',
         'X-Goog-Upload-Header-Content-Length': fileBlob.size.toString(),
-        'X-Goog-Upload-Header-Content-Type': fileBlob.type,
+        'X-Goog-Upload-Header-Content-Type': 'application/pdf',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        display_name: fileName,
-        custom_metadata: Object.entries(metadata).map(([key, value]) => ({
-          key,
-          string_value: value
-        })),
-        chunking_config: {
-          white_space_config: {
-            max_tokens_per_chunk: 800,
-            max_overlap_tokens: 100
-          }
-        }
-      })
+      body: JSON.stringify(requestBody)
     }
   );
 
   if (!initResponse.ok) {
-    throw new Error(`Failed to initialize upload: ${initResponse.status}`);
+    const errorText = await initResponse.text();
+    console.error('[FileSearch] Upload init failed:', initResponse.status, errorText);
+    throw new Error(`Failed to initialize upload: ${initResponse.status} - ${errorText}`);
   }
 
   const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
-  if (!uploadUrl) throw new Error('No upload URL received');
+  if (!uploadUrl) {
+    throw new Error('No upload URL received from Google');
+  }
+  
+  console.log('[FileSearch] Uploading file content...');
 
   const uploadResponse = await fetch(uploadUrl, {
     method: 'POST',
@@ -244,10 +247,13 @@ async function uploadToFileSearchStore(
   });
 
   if (!uploadResponse.ok) {
-    throw new Error(`Upload failed: ${uploadResponse.status}`);
+    const errorText = await uploadResponse.text();
+    console.error('[FileSearch] Upload failed:', uploadResponse.status, errorText);
+    throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
   }
 
   const result = await uploadResponse.json();
+  console.log('[FileSearch] Upload result:', JSON.stringify(result));
   
   return {
     documentId: result.file?.name || result.name,
