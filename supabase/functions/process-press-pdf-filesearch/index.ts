@@ -302,6 +302,8 @@ async function analyzeDocumentWithFileSearch(
   
   const analysisPrompt = `Analiza este documento de prensa de "${publicationName}".
 
+**IMPORTANTE**: Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después. No incluyas explicaciones, preámbulos ni comentarios.
+
 **FILTRO ESTRICTO**: Solo incluye artículos que mencionan EXACTAMENTE estos clientes o sus sectores:
 ${Object.entries(PUBLIMEDIA_CLIENTS).map(([sector, clients]) => 
   `${sector}: ${clients.join(', ')}`
@@ -309,16 +311,9 @@ ${Object.entries(PUBLIMEDIA_CLIENTS).map(([sector, clients]) =>
 
 **CATEGORÍAS VÁLIDAS**: ${PUBLIMEDIA_CATEGORIES.join(', ')}
 
-Proporciona:
-1. **Resumen ejecutivo** (2-3 oraciones del documento completo)
-2. **Cantidad de artículos relevantes** encontrados
-3. **Categorías presentes** (lista de categorías encontradas)
-4. **Palabras clave principales** (máximo 10 keywords más importantes)
-5. **Clientes relevantes** (lista de clientes mencionados)
-
-Responde ÚNICAMENTE en formato JSON estructurado:
+Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
 {
-  "summary": "Resumen ejecutivo...",
+  "summary": "Resumen ejecutivo en 2-3 oraciones del documento completo",
   "clippings_count": 5,
   "categories": ["SALUD", "ECONOMIA & NEGOCIOS"],
   "keywords": ["hospital", "presupuesto", "medicaid"],
@@ -343,8 +338,7 @@ Responde ÚNICAMENTE en formato JSON estructurado:
           temperature: 0.3,
           topK: 20,
           topP: 0.8,
-          maxOutputTokens: 2048,
-          responseMimeType: "application/json"
+          maxOutputTokens: 2048
         }
       })
     }
