@@ -199,12 +199,6 @@ async function uploadToFileSearchStore(
   metadata: Record<string, string>
 ): Promise<{ documentId: string; operationName: string }> {
   
-  const requestBody = {
-    file: {
-      display_name: fileName
-    }
-  };
-  
   console.log('[FileSearch] Initializing resumable upload...');
   console.log('[FileSearch] File size:', fileBlob.size, 'bytes');
   
@@ -219,7 +213,9 @@ async function uploadToFileSearchStore(
         'X-Goog-Upload-Header-Content-Type': 'application/pdf',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify({
+        display_name: fileName
+      })
     }
   );
 
