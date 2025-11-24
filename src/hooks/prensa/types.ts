@@ -20,6 +20,7 @@ export interface ProcessingJob {
 export interface SearchResult extends PressClipping {
   similarity: number;
   publication_name: string;
+  citations?: any;
 }
 
 export interface JobStatusResponse {
