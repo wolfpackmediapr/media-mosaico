@@ -42,7 +42,7 @@ serve(async (req) => {
       throw new Error('Missing required parameters');
     }
 
-    console.log(`[FileSearch] Processing: ${publicationName}`);
+    console.log(`[FileSearch] Processing: ${publicationName} (${(file.data.length / 1024 / 1024).toFixed(2)} MB base64)`);
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -50,9 +50,14 @@ serve(async (req) => {
     const fileSearchStoreId = await getOrCreateFileSearchStore();
     console.log(`[FileSearch] Using store: ${fileSearchStoreId}`);
 
-    // Step 2: Decode base64 file data
+    // Step 2: Decode base64 file data efficiently
+    console.log('[FileSearch] Decoding file data...');
     const fileBuffer = Uint8Array.from(atob(file.data), c => c.charCodeAt(0));
     const fileBlob = new Blob([fileBuffer], { type: file.mimeType });
+    console.log(`[FileSearch] File size: ${(fileBlob.size / 1024 / 1024).toFixed(2)} MB`);
+    
+    // Clear the large base64 string from memory
+    file.data = null;
 
     // Step 3: Upload to File Search Store with metadata
     console.log('[FileSearch] Uploading to File Search Store...');
@@ -69,6 +74,8 @@ serve(async (req) => {
       }
     );
 
+    console.log('[FileSearch] ✓ Upload complete');
+
     // Step 4: Wait for indexing
     console.log('[FileSearch] Waiting for indexing...');
     await waitForFileIndexing(uploadResult.operationName);
@@ -81,6 +88,7 @@ serve(async (req) => {
     );
 
     // Step 6: Store metadata in database
+    console.log('[FileSearch] Storing metadata...');
     const { data: doc, error: dbError } = await supabase
       .from('press_file_search_documents')
       .insert({
@@ -244,7 +252,7 @@ async function uploadToFileSearchStore(
 }
 
 async function waitForFileIndexing(operationName: string): Promise<void> {
-  const maxAttempts = 60;
+  const maxAttempts = 120; // Increased to 10 minutes
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const statusResponse = await fetch(
@@ -256,19 +264,23 @@ async function waitForFileIndexing(operationName: string): Promise<void> {
       const status = await statusResponse.json();
       
       if (status.done === true) {
-        console.log('[FileSearch] ✓ Indexing complete');
+        console.log(`[FileSearch] ✓ Indexing complete (${attempt} attempts)`);
         return;
       }
       
       if (status.error) {
         throw new Error(`Indexing failed: ${JSON.stringify(status.error)}`);
       }
+      
+      if (attempt % 10 === 0) {
+        console.log(`[FileSearch] Still indexing... (attempt ${attempt}/${maxAttempts})`);
+      }
     }
 
     await new Promise(resolve => setTimeout(resolve, 5000));
   }
   
-  throw new Error('Indexing timeout');
+  throw new Error('Indexing timeout after 10 minutes');
 }
 
 async function analyzeDocumentWithFileSearch(
