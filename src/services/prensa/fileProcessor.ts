@@ -154,3 +154,59 @@ export const cleanupFailedJob = async (jobId: string): Promise<void> => {
     console.error("Error cleaning up failed job:", error);
   }
 };
+
+// ===== FILE SEARCH API INTEGRATION =====
+
+export const processFileWithFileSearch = async (
+  file: File,
+  publicationName: string,
+  userId: string
+): Promise<{
+  documentId: string;
+  summary: string;
+  clippingsCount: number;
+  categories: string[];
+  keywords: string[];
+  relevantClients: string[];
+}> => {
+  console.log('[FileSearch] Starting upload...');
+  
+  // Convert file to base64
+  const fileData = await fileToBase64(file);
+  
+  const { data, error } = await supabase.functions.invoke('process-press-pdf-filesearch', {
+    body: {
+      file: {
+        name: file.name,
+        data: fileData,
+        mimeType: file.type
+      },
+      publicationName,
+      userId
+    }
+  });
+
+  if (error) {
+    console.error('[FileSearch] Upload error:', error);
+    throw new Error(error.message || 'Failed to process file');
+  }
+
+  if (!data.success) {
+    throw new Error(data.error || 'Processing failed');
+  }
+
+  console.log('[FileSearch] ✓ Upload complete');
+  return data;
+};
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}

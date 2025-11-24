@@ -16,3 +16,9 @@ memory_mb = 512
 
 [functions.compress-press-pdf]
 verify_jwt = false
+
+[functions.process-press-pdf-filesearch]
+verify_jwt = true
+
+[functions.search-press-filesearch]
+verify_jwt = true
