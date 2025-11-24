@@ -36,13 +36,13 @@ serve(async (req) => {
   }
 
   try {
-    const { file, publicationName, userId } = await req.json();
+    const { storagePath, publicationName, userId, fileName, fileSize } = await req.json();
     
-    if (!file || !publicationName || !userId) {
+    if (!storagePath || !publicationName || !userId) {
       throw new Error('Missing required parameters');
     }
 
-    console.log(`[FileSearch] Processing: ${publicationName} (${(file.data.length / 1024 / 1024).toFixed(2)} MB base64)`);
+    console.log(`[FileSearch] Processing: ${publicationName} from storage: ${storagePath}`);
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -50,21 +50,25 @@ serve(async (req) => {
     const fileSearchStoreId = await getOrCreateFileSearchStore();
     console.log(`[FileSearch] Using store: ${fileSearchStoreId}`);
 
-    // Step 2: Decode base64 file data efficiently
-    console.log('[FileSearch] Decoding file data...');
-    const fileBuffer = Uint8Array.from(atob(file.data), c => c.charCodeAt(0));
-    const fileBlob = new Blob([fileBuffer], { type: file.mimeType });
-    console.log(`[FileSearch] File size: ${(fileBlob.size / 1024 / 1024).toFixed(2)} MB`);
+    // Step 2: Download file from Supabase Storage
+    console.log('[FileSearch] Downloading from storage...');
+    const { data: fileData, error: downloadError } = await supabase
+      .storage
+      .from('pdf_uploads')
+      .download(storagePath);
     
-    // Clear the large base64 string from memory
-    file.data = null;
+    if (downloadError || !fileData) {
+      throw new Error(`Failed to download file: ${downloadError?.message}`);
+    }
+    
+    console.log(`[FileSearch] File size: ${(fileData.size / 1024 / 1024).toFixed(2)} MB`);
 
     // Step 3: Upload to File Search Store with metadata
     console.log('[FileSearch] Uploading to File Search Store...');
     const uploadResult = await uploadToFileSearchStore(
       fileSearchStoreId,
-      fileBlob,
-      file.name,
+      fileData,
+      fileName,
       {
         publication_name: publicationName,
         publication_date: new Date().toISOString(),
@@ -96,8 +100,8 @@ serve(async (req) => {
         publication_name: publicationName,
         file_search_store_id: fileSearchStoreId,
         file_search_document_id: uploadResult.documentId,
-        original_filename: file.name,
-        file_size_bytes: fileBlob.size,
+        original_filename: fileName,
+        file_size_bytes: fileSize,
         status: 'active',
         document_summary: analysisResult.summary,
         total_clippings_found: analysisResult.clippingsCount,

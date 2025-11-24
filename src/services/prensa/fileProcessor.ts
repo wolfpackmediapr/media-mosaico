@@ -171,23 +171,27 @@ export const processFileWithFileSearch = async (
 }> => {
   console.log('[FileSearch] Starting upload...');
   
-  // Convert file to base64
-  const fileData = await fileToBase64(file);
+  // Step 1: Upload to Supabase Storage first (avoids base64 memory overhead)
+  const filePath = getFilePathFromJob(file.name);
+  console.log('[FileSearch] Uploading to storage:', filePath);
   
+  await uploadFileToStorage(file, filePath);
+  
+  console.log('[FileSearch] Storage upload complete, processing with File Search API...');
+  
+  // Step 2: Trigger File Search processing with storage path
   const { data, error } = await supabase.functions.invoke('process-press-pdf-filesearch', {
     body: {
-      file: {
-        name: file.name,
-        data: fileData,
-        mimeType: file.type
-      },
+      storagePath: filePath,
       publicationName,
-      userId
+      userId,
+      fileName: file.name,
+      fileSize: file.size
     }
   });
 
   if (error) {
-    console.error('[FileSearch] Upload error:', error);
+    console.error('[FileSearch] Processing error:', error);
     throw new Error(error.message || 'Failed to process file');
   }
 
@@ -195,18 +199,6 @@ export const processFileWithFileSearch = async (
     throw new Error(data.error || 'Processing failed');
   }
 
-  console.log('[FileSearch] ✓ Upload complete');
+  console.log('[FileSearch] ✓ Processing complete');
   return data;
 };
-
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
