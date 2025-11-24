@@ -361,7 +361,33 @@ Responde ÚNICAMENTE en formato JSON estructurado:
     throw new Error('No analysis content received');
   }
 
-  const parsed = JSON.parse(content);
+  console.log('[FileSearch] Raw API response:', content.substring(0, 200));
+
+  // Try to parse as JSON, handling both direct JSON and markdown-wrapped JSON
+  let parsed: any;
+  try {
+    // First try direct JSON parse
+    parsed = JSON.parse(content);
+  } catch (e) {
+    console.log('[FileSearch] Direct JSON parse failed, trying to extract from text');
+    
+    // Try to extract JSON from markdown code blocks
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                      content.match(/```\s*([\s\S]*?)\s*```/) ||
+                      content.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+        console.log('[FileSearch] Successfully extracted JSON from markdown');
+      } catch (e2) {
+        console.error('[FileSearch] Failed to parse extracted JSON:', e2);
+        throw new Error(`Failed to parse API response as JSON. Response starts with: ${content.substring(0, 100)}`);
+      }
+    } else {
+      throw new Error(`No JSON found in API response. Response starts with: ${content.substring(0, 100)}`);
+    }
+  }
   
   return {
     summary: parsed.summary || `Documento de ${publicationName}`,
