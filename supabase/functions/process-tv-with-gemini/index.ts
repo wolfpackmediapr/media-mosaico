@@ -86,12 +86,14 @@ function buildTranscriptionOnlyPrompt(): string {
 
 Tu ÚNICA tarea es transcribir PALABRA POR PALABRA todo el diálogo que escuchas en el video, separando por hablantes.
 
-FORMATO REQUERIDO - Usa EXACTAMENTE este formato:
+FORMATO REQUERIDO - Usa EXACTAMENTE este formato (es CRÍTICO usar "SPEAKER" en inglés):
 
 SPEAKER 1: [Transcripción textual exacta de todo lo que dice]
 SPEAKER 2: [Transcripción textual exacta de todo lo que dice]
 SPEAKER 1: [Si el primer hablante vuelve a hablar]
 SPEAKER 3: [Si aparece un tercer hablante]
+
+IMPORTANTE: Debes usar la palabra "SPEAKER" (en inglés) seguida del número. NO uses "HABLANTE" ni otras palabras en español.
 
 IDENTIFICACIÓN VISUAL DE HABLANTES:
 ✓ USA TU CAPACIDAD DE VISIÓN para identificar a los hablantes
@@ -736,23 +738,51 @@ async function processChunkedUploadWithGemini(
         if (transcriptionData.candidates?.[0]?.content?.parts?.[0]?.text) {
           const rawTranscription = transcriptionData.candidates[0].content.parts[0].text.trim();
           
-          // Simple validation - accept any video with at least one speaker
+          // Flexible validation - accept multiple speaker formats
           const upper = rawTranscription.toUpperCase();
-          const hasSpeaker = upper.includes('SPEAKER 1:');
+          const hasSpeakerFormat = 
+            upper.includes('SPEAKER 1:') || 
+            upper.includes('HABLANTE 1:') ||
+            upper.includes('PRESENTADOR:') ||
+            upper.includes('REPORTERO:') ||
+            (rawTranscription.length > 100 && /\w+\s*\d*:/i.test(rawTranscription)); // Accept any name: format if substantial content
           
-          if (hasSpeaker) {
+          if (hasSpeakerFormat && rawTranscription.length > 50) {
             speakerTranscription = rawTranscription;
-            console.log('[gemini-unified] Transcription accepted');
+            console.log('[gemini-unified] Transcription accepted', { 
+              length: rawTranscription.length,
+              preview: rawTranscription.substring(0, 100)
+            });
             break;
           } else {
-            console.warn('[gemini-unified] Invalid format, retrying...');
+            console.warn('[gemini-unified] Invalid format, retrying...', {
+              length: rawTranscription.length,
+              hasSpeakerFormat,
+              preview: rawTranscription.substring(0, 200)
+            });
           }
         }
       } catch (error) {
         console.error(`[gemini-unified] Transcription attempt ${attempt} failed:`, error);
         if (attempt === maxTranscriptionAttempts) {
-          console.warn('[gemini-unified] All transcription attempts failed, proceeding with analysis only');
-          speakerTranscription = '';
+          console.warn('[gemini-unified] All transcription attempts failed. Attempting fallback extraction...');
+          // Try to extract any text from last response as fallback
+          try {
+            if (transcriptionData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+              const fallbackText = transcriptionData.candidates[0].content.parts[0].text.trim();
+              if (fallbackText.length > 50) {
+                console.log('[gemini-unified] Using fallback transcription', { length: fallbackText.length });
+                speakerTranscription = fallbackText;
+              } else {
+                speakerTranscription = '';
+              }
+            } else {
+              speakerTranscription = '';
+            }
+          } catch (fallbackError) {
+            console.error('[gemini-unified] Fallback extraction failed:', fallbackError);
+            speakerTranscription = '';
+          }
         }
       }
     }
@@ -869,11 +899,34 @@ async function processChunkedUploadWithGemini(
         }
 
         const analysisData = await analysisResponse.json();
+        
+        // Add robust null-safe extraction with detailed error logging
         if (!analysisData.candidates || analysisData.candidates.length === 0) {
+          console.error('[gemini-unified] No candidates in analysis response:', JSON.stringify(analysisData).substring(0, 500));
           throw new Error('No analysis response from Gemini');
         }
 
-        analysisResult = analysisData.candidates[0].content.parts[0].text;
+        const candidate = analysisData.candidates[0];
+        if (!candidate?.content) {
+          console.error('[gemini-unified] No content in candidate:', JSON.stringify(candidate).substring(0, 500));
+          throw new Error('No content in analysis response');
+        }
+
+        if (!candidate.content.parts || candidate.content.parts.length === 0) {
+          console.error('[gemini-unified] No parts in content:', JSON.stringify(candidate.content).substring(0, 500));
+          throw new Error('No parts in analysis response');
+        }
+
+        if (!candidate.content.parts[0]?.text) {
+          console.error('[gemini-unified] No text in first part:', JSON.stringify(candidate.content.parts[0]).substring(0, 500));
+          throw new Error('No text in analysis response');
+        }
+
+        analysisResult = candidate.content.parts[0].text;
+        console.log('[gemini-unified] Analysis extraction successful', { 
+          length: analysisResult.length,
+          preview: analysisResult.substring(0, 100)
+        });
         break;
       } catch (error) {
         console.error(`[gemini-unified] Analysis attempt ${attempt} failed:`, error);
