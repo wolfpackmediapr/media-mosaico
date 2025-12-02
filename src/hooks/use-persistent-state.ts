@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 type StorageType = 'localStorage' | 'sessionStorage';
 
@@ -10,6 +10,7 @@ export interface PersistOptions {
 
 /**
  * Hook for persisting state in localStorage or sessionStorage
+ * Fixed: Added skipNextWriteRef to prevent race conditions during removeItem()
  */
 export function usePersistentState<T>(
   key: string,
@@ -26,6 +27,10 @@ export function usePersistentState<T>(
   
   // Get the storage object (localStorage or sessionStorage)
   const storageObject = window[storage];
+  
+  // CRITICAL FIX: Flag to skip the next write after removeItem
+  // This prevents the useEffect from re-writing initialValue back to storage
+  const skipNextWriteRef = useRef(false);
   
   // Initialize state with persisted value or initial value
   const [state, setState] = useState<T>(() => {
@@ -47,6 +52,13 @@ export function usePersistentState<T>(
   
   // Update storage when state changes
   useEffect(() => {
+    // CRITICAL FIX: Skip write if we just cleared via removeItem
+    if (skipNextWriteRef.current) {
+      skipNextWriteRef.current = false;
+      console.log(`[usePersistentState] [${storage}] SKIPPED write for "${key}" (removeItem in progress)`);
+      return;
+    }
+    
     try {
       storageObject.setItem(key, serialize(state));
       console.log(`[usePersistentState] [${storage}] SET "${key}" =`, state);
@@ -58,11 +70,14 @@ export function usePersistentState<T>(
   // Function to clear this specific stored value
   const removeItem = () => {
     try {
+      // CRITICAL FIX: Set flag BEFORE clearing to prevent useEffect re-write
+      skipNextWriteRef.current = true;
       storageObject.removeItem(key);
       setState(initialValue);
       console.log(`[usePersistentState] [${storage}] REMOVE "${key}"`);
     } catch (error) {
       console.error(`[usePersistentState] [${storage}] Error removing "${key}":`, error);
+      skipNextWriteRef.current = false; // Reset on error
     }
   };
   

@@ -3,26 +3,10 @@ import { useMediaPersistence } from "@/context/MediaPersistenceContext";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useVideoVisibilitySync } from "./processing/useVideoVisibilitySync";
 
-// Module-level cache for blob URLs (survives tab switches, not page reloads)
-const blobUrlMemoryCache = new Map<string, string>();
-
-// Helper to generate stable file IDs
+// HYBRID FIX: Simplified file ID helper (no module-level cache)
 const getFileId = (file: any): string => {
   return file._fileId || file.filePath || `${file.name}-${file.size}-${file.lastModified}`;
 };
-
-// Debug helper for monitoring blob cache
-if (typeof window !== 'undefined') {
-  (window as any).debugTvBlobCache = () => {
-    console.log('Blob URL Memory Cache:', {
-      size: blobUrlMemoryCache.size,
-      entries: Array.from(blobUrlMemoryCache.entries()).map(([id, url]) => ({
-        id,
-        url: url.substring(0, 50) + '...'
-      }))
-    });
-  };
-}
 
 interface UploadedFile extends File {
   preview?: string;
@@ -40,7 +24,8 @@ export const usePersistentVideoState = () => {
     lastPlaybackPosition 
   } = useMediaPersistence();
   
-  // Phase 4: File management state with stable ID serialization
+  // HYBRID FIX: Simplified file management - store only metadata, not blob URLs
+  // Blob URLs don't survive page reloads anyway (same as Radio behavior)
   const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
     "tv-uploaded-files",
     [],
@@ -49,19 +34,12 @@ export const usePersistentVideoState = () => {
       serialize: (files) => {
         const sanitized = files.map(f => {
           const fileId = getFileId(f);
-          
-          // CRITICAL: Cache blob URLs in memory before serializing
-          if (f.preview?.startsWith('blob:')) {
-            console.log(`[usePersistentVideoState] Caching blob URL for ${fileId}:`, f.preview.substring(0, 50));
-            blobUrlMemoryCache.set(fileId, f.preview);
-          }
-          
           return {
             name: f.name,
             size: f.size,
             type: f.type,
             lastModified: f.lastModified,
-            // Keep blob URLs in sessionStorage for same-session recovery
+            // Store preview (blob URL may be invalid after page reload - that's OK)
             preview: f.preview,
             filePath: f.filePath,
             _fileId: fileId
@@ -82,14 +60,13 @@ export const usePersistentVideoState = () => {
         return parsed.map((fileData: any) => {
           const fileId = fileData._fileId;
           
-          // Try to restore blob URL from memory cache first
-          const cachedBlobUrl = blobUrlMemoryCache.get(fileId);
-          const effectivePreview = cachedBlobUrl || fileData.preview;
+          // Use filePath (Supabase URL) as primary, preview as fallback
+          // Note: blob URLs won't work after page reload - user may need to re-upload
+          const effectivePreview = fileData.filePath || fileData.preview;
           
           console.log(`[usePersistentVideoState] Restoring file ${fileId}:`, {
-            hadCachedBlob: !!cachedBlobUrl,
-            hadStoredPreview: !!fileData.preview,
             hasFilePath: !!fileData.filePath,
+            hasPreview: !!fileData.preview,
             effectivePreview: effectivePreview?.substring(0, 50)
           });
           
@@ -166,7 +143,7 @@ export const usePersistentVideoState = () => {
     setActiveMediaRoute('/tv');
     console.log('[usePersistentVideoState] TV route activated');
     
-    // Phase 3: Save state immediately on unmount/route change
+    // Save state on unmount/route change
     return () => {
       if (activeMediaRoute === '/tv') {
         console.log('[usePersistentVideoState] TV route deactivating - saving state');
@@ -181,10 +158,6 @@ export const usePersistentVideoState = () => {
           sessionStorage.setItem('tv-was-playing-before-unmount', isMediaPlaying.toString());
           console.log(`[usePersistentVideoState] Saved playing state: ${isMediaPlaying}`);
         }
-        
-        // Clear memory cache when route changes (not on tab switches)
-        console.log('[usePersistentVideoState] Clearing blob URL memory cache');
-        blobUrlMemoryCache.clear();
       }
     };
   }, [setActiveMediaRoute, activeMediaRoute, currentFileId, isMediaPlaying, updatePlaybackPosition]);

@@ -2,6 +2,7 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 import { useTvClearOperations } from './clear/useTvClearOperations';
+import { useSafeStorage } from '@/hooks/use-safe-storage';
 
 interface UploadedFile extends File {
   preview?: string;
@@ -23,7 +24,7 @@ interface UseTvClearStateOptions {
   setTranscriptionResult?: React.Dispatch<React.SetStateAction<any>>;
   setAnalysisResults?: React.Dispatch<React.SetStateAction<string>>;
   setAssemblyId?: React.Dispatch<React.SetStateAction<string | null>>;
-  // Remove functions from usePersistentState (prevents re-write)
+  // Remove functions from usePersistentState (prevents re-write race condition)
   removeTranscriptionText?: () => void;
   removeTranscriptionMetadata?: () => void;
   removeTranscriptionResult?: () => void;
@@ -81,112 +82,103 @@ export const useTvClearState = ({
     onTextChange,
     persistKey
   });
+  
+  // HYBRID FIX: Use useSafeStorage for reliable clearing (like Radio)
+  const { clearStorageKeys } = useSafeStorage({
+    storage: 'sessionStorage',
+    onError: (error) => console.error('[useTvClearState] Safe storage error:', error)
+  });
 
-  // Enhanced clear all function
+  // Enhanced clear all function with race condition fix
   const handleClearAll = useCallback(async (): Promise<boolean> => {
     if (isClearing) {
       console.warn('[useTvClearState] Clear operation already in progress');
       return false;
     }
     
-    console.log('[useTvClearState] Starting comprehensive clear sequence');
+    console.log('[useTvClearState] Starting comprehensive clear sequence (hybrid fix)');
     setIsClearing(true);
     setClearProgress(0);
     setClearingStage('Iniciando limpieza...');
     cancelTokenRef.current = false;
     
     try {
-      // Step 1: Clear UI components first
-      setClearingStage('Limpiando archivos de video...');
+      // Step 1: CRITICAL - Call removeItem functions FIRST (sets skipNextWriteRef flag)
+      // This prevents usePersistentState useEffect from re-writing cleared values
+      setClearingStage('Limpiando estado persistente...');
       setClearProgress(20);
       
-      const filesToCleanup = clearUIState();
-      
-      setClearingStage('Limpiando transcripción...');
-      setClearProgress(40);
-      
-      // Step 2: Clear transcription
-      clearTranscription();
-      
-      // Step 3: CRITICAL - Clear sessionStorage FIRST
-      setClearingStage('Limpiando almacenamiento...');
-      setClearProgress(50);
-      
-      clearStorage();
-      
-      // Clear new persisted state keys
-      sessionStorage.removeItem('tv-transcription-text');
-      sessionStorage.removeItem('tv-transcription-id');
-      sessionStorage.removeItem('tv-transcription-result');
-      sessionStorage.removeItem('tv-transcription-metadata');
-      sessionStorage.removeItem('tv-news-segments');
-      sessionStorage.removeItem('tv-analysis-results');
-      
-      // Clear video playback state and editor-related keys
-      const keys = Object.keys(sessionStorage);
-      keys.forEach(key => {
-        // Clear video playback state
-        if (key.startsWith('video-was-playing-') || 
-            key.startsWith('video-position-') ||
-            key.startsWith('chunked-video-was-playing-') ||
-            key.startsWith('chunked-video-position-')) {
-          sessionStorage.removeItem(key);
-        }
-        
-        // Clear editor state keys (speaker text and edit mode)
-        if (key.startsWith('radio-transcription-speaker-') ||
-            key.startsWith('transcription-editor-mode-')) {
-          sessionStorage.removeItem(key);
-          console.log(`[useTvClearState] Cleared editor key: ${key}`);
-        }
-        
-        // Clear TV view mode keys
-        if (key.startsWith('tv-transcription-view-mode-')) {
-          sessionStorage.removeItem(key);
-          console.log(`[useTvClearState] Cleared view mode key: ${key}`);
-        }
-      });
-      
-      console.log('[useTvClearState] sessionStorage cleared, waiting for persistence to settle');
-      
-      // Step 4: CRITICAL - Increase delay to allow usePersistentState to fully settle
-      await new Promise(resolve => setTimeout(resolve, 50));
-      
-      // Step 5: NOW clear React state using removeItem functions (prevents re-write)
-      setClearingStage('Limpiando estado de React...');
-      setClearProgress(60);
-      
-      // Use removeItem functions instead of setState to prevent usePersistentState from re-writing
-      if (removeTranscriptionId) {
-        removeTranscriptionId();
-        console.log('[useTvClearState] Removed transcriptionId via removeItem');
-      }
-      if (removeTranscriptionMetadata) {
-        removeTranscriptionMetadata();
-        console.log('[useTvClearState] Removed transcriptionMetadata via removeItem');
-      }
-      if (removeTranscriptionResult) {
-        removeTranscriptionResult();
-        console.log('[useTvClearState] Removed transcriptionResult via removeItem');
-      }
-      if (removeAnalysisResults) {
-        removeAnalysisResults();
-        console.log('[useTvClearState] Removed analysisResults via removeItem');
-      }
       if (removeTranscriptionText) {
         removeTranscriptionText();
         console.log('[useTvClearState] Removed transcriptionText via removeItem');
       }
-      if (removeNewsSegments) {
-        removeNewsSegments();
-        console.log('[useTvClearState] Removed newsSegments via removeItem');
+      if (removeTranscriptionId) {
+        removeTranscriptionId();
+        console.log('[useTvClearState] Removed transcriptionId via removeItem');
+      }
+      if (removeAnalysisResults) {
+        removeAnalysisResults();
+        console.log('[useTvClearState] Removed analysisResults via removeItem');
       }
       if (removeActiveProcessingId) {
         removeActiveProcessingId();
         console.log('[useTvClearState] Removed activeProcessingId via removeItem');
       }
       
-      // Step 6: Clear editor
+      // These are now plain useState, just call the remove functions
+      if (removeTranscriptionMetadata) {
+        removeTranscriptionMetadata();
+        console.log('[useTvClearState] Cleared transcriptionMetadata (useState)');
+      }
+      if (removeTranscriptionResult) {
+        removeTranscriptionResult();
+        console.log('[useTvClearState] Cleared transcriptionResult (useState)');
+      }
+      if (removeNewsSegments) {
+        removeNewsSegments();
+        console.log('[useTvClearState] Cleared newsSegments (useState)');
+      }
+      
+      // Step 2: Clear UI components
+      setClearingStage('Limpiando archivos de video...');
+      setClearProgress(40);
+      
+      const filesToCleanup = clearUIState();
+      clearTranscription();
+      
+      // Step 3: Use useSafeStorage for reliable sessionStorage clearing
+      setClearingStage('Limpiando almacenamiento...');
+      setClearProgress(50);
+      
+      clearStorage();
+      
+      // Collect all keys to clear
+      const keysToDelete = [
+        'tv-transcription-text',
+        'tv-transcription-id',
+        'tv-analysis-results',
+        'tv-active-processing-id'
+      ];
+      
+      // Add pattern-based keys
+      const allKeys = Object.keys(sessionStorage);
+      allKeys.forEach(key => {
+        if (key.startsWith('video-was-playing-') || 
+            key.startsWith('video-position-') ||
+            key.startsWith('chunked-video-was-playing-') ||
+            key.startsWith('chunked-video-position-') ||
+            key.startsWith('radio-transcription-speaker-') ||
+            key.startsWith('transcription-editor-mode-') ||
+            key.startsWith('tv-transcription-view-mode-')) {
+          keysToDelete.push(key);
+        }
+      });
+      
+      // Use safe storage to clear with retry logic
+      await clearStorageKeys(keysToDelete);
+      console.log('[useTvClearState] Cleared storage keys via useSafeStorage');
+      
+      // Step 4: Clear editor
       setClearingStage('Limpiando editor...');
       setClearProgress(70);
       
@@ -199,7 +191,7 @@ export const useTvClearState = ({
         }
       }
       
-      // Step 7: Clear analysis
+      // Step 5: Clear analysis
       setClearingStage('Limpiando análisis...');
       setClearProgress(80);
       
@@ -212,61 +204,40 @@ export const useTvClearState = ({
         }
       }
       
-      // Step 8: Clean up resources
+      // Step 6: Clean up resources
       setClearingStage('Limpiando recursos...');
       setClearProgress(85);
       
       cleanupBlobUrls(filesToCleanup);
       
-      // Clear notepad content if function provided
       if (setNotepadContent) {
         setNotepadContent('');
       }
       
-      // Step 9: Validate clearing (like Radio)
+      // Step 7: Validate clearing
       setClearingStage('Validando limpieza...');
       setClearProgress(95);
       
       const keysToCheck = [
         'tv-transcription-text',
         'tv-transcription-id',
-        'tv-transcription-result',
-        'tv-transcription-metadata',
         'tv-analysis-results',
-        'tv-news-segments'
+        'tv-active-processing-id'
       ];
       
-      // Check fixed keys
       const remainingKeys = keysToCheck.filter(key => 
         sessionStorage.getItem(key) !== null
       );
       
-      // Check pattern-based keys (editor-related)
-      const allKeys = Object.keys(sessionStorage);
-      const editorKeys = allKeys.filter(key => 
-        key.startsWith('radio-transcription-speaker-') ||
-        key.startsWith('transcription-editor-mode-') ||
-        key.startsWith('tv-transcription-view-mode-')
-      );
-      
-      if (remainingKeys.length > 0 || editorKeys.length > 0) {
-        console.warn('[useTvClearState] Keys still present after clear:', {
-          fixed: remainingKeys,
-          editor: editorKeys
-        });
-        
-        // Force-remove remaining keys
-        [...remainingKeys, ...editorKeys].forEach(key => {
-          sessionStorage.removeItem(key);
-          console.log(`[useTvClearState] Force-removed remaining key: ${key}`);
-        });
+      if (remainingKeys.length > 0) {
+        console.warn('[useTvClearState] Keys still present after clear:', remainingKeys);
+        // Force-remove with retry
+        await clearStorageKeys(remainingKeys);
       } else {
         console.log('[useTvClearState] Validation passed - all keys cleared');
       }
       
-      // Mark as clear action
       setLastAction('clear');
-      
       setClearProgress(100);
       setClearingStage('Completado');
       
@@ -293,13 +264,16 @@ export const useTvClearState = ({
     clearAnalysisFn,
     cleanupBlobUrls,
     clearStorage,
+    clearStorageKeys,
     setLastAction,
     setNotepadContent,
-    setTranscriptionId,
-    setTranscriptionMetadata,
-    setTranscriptionResult,
-    setAnalysisResults,
-    setAssemblyId
+    removeTranscriptionText,
+    removeTranscriptionId,
+    removeAnalysisResults,
+    removeActiveProcessingId,
+    removeTranscriptionMetadata,
+    removeTranscriptionResult,
+    removeNewsSegments
   ]);
 
   const handleEditorRegisterReset = useCallback((resetFn: () => void) => {
