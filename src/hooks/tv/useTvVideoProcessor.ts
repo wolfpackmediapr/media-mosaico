@@ -16,34 +16,16 @@ export const useTvVideoProcessor = () => {
   const [progress, setProgress] = useState(0);
   const [assemblyId, setAssemblyId] = useState<string | null>(null);
   
-  // Persistent state (survives component unmount)
+  // HYBRID FIX: Keep critical data persistent (survives page refresh)
   const [transcriptionText, setTranscriptionText, removeTranscriptionText] = usePersistentState<string>(
     "tv-transcription-text",
     "",
     { storage: 'sessionStorage' }
   );
   
-  const [transcriptionMetadata, setTranscriptionMetadata, removeTranscriptionMetadata] = usePersistentState<TranscriptionMetadata | undefined>(
-    "tv-transcription-metadata",
-    undefined,
-    { storage: 'sessionStorage' }
-  );
-  
-  const [transcriptionResult, setTranscriptionResult, removeTranscriptionResult] = usePersistentState<TranscriptionResult | null>(
-    "tv-transcription-result",
-    null,
-    { storage: 'sessionStorage' }
-  );
-  
   const [transcriptionId, setTranscriptionId, removeTranscriptionId] = usePersistentState<string | null>(
     "tv-transcription-id",
     null,
-    { storage: 'sessionStorage' }
-  );
-  
-  const [newsSegments, setNewsSegments, removeNewsSegments] = usePersistentState<NewsSegment[]>(
-    "tv-news-segments",
-    [],
     { storage: 'sessionStorage' }
   );
   
@@ -59,6 +41,17 @@ export const useTvVideoProcessor = () => {
     null,
     { storage: 'sessionStorage' }
   );
+  
+  // HYBRID FIX: Convert transient/derived data to plain useState (like Radio)
+  // These are either derived from transcriptionText or complex objects that cause serialization issues
+  const [transcriptionMetadata, setTranscriptionMetadata] = useState<TranscriptionMetadata | undefined>(undefined);
+  const [transcriptionResult, setTranscriptionResult] = useState<TranscriptionResult | null>(null);
+  const [newsSegments, setNewsSegments] = useState<NewsSegment[]>([]);
+  
+  // Provide no-op remove functions for backward compatibility
+  const removeTranscriptionMetadata = () => setTranscriptionMetadata(undefined);
+  const removeTranscriptionResult = () => setTranscriptionResult(null);
+  const removeNewsSegments = () => setNewsSegments([]);
 
   const processVideo = async (file: File) => {
     setIsProcessing(true);
