@@ -451,7 +451,7 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
           temperature: 0.3,
           topK: 20,
           topP: 0.8,
-          maxOutputTokens: 2048
+          maxOutputTokens: 8192
         }
       })
     }
@@ -593,7 +593,7 @@ Extrae y analiza el texto visible. Proporciona exactamente este formato JSON:
           temperature: 0.3,
           topK: 20,
           topP: 0.8,
-          maxOutputTokens: 2048
+          maxOutputTokens: 8192
         }
       })
     }
