@@ -567,7 +567,7 @@ function isValidAnalysisResult(result: any): boolean {
     Array.isArray(result.clients) &&
     Array.isArray(result.keywords) &&
     result.keywords.length >= 1 &&
-    result.keywords.length <= 7
+    result.keywords.length <= 15
   );
 }
 
