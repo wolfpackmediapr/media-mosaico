@@ -24,9 +24,15 @@ export const useJobManagement = () => {
     }
   }, [currentJob?.id, checkStatus]);
 
+  // Don't poll for File Search jobs (they have document_summary immediately)
+  const isFileSearchJob = !!currentJob?.document_summary;
+  const shouldPoll = !isFileSearchJob && 
+    currentJob?.status !== 'completed' && 
+    currentJob?.status !== 'error';
+    
   const { stopPolling } = useJobPolling({
     jobId: currentJob?.id || null,
-    isActive: currentJob?.status !== 'completed' && currentJob?.status !== 'error',
+    isActive: shouldPoll,
     onPoll: handlePoll
   });
 
