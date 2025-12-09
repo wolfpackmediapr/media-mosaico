@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Search } from "lucide-react";
 import UploadContentTab from "./UploadContentTab";
 import ResultsContainer from "./results/ResultsContainer";
-import { PressClipping } from "@/hooks/prensa/types";
+import { PressClipping, DocumentMetadata } from "@/hooks/prensa/types";
 
 interface PressTabsContainerProps {
   activeTab: string;
@@ -14,6 +14,7 @@ interface PressTabsContainerProps {
   uploadProgress: number;
   publicationName: string;
   documentSummary?: string;
+  documentMetadata?: DocumentMetadata;
   onFileSelect: (file: File, publicationName: string) => void;
   onCancelProcessing?: () => void;
 }
@@ -26,6 +27,7 @@ const PressTabsContainer = ({
   uploadProgress,
   publicationName,
   documentSummary,
+  documentMetadata,
   onFileSelect,
   onCancelProcessing
 }: PressTabsContainerProps) => {
@@ -62,6 +64,7 @@ const PressTabsContainer = ({
           clippings={clippings}
           publicationName={publicationName}
           documentSummary={documentSummary}
+          documentMetadata={documentMetadata}
           setActiveTab={setActiveTab}
         />
       </TabsContent>

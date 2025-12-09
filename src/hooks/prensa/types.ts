@@ -8,6 +8,14 @@ export interface PressClipping {
   client_relevance?: string[];
 }
 
+export interface DocumentMetadata {
+  summary: string;
+  categories: string[];
+  keywords: string[];
+  relevantClients: string[];
+  totalClippings: number;
+}
+
 export interface ProcessingJob {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'error';
@@ -15,6 +23,7 @@ export interface ProcessingJob {
   error?: string;
   publication_name: string;
   document_summary?: string;
+  document_metadata?: DocumentMetadata;
 }
 
 export interface SearchResult extends PressClipping {

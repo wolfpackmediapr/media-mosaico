@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import GenerateReportButton from "../GenerateReportButton";
 import DocumentSummaryCard from "./DocumentSummaryCard";
 import ClippingsGrid from "./ClippingsGrid";
-import { PressClipping } from "@/hooks/prensa/types";
+import { PressClipping, DocumentMetadata } from "@/hooks/prensa/types";
 
 interface ResultsContainerProps {
   isUploading: boolean;
@@ -12,6 +12,7 @@ interface ResultsContainerProps {
   publicationName: string;
   setActiveTab: (tab: string) => void;
   documentSummary?: string;
+  documentMetadata?: DocumentMetadata;
 }
 
 const ResultsContainer = ({
@@ -19,7 +20,8 @@ const ResultsContainer = ({
   clippings,
   publicationName,
   setActiveTab,
-  documentSummary
+  documentSummary,
+  documentMetadata
 }: ResultsContainerProps) => {
   if (isUploading) {
     return (
@@ -34,7 +36,7 @@ const ResultsContainer = ({
   if (clippings.length === 0 && documentSummary) {
     return (
       <>
-        <DocumentSummaryCard summary={documentSummary} />
+        <DocumentSummaryCard summary={documentSummary} metadata={documentMetadata} />
         <div className="text-center p-8 bg-muted/50 rounded-lg">
           <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
           <h3 className="text-lg font-medium mb-2">
@@ -71,7 +73,7 @@ const ResultsContainer = ({
   return (
     <>
       {documentSummary && (
-        <DocumentSummaryCard summary={documentSummary} />
+        <DocumentSummaryCard summary={documentSummary} metadata={documentMetadata} />
       )}
       
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

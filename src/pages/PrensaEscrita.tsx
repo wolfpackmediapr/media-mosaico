@@ -74,6 +74,7 @@ export default function PrensaEscrita() {
         uploadProgress={uploadProgress}
         publicationName={publicationName}
         documentSummary={currentJob?.document_summary}
+        documentMetadata={currentJob?.document_metadata}
         onFileSelect={handleFileSelect}
         onCancelProcessing={handleCancelProcessing}
       />
