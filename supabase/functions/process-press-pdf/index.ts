@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -28,28 +27,125 @@ const RETRY_CONFIG = {
   MAX_BACKOFF_MS: 10000          // Maximum backoff time
 };
 
-// Predefined categories from Publimedia
-const publimediaCategories = [
+// Default categories (fallback if database fetch fails)
+const DEFAULT_CATEGORIES = [
   'ACCIDENTES', 'AGENCIAS DE GOBIERNO', 'AMBIENTE', 'AMBIENTE & EL TIEMPO', 'CIENCIA & TECNOLOGIA',
   'COMUNIDAD', 'CRIMEN', 'DEPORTES', 'ECONOMIA & NEGOCIOS', 'EDUCACION & CULTURA',
   'EE.UU. & INTERNACIONALES', 'ENTRETENIMIENTO', 'GOBIERNO', 'OTRAS', 'POLITICA',
   'RELIGION', 'SALUD', 'TRIBUNALES'
 ];
 
-// Client categories and their associated keywords
-const publimediaClients = {
-  'SALUD': ['First Medical', 'Menonita', 'MMM', 'Auxilio Mutuo', 'Pavia', 'Therapy Network', 'Merck'],
-  'ENERGIA': ['Infinigen', 'NF Energia', 'AES'],
-  'AUTOS': ['Ford'],
-  'GOBIERNO': ['Etica Gubernamental', 'Municipio de Naguabo', 'PROMESA'],
-  'SEGUROS': ['Coop de Seg Multiples'],
-  'TELEVISION': ['Telemundo'],
-  'AMBIENTE': ['Para la Naturaleza'],
-  'INSTITUCIONES SIN FINES DE LUCRO': ['Cruz Roja Americana', 'Hospital del niño'],
-  'ALCOHOL': ['Serrallés'],
-  'COMIDA RAPIDA': ['McDonald\'s'],
-  'CARRETERAS': ['Metropistas']
-};
+// Types for dynamic client data
+interface ClientData {
+  name: string;
+  category: string;
+  keywords: string[];
+}
+
+// Global cache for clients and categories (fetched once per invocation)
+let cachedClientsData: {
+  clients: ClientData[];
+  categories: string[];
+  clientsByCategory: Record<string, ClientData[]>;
+  allClientNames: string[];
+  allKeywords: string[];
+} | null = null;
+
+/**
+ * Fetches clients and categories from the database
+ */
+async function fetchClientsAndCategories(supabase: any): Promise<typeof cachedClientsData> {
+  if (cachedClientsData) {
+    return cachedClientsData;
+  }
+  
+  try {
+    console.log('[Legacy] Fetching clients and categories from database...');
+    
+    // Fetch clients with keywords
+    const { data: clients, error: clientsError } = await supabase
+      .from('clients')
+      .select('name, category, keywords');
+    
+    if (clientsError) {
+      console.error('[Legacy] Error fetching clients:', clientsError);
+      throw clientsError;
+    }
+    
+    // Fetch categories
+    const { data: categories, error: categoriesError } = await supabase
+      .from('categories')
+      .select('name_es');
+    
+    if (categoriesError) {
+      console.error('[Legacy] Error fetching categories:', categoriesError);
+    }
+    
+    // Group clients by category and collect all names/keywords
+    const clientsByCategory: Record<string, ClientData[]> = {};
+    const clientList: ClientData[] = (clients || []).map((c: any) => ({
+      name: c.name,
+      category: c.category,
+      keywords: c.keywords || []
+    }));
+    
+    const allClientNames: string[] = [];
+    const allKeywords: string[] = [];
+    
+    for (const client of clientList) {
+      allClientNames.push(client.name);
+      allKeywords.push(...client.keywords);
+      
+      if (!clientsByCategory[client.category]) {
+        clientsByCategory[client.category] = [];
+      }
+      clientsByCategory[client.category].push(client);
+    }
+    
+    const categoryList = categories?.map((c: any) => c.name_es) || DEFAULT_CATEGORIES;
+    
+    console.log(`[Legacy] Loaded ${clientList.length} clients with ${allKeywords.length} keywords in ${Object.keys(clientsByCategory).length} categories`);
+    
+    cachedClientsData = {
+      clients: clientList,
+      categories: categoryList,
+      clientsByCategory,
+      allClientNames: [...new Set(allClientNames)],
+      allKeywords: [...new Set(allKeywords)]
+    };
+    
+    return cachedClientsData;
+  } catch (error) {
+    console.error('[Legacy] Failed to fetch from database, using empty defaults:', error);
+    cachedClientsData = {
+      clients: [],
+      categories: DEFAULT_CATEGORIES,
+      clientsByCategory: {},
+      allClientNames: [],
+      allKeywords: []
+    };
+    return cachedClientsData;
+  }
+}
+
+/**
+ * Builds a prompt section with clients and their keywords for AI analysis
+ */
+function buildClientKeywordsPrompt(clientsByCategory: Record<string, ClientData[]>): string {
+  if (Object.keys(clientsByCategory).length === 0) {
+    return 'No hay clientes configurados. Extrae TODOS los artículos de prensa encontrados.';
+  }
+  
+  const lines: string[] = [];
+  for (const [category, clients] of Object.entries(clientsByCategory)) {
+    const clientStrs = clients.map(c => {
+      const keywords = c.keywords.length > 0 ? c.keywords.join(', ') : c.name;
+      return `${c.name} (${keywords})`;
+    });
+    lines.push(`${category}: ${clientStrs.join('; ')}`);
+  }
+  return lines.join('\n');
+}
 
 /**
  * Updates processing job status and progress
@@ -72,38 +168,42 @@ async function updateProcessingJob(supabase: any, jobId: string, updates: any) {
 /**
  * Uses Gemini API to analyze text and identify press clippings
  */
-async function analyzePressClippings(pageText: string, pageNumber: number): Promise<any[]> {
+async function analyzePressClippings(
+  pageText: string, 
+  pageNumber: number,
+  clientsData: NonNullable<typeof cachedClientsData>
+): Promise<any[]> {
   try {
     console.log(`Analyzing page ${pageNumber} with Gemini (${pageText.length} chars)...`);
+    
+    const hasClients = clientsData.clients.length > 0;
+    const clientKeywordsPrompt = buildClientKeywordsPrompt(clientsData.clientsByCategory);
     
     const prompt = `
 INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE en español con JSON válido.
 
 Eres un analista de prensa de Puerto Rico.
 
-FILTRO ESTRICTO: Solo incluye artículos/anuncios si:
-- Menciona uno de estos clientes por nombre, O
-- Trata del sector específico del cliente
+${hasClients ? `BUSCA artículos que mencionen CUALQUIERA de estas palabras clave o nombres de clientes:
+${clientKeywordsPrompt}
 
-Clientes: ${Object.entries(publimediaClients)
-  .map(([cat, clients]) => `${cat}: ${(clients as string[]).join(', ')}`)
-  .join('; ')}
+Si un artículo contiene cualquiera de estas palabras clave, inclúyelo.` : `No hay clientes configurados. Extrae TODOS los artículos de prensa encontrados.`}
 
-Categorías: ${publimediaCategories.join(', ')}
+Categorías: ${clientsData.categories.join(', ')}
 
 Para cada artículo relevante, extrae:
 - Título completo
-- Contenido: 2-3 oraciones resumiendo el artículo y su relevancia para el cliente
+- Contenido: 2-3 oraciones resumiendo el artículo
 - Categoría
 - Keywords (máx 5)
-- Clientes relevantes
+- Clientes relevantes (solo si coinciden con palabras clave)
 
 RESPONDE JSON:
 {
   "recortes": [
     {
       "titulo": "título completo",
-      "contenido": "Breve análisis de 2-3 oraciones sobre el artículo y su relevancia",
+      "contenido": "Breve análisis de 2-3 oraciones sobre el artículo",
       "categoria": "categoría",
       "palabras_clave": ["palabra1", "palabra2"],
       "relevancia_clientes": ["cliente1"]
@@ -250,7 +350,8 @@ function attemptJSONRepair(truncatedJSON: string): any {
 async function processImageWithGeminiVision(
   imageBlob: Blob,
   fileName: string,
-  pageNumber: number
+  pageNumber: number,
+  clientsData: NonNullable<typeof cachedClientsData>
 ): Promise<any[]> {
   const maxRetries = 3;
   let lastError;
@@ -263,17 +364,19 @@ async function processImageWithGeminiVision(
       const fileInfo = await uploadImageToGemini(imageBlob, fileName);
       console.log(`File uploaded successfully: ${fileInfo.uri}`);
       
-      // Ultra-strict prompt - limit to 3 clippings max per page
+      const hasClients = clientsData.clients.length > 0;
+      const clientKeywordsPrompt = buildClientKeywordsPrompt(clientsData.clientsByCategory);
+      
+      // Dynamic prompt based on available clients
       const prompt = `
 RESPONDE SOLO JSON. NO explicaciones.
 
-Extrae ÚNICAMENTE artículos que:
-1. Mencionan EXACTAMENTE estos nombres: ${Object.values(publimediaClients).flat().join(', ')}
-2. O tratan sector específico: ${Object.keys(publimediaClients).join(', ')}
+${hasClients ? `Extrae artículos que mencionen CUALQUIERA de estas palabras clave:
+${clientKeywordsPrompt}` : `No hay clientes configurados. Extrae TODOS los artículos de prensa visibles.`}
 
 Para cada artículo relevante proporciona:
 - Título
-- Contenido: 2-3 oraciones analizando el artículo y su relevancia
+- Contenido: 2-3 oraciones analizando el artículo
 - Categoría
 - Keywords
 - Clientes relevantes

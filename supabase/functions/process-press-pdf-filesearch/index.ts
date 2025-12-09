@@ -6,29 +6,107 @@ const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Predefined categories and clients (same as original)
-const PUBLIMEDIA_CATEGORIES = [
-  'ACCIDENTES', 'AGENCIAS DE GOBIERNO', 'AMBIENTE', 'CIENCIA & TECNOLOGIA',
+// Default categories (fallback if database fetch fails)
+const DEFAULT_CATEGORIES = [
+  'ACCIDENTES', 'AGENCIAS DE GOBIERNO', 'AMBIENTE', 'AMBIENTE & EL TIEMPO', 'CIENCIA & TECNOLOGIA',
   'COMUNIDAD', 'CRIMEN', 'DEPORTES', 'ECONOMIA & NEGOCIOS', 'EDUCACION & CULTURA',
   'EE.UU. & INTERNACIONALES', 'ENTRETENIMIENTO', 'GOBIERNO', 'OTRAS', 'POLITICA',
   'RELIGION', 'SALUD', 'TRIBUNALES'
 ];
 
-const PUBLIMEDIA_CLIENTS: Record<string, string[]> = {
-  'SALUD': ['First Medical', 'Menonita', 'MMM', 'Auxilio Mutuo', 'Pavia', 'Therapy Network', 'Merck'],
-  'ENERGIA': ['Infinigen', 'NF Energia', 'AES'],
-  'AUTOS': ['Ford'],
-  'GOBIERNO': ['Etica Gubernamental', 'Municipio de Naguabo', 'PROMESA'],
-  'SEGUROS': ['Coop de Seg Multiples'],
-  'TELEVISION': ['Telemundo'],
-  'AMBIENTE': ['Para la Naturaleza'],
-  'INSTITUCIONES SIN FINES DE LUCRO': ['Cruz Roja Americana', 'Hospital del niño'],
-  'ALCOHOL': ['Serrallés'],
-  'COMIDA RAPIDA': ['McDonald\'s'],
-  'CARRETERAS': ['Metropistas']
-};
-
 const FILE_SEARCH_STORE_NAME = 'press-clippings-store';
+
+// Types for dynamic client data
+interface ClientData {
+  name: string;
+  category: string;
+  keywords: string[];
+}
+
+/**
+ * Fetches clients and categories from the database
+ */
+async function fetchClientsAndCategories(supabase: any): Promise<{
+  clients: ClientData[];
+  categories: string[];
+  clientsByCategory: Record<string, ClientData[]>;
+}> {
+  try {
+    console.log('[FileSearch] Fetching clients and categories from database...');
+    
+    // Fetch clients with keywords
+    const { data: clients, error: clientsError } = await supabase
+      .from('clients')
+      .select('name, category, keywords');
+    
+    if (clientsError) {
+      console.error('[FileSearch] Error fetching clients:', clientsError);
+      throw clientsError;
+    }
+    
+    // Fetch categories
+    const { data: categories, error: categoriesError } = await supabase
+      .from('categories')
+      .select('name_es');
+    
+    if (categoriesError) {
+      console.error('[FileSearch] Error fetching categories:', categoriesError);
+    }
+    
+    // Group clients by category
+    const clientsByCategory: Record<string, ClientData[]> = {};
+    const clientList: ClientData[] = (clients || []).map((c: any) => ({
+      name: c.name,
+      category: c.category,
+      keywords: c.keywords || []
+    }));
+    
+    for (const client of clientList) {
+      if (!clientsByCategory[client.category]) {
+        clientsByCategory[client.category] = [];
+      }
+      clientsByCategory[client.category].push(client);
+    }
+    
+    const categoryList = categories?.map((c: any) => c.name_es) || DEFAULT_CATEGORIES;
+    
+    console.log(`[FileSearch] Loaded ${clientList.length} clients in ${Object.keys(clientsByCategory).length} categories`);
+    
+    return {
+      clients: clientList,
+      categories: categoryList,
+      clientsByCategory
+    };
+  } catch (error) {
+    console.error('[FileSearch] Failed to fetch from database, using defaults:', error);
+    return {
+      clients: [],
+      categories: DEFAULT_CATEGORIES,
+      clientsByCategory: {}
+    };
+  }
+}
+
+/**
+ * Builds a prompt section with clients and their keywords for AI analysis
+ */
+function buildClientKeywordsPrompt(clientsByCategory: Record<string, ClientData[]>): string {
+  if (Object.keys(clientsByCategory).length === 0) {
+    return 'No hay clientes configurados. Cuenta TODOS los artículos de prensa encontrados.';
+  }
+  
+  const lines: string[] = [];
+  for (const [category, clients] of Object.entries(clientsByCategory)) {
+    lines.push(`\n${category}:`);
+    for (const client of clients) {
+      const keywords = client.keywords.length > 0 
+        ? client.keywords.join(', ')
+        : client.name;
+      lines.push(`  - ${client.name} (palabras clave: ${keywords})`);
+    }
+  }
+  return lines.join('\n');
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -57,6 +135,10 @@ serve(async (req) => {
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Fetch clients and categories from database
+    const { clients, categories, clientsByCategory } = await fetchClientsAndCategories(supabase);
+    const clientKeywordsPrompt = buildClientKeywordsPrompt(clientsByCategory);
+
     // Step 1: Download file from Supabase Storage
     console.log('[FileSearch] Downloading from storage...');
     const { data: fileData, error: downloadError } = await supabase
@@ -77,7 +159,7 @@ serve(async (req) => {
     if (isImage) {
       // For images: Use Gemini Vision API directly
       console.log('[FileSearch] Processing image with Vision API...');
-      analysisResult = await analyzeImageWithVision(fileData, publicationName);
+      analysisResult = await analyzeImageWithVision(fileData, publicationName, clientKeywordsPrompt, categories, clients);
     } else {
       // For PDFs: Use File Search Store
       fileSearchStoreId = await getOrCreateFileSearchStore();
@@ -92,21 +174,23 @@ serve(async (req) => {
           publication_name: publicationName,
           publication_date: new Date().toISOString(),
           user_id: userId,
-          categories: PUBLIMEDIA_CATEGORIES.join(','),
-          clients: Object.keys(PUBLIMEDIA_CLIENTS).join(',')
+          categories: categories.join(','),
+          clients: clients.map(c => c.name).join(',')
         }
       );
 
       console.log('[FileSearch] ✓ Upload complete');
       documentId = uploadResult.documentId;
-
       console.log('[FileSearch] Waiting for indexing...');
       await waitForFileIndexing(uploadResult.operationName);
 
       console.log('[FileSearch] Analyzing document...');
       analysisResult = await analyzeDocumentWithFileSearch(
         fileSearchStoreId,
-        publicationName
+        publicationName,
+        clientKeywordsPrompt,
+        categories,
+        clients
       );
     }
 
@@ -310,7 +394,10 @@ async function waitForFileIndexing(operationName: string): Promise<void> {
 
 async function analyzeDocumentWithFileSearch(
   storeId: string,
-  publicationName: string
+  publicationName: string,
+  clientKeywordsPrompt: string,
+  categories: string[],
+  clients: ClientData[]
 ): Promise<{
   summary: string;
   clippingsCount: number;
@@ -318,6 +405,9 @@ async function analyzeDocumentWithFileSearch(
   keywords: string[];
   relevantClients: string[];
 }> {
+  
+  const hasClients = clients.length > 0;
+  const clientNames = clients.map(c => c.name);
   
   const analysisPrompt = `Utiliza la herramienta File Search para leer y analizar el documento de prensa completo de "${publicationName}".
 
@@ -327,12 +417,12 @@ async function analyzeDocumentWithFileSearch(
 
 **IMPORTANTE**: Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después. No incluyas explicaciones, preámbulos ni comentarios.
 
-**FILTRO ESTRICTO**: Solo incluye artículos que mencionan EXACTAMENTE estos clientes o sus sectores:
-${Object.entries(PUBLIMEDIA_CLIENTS).map(([sector, clients]) => 
-  `${sector}: ${clients.join(', ')}`
-).join('\n')}
+**CATEGORÍAS VÁLIDAS**: ${categories.join(', ')}
 
-**CATEGORÍAS VÁLIDAS**: ${PUBLIMEDIA_CATEGORIES.join(', ')}
+${hasClients ? `**CLIENTES Y PALABRAS CLAVE**: Busca artículos que mencionen cualquiera de estas palabras clave o nombres de clientes:
+${clientKeywordsPrompt}
+
+Si un artículo menciona CUALQUIERA de estas palabras clave, inclúyelo en el conteo y marca los clientes relevantes.` : `**NOTA**: No hay clientes configurados. Cuenta TODOS los artículos de prensa encontrados en el documento.`}
 
 Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
 {
@@ -340,7 +430,7 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
   "clippings_count": 5,
   "categories": ["SALUD", "ECONOMIA & NEGOCIOS"],
   "keywords": ["hospital", "presupuesto", "medicaid"],
-  "relevant_clients": ["MMM", "Auxilio Mutuo"]
+  "relevant_clients": ${hasClients ? '["MMM", "Auxilio Mutuo"]' : '[]'}
 }`;
 
   const response = await fetch(
@@ -446,7 +536,10 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
 
 async function analyzeImageWithVision(
   imageBlob: Blob,
-  publicationName: string
+  publicationName: string,
+  clientKeywordsPrompt: string,
+  categories: string[],
+  clients: ClientData[]
 ): Promise<{
   summary: string;
   clippingsCount: number;
@@ -459,24 +552,24 @@ async function analyzeImageWithVision(
   const arrayBuffer = await imageBlob.arrayBuffer();
   const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
   
+  const hasClients = clients.length > 0;
+  
   const analysisPrompt = `Analiza esta imagen de un documento de prensa de "${publicationName}".
 
-**IMPORTANTE**: Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después. No incluyas explicaciones, preámbulos ni comentarios.
+**IMPORTANTE**: Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después.
 
-**FILTRO ESTRICTO**: Solo incluye artículos que mencionan EXACTAMENTE estos clientes o sus sectores:
-${Object.entries(PUBLIMEDIA_CLIENTS).map(([sector, clients]) => 
-  `${sector}: ${clients.join(', ')}`
-).join('\n')}
+**CATEGORÍAS VÁLIDAS**: ${categories.join(', ')}
 
-**CATEGORÍAS VÁLIDAS**: ${PUBLIMEDIA_CATEGORIES.join(', ')}
+${hasClients ? `**CLIENTES Y PALABRAS CLAVE**: Busca artículos que mencionen cualquiera de estas palabras clave:
+${clientKeywordsPrompt}` : `**NOTA**: No hay clientes configurados. Cuenta TODOS los artículos de prensa visibles.`}
 
-Extrae y analiza el texto visible en la imagen. Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
+Extrae y analiza el texto visible. Proporciona exactamente este formato JSON:
 {
   "summary": "Resumen ejecutivo en 2-3 oraciones del contenido visible",
   "clippings_count": 5,
   "categories": ["SALUD", "ECONOMIA & NEGOCIOS"],
   "keywords": ["hospital", "presupuesto", "medicaid"],
-  "relevant_clients": ["MMM", "Auxilio Mutuo"]
+  "relevant_clients": ${hasClients ? '["MMM", "Auxilio Mutuo"]' : '[]'}
 }`;
 
   const response = await fetch(
