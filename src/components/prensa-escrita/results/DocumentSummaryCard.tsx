@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { FileText, Tag, Users, Newspaper, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, Tag, Users, Newspaper, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,18 @@ interface DocumentSummaryCardProps {
 const DocumentSummaryCard = ({ summary, metadata }: DocumentSummaryCardProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [editableSummary, setEditableSummary] = useState(summary);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyText = async () => {
+    try {
+      await navigator.clipboard.writeText(formattedSummary);
+      setIsCopied(true);
+      toast.success("Análisis copiado al portapapeles");
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      toast.error("Error al copiar el texto");
+    }
+  };
 
   // Parse summary to extract sections if it has structured format
   const hasStructuredFormat = summary.includes('RESUMEN EJECUTIVO') || 
@@ -51,6 +64,27 @@ const DocumentSummaryCard = ({ summary, metadata }: DocumentSummaryCardProps) =>
         <div className="px-4 pb-4 space-y-4">
           {/* Summary Content - Editable */}
           <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-muted-foreground">Análisis del documento</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyText}
+                className="h-8 gap-2"
+              >
+                {isCopied ? (
+                  <>
+                    <Check className="h-4 w-4 text-green-500" />
+                    <span className="text-green-500">Copiado</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    <span>Copiar</span>
+                  </>
+                )}
+              </Button>
+            </div>
             <Textarea
               value={formattedSummary}
               onChange={(e) => setEditableSummary(e.target.value)}
