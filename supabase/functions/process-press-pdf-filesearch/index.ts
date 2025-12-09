@@ -413,9 +413,13 @@ async function analyzeDocumentWithFileSearch(
 
 **PASO 1**: Lee el documento completo usando File Search para acceder a su contenido.
 
-**PASO 2**: Analiza el contenido y genera un resumen ejecutivo del documento.
+**PASO 2**: Genera un ANÁLISIS EXHAUSTIVO Y DETALLADO del documento siguiendo el formato estructurado abajo.
 
-**IMPORTANTE**: Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después. No incluyas explicaciones, preámbulos ni comentarios.
+**IMPORTANTE**: 
+- Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después
+- El resumen debe ser EXTENSO y DETALLADO (mínimo 500 palabras)
+- SIEMPRE menciona números de página específicos para cada sección y artículo
+- Incluye TODOS los artículos importantes, no solo los relacionados con clientes
 
 **CATEGORÍAS VÁLIDAS**: ${categories.join(', ')}
 
@@ -426,10 +430,10 @@ Si un artículo menciona CUALQUIERA de estas palabras clave, inclúyelo en el co
 
 Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
 {
-  "summary": "Resumen ejecutivo en 2-3 oraciones del documento completo",
-  "clippings_count": 5,
-  "categories": ["SALUD", "ECONOMIA & NEGOCIOS"],
-  "keywords": ["hospital", "presupuesto", "medicaid"],
+  "summary": "RESUMEN EJECUTIVO:\\n[Párrafo de 3-4 oraciones describiendo el documento en general, incluyendo nombre de la publicación, fecha si está disponible, y temas principales cubiertos]\\n\\nCONTENIDO POR SECCIONES:\\n• Portada (Pág. 1): [Descripción de los titulares principales y noticias destacadas de la portada]\\n• [Nombre de sección] (Págs. X-Y): [Descripción detallada de los artículos en esta sección, mencionando títulos y temas específicos]\\n• [Nombre de sección] (Págs. X-Y): [Descripción detallada]\\n• [Continuar con todas las secciones identificadas]\\n\\nARTÍCULOS DESTACADOS:\\n1. [Título exacto del artículo] - Pág. X: [Resumen de 2-3 oraciones del contenido del artículo, incluyendo personas mencionadas, instituciones, y datos relevantes]\\n2. [Título exacto del artículo] - Pág. Y: [Resumen detallado]\\n3. [Continuar con los 5-10 artículos más importantes]\\n\\nTEMAS PRINCIPALES IDENTIFICADOS:\\n• [Tema 1]: [Breve explicación de cómo se trata este tema en el documento]\\n• [Tema 2]: [Breve explicación]\\n• [Continuar con 3-5 temas principales]\\n\\nMENCIONES DE ENTIDADES:\\n• Instituciones gubernamentales: [Lista de agencias/instituciones mencionadas con páginas]\\n• Empresas/Organizaciones: [Lista con páginas]\\n• Personas relevantes: [Nombres con cargos y páginas donde aparecen]",
+  "clippings_count": 15,
+  "categories": ["GOBIERNO", "SALUD", "ECONOMIA & NEGOCIOS"],
+  "keywords": ["legislatura", "hospital", "presupuesto", "medicaid", "infraestructura"],
   "relevant_clients": ${hasClients ? '["MMM", "Auxilio Mutuo"]' : '[]'}
 }`;
 
@@ -556,7 +560,10 @@ async function analyzeImageWithVision(
   
   const analysisPrompt = `Analiza esta imagen de un documento de prensa de "${publicationName}".
 
-**IMPORTANTE**: Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después.
+**IMPORTANTE**: 
+- Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después
+- El resumen debe ser DETALLADO (mínimo 200 palabras para imágenes)
+- Incluye TODOS los artículos visibles en la imagen
 
 **CATEGORÍAS VÁLIDAS**: ${categories.join(', ')}
 
@@ -565,7 +572,7 @@ ${clientKeywordsPrompt}` : `**NOTA**: No hay clientes configurados. Cuenta TODOS
 
 Extrae y analiza el texto visible. Proporciona exactamente este formato JSON:
 {
-  "summary": "Resumen ejecutivo en 2-3 oraciones del contenido visible",
+  "summary": "RESUMEN EJECUTIVO:\\n[Párrafo describiendo el contenido general de la página, incluyendo titulares principales]\\n\\nCONTENIDO VISIBLE:\\n• [Descripción del artículo principal con título y resumen]\\n• [Descripción de otros artículos visibles]\\n\\nARTÍCULOS IDENTIFICADOS:\\n1. [Título del artículo]: [Resumen breve del contenido]\\n2. [Continuar con otros artículos]\\n\\nENTIDADES MENCIONADAS:\\n• [Lista de personas, instituciones y organizaciones visibles en el documento]",
   "clippings_count": 5,
   "categories": ["SALUD", "ECONOMIA & NEGOCIOS"],
   "keywords": ["hospital", "presupuesto", "medicaid"],

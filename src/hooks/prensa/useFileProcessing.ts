@@ -56,7 +56,14 @@ export const useFileProcessing = ({
           status: 'completed',
           progress: 100,
           publication_name: publicationName,
-          document_summary: result.summary
+          document_summary: result.summary,
+          document_metadata: {
+            summary: result.summary,
+            categories: result.categories,
+            keywords: result.keywords,
+            relevantClients: result.relevantClients,
+            totalClippings: result.clippingsCount
+          }
         });
         
         // File Search indexes for search instead of returning clippings array
