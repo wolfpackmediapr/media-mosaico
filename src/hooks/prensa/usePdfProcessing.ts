@@ -52,14 +52,26 @@ export const usePdfProcessing = () => {
     }
   });
 
-  // Monitor job completion
+  // Monitor job completion - skip for File Search jobs (they have document_summary)
   useEffect(() => {
     if (!currentJob) return;
     
+    // File Search jobs are already complete with document_summary - no need to poll
+    if (currentJob.document_summary) {
+      console.log("[FileSearch] Job already complete with summary, skipping status check");
+      if (!processingComplete) {
+        // Mark as complete - no clippings for File Search, but document is indexed
+        handleProcessingSuccess([], currentJob.publication_name);
+        setIsUploading(false);
+      }
+      return;
+    }
+    
+    // Legacy OCR flow - poll for job status
     if (currentJob.status === 'completed' && !processingComplete) {
       (async () => {
         try {
-          console.log("Job completed, checking for clippings");
+          console.log("[Legacy] Job completed, checking for clippings");
           const data = await checkJobStatus();
           
           if (data?.clippings?.length) {
