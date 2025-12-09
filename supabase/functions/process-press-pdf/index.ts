@@ -556,7 +556,8 @@ async function processLargePDFInChunks(
   pdfBlob: Blob,
   fileName: string,
   supabase: any,
-  jobId: string
+  jobId: string,
+  clientsData: NonNullable<typeof cachedClientsData>
 ): Promise<{ clippings: any[], retryStats: { totalPages: number, failedInitial: number, recovered: number, finalSuccessRate: number } }> {
   const fileSizeMB = pdfBlob.size / 1024 / 1024;
   console.log(`Processing large PDF (${fileSizeMB.toFixed(2)} MB) in chunks...`);
@@ -617,7 +618,8 @@ async function processLargePDFInChunks(
         const chunkClippings = await processImageWithGeminiVision(
           pdfBlob,
           `${fileName}_chunk_${chunkIndex + 1}`,
-          startPage
+          startPage,
+          clientsData
         );
         
         console.log(`Page ${chunkIndex + 1} returned ${chunkClippings.length} clippings`);
@@ -689,7 +691,8 @@ async function processLargePDFInChunks(
         const retryClippings = await processImageWithGeminiVision(
           pdfBlob,
           failedPage.fileName,
-          failedPage.pageNumber
+          failedPage.pageNumber,
+          clientsData
         );
         
         console.log(`✓ Retry successful: ${retryClippings.length} clippings recovered from page ${failedPage.pageNumber}`);
@@ -971,6 +974,13 @@ serve(async (req) => {
     console.log("Received request to process file");
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
+    // Reset cache for fresh fetch each invocation
+    cachedClientsData = null;
+    
+    // Fetch clients and categories from database
+    const clientsData = await fetchClientsAndCategories(supabase);
+    console.log(`[Legacy] Using ${clientsData.clients.length} clients with ${clientsData.allKeywords.length} keywords`);
+    
     const { jobId } = await req.json();
     
     if (!jobId) {
@@ -1046,7 +1056,8 @@ serve(async (req) => {
             allClippings = await processImageWithGeminiVision(
               imageBlob,
               job.file_path,
-              1
+              1,
+              clientsData
             );
             
             if (allClippings.length === 0) {
@@ -1083,7 +1094,8 @@ serve(async (req) => {
                 pdfBlob,
                 job.file_path,
                 supabase,
-                jobId
+                jobId,
+                clientsData
               );
               allClippings = result.clippings;
               
@@ -1094,7 +1106,8 @@ serve(async (req) => {
               allClippings = await processImageWithGeminiVision(
                 pdfBlob,
                 job.file_path,
-                1
+                1,
+                clientsData
               );
             }
             
