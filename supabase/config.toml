@@ -26,3 +26,6 @@ memory_mb = 1024
 
 [functions.search-press-filesearch]
 verify_jwt = true
+
+[functions.process-rss-feed]
+verify_jwt = true
