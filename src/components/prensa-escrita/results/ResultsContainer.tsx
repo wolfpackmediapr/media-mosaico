@@ -30,6 +30,29 @@ const ResultsContainer = ({
     );
   }
 
+  // Show summary with message when no clippings but document was processed
+  if (clippings.length === 0 && documentSummary) {
+    return (
+      <>
+        <DocumentSummaryCard summary={documentSummary} />
+        <div className="text-center p-8 bg-muted/50 rounded-lg">
+          <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <h3 className="text-lg font-medium mb-2">
+            No se encontraron artículos relacionados con clientes
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            El documento fue procesado correctamente, pero no se identificaron artículos 
+            relacionados con los clientes configurados en el sistema.
+          </p>
+          <Button onClick={() => setActiveTab("upload")} variant="outline">
+            Procesar otro PDF
+          </Button>
+        </div>
+      </>
+    );
+  }
+
+  // Show empty state when no processing has been done
   if (clippings.length === 0) {
     return (
       <div className="text-center p-12 bg-muted/50 rounded-lg">

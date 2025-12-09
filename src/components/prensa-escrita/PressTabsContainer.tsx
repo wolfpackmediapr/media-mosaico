@@ -36,7 +36,7 @@ const PressTabsContainer = ({
           <FileText className="h-4 w-4 mr-2" />
           Subir PDF
         </TabsTrigger>
-        <TabsTrigger value="results" disabled={clippings.length === 0}>
+        <TabsTrigger value="results" disabled={clippings.length === 0 && !documentSummary}>
           <Search className="h-4 w-4 mr-2" />
           Resultados
           {clippings.length > 0 && (
