@@ -501,31 +501,46 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
     throw new Error(`No analysis content received. API returned: ${JSON.stringify(data).substring(0, 300)}`);
   }
 
-  console.log('[FileSearch] Raw API response:', content.substring(0, 200));
+  console.log('[FileSearch] Raw API response:', content.substring(0, 300));
 
-  // Try to parse as JSON, handling both direct JSON and markdown-wrapped JSON
+  // Clean up the content - remove markdown code blocks
+  let cleanContent = content.trim();
+  
+  // Remove opening ```json or ``` marker
+  if (cleanContent.startsWith('```json')) {
+    cleanContent = cleanContent.substring(7).trim();
+  } else if (cleanContent.startsWith('```')) {
+    cleanContent = cleanContent.substring(3).trim();
+  }
+  
+  // Remove closing ``` marker
+  if (cleanContent.endsWith('```')) {
+    cleanContent = cleanContent.substring(0, cleanContent.length - 3).trim();
+  }
+  
+  console.log('[FileSearch] Cleaned content starts with:', cleanContent.substring(0, 100));
+
+  // Try to parse as JSON
   let parsed: any;
   try {
-    // First try direct JSON parse
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(cleanContent);
+    console.log('[FileSearch] Successfully parsed JSON directly');
   } catch (e) {
-    console.log('[FileSearch] Direct JSON parse failed, trying to extract from text');
+    console.log('[FileSearch] Direct JSON parse failed, trying to extract JSON object');
     
-    // Try to extract JSON from markdown code blocks
-    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
-                      content.match(/```\s*([\s\S]*?)\s*```/) ||
-                      content.match(/\{[\s\S]*\}/);
+    // Try to find JSON object in the content
+    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
     
     if (jsonMatch) {
       try {
-        parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-        console.log('[FileSearch] Successfully extracted JSON from markdown');
+        parsed = JSON.parse(jsonMatch[0]);
+        console.log('[FileSearch] Successfully extracted JSON from content');
       } catch (e2) {
         console.error('[FileSearch] Failed to parse extracted JSON:', e2);
-        throw new Error(`Failed to parse API response as JSON. Response starts with: ${content.substring(0, 100)}`);
+        throw new Error(`Failed to parse API response as JSON. Content starts with: ${cleanContent.substring(0, 150)}`);
       }
     } else {
-      throw new Error(`No JSON found in API response. Response starts with: ${content.substring(0, 100)}`);
+      throw new Error(`No JSON object found in API response. Content starts with: ${cleanContent.substring(0, 150)}`);
     }
   }
   
@@ -619,29 +634,43 @@ Extrae y analiza el texto visible. Proporciona exactamente este formato JSON:
     throw new Error('No analysis content received from Vision API');
   }
 
-  console.log('[Vision] Raw API response:', content.substring(0, 200));
+  console.log('[Vision] Raw API response:', content.substring(0, 300));
+
+  // Clean up the content - remove markdown code blocks
+  let cleanContent = content.trim();
+  
+  // Remove opening ```json or ``` marker
+  if (cleanContent.startsWith('```json')) {
+    cleanContent = cleanContent.substring(7).trim();
+  } else if (cleanContent.startsWith('```')) {
+    cleanContent = cleanContent.substring(3).trim();
+  }
+  
+  // Remove closing ``` marker
+  if (cleanContent.endsWith('```')) {
+    cleanContent = cleanContent.substring(0, cleanContent.length - 3).trim();
+  }
 
   // Parse JSON response
   let parsed: any;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(cleanContent);
+    console.log('[Vision] Successfully parsed JSON directly');
   } catch (e) {
-    console.log('[Vision] Direct JSON parse failed, trying to extract from text');
+    console.log('[Vision] Direct JSON parse failed, trying to extract JSON object');
     
-    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
-                      content.match(/```\s*([\s\S]*?)\s*```/) ||
-                      content.match(/\{[\s\S]*\}/);
+    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
     
     if (jsonMatch) {
       try {
-        parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-        console.log('[Vision] Successfully extracted JSON from markdown');
+        parsed = JSON.parse(jsonMatch[0]);
+        console.log('[Vision] Successfully extracted JSON from content');
       } catch (e2) {
         console.error('[Vision] Failed to parse extracted JSON:', e2);
-        throw new Error(`Failed to parse Vision API response as JSON. Response starts with: ${content.substring(0, 100)}`);
+        throw new Error(`Failed to parse Vision API response as JSON. Content starts with: ${cleanContent.substring(0, 150)}`);
       }
     } else {
-      throw new Error(`No JSON found in Vision API response. Response starts with: ${content.substring(0, 100)}`);
+      throw new Error(`No JSON found in Vision API response. Content starts with: ${cleanContent.substring(0, 150)}`);
     }
   }
   
