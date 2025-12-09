@@ -480,7 +480,7 @@ async function analyzeArticle(
                 Responde SOLO con un JSON válido que siga esta estructura:
                 {
                   "summary": "string",
-                  "category": "ACCIDENTES|AGENCIAS DE GOBIERNO|AMBIENTE|AMBIENTE & EL TIEMPO|CIENCIA & TECNOLOGÍA|COMUNIDAD|CRIMEN|DEPORTES|ECONOMÍA & NEGOCIOS|EDUCACIÓN & CULTURA|EE.UU. & INTERNACIONALES|ENTRETENIMIENTO|GOBIERNO|OTRAS|POLÍTICA|RELIGIÓN|SALUD|TRIBUNALES",
+                  "category": "ACCIDENTES|AGENCIAS DE GOBIERNO|AMBIENTE|AMBIENTE & EL TIEMPO|CIENCIA & TECNOLOGÍA|COMUNIDAD|CRIMEN|DEPORTES|ECONOMÍA & NEGOCIOS|EDUCACIÓN & CULTURA|EE.UU. & INTERNACIONALES|ENTRETENIMIENTO|GOBIERNO|OTRAS|POLÍTICA|RELIGIÓN|SALUD|SEGURIDAD|TRIBUNALES",
                   "clients": [],
                   "keywords": ["5-7 palabras clave relevantes"]
                 }` 
@@ -551,24 +551,48 @@ async function analyzeArticle(
   return getFallbackAnalysis('Error después de múltiples intentos');
 }
 
-function isValidAnalysisResult(result: any): boolean {
-  const validCategories = [
-    'ACCIDENTES', 'AGENCIAS DE GOBIERNO', 'AMBIENTE', 'AMBIENTE & EL TIEMPO',
-    'CIENCIA & TECNOLOGÍA', 'COMUNIDAD', 'CRIMEN', 'DEPORTES',
-    'ECONOMÍA & NEGOCIOS', 'EDUCACIÓN & CULTURA', 'EE.UU. & INTERNACIONALES',
-    'ENTRETENIMIENTO', 'GOBIERNO', 'OTRAS', 'POLÍTICA', 'RELIGIÓN', 'SALUD', 'TRIBUNALES'
-  ];
+const VALID_CATEGORIES = [
+  'ACCIDENTES', 'AGENCIAS DE GOBIERNO', 'AMBIENTE', 'AMBIENTE & EL TIEMPO',
+  'CIENCIA & TECNOLOGÍA', 'COMUNIDAD', 'CRIMEN', 'DEPORTES',
+  'ECONOMÍA & NEGOCIOS', 'EDUCACIÓN & CULTURA', 'EE.UU. & INTERNACIONALES',
+  'ENTRETENIMIENTO', 'GOBIERNO', 'OTRAS', 'POLÍTICA', 'RELIGIÓN', 'SALUD', 
+  'SEGURIDAD', 'TRIBUNALES'
+];
 
-  return (
-    result &&
-    typeof result.summary === 'string' &&
-    typeof result.category === 'string' &&
-    validCategories.includes(result.category) &&
-    Array.isArray(result.clients) &&
-    Array.isArray(result.keywords) &&
-    result.keywords.length >= 1 &&
-    result.keywords.length <= 15
-  );
+// Map unrecognized categories to valid ones
+function normalizeCategory(category: string): string {
+  if (VALID_CATEGORIES.includes(category)) return category;
+  
+  const categoryMap: Record<string, string> = {
+    'INTERNACIONAL': 'EE.UU. & INTERNACIONALES',
+    'INTERNACIONALES': 'EE.UU. & INTERNACIONALES',
+    'NEGOCIOS': 'ECONOMÍA & NEGOCIOS',
+    'ECONOMÍA': 'ECONOMÍA & NEGOCIOS',
+    'CULTURA': 'EDUCACIÓN & CULTURA',
+    'EDUCACIÓN': 'EDUCACIÓN & CULTURA',
+    'TIEMPO': 'AMBIENTE & EL TIEMPO',
+    'TECNOLOGÍA': 'CIENCIA & TECNOLOGÍA',
+    'CIENCIA': 'CIENCIA & TECNOLOGÍA',
+    'JUSTICIA': 'TRIBUNALES',
+  };
+  
+  return categoryMap[category] || 'OTRAS';
+}
+
+function isValidAnalysisResult(result: any): boolean {
+  if (!result || 
+      typeof result.summary !== 'string' ||
+      typeof result.category !== 'string' ||
+      !Array.isArray(result.clients) ||
+      !Array.isArray(result.keywords) ||
+      result.keywords.length < 1 ||
+      result.keywords.length > 15) {
+    return false;
+  }
+  
+  // Normalize the category if needed
+  result.category = normalizeCategory(result.category);
+  return true;
 }
 
 function getFallbackAnalysis(reason: string) {
