@@ -1,84 +1,117 @@
-
 import React from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Newspaper, Radio, FileText, Rss, Users, Bell } from "lucide-react";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
+import {
+  DashboardStatCard,
+  ContentActivityChart,
+  SourceDistributionWidget,
+  CategoryBreakdownWidget,
+  FeedHealthWidget,
+  RecentActivityTimeline,
+  ClientKeywordsWidget,
+  QuickActions,
+} from "@/components/dashboard";
 import NotificationFeed from "@/components/notifications/NotificationFeed";
-import { BarChart2, Radio, Tv, Newspaper } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
-const stats = [
-  {
-    title: "Clips de TV",
-    value: "24",
-    description: "Monitoreados hoy",
-    icon: Tv,
-    trend: "+12%",
-  },
-  {
-    title: "Segmentos de Radio",
-    value: "156",
-    description: "Monitoreados hoy",
-    icon: Radio,
-    trend: "+5%",
-  },
-  {
-    title: "Artículos de Prensa",
-    value: "89",
-    description: "Monitoreados hoy",
-    icon: Newspaper,
-    trend: "+8%",
-  },
-  {
-    title: "Alertas Activas",
-    value: "12",
-    description: "En las últimas 24h",
-    icon: BarChart2,
-    trend: "-2%",
-  },
-];
-
-// Changed to default export with no type annotations to ensure compatibility
 const Index = () => {
+  const navigate = useNavigate();
+  const { data: stats, isLoading } = useDashboardStats();
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">¡Bienvenido!</h1>
-        <p className="text-gray-500 mt-2">
-          Aquí está el resumen de la actividad de monitoreo de hoy
-        </p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-3xl font-bold">¡Bienvenido!</h1>
+          <p className="text-muted-foreground mt-1">
+            Resumen de la actividad de monitoreo de medios
+          </p>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          Última actualización: {format(new Date(), "PPp", { locale: es })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">
-                  {stat.title}
-                </CardTitle>
-                <Icon className="h-4 w-4 text-gray-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500">{stat.description}</p>
-                  <span
-                    className={`text-xs font-medium ${
-                      stat.trend.startsWith("+")
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {stat.trend}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-        
-        <div className="col-span-1 md:col-span-3">
-          <NotificationFeed maxItems={5} />
-        </div>
+      {/* Quick Actions */}
+      <QuickActions />
+
+      {/* Main Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <DashboardStatCard
+          title="Prensa Digital"
+          value={stats?.prensaDigital.today || 0}
+          description={`${stats?.prensaDigital.total.toLocaleString() || 0} total`}
+          icon={Newspaper}
+          trend={stats?.prensaDigital.trend}
+          isLoading={isLoading}
+          onClick={() => navigate('/prensa-digital')}
+        />
+        <DashboardStatCard
+          title="Radio"
+          value={stats?.radio.today || 0}
+          description={`${stats?.radio.total.toLocaleString() || 0} total`}
+          icon={Radio}
+          trend={stats?.radio.trend}
+          isLoading={isLoading}
+          onClick={() => navigate('/radio')}
+        />
+        <DashboardStatCard
+          title="Prensa Escrita"
+          value={stats?.prensaEscrita.thisWeek || 0}
+          description={`${stats?.prensaEscrita.total.toLocaleString() || 0} total`}
+          icon={FileText}
+          isLoading={isLoading}
+          onClick={() => navigate('/prensa-escrita')}
+        />
+        <DashboardStatCard
+          title="Feeds Activos"
+          value={stats?.feeds.active || 0}
+          description={`${stats?.feeds.withErrors || 0} con errores`}
+          icon={Rss}
+          isLoading={isLoading}
+          variant={stats?.feeds.withErrors && stats.feeds.withErrors > 0 ? 'warning' : 'default'}
+        />
+        <DashboardStatCard
+          title="Clientes"
+          value={stats?.clients.total || 0}
+          description="Monitoreados"
+          icon={Users}
+          isLoading={isLoading}
+          onClick={() => navigate('/clientes')}
+        />
+        <DashboardStatCard
+          title="Alertas"
+          value={stats?.alerts.unread || 0}
+          description={`${stats?.alerts.total || 0} total`}
+          icon={Bell}
+          isLoading={isLoading}
+          variant={stats?.alerts.unread && stats.alerts.unread > 0 ? 'warning' : 'default'}
+          onClick={() => navigate('/clientes')}
+        />
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ContentActivityChart />
+        <SourceDistributionWidget />
+      </div>
+
+      {/* Category Breakdown - Full Width */}
+      <CategoryBreakdownWidget />
+
+      {/* Widgets Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <FeedHealthWidget />
+        <ClientKeywordsWidget />
+      </div>
+
+      {/* Recent Activity & Notifications */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <RecentActivityTimeline />
+        <NotificationFeed maxItems={8} />
       </div>
     </div>
   );
