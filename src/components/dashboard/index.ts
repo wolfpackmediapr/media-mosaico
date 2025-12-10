@@ -6,3 +6,4 @@ export { FeedHealthWidget } from './FeedHealthWidget';
 export { RecentActivityTimeline } from './RecentActivityTimeline';
 export { ClientKeywordsWidget } from './ClientKeywordsWidget';
 export { QuickActions } from './QuickActions';
+export { DateRangeFilter } from './DateRangeFilter';

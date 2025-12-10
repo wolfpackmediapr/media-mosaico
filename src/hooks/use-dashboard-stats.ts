@@ -19,6 +19,14 @@ interface DashboardStats {
     total: number;
     trend: number;
   };
+  tv: {
+    today: number;
+    yesterday: number;
+    thisWeek: number;
+    lastWeek: number;
+    total: number;
+    trend: number;
+  };
   prensaEscrita: {
     total: number;
     thisWeek: number;
@@ -41,6 +49,7 @@ interface ContentActivityData {
   date: string;
   prensaDigital: number;
   radio: number;
+  tv: number;
   prensaEscrita: number;
 }
 
@@ -57,7 +66,7 @@ interface CategoryBreakdown {
 
 interface RecentActivity {
   id: string;
-  type: 'article' | 'radio' | 'press';
+  type: 'article' | 'radio' | 'tv' | 'press';
   title: string;
   source?: string;
   timestamp: string;
@@ -114,6 +123,11 @@ export function useDashboardStats() {
         radioThisWeek,
         radioLastWeek,
         radioTotal,
+        tvToday,
+        tvYesterday,
+        tvThisWeek,
+        tvLastWeek,
+        tvTotal,
         pressTotal,
         pressThisWeek,
         feedsData,
@@ -145,6 +159,19 @@ export function useDashboardStats() {
           .gte('created_at', lastWeekStart.toISOString())
           .lt('created_at', lastWeekEnd.toISOString()),
         supabase.from('transcriptions').select('id', { count: 'exact', head: true }),
+        
+        // TV stats
+        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
+          .gte('created_at', today.toISOString()),
+        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
+          .gte('created_at', yesterday.toISOString())
+          .lt('created_at', today.toISOString()),
+        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
+          .gte('created_at', thisWeekStart.toISOString()),
+        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
+          .gte('created_at', lastWeekStart.toISOString())
+          .lt('created_at', lastWeekEnd.toISOString()),
+        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true }),
         
         // Prensa Escrita stats
         supabase.from('press_clippings').select('id', { count: 'exact', head: true }),
@@ -181,6 +208,14 @@ export function useDashboardStats() {
           total: radioTotal.count || 0,
           trend: calculateTrend(radioToday.count || 0, radioYesterday.count || 0),
         },
+        tv: {
+          today: tvToday.count || 0,
+          yesterday: tvYesterday.count || 0,
+          thisWeek: tvThisWeek.count || 0,
+          lastWeek: tvLastWeek.count || 0,
+          total: tvTotal.count || 0,
+          trend: calculateTrend(tvToday.count || 0, tvYesterday.count || 0),
+        },
         prensaEscrita: {
           total: pressTotal.count || 0,
           thisWeek: pressThisWeek.count || 0,
@@ -199,14 +234,14 @@ export function useDashboardStats() {
         },
       };
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
     staleTime: 10000,
   });
 }
 
-export function useContentActivity() {
+export function useContentActivity(dateFrom?: Date, dateTo?: Date) {
   return useQuery({
-    queryKey: ['dashboard-content-activity'],
+    queryKey: ['dashboard-content-activity', dateFrom?.toISOString(), dateTo?.toISOString()],
     queryFn: async (): Promise<ContentActivityData[]> => {
       const days = Array.from({ length: 7 }, (_, i) => {
         const date = subDays(new Date(), 6 - i);
@@ -220,11 +255,14 @@ export function useContentActivity() {
 
       const results = await Promise.all(
         days.map(async (day) => {
-          const [articles, radio, press] = await Promise.all([
+          const [articles, radio, tv, press] = await Promise.all([
             supabase.from('news_articles').select('id', { count: 'exact', head: true })
               .gte('created_at', day.start)
               .lt('created_at', day.end),
             supabase.from('transcriptions').select('id', { count: 'exact', head: true })
+              .gte('created_at', day.start)
+              .lt('created_at', day.end),
+            supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
               .gte('created_at', day.start)
               .lt('created_at', day.end),
             supabase.from('press_clippings').select('id', { count: 'exact', head: true })
@@ -236,6 +274,7 @@ export function useContentActivity() {
             date: day.label,
             prensaDigital: articles.count || 0,
             radio: radio.count || 0,
+            tv: tv.count || 0,
             prensaEscrita: press.count || 0,
           };
         })
@@ -258,14 +297,12 @@ export function useSourceDistribution() {
 
       if (!articles) return [];
 
-      // Count articles by source
       const sourceCounts: Record<string, number> = {};
       articles.forEach(article => {
         const source = article.source || 'Desconocido';
         sourceCounts[source] = (sourceCounts[source] || 0) + 1;
       });
 
-      // Sort and get top 5
       const sorted = Object.entries(sourceCounts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
@@ -291,14 +328,12 @@ export function useCategoryBreakdown() {
 
       if (!articles) return [];
 
-      // Count articles by category
       const categoryCounts: Record<string, number> = {};
       articles.forEach(article => {
         const category = article.category || 'OTRAS';
         categoryCounts[category] = (categoryCounts[category] || 0) + 1;
       });
 
-      // Sort and get top 10
       return Object.entries(categoryCounts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
@@ -312,12 +347,16 @@ export function useRecentActivity() {
   return useQuery({
     queryKey: ['dashboard-recent-activity'],
     queryFn: async (): Promise<RecentActivity[]> => {
-      const [articles, radio, press] = await Promise.all([
+      const [articles, radio, tv, press] = await Promise.all([
         supabase.from('news_articles')
           .select('id, title, source, created_at')
           .order('created_at', { ascending: false })
           .limit(5),
         supabase.from('transcriptions')
+          .select('id, channel, program, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase.from('tv_transcriptions')
           .select('id, channel, program, created_at')
           .order('created_at', { ascending: false })
           .limit(5),
@@ -342,6 +381,13 @@ export function useRecentActivity() {
           source: r.channel || undefined,
           timestamp: r.created_at,
         })),
+        ...(tv.data || []).map(t => ({
+          id: t.id,
+          type: 'tv' as const,
+          title: t.program || 'Transcripción de TV',
+          source: t.channel || undefined,
+          timestamp: t.created_at,
+        })),
         ...(press.data || []).map(p => ({
           id: p.id,
           type: 'press' as const,
@@ -351,7 +397,6 @@ export function useRecentActivity() {
         })),
       ];
 
-      // Sort by timestamp and take top 10
       return activities
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 10);
