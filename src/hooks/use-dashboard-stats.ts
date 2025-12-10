@@ -101,82 +101,72 @@ function calculateTrend(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 100);
 }
 
-export function useDashboardStats() {
+export function useDashboardStats(dateFrom?: Date, dateTo?: Date) {
   return useQuery({
-    queryKey: ['dashboard-stats'],
+    queryKey: ['dashboard-stats', dateFrom?.toISOString(), dateTo?.toISOString()],
     queryFn: async (): Promise<DashboardStats> => {
-      const today = startOfDay(new Date());
-      const yesterday = startOfDay(subDays(new Date(), 1));
-      const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-      const lastWeekStart = startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
-      const lastWeekEnd = startOfWeek(new Date(), { weekStartsOn: 1 });
+      // Use date range if provided, otherwise default to last 7 days
+      const rangeEnd = dateTo || new Date();
+      const rangeStart = dateFrom || subDays(startOfDay(new Date()), 6);
+      
+      // Calculate previous period for trend (same duration before the range)
+      const rangeDuration = rangeEnd.getTime() - rangeStart.getTime();
+      const previousEnd = new Date(rangeStart.getTime());
+      const previousStart = new Date(rangeStart.getTime() - rangeDuration);
 
       // Parallel queries for all stats
       const [
-        articlesToday,
-        articlesYesterday,
-        articlesThisWeek,
-        articlesLastWeek,
+        articlesInRange,
+        articlesPrevious,
         articlesTotal,
-        radioToday,
-        radioYesterday,
-        radioThisWeek,
-        radioLastWeek,
+        radioInRange,
+        radioPrevious,
         radioTotal,
-        tvToday,
-        tvYesterday,
-        tvThisWeek,
-        tvLastWeek,
+        tvInRange,
+        tvPrevious,
         tvTotal,
+        pressInRange,
+        pressPrevious,
         pressTotal,
-        pressThisWeek,
         feedsData,
         clientsTotal,
         alertsData
       ] = await Promise.all([
         // Prensa Digital stats
         supabase.from('news_articles').select('id', { count: 'exact', head: true })
-          .gte('created_at', today.toISOString()),
+          .gte('created_at', rangeStart.toISOString())
+          .lte('created_at', rangeEnd.toISOString()),
         supabase.from('news_articles').select('id', { count: 'exact', head: true })
-          .gte('created_at', yesterday.toISOString())
-          .lt('created_at', today.toISOString()),
-        supabase.from('news_articles').select('id', { count: 'exact', head: true })
-          .gte('created_at', thisWeekStart.toISOString()),
-        supabase.from('news_articles').select('id', { count: 'exact', head: true })
-          .gte('created_at', lastWeekStart.toISOString())
-          .lt('created_at', lastWeekEnd.toISOString()),
+          .gte('created_at', previousStart.toISOString())
+          .lt('created_at', previousEnd.toISOString()),
         supabase.from('news_articles').select('id', { count: 'exact', head: true }),
         
         // Radio stats
         supabase.from('transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', today.toISOString()),
+          .gte('created_at', rangeStart.toISOString())
+          .lte('created_at', rangeEnd.toISOString()),
         supabase.from('transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', yesterday.toISOString())
-          .lt('created_at', today.toISOString()),
-        supabase.from('transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', thisWeekStart.toISOString()),
-        supabase.from('transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', lastWeekStart.toISOString())
-          .lt('created_at', lastWeekEnd.toISOString()),
+          .gte('created_at', previousStart.toISOString())
+          .lt('created_at', previousEnd.toISOString()),
         supabase.from('transcriptions').select('id', { count: 'exact', head: true }),
         
         // TV stats
         supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', today.toISOString()),
+          .gte('created_at', rangeStart.toISOString())
+          .lte('created_at', rangeEnd.toISOString()),
         supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', yesterday.toISOString())
-          .lt('created_at', today.toISOString()),
-        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', thisWeekStart.toISOString()),
-        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', lastWeekStart.toISOString())
-          .lt('created_at', lastWeekEnd.toISOString()),
+          .gte('created_at', previousStart.toISOString())
+          .lt('created_at', previousEnd.toISOString()),
         supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true }),
         
         // Prensa Escrita stats
-        supabase.from('press_clippings').select('id', { count: 'exact', head: true }),
         supabase.from('press_clippings').select('id', { count: 'exact', head: true })
-          .gte('created_at', thisWeekStart.toISOString()),
+          .gte('created_at', rangeStart.toISOString())
+          .lte('created_at', rangeEnd.toISOString()),
+        supabase.from('press_clippings').select('id', { count: 'exact', head: true })
+          .gte('created_at', previousStart.toISOString())
+          .lt('created_at', previousEnd.toISOString()),
+        supabase.from('press_clippings').select('id', { count: 'exact', head: true }),
         
         // Feeds stats
         supabase.from('feed_sources').select('id, active, error_count'),
@@ -193,32 +183,32 @@ export function useDashboardStats() {
 
       return {
         prensaDigital: {
-          today: articlesToday.count || 0,
-          yesterday: articlesYesterday.count || 0,
-          thisWeek: articlesThisWeek.count || 0,
-          lastWeek: articlesLastWeek.count || 0,
+          today: articlesInRange.count || 0,
+          yesterday: articlesPrevious.count || 0,
+          thisWeek: articlesInRange.count || 0,
+          lastWeek: articlesPrevious.count || 0,
           total: articlesTotal.count || 0,
-          trend: calculateTrend(articlesToday.count || 0, articlesYesterday.count || 0),
+          trend: calculateTrend(articlesInRange.count || 0, articlesPrevious.count || 0),
         },
         radio: {
-          today: radioToday.count || 0,
-          yesterday: radioYesterday.count || 0,
-          thisWeek: radioThisWeek.count || 0,
-          lastWeek: radioLastWeek.count || 0,
+          today: radioInRange.count || 0,
+          yesterday: radioPrevious.count || 0,
+          thisWeek: radioInRange.count || 0,
+          lastWeek: radioPrevious.count || 0,
           total: radioTotal.count || 0,
-          trend: calculateTrend(radioToday.count || 0, radioYesterday.count || 0),
+          trend: calculateTrend(radioInRange.count || 0, radioPrevious.count || 0),
         },
         tv: {
-          today: tvToday.count || 0,
-          yesterday: tvYesterday.count || 0,
-          thisWeek: tvThisWeek.count || 0,
-          lastWeek: tvLastWeek.count || 0,
+          today: tvInRange.count || 0,
+          yesterday: tvPrevious.count || 0,
+          thisWeek: tvInRange.count || 0,
+          lastWeek: tvPrevious.count || 0,
           total: tvTotal.count || 0,
-          trend: calculateTrend(tvToday.count || 0, tvYesterday.count || 0),
+          trend: calculateTrend(tvInRange.count || 0, tvPrevious.count || 0),
         },
         prensaEscrita: {
           total: pressTotal.count || 0,
-          thisWeek: pressThisWeek.count || 0,
+          thisWeek: pressInRange.count || 0,
         },
         feeds: {
           active: feeds.filter(f => f.active).length,
