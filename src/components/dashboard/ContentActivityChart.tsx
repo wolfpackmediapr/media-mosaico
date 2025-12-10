@@ -69,6 +69,12 @@ export function ContentActivityChart() {
               radius={[4, 4, 0, 0]}
             />
             <Bar 
+              dataKey="tv" 
+              name="TV" 
+              fill="hsl(var(--chart-4))" 
+              radius={[4, 4, 0, 0]}
+            />
+            <Bar 
               dataKey="prensaEscrita" 
               name="Prensa Escrita" 
               fill="hsl(var(--chart-3))" 

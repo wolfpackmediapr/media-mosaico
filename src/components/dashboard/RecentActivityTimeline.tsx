@@ -2,7 +2,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useRecentActivity } from "@/hooks/use-dashboard-stats";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Activity, Newspaper, Radio, FileText } from "lucide-react";
+import { Activity, Newspaper, Radio, FileText, Monitor } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,34 +39,40 @@ export function RecentActivityTimeline() {
     );
   }
 
-  const getTypeIcon = (type: 'article' | 'radio' | 'press') => {
+  const getTypeIcon = (type: 'article' | 'radio' | 'tv' | 'press') => {
     switch (type) {
       case 'article':
         return <Newspaper className="h-4 w-4" />;
       case 'radio':
         return <Radio className="h-4 w-4" />;
+      case 'tv':
+        return <Monitor className="h-4 w-4" />;
       case 'press':
         return <FileText className="h-4 w-4" />;
     }
   };
 
-  const getTypeBadge = (type: 'article' | 'radio' | 'press') => {
+  const getTypeBadge = (type: 'article' | 'radio' | 'tv' | 'press') => {
     switch (type) {
       case 'article':
         return <Badge variant="outline" className="text-xs">Digital</Badge>;
       case 'radio':
         return <Badge variant="outline" className="text-xs bg-chart-2/10 border-chart-2/30">Radio</Badge>;
+      case 'tv':
+        return <Badge variant="outline" className="text-xs bg-chart-4/10 border-chart-4/30">TV</Badge>;
       case 'press':
         return <Badge variant="outline" className="text-xs bg-chart-3/10 border-chart-3/30">Prensa</Badge>;
     }
   };
 
-  const getIconBackground = (type: 'article' | 'radio' | 'press') => {
+  const getIconBackground = (type: 'article' | 'radio' | 'tv' | 'press') => {
     switch (type) {
       case 'article':
         return "bg-chart-1/10 text-chart-1";
       case 'radio':
         return "bg-chart-2/10 text-chart-2";
+      case 'tv':
+        return "bg-chart-4/10 text-chart-4";
       case 'press':
         return "bg-chart-3/10 text-chart-3";
     }
@@ -84,13 +90,11 @@ export function RecentActivityTimeline() {
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
           <div className="relative">
-            {/* Timeline line */}
             <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
             
             <div className="space-y-4">
-              {activities?.map((activity, index) => (
+              {activities?.map((activity) => (
                 <div key={activity.id} className="relative flex items-start gap-4 pl-10">
-                  {/* Timeline dot */}
                   <div className={cn(
                     "absolute left-0 p-2 rounded-full",
                     getIconBackground(activity.type)
