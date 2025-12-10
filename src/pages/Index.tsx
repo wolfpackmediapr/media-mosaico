@@ -16,11 +16,12 @@ import NotificationFeed from "@/components/notifications/NotificationFeed";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { DashboardDateProvider } from "@/contexts/DashboardDateContext";
+import { DashboardDateProvider, useDashboardDate } from "@/contexts/DashboardDateContext";
 
 const DashboardContent = () => {
   const navigate = useNavigate();
-  const { data: stats, isLoading } = useDashboardStats();
+  const { dateRange } = useDashboardDate();
+  const { data: stats, isLoading } = useDashboardStats(dateRange.from, dateRange.to);
 
   return (
     <div className="space-y-6">
