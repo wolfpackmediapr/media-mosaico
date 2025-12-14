@@ -568,6 +568,8 @@ export type Database = {
           last_processed: string | null
           link: string
           pub_date: string
+          sentiment: string | null
+          sentiment_score: number | null
           source: string
           summary: string | null
           title: string
@@ -586,6 +588,8 @@ export type Database = {
           last_processed?: string | null
           link: string
           pub_date: string
+          sentiment?: string | null
+          sentiment_score?: number | null
           source: string
           summary?: string | null
           title: string
@@ -604,6 +608,8 @@ export type Database = {
           last_processed?: string | null
           link?: string
           pub_date?: string
+          sentiment?: string | null
+          sentiment_score?: number | null
           source?: string
           summary?: string | null
           title?: string
