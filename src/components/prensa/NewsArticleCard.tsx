@@ -1,5 +1,5 @@
 
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,11 +62,15 @@ const NewsArticleCard = ({ article }: NewsArticleCardProps) => {
             )}
             
             {article.clients && article.clients.length > 0 && (
-              <div className="mb-4">
-                <span className="text-xs text-muted-foreground block mb-1">Clientes relacionados:</span>
-                <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 mb-4">
+                <User className="h-3 w-3 text-muted-foreground" />
+                <div className="flex flex-wrap gap-1">
                   {article.clients.map((client, index) => (
-                    <Badge key={index} variant="secondary">
+                    <Badge 
+                      key={index} 
+                      variant="outline" 
+                      className="text-xs px-1.5 py-0 h-5 bg-primary/5 border-primary/20 text-primary"
+                    >
                       {client}
                     </Badge>
                   ))}
