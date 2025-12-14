@@ -233,11 +233,21 @@ export function useContentActivity(dateFrom?: Date, dateTo?: Date) {
   return useQuery({
     queryKey: ['dashboard-content-activity', dateFrom?.toISOString(), dateTo?.toISOString()],
     queryFn: async (): Promise<ContentActivityData[]> => {
-      const days = Array.from({ length: 7 }, (_, i) => {
-        const date = subDays(new Date(), 6 - i);
+      // Calculate days based on date range
+      const rangeEnd = dateTo || new Date();
+      const rangeStart = dateFrom || subDays(startOfDay(new Date()), 6);
+      
+      // Calculate the number of days in the range (max 14 for readability)
+      const daysDiff = Math.min(
+        Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+        14
+      );
+      
+      const days = Array.from({ length: daysDiff }, (_, i) => {
+        const date = subDays(rangeEnd, daysDiff - 1 - i);
         return {
           date: format(date, 'yyyy-MM-dd'),
-          label: format(date, 'EEE'),
+          label: format(date, 'dd/MM'),
           start: startOfDay(date).toISOString(),
           end: startOfDay(subDays(date, -1)).toISOString(),
         };
@@ -276,14 +286,24 @@ export function useContentActivity(dateFrom?: Date, dateTo?: Date) {
   });
 }
 
-export function useSourceDistribution() {
+export function useSourceDistribution(dateFrom?: Date, dateTo?: Date) {
   return useQuery({
-    queryKey: ['dashboard-source-distribution'],
+    queryKey: ['dashboard-source-distribution', dateFrom?.toISOString(), dateTo?.toISOString()],
     queryFn: async (): Promise<SourceDistribution[]> => {
-      const { data: articles } = await supabase
+      let query = supabase
         .from('news_articles')
         .select('source')
         .limit(1000);
+
+      // Apply date filter if provided
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        query = query.lte('created_at', dateTo.toISOString());
+      }
+
+      const { data: articles } = await query;
 
       if (!articles) return [];
 
@@ -307,14 +327,24 @@ export function useSourceDistribution() {
   });
 }
 
-export function useCategoryBreakdown() {
+export function useCategoryBreakdown(dateFrom?: Date, dateTo?: Date) {
   return useQuery({
-    queryKey: ['dashboard-category-breakdown'],
+    queryKey: ['dashboard-category-breakdown', dateFrom?.toISOString(), dateTo?.toISOString()],
     queryFn: async (): Promise<CategoryBreakdown[]> => {
-      const { data: articles } = await supabase
+      let query = supabase
         .from('news_articles')
         .select('category')
         .limit(1000);
+
+      // Apply date filter if provided
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        query = query.lte('created_at', dateTo.toISOString());
+      }
+
+      const { data: articles } = await query;
 
       if (!articles) return [];
 

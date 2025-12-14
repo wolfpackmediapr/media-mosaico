@@ -5,8 +5,13 @@ import { useContentActivity } from "@/hooks/use-dashboard-stats";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart2 } from "lucide-react";
 
-export function ContentActivityChart() {
-  const { data, isLoading } = useContentActivity();
+interface ContentActivityChartProps {
+  dateFrom?: Date;
+  dateTo?: Date;
+}
+
+export function ContentActivityChart({ dateFrom, dateTo }: ContentActivityChartProps) {
+  const { data, isLoading } = useContentActivity(dateFrom, dateTo);
 
   if (isLoading) {
     return (
@@ -16,7 +21,7 @@ export function ContentActivityChart() {
             <BarChart2 className="h-5 w-5" />
             Actividad de Contenido
           </CardTitle>
-          <CardDescription>Últimos 7 días</CardDescription>
+          <CardDescription>Período seleccionado</CardDescription>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-[300px] w-full" />
@@ -32,7 +37,7 @@ export function ContentActivityChart() {
           <BarChart2 className="h-5 w-5" />
           Actividad de Contenido
         </CardTitle>
-        <CardDescription>Contenido procesado en los últimos 7 días</CardDescription>
+        <CardDescription>Contenido procesado en el período seleccionado</CardDescription>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>

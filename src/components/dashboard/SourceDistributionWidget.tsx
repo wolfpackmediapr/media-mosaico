@@ -5,8 +5,13 @@ import { useSourceDistribution } from "@/hooks/use-dashboard-stats";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PieChart as PieChartIcon } from "lucide-react";
 
-export function SourceDistributionWidget() {
-  const { data, isLoading } = useSourceDistribution();
+interface SourceDistributionWidgetProps {
+  dateFrom?: Date;
+  dateTo?: Date;
+}
+
+export function SourceDistributionWidget({ dateFrom, dateTo }: SourceDistributionWidgetProps) {
+  const { data, isLoading } = useSourceDistribution(dateFrom, dateTo);
 
   if (isLoading) {
     return (
