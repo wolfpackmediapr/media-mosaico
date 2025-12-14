@@ -43,6 +43,21 @@ interface FeedItem {
   attachments?: Array<{ url: string }>;
 }
 
+interface Client {
+  id: string;
+  name: string;
+  keywords: string[] | null;
+}
+
+interface AnalysisResult {
+  summary: string;
+  category: string;
+  clients: Array<{ id: string; name: string; relevance: string }>;
+  keywords: string[];
+  sentiment: 'positive' | 'negative' | 'neutral' | 'mixed';
+  sentiment_score: number;
+}
+
 function getArticleLink(item: FeedItem): string {
   return item.link || item.url || '';
 }
@@ -75,19 +90,14 @@ function stripHtml(html: string): string {
 
 function parsePublicationDate(dateStr: string): Date {
   try {
-    // First try parsing as ISO string
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
       return date;
     }
     
-    // If that fails, try parsing various RSS date formats
     const formats = [
-      // RFC 822
       /^\w{3}, \d{1,2} \w{3} \d{4} \d{2}:\d{2}:\d{2} [+-]\d{4}$/,
-      // RFC 850
       /^\w{6,9}, \d{2}-\w{3}-\d{2} \d{2}:\d{2}:\d{2} GMT$/,
-      // ANSI C
       /^\w{3} \w{3} \d{1,2} \d{2}:\d{2}:\d{2} \d{4}$/
     ];
 
@@ -100,7 +110,6 @@ function parsePublicationDate(dateStr: string): Date {
       }
     }
 
-    // Last resort: try parsing with Date.parse
     const timestamp = Date.parse(dateStr);
     if (!isNaN(timestamp)) {
       return new Date(timestamp);
@@ -109,18 +118,66 @@ function parsePublicationDate(dateStr: string): Date {
     throw new Error(`Unable to parse date: ${dateStr}`);
   } catch (error) {
     console.error(`Error parsing date ${dateStr}:`, error);
-    return new Date(); // Fallback to current date if parsing fails
+    return new Date();
   }
+}
+
+// Fetch all clients with keywords from database
+async function fetchClients(supabase: any): Promise<Client[]> {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, keywords')
+      .not('keywords', 'is', null);
+    
+    if (error) {
+      console.error('Error fetching clients:', error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (e) {
+    console.error('Error in fetchClients:', e);
+    return [];
+  }
+}
+
+// Match article content against client keywords
+function matchClientsToArticle(
+  title: string, 
+  description: string, 
+  clients: Client[]
+): Array<{ id: string; name: string; matchedKeywords: string[] }> {
+  const content = `${title} ${description}`.toLowerCase();
+  const matches: Array<{ id: string; name: string; matchedKeywords: string[] }> = [];
+  
+  for (const client of clients) {
+    if (!client.keywords || client.keywords.length === 0) continue;
+    
+    const matchedKeywords = client.keywords.filter(keyword => 
+      content.includes(keyword.toLowerCase())
+    );
+    
+    if (matchedKeywords.length > 0) {
+      matches.push({
+        id: client.id,
+        name: client.name,
+        matchedKeywords
+      });
+    }
+  }
+  
+  return matches;
 }
 
 async function processArticle(
   article: Article,
   feedSourceId: string,
   supabase: any,
-  openAIApiKey: string
+  lovableApiKey: string,
+  clients: Client[]
 ) {
   try {
-    // Check for duplicate articles
     const { data: existingArticle } = await supabase
       .from('news_articles')
       .select('id')
@@ -132,11 +189,9 @@ async function processArticle(
       return null;
     }
 
-    // Parse and validate the publication date
     const pubDate = parsePublicationDate(article.pub_date);
     console.log(`Parsed date for "${article.title}":`, pubDate.toISOString());
 
-    // Don't process articles older than 7 days
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
@@ -145,29 +200,32 @@ async function processArticle(
       return null;
     }
 
-    // Analyze article content
+    // Analyze article with AI including sentiment and client matching
     const analysis = await analyzeArticle(
       article.title,
       article.description,
-      openAIApiKey,
+      lovableApiKey,
       article.source,
-      supabase
+      supabase,
+      clients
     );
 
-    // Insert the new article
+    // Insert the new article with sentiment data
     const { data: newArticle, error: insertError } = await supabase
       .from('news_articles')
       .insert([{
         title: article.title,
         description: article.description,
         link: article.link,
-        pub_date: pubDate.toISOString(), // Use the parsed date
+        pub_date: pubDate.toISOString(),
         source: article.source,
         image_url: article.image_url,
         category: analysis.category,
         summary: analysis.summary,
         keywords: analysis.keywords,
         clients: analysis.clients,
+        sentiment: analysis.sentiment,
+        sentiment_score: analysis.sentiment_score,
         feed_source_id: feedSourceId,
         last_processed: new Date().toISOString()
       }])
@@ -194,7 +252,12 @@ async function processArticle(
   }
 }
 
-async function processFeedSource(feedSource: FeedSource, supabase: any, openAIApiKey: string) {
+async function processFeedSource(
+  feedSource: FeedSource, 
+  supabase: any, 
+  lovableApiKey: string,
+  clients: Client[]
+) {
   console.log(`Processing feed source: ${feedSource.name}`);
   
   try {
@@ -206,7 +269,6 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
     const feedData = await response.json();
     console.log(`Processing ${feedData.items?.length || 0} items from ${feedSource.name}`);
 
-    // Validate feed structure
     if (!feedData || !Array.isArray(feedData.items)) {
       throw new Error(`Invalid feed format for ${feedSource.name}: items array not found or not an array`);
     }
@@ -214,7 +276,6 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
     let successCount = 0;
     let errorCount = 0;
 
-    // Sort items by publication date (newest first)
     const sortedItems = feedData.items.sort((a: any, b: any) => {
       const dateA = new Date(getArticleDate(a));
       const dateB = new Date(getArticleDate(b));
@@ -237,7 +298,7 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
         image_url: getArticleImage(item)
       };
 
-      const result = await processArticle(article, feedSource.id, supabase, openAIApiKey);
+      const result = await processArticle(article, feedSource.id, supabase, lovableApiKey, clients);
       if (result) {
         successCount++;
       } else {
@@ -245,7 +306,6 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
       }
     }
 
-    // Update feed source status
     await supabase
       .from('feed_sources')
       .update({
@@ -259,7 +319,6 @@ async function processFeedSource(feedSource: FeedSource, supabase: any, openAIAp
   } catch (error) {
     console.error(`Error processing feed ${feedSource.name}:`, error);
     
-    // Update feed source error status
     const currentErrorCount = (feedSource.error_count || 0) + 1;
     const errorMessage = error instanceof Error ? error.message : String(error);
     await supabase
@@ -282,13 +341,21 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!supabaseUrl || !supabaseKey || !openAIApiKey) {
-      throw new Error('Missing required environment variables');
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing required Supabase environment variables');
+    }
+
+    if (!lovableApiKey) {
+      throw new Error('Missing LOVABLE_API_KEY environment variable');
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch clients once for all articles
+    const clients = await fetchClients(supabase);
+    console.log(`Loaded ${clients.length} clients with keywords for matching`);
 
     // Get active feed sources
     const { data: feedSources, error: feedSourcesError } = await supabase
@@ -302,7 +369,7 @@ serve(async (req) => {
 
     const results = [];
     for (const feedSource of feedSources) {
-      const result = await processFeedSource(feedSource, supabase, openAIApiKey);
+      const result = await processFeedSource(feedSource, supabase, lovableApiKey, clients);
       results.push({
         source: feedSource.name,
         ...result
@@ -313,6 +380,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         results,
+        clientsLoaded: clients.length,
         timestamp: new Date().toISOString()
       }),
       { 
@@ -338,13 +406,6 @@ serve(async (req) => {
     );
   }
 });
-
-const RSS_FEEDS = [
-  { url: "https://rss.app/feeds/v1.1/Zk2ySs2LemEIrBaR.json", name: "El Nuevo Día" },
-  { url: "https://rss.app/feeds/v1.1/lzpdZAZO66AyiC3I.json", name: "Primera Hora" },
-  { url: "https://rss.app/feeds/v1.1/JyTkN9iWY5xFVmwa.json", name: "Metro PR" },
-  { url: "https://rss.app/feeds/v1.1/gW8MsZ8sYypQRq1A.json", name: "El Vocero" }
-];
 
 interface ProcessingError {
   stage: 'extraction' | 'preprocessing' | 'analysis' | 'parsing';
@@ -382,7 +443,6 @@ function sanitizeText(text: string): { text: string; issues: string[] } {
   const issues: string[] = [];
   let sanitized = text;
 
-  // Track sanitization issues
   if (/[`'"]/g.test(text)) {
     issues.push('Contains problematic quotes');
   }
@@ -393,7 +453,6 @@ function sanitizeText(text: string): { text: string; issues: string[] } {
     issues.push('Contains HTML entities');
   }
 
-  // Sanitization process
   sanitized = text
     .replace(/[`'"]/g, '')
     .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
@@ -412,10 +471,11 @@ function sanitizeText(text: string): { text: string; issues: string[] } {
 async function analyzeArticle(
   title: string, 
   description: string, 
-  openAIApiKey: string, 
+  lovableApiKey: string, 
   source: string,
-  supabase: any
-) {
+  supabase: any,
+  clients: Client[]
+): Promise<AnalysisResult> {
   const { text: sanitizedTitle, issues: titleIssues } = sanitizeText(title);
   const { text: sanitizedDescription, issues: descriptionIssues } = sanitizeText(description);
   
@@ -433,57 +493,72 @@ async function analyzeArticle(
     }
   });
 
+  // Pre-match clients based on keywords
+  const keywordMatches = matchClientsToArticle(sanitizedTitle, sanitizedDescription, clients);
+  console.log(`Found ${keywordMatches.length} keyword matches for article`);
+
   // Content validation
-  if (!sanitizedTitle || sanitizedTitle.length < 50) {
+  if (!sanitizedTitle || sanitizedTitle.length < 10) {
     await logProcessingError(supabase, {
       stage: 'preprocessing',
       error: 'Title too short or invalid',
       article: { title, description, source },
       rawContent: title
     });
-    return getFallbackAnalysis('Título insuficiente para análisis');
+    return getFallbackAnalysis('Título insuficiente para análisis', keywordMatches);
   }
 
-  if (!sanitizedDescription || sanitizedDescription.length < 100) {
-    await logProcessingError(supabase, {
-      stage: 'preprocessing',
-      error: 'Description too short or invalid',
-      article: { title, description, source },
-      rawContent: description
-    });
-    return getFallbackAnalysis('Descripción insuficiente para análisis');
-  }
+  // Build client list for AI prompt
+  const clientListForPrompt = clients.slice(0, 50).map(c => 
+    `- ${c.name}: ${(c.keywords || []).slice(0, 5).join(', ')}`
+  ).join('\n');
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       console.log(`Analysis attempt ${attempt + 1} for article from ${source}`);
       
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
+          'Authorization': `Bearer ${lovableApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'google/gemini-2.5-flash',
           messages: [
             { 
               role: 'system', 
-              content: 'Eres un asistente especializado en análisis de noticias. Respondes ÚNICAMENTE en formato JSON válido.'
+              content: `Eres un asistente especializado en análisis de noticias de Puerto Rico. Tu tarea es analizar titulares y contenido de noticias para:
+1. Categorizar la noticia
+2. Determinar el sentimiento (positivo, negativo, neutral, mixto)
+3. Identificar clientes relevantes basándote en la lista proporcionada
+4. Extraer palabras clave
+
+Responde ÚNICAMENTE en formato JSON válido.`
             },
             { 
               role: 'user', 
-              content: `Analiza este artículo y proporciona un análisis estructurado.
-                Título: ${sanitizedTitle}
-                Descripción: ${sanitizedDescription}
-                
-                Responde SOLO con un JSON válido que siga esta estructura:
-                {
-                  "summary": "string",
-                  "category": "ACCIDENTES|AGENCIAS DE GOBIERNO|AMBIENTE|AMBIENTE & EL TIEMPO|CIENCIA & TECNOLOGÍA|COMUNIDAD|CRIMEN|DEPORTES|ECONOMÍA & NEGOCIOS|EDUCACIÓN & CULTURA|EE.UU. & INTERNACIONALES|ENTRETENIMIENTO|GOBIERNO|OTRAS|POLÍTICA|RELIGIÓN|SALUD|SEGURIDAD|TRIBUNALES",
-                  "clients": [],
-                  "keywords": ["5-7 palabras clave relevantes"]
-                }` 
+              content: `Analiza este artículo de noticias:
+
+TÍTULO: ${sanitizedTitle}
+DESCRIPCIÓN: ${sanitizedDescription}
+FUENTE: ${source}
+
+LISTA DE CLIENTES Y SUS PALABRAS CLAVE:
+${clientListForPrompt}
+
+Responde SOLO con un JSON válido con esta estructura exacta:
+{
+  "summary": "resumen breve del artículo en español (max 100 palabras)",
+  "category": "una de: ACCIDENTES|AGENCIAS DE GOBIERNO|AMBIENTE|AMBIENTE & EL TIEMPO|CIENCIA & TECNOLOGÍA|COMUNIDAD|CRIMEN|DEPORTES|ECONOMÍA & NEGOCIOS|EDUCACIÓN & CULTURA|EE.UU. & INTERNACIONALES|ENTRETENIMIENTO|GOBIERNO|OTRAS|POLÍTICA|RELIGIÓN|SALUD|SEGURIDAD|TRIBUNALES",
+  "clients": [{"id": "client_uuid", "name": "nombre del cliente", "relevance": "alta|media|baja"}],
+  "keywords": ["5-7 palabras clave relevantes en español"],
+  "sentiment": "positive|negative|neutral|mixed",
+  "sentiment_score": 0.0
+}
+
+Para sentiment_score: usa un valor entre -1.0 (muy negativo) y 1.0 (muy positivo), donde 0.0 es neutral.
+Para clients: solo incluye clientes de la lista proporcionada que sean REALMENTE relevantes al contenido.` 
             }
           ],
           temperature: 0.3,
@@ -491,16 +566,22 @@ async function analyzeArticle(
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error(`OpenAI API error (attempt ${attempt + 1}):`, errorData);
+        const errorData = await response.text();
+        console.error(`Lovable AI API error (attempt ${attempt + 1}):`, errorData);
+        
+        if (response.status === 429) {
+          console.log('Rate limited, waiting before retry...');
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 2000));
+          continue;
+        }
         
         if (attempt === 2) {
           await logProcessingError(supabase, {
             stage: 'analysis',
-            error: `OpenAI API error: ${JSON.stringify(errorData)}`,
+            error: `Lovable AI API error: ${errorData}`,
             article: { title, description, source }
           });
-          return getFallbackAnalysis('Error en el servicio de análisis');
+          return getFallbackAnalysis('Error en el servicio de análisis', keywordMatches);
         }
         
         await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
@@ -511,13 +592,30 @@ async function analyzeArticle(
       const content = data.choices[0].message.content;
       
       try {
-        const parsedResult = JSON.parse(content);
+        // Clean up the response if it has markdown code blocks
+        let jsonContent = content;
+        if (content.includes('```json')) {
+          jsonContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        } else if (content.includes('```')) {
+          jsonContent = content.replace(/```\n?/g, '');
+        }
+        
+        const parsedResult = JSON.parse(jsonContent.trim());
         
         if (!isValidAnalysisResult(parsedResult)) {
           throw new Error('Invalid result structure');
         }
         
-        return parsedResult;
+        // Merge AI-detected clients with keyword matches
+        const allClients = mergeClientMatches(parsedResult.clients, keywordMatches);
+        
+        return {
+          ...parsedResult,
+          clients: allClients,
+          category: normalizeCategory(parsedResult.category),
+          sentiment: parsedResult.sentiment || 'neutral',
+          sentiment_score: typeof parsedResult.sentiment_score === 'number' ? parsedResult.sentiment_score : 0
+        };
       } catch (parseError) {
         console.error(`JSON parsing error (attempt ${attempt + 1}):`, {
           error: parseError,
@@ -525,13 +623,13 @@ async function analyzeArticle(
         });
         
         if (attempt === 2) {
-        await logProcessingError(supabase, {
-          stage: 'parsing',
-          error: `JSON parsing error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+          await logProcessingError(supabase, {
+            stage: 'parsing',
+            error: `JSON parsing error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
             article: { title, description, source },
             rawContent: content
           });
-          return getFallbackAnalysis('Error en el formato de análisis');
+          return getFallbackAnalysis('Error en el formato de análisis', keywordMatches);
         }
       }
     } catch (error) {
@@ -543,12 +641,36 @@ async function analyzeArticle(
           error: error instanceof Error ? error.message : String(error),
           article: { title, description, source }
         });
-        return getFallbackAnalysis('Error en el proceso de análisis');
+        return getFallbackAnalysis('Error en el proceso de análisis', keywordMatches);
       }
     }
   }
 
-  return getFallbackAnalysis('Error después de múltiples intentos');
+  return getFallbackAnalysis('Error después de múltiples intentos', keywordMatches);
+}
+
+// Merge AI-detected clients with keyword-matched clients
+function mergeClientMatches(
+  aiClients: Array<{ id: string; name: string; relevance: string }>,
+  keywordMatches: Array<{ id: string; name: string; matchedKeywords: string[] }>
+): Array<{ id: string; name: string; relevance: string }> {
+  const clientMap = new Map<string, { id: string; name: string; relevance: string }>();
+  
+  // Add keyword matches first
+  for (const match of keywordMatches) {
+    const relevance = match.matchedKeywords.length >= 3 ? 'alta' : 
+                     match.matchedKeywords.length >= 2 ? 'media' : 'baja';
+    clientMap.set(match.id, { id: match.id, name: match.name, relevance });
+  }
+  
+  // Add/update with AI matches (AI takes precedence for relevance)
+  for (const client of aiClients) {
+    if (client.id && client.name) {
+      clientMap.set(client.id, client);
+    }
+  }
+  
+  return Array.from(clientMap.values());
 }
 
 const VALID_CATEGORIES = [
@@ -559,7 +681,6 @@ const VALID_CATEGORIES = [
   'SEGURIDAD', 'TRIBUNALES'
 ];
 
-// Map unrecognized categories to valid ones
 function normalizeCategory(category: string): string {
   if (VALID_CATEGORIES.includes(category)) return category;
   
@@ -584,22 +705,30 @@ function isValidAnalysisResult(result: any): boolean {
       typeof result.summary !== 'string' ||
       typeof result.category !== 'string' ||
       !Array.isArray(result.clients) ||
-      !Array.isArray(result.keywords) ||
-      result.keywords.length < 1 ||
-      result.keywords.length > 15) {
+      !Array.isArray(result.keywords)) {
     return false;
   }
   
-  // Normalize the category if needed
-  result.category = normalizeCategory(result.category);
   return true;
 }
 
-function getFallbackAnalysis(reason: string) {
+function getFallbackAnalysis(
+  reason: string, 
+  keywordMatches: Array<{ id: string; name: string; matchedKeywords: string[] }> = []
+): AnalysisResult {
+  const clients = keywordMatches.map(m => ({
+    id: m.id,
+    name: m.name,
+    relevance: m.matchedKeywords.length >= 3 ? 'alta' : 
+               m.matchedKeywords.length >= 2 ? 'media' : 'baja'
+  }));
+  
   return {
     summary: reason,
     category: 'OTRAS',
-    clients: [],
-    keywords: []
+    clients,
+    keywords: [],
+    sentiment: 'neutral',
+    sentiment_score: 0
   };
 }
