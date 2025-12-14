@@ -7,3 +7,4 @@ export { RecentActivityTimeline } from './RecentActivityTimeline';
 export { ClientKeywordsWidget } from './ClientKeywordsWidget';
 export { QuickActions } from './QuickActions';
 export { DateRangeFilter } from './DateRangeFilter';
+export { CombinedNewsFeedWidget } from './CombinedNewsFeedWidget';

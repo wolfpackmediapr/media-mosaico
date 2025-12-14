@@ -12,6 +12,7 @@ import {
   ClientKeywordsWidget,
   QuickActions,
   DateRangeFilter,
+  CombinedNewsFeedWidget,
 } from "@/components/dashboard";
 import NotificationFeed from "@/components/notifications/NotificationFeed";
 import { useNavigate } from "react-router-dom";
@@ -111,6 +112,9 @@ const DashboardContent = () => {
           onClick={() => navigate('/clientes')}
         />
       </div>
+
+      {/* Combined News Feed - Full Width */}
+      <CombinedNewsFeedWidget />
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
