@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.process-rss-feed]
 verify_jwt = true
+
+[functions.reanalyze-articles]
+verify_jwt = false
