@@ -5,6 +5,11 @@ import { useCategoryBreakdown } from "@/hooks/use-dashboard-stats";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tag } from "lucide-react";
 
+interface CategoryBreakdownWidgetProps {
+  dateFrom?: Date;
+  dateTo?: Date;
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   'GOBIERNO': 'hsl(var(--chart-1))',
   'POLÍTICA': 'hsl(var(--chart-2))',
@@ -18,8 +23,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   'OTRAS': 'hsl(0, 0%, 50%)',
 };
 
-export function CategoryBreakdownWidget() {
-  const { data, isLoading } = useCategoryBreakdown();
+export function CategoryBreakdownWidget({ dateFrom, dateTo }: CategoryBreakdownWidgetProps) {
+  const { data, isLoading } = useCategoryBreakdown(dateFrom, dateTo);
 
   if (isLoading) {
     return (

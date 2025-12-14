@@ -1,6 +1,7 @@
 import React from "react";
 import { Newspaper, Radio, FileText, Rss, Users, Bell, Monitor } from "lucide-react";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
+import { useDashboardRealtime } from "@/hooks/use-dashboard-realtime";
 import {
   DashboardStatCard,
   ContentActivityChart,
@@ -22,6 +23,9 @@ const DashboardContent = () => {
   const navigate = useNavigate();
   const { dateRange } = useDashboardDate();
   const { data: stats, isLoading } = useDashboardStats(dateRange.from, dateRange.to);
+  
+  // Enable real-time updates for dashboard
+  useDashboardRealtime();
 
   return (
     <div className="space-y-6">
@@ -110,12 +114,12 @@ const DashboardContent = () => {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ContentActivityChart />
-        <SourceDistributionWidget />
+        <ContentActivityChart dateFrom={dateRange.from} dateTo={dateRange.to} />
+        <SourceDistributionWidget dateFrom={dateRange.from} dateTo={dateRange.to} />
       </div>
 
       {/* Category Breakdown - Full Width */}
-      <CategoryBreakdownWidget />
+      <CategoryBreakdownWidget dateFrom={dateRange.from} dateTo={dateRange.to} />
 
       {/* Widgets Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
