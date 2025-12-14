@@ -20,26 +20,7 @@ async function fetchCombinedNewsFeed(page: number): Promise<CombinedFeedResult> 
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Fetch all feed sources to categorize them
-  const { data: feedSources, error: sourcesError } = await supabase
-    .from('feed_sources')
-    .select('id, name, platform');
-
-  if (sourcesError) {
-    console.error('Error fetching feed sources:', sourcesError);
-    throw sourcesError;
-  }
-
-  // Categorize feed sources
-  const socialSourceIds = feedSources?.filter(fs => 
-    fs.platform && SOCIAL_PLATFORMS.includes(fs.platform)
-  ).map(fs => fs.id) || [];
-  
-  const prensaSourceIds = feedSources?.filter(fs => 
-    !fs.platform || !SOCIAL_PLATFORMS.includes(fs.platform)
-  ).map(fs => fs.id) || [];
-
-  // Fetch articles from all sources
+  // Fetch articles from all sources with feed_source info
   const { data: articles, error: articlesError, count } = await supabase
     .from('news_articles')
     .select(`
@@ -66,21 +47,41 @@ async function fetchCombinedNewsFeed(page: number): Promise<CombinedFeedResult> 
     throw articlesError;
   }
 
-  // Get counts for each type
-  const { count: prensaCount } = await supabase
-    .from('news_articles')
-    .select('id', { count: 'exact', head: true })
-    .in('feed_source_id', prensaSourceIds.length > 0 ? prensaSourceIds : ['none']);
+  // Count articles by type using the feed_source platform
+  let prensaCount = 0;
+  let socialCount = 0;
 
-  const { count: socialCount } = await supabase
+  // Get all articles to count by type (just get the feed_source platform)
+  const { data: allArticlesForCount } = await supabase
     .from('news_articles')
-    .select('id', { count: 'exact', head: true })
-    .in('feed_source_id', socialSourceIds.length > 0 ? socialSourceIds : ['none']);
+    .select(`
+      id,
+      feed_source:feed_source_id (
+        platform
+      )
+    `);
+
+  if (allArticlesForCount) {
+    allArticlesForCount.forEach(article => {
+      const feedSource = article.feed_source as { platform?: string } | null;
+      const platform = feedSource?.platform;
+      const isSocial = platform && SOCIAL_PLATFORMS.includes(platform);
+      
+      if (isSocial) {
+        socialCount++;
+      } else {
+        prensaCount++;
+      }
+    });
+  }
 
   // Transform articles to NewsCard format
   const items: NewsCard[] = (articles || []).map(article => {
     const feedSource = article.feed_source as { name?: string; platform?: string; platform_display_name?: string } | null;
-    const isSocial = article.feed_source_id && socialSourceIds.includes(article.feed_source_id);
+    
+    // Determine if social based on the feed_source's platform field
+    const platform = feedSource?.platform;
+    const isSocial = platform && SOCIAL_PLATFORMS.includes(platform);
     
     // Determine category and subcategory
     const category = isSocial ? 'Redes Sociales' : 'Prensa Digital';
@@ -113,8 +114,8 @@ async function fetchCombinedNewsFeed(page: number): Promise<CombinedFeedResult> 
   return {
     items,
     totalCount: count || 0,
-    prensaCount: prensaCount || 0,
-    socialCount: socialCount || 0,
+    prensaCount,
+    socialCount,
   };
 }
 
