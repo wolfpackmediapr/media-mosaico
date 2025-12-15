@@ -86,7 +86,7 @@ export function QuickActions() {
           <Button 
             variant="outline" 
             className="flex flex-col h-auto py-4 gap-2"
-            onClick={() => navigate('/configuracion')}
+            onClick={() => navigate('/configuracion/general')}
           >
             <Settings className="h-5 w-5" />
             <span className="text-xs">Configuración</span>
