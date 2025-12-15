@@ -50,7 +50,7 @@ export function QuickActions() {
           <Button 
             variant="outline" 
             className="flex flex-col h-auto py-4 gap-2"
-            onClick={() => navigate('/prensa-digital')}
+            onClick={() => navigate('/publiteca/prensa')}
           >
             <Newspaper className="h-5 w-5" />
             <span className="text-xs">Prensa Digital</span>
