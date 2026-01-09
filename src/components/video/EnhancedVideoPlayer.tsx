@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import VideoPlayer from './VideoPlayer';
 import { ChunkedVideoPlayer } from './ChunkedVideoPlayer';
 import { resolveVideoSource, getAssembledVideoUrl, type VideoSource } from '@/services/video/videoSourceResolver';
-import { recreateBlobUrl, getCachedFile, getFileId } from '@/hooks/tv/useFileCache';
+import { recreateBlobUrl, getCachedFile, isBlobUrlValid } from '@/hooks/tv/useFileCache';
 
 interface EnhancedVideoPlayerProps {
   src: string;
@@ -109,34 +109,26 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   }, [src, resolveSource]);
 
   // FIX: Visibility change handler to recover from invalid blob URLs using file cache
+  // Only attempt recovery if the current blob URL is actually invalid
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (!document.hidden && videoSource) {
         // Check if the current source is a blob URL (may be invalid after tab switch)
         if (videoSource.path?.startsWith('blob:')) {
-          console.log('[EnhancedVideoPlayer] Tab visible with blob URL, attempting recovery...');
-          
-          // First try: Check sessionStorage for permanent URL
-          const storedVideoUrl = sessionStorage.getItem('tv-uploaded-video-url');
-          if (storedVideoUrl && !storedVideoUrl.startsWith('blob:')) {
-            console.log('[EnhancedVideoPlayer] Found permanent URL, updating:', storedVideoUrl.substring(0, 50));
-            if (isMountedRef.current) {
-              setVideoSource({
-                type: storedVideoUrl.startsWith('chunked:') ? 'chunked' : 'assembled',
-                path: storedVideoUrl,
-                sessionId: storedVideoUrl.startsWith('chunked:') ? storedVideoUrl.replace('chunked:', '') : undefined,
-                isAvailable: true
-              });
-            }
+          // First, check if the current blob URL is still valid - don't switch if it's working
+          const isValid = await isBlobUrlValid(videoSource.path);
+          if (isValid) {
+            console.log('[EnhancedVideoPlayer] Blob URL still valid, no recovery needed');
             return;
           }
           
-          // Second try: Extract fileId from src or use provided fileId, then recreate blob URL from cache
-          const effectiveFileId = fileId || (src.includes('-') ? src : undefined);
-          if (effectiveFileId) {
-            const cachedFile = getCachedFile(effectiveFileId);
+          console.log('[EnhancedVideoPlayer] Blob URL invalid, attempting recovery...');
+          
+          // First try: Recreate blob URL from file cache
+          if (fileId) {
+            const cachedFile = getCachedFile(fileId);
             if (cachedFile) {
-              const newBlobUrl = recreateBlobUrl(effectiveFileId);
+              const newBlobUrl = recreateBlobUrl(fileId);
               if (newBlobUrl && isMountedRef.current) {
                 console.log('[EnhancedVideoPlayer] Recreated blob URL from cache:', newBlobUrl.substring(0, 50));
                 setVideoSource({
@@ -149,8 +141,23 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
             }
           }
           
+          // Second try: Check sessionStorage for permanent URL
+          const storedVideoUrl = sessionStorage.getItem('tv-uploaded-video-url');
+          if (storedVideoUrl && !storedVideoUrl.startsWith('blob:')) {
+            console.log('[EnhancedVideoPlayer] Using permanent URL for recovery:', storedVideoUrl.substring(0, 50));
+            if (isMountedRef.current) {
+              setVideoSource({
+                type: storedVideoUrl.startsWith('chunked:') ? 'chunked' : 'assembled',
+                path: storedVideoUrl,
+                sessionId: storedVideoUrl.startsWith('chunked:') ? storedVideoUrl.replace('chunked:', '') : undefined,
+                isAvailable: true
+              });
+            }
+            return;
+          }
+          
           // If we can't recover, show error
-          console.log('[EnhancedVideoPlayer] Could not recover blob URL, no permanent URL or cache available');
+          console.log('[EnhancedVideoPlayer] Could not recover blob URL');
           if (isMountedRef.current) {
             setError('Video no disponible. Por favor, vuelva a subir el archivo.');
           }
@@ -160,7 +167,7 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [videoSource, fileId, src]);
+  }, [videoSource, fileId]);
 
   // Cleanup on unmount
   useEffect(() => {
