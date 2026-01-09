@@ -46,7 +46,8 @@ export const useTvState = () => {
     setCurrentVideoPath,
     registerVideoElement,
     isActiveMediaRoute,
-    setIsMediaPlaying
+    setIsMediaPlaying,
+    isRestoring // NEW: State restoration indicator
   } = usePersistentVideoState();
 
   const { notepadContent, setNotepadContent } = useTvNotepadState();
@@ -106,6 +107,9 @@ export const useTvState = () => {
     registerVideoElement,
     isActiveMediaRoute,
     setIsMediaPlaying,
+    
+    // State restoration
+    isRestoring, // NEW: Indicates if state is being restored from storage
     
     // Processing state
     isProcessing,

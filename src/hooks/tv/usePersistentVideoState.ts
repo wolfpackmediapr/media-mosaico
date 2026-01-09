@@ -14,7 +14,29 @@ interface UploadedFile extends File {
   _fileId?: string;
 }
 
-export const usePersistentVideoState = () => {
+export interface PersistentVideoStateReturn {
+  uploadedFiles: UploadedFile[];
+  setUploadedFiles: (files: UploadedFile[]) => void;
+  isPlaying: boolean;
+  volume: number[];
+  currentVideoPath: string | undefined;
+  currentTime: number;
+  currentFileId: string | undefined;
+  isReady: boolean;
+  isLoading: boolean;
+  isRestoring: boolean; // NEW: State restoration indicator
+  videoElementRef: React.RefObject<HTMLVideoElement>;
+  onTogglePlayback: () => void;
+  onVolumeChange: (value: number[]) => void;
+  onPlayPause: () => void;
+  onSeekToTimestamp: (timestamp: number) => void;
+  registerVideoElement: (element: HTMLVideoElement | null) => void;
+  isActiveMediaRoute: boolean;
+  setIsMediaPlaying: (playing: boolean) => void;
+  setCurrentVideoPath: (path: string | undefined) => void;
+}
+
+export const usePersistentVideoState = (): PersistentVideoStateReturn => {
   const { 
     activeMediaRoute, 
     setActiveMediaRoute, 
@@ -116,6 +138,9 @@ export const usePersistentVideoState = () => {
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
+  // NEW: State restoration indicator - starts true, set to false after hydration
+  const [isRestoring, setIsRestoring] = useState(true);
+  
   // Auto-resume functionality
   const hasAttemptedAutoResume = useRef(false);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
@@ -154,8 +179,15 @@ export const usePersistentVideoState = () => {
     setActiveMediaRoute('/tv');
     console.log('[usePersistentVideoState] TV route activated');
     
+    // Mark restoration complete after a short delay to allow hydration
+    const restoreTimer = setTimeout(() => {
+      setIsRestoring(false);
+      console.log('[usePersistentVideoState] State restoration complete');
+    }, 150);
+    
     // Save state on unmount/route change
     return () => {
+      clearTimeout(restoreTimer);
       if (activeMediaRoute === '/tv') {
         console.log('[usePersistentVideoState] TV route deactivating - saving state');
         
@@ -458,6 +490,7 @@ export const usePersistentVideoState = () => {
     currentFileId,
     isReady,
     isLoading,
+    isRestoring, // NEW: Export restoration state
     videoElementRef,
     onTogglePlayback,
     onVolumeChange,
