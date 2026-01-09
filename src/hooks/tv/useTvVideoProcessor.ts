@@ -155,6 +155,12 @@ export const useTvVideoProcessor = () => {
         setProgress(15);
         setTranscriptionId(existingTranscription.id);
         
+        // FIX: Store the chunked video path for persistence
+        // Chunked videos use a special format: chunked:sessionId
+        sessionStorage.setItem('tv-uploaded-video-url', fileName); // fileName is already "chunked:sessionId"
+        sessionStorage.setItem('tv-uploaded-video-filename', file.name);
+        console.log('[TvVideoProcessor] Stored chunked video path:', fileName);
+        
         toast.info("Archivo ya subido", {
           description: "Validando y preparando video..."
         });
@@ -190,6 +196,19 @@ export const useTvVideoProcessor = () => {
         }
 
         console.log('[TvVideoProcessor] File uploaded to video bucket:', fileName);
+        
+        // FIX: Get the public URL and store it in sessionStorage
+        // This allows the video player to use the permanent URL after navigation
+        const { data: { publicUrl } } = supabase.storage
+          .from('video')
+          .getPublicUrl(fileName);
+        
+        console.log('[TvVideoProcessor] Public URL for uploaded video:', publicUrl);
+        
+        // Store the permanent URL in sessionStorage for persistence
+        sessionStorage.setItem('tv-uploaded-video-url', publicUrl);
+        sessionStorage.setItem('tv-uploaded-video-filename', file.name);
+        
         setProgress(10);
 
         // Create TV transcription record

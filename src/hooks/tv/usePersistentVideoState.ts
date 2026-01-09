@@ -205,8 +205,36 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
     };
   }, [setActiveMediaRoute, activeMediaRoute, currentFileId, isMediaPlaying, updatePlaybackPosition]);
 
-  // FIX: Sync currentVideoPath with uploaded files - prioritize Supabase paths over blob URLs
+  // FIX: Restore permanent video URL from sessionStorage and update uploadedFiles
   useEffect(() => {
+    // Check if we have a stored permanent URL from upload
+    const storedVideoUrl = sessionStorage.getItem('tv-uploaded-video-url');
+    const storedFilename = sessionStorage.getItem('tv-uploaded-video-filename');
+    
+    if (storedVideoUrl && uploadedFiles.length > 0) {
+      const firstFile = uploadedFiles[0];
+      
+      // If the file doesn't have a filePath yet, or has an invalid blob URL, update it
+      if (!firstFile.filePath || firstFile.filePath.startsWith('blob:')) {
+        console.log('[usePersistentVideoState] Restoring permanent URL from sessionStorage:', storedVideoUrl);
+        
+        // Update the file object with the permanent URL
+        const updatedFile = Object.assign(firstFile, {
+          filePath: storedVideoUrl,
+          _fileId: firstFile._fileId || `${firstFile.name}-${firstFile.size}-${firstFile.lastModified}`
+        });
+        
+        // Update uploadedFiles with the permanent URL
+        setUploadedFiles([updatedFile]);
+        
+        // Also update currentVideoPath
+        setCurrentVideoPath(storedVideoUrl);
+        
+        console.log('[usePersistentVideoState] Updated file with permanent URL');
+      }
+    }
+    
+    // Sync currentVideoPath with uploaded files - prioritize Supabase paths over blob URLs
     if (uploadedFiles.length > 0) {
       const firstFile = uploadedFiles[0];
       
@@ -230,7 +258,7 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
         setCurrentVideoPath(videoPath);
       }
     }
-  }, [uploadedFiles, currentVideoPath, setCurrentVideoPath]);
+  }, [uploadedFiles, currentVideoPath, setCurrentVideoPath, setUploadedFiles]);
 
   // Phase 3: Improved auto-resume logic with timeout and better validation
   useEffect(() => {

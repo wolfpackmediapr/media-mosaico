@@ -88,11 +88,18 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       if (!document.hidden && videoSource) {
         // Check if the current source might be invalid (blob URL after tab switch)
         if (videoSource.path?.startsWith('blob:')) {
-          console.log('[EnhancedVideoPlayer] Tab visible with blob URL, verifying validity...');
+          console.log('[EnhancedVideoPlayer] Tab visible with blob URL, checking for permanent URL...');
           
-          // Blob URLs can become invalid after tab switch - try to detect this
-          // by checking if we have an alternative Supabase path in the original src
-          if (src && !src.startsWith('blob:')) {
+          // FIX: Check sessionStorage for the permanent URL
+          const storedVideoUrl = sessionStorage.getItem('tv-uploaded-video-url');
+          
+          if (storedVideoUrl && !storedVideoUrl.startsWith('blob:')) {
+            console.log('[EnhancedVideoPlayer] Found permanent URL in sessionStorage, switching to:', storedVideoUrl);
+            prevSrcRef.current = ''; // Force re-resolve
+            // Trigger re-resolution with the permanent URL
+            resolveSource();
+          } else if (src && !src.startsWith('blob:')) {
+            // Fallback to original src if it's not a blob
             console.log('[EnhancedVideoPlayer] Original src is not blob, re-resolving from:', src);
             prevSrcRef.current = ''; // Force re-resolve
             resolveSource();
