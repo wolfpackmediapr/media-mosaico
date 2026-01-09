@@ -52,6 +52,20 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
         return;
       }
       
+      // FIX: Handle Supabase public URLs directly without checking
+      if (src.includes('supabase.co/storage/v1/object/public/')) {
+        console.log('[EnhancedVideoPlayer] Supabase public URL detected, using directly:', src);
+        if (isMountedRef.current) {
+          setVideoSource({
+            type: 'assembled',
+            path: src,
+            isAvailable: true
+          });
+          setIsLoading(false);
+        }
+        return;
+      }
+      
       // Otherwise resolve from Supabase storage
       const source = await resolveVideoSource(src);
       
@@ -157,10 +171,16 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   }
 
   if (videoSource.type === 'assembled' && videoSource.path) {
-    // For blob URLs, use them directly; for storage paths, get the public URL
-    const videoUrl = videoSource.path.startsWith('blob:') 
-      ? videoSource.path 
-      : getAssembledVideoUrl(videoSource.path);
+    // FIX: For blob URLs or Supabase public URLs, use them directly
+    // Only call getAssembledVideoUrl for storage paths
+    let videoUrl: string;
+    if (videoSource.path.startsWith('blob:')) {
+      videoUrl = videoSource.path;
+    } else if (videoSource.path.includes('supabase.co/storage/v1/object/public/')) {
+      videoUrl = videoSource.path; // Already a public URL
+    } else {
+      videoUrl = getAssembledVideoUrl(videoSource.path); // Storage path, get public URL
+    }
     
     return (
       <VideoPlayer
