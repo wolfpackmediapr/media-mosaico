@@ -98,6 +98,17 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
     if (!videoRef.current) return;
 
     try {
+      // MOV files (video/quicktime) and other formats have limited MediaSource support
+      // Always use fallback for these to ensure playback works
+      const unsupportedTypes = ['video/quicktime', 'video/x-msvideo', 'video/x-ms-wmv'];
+      const lowerMimeType = mimeType.toLowerCase();
+      
+      if (unsupportedTypes.includes(lowerMimeType)) {
+        console.log('[ChunkedVideoPlayer] Unsupported MIME type for MediaSource:', mimeType, '- using fallback');
+        await loadFirstChunkAsFallback(chunks[0]);
+        return;
+      }
+      
       // Check if MediaSource is supported for this MIME type
       const isMediaSourceSupported = window.MediaSource && 
         MediaSource.isTypeSupported(mimeType);
