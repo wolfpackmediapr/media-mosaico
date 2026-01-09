@@ -278,26 +278,54 @@ export const useTvVideoProcessor = () => {
         // Poll for completion
         await pollForProcessingCompletion(actualTranscriptionId);
         
-        // After polling completes, fetch the final results
-        const { data: finalTranscription, error: fetchError } = await supabase
-          .from('tv_transcriptions')
-          .select('*')
-          .eq('id', actualTranscriptionId)
-          .single();
+        // FIX: Fetch final results with retry to ensure data is available
+        let finalTranscription = null;
+        let fetchAttempts = 0;
+        const maxFetchAttempts = 3;
+        
+        while (fetchAttempts < maxFetchAttempts && !finalTranscription?.transcription_text) {
+          const { data, error: fetchError } = await supabase
+            .from('tv_transcriptions')
+            .select('*')
+            .eq('id', actualTranscriptionId)
+            .single();
 
-        if (fetchError || !finalTranscription) {
+          if (fetchError) {
+            console.error('[TvVideoProcessor] Fetch attempt failed:', fetchError);
+          } else if (data?.transcription_text) {
+            finalTranscription = data;
+            break;
+          }
+          
+          fetchAttempts++;
+          if (fetchAttempts < maxFetchAttempts) {
+            console.log(`[TvVideoProcessor] Retry fetch attempt ${fetchAttempts + 1}/${maxFetchAttempts}`);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+
+        if (!finalTranscription) {
           throw new Error('Failed to retrieve final transcription results');
         }
 
-        // Set results from database
-        setTranscriptionText(finalTranscription.transcription_text || '');
-        setAnalysisResults(finalTranscription.full_analysis || '');
+        // FIX: Explicitly set and verify transcription state
+        const transcriptionData = finalTranscription.transcription_text || '';
+        const analysisData = finalTranscription.full_analysis || '';
+        
+        console.log('[TvVideoProcessor] Setting transcription text:', {
+          length: transcriptionData.length,
+          preview: transcriptionData.substring(0, 100),
+          hasAnalysis: !!analysisData
+        });
+        
+        setTranscriptionText(transcriptionData);
+        setAnalysisResults(analysisData);
         
         // Parse transcription text into utterances for editor
-        if (finalTranscription.transcription_text) {
+        if (transcriptionData) {
           console.log('[TvVideoProcessor] Parsing transcription from database');
           setTranscriptionResult({
-            text: finalTranscription.transcription_text,
+            text: transcriptionData,
             utterances: [], // Will be populated by useSpeakerTextState
             words: []
           });
@@ -308,7 +336,10 @@ export const useTvVideoProcessor = () => {
         // Clear active processing ID on completion
         setActiveProcessingId(null);
         
-        console.log('[TvVideoProcessor] Background processing completed successfully');
+        console.log('[TvVideoProcessor] Background processing completed successfully', {
+          transcriptionLength: transcriptionData.length,
+          analysisLength: analysisData.length
+        });
         
         toast.success("¡Procesamiento completado!", {
           description: "Video analizado exitosamente."
@@ -486,10 +517,11 @@ export const useTvVideoProcessor = () => {
     }
   };
 
-  // Auto-resume processing on mount if there's an active job
+  // FIX: Auto-resume processing on mount if there's an active job
+  // Include activeProcessingId in dependencies to properly trigger resume
   useEffect(() => {
     if (activeProcessingId && !isProcessing) {
-      console.log('[TvVideoProcessor] Found active processing job on mount, resuming polling:', activeProcessingId);
+      console.log('[TvVideoProcessor] Found active processing job, resuming polling:', activeProcessingId);
       
       (async () => {
         try {
@@ -502,14 +534,34 @@ export const useTvVideoProcessor = () => {
           
           await pollForProcessingCompletion(activeProcessingId);
           
-          // Fetch and display results
-          const { data, error } = await supabase
-            .from('tv_transcriptions')
-            .select('*')
-            .eq('id', activeProcessingId)
-            .single();
+          // FIX: Fetch and display results with retry
+          let data = null;
+          let fetchAttempts = 0;
+          const maxAttempts = 3;
+          
+          while (fetchAttempts < maxAttempts && !data?.transcription_text) {
+            const result = await supabase
+              .from('tv_transcriptions')
+              .select('*')
+              .eq('id', activeProcessingId)
+              .single();
+              
+            if (!result.error && result.data?.transcription_text) {
+              data = result.data;
+              break;
+            }
+            fetchAttempts++;
+            if (fetchAttempts < maxAttempts) {
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
             
-          if (!error && data) {
+          if (data) {
+            console.log('[TvVideoProcessor] Resume: Setting transcription text:', {
+              length: data.transcription_text?.length || 0,
+              hasAnalysis: !!data.full_analysis
+            });
+            
             setTranscriptionText(data.transcription_text || '');
             setAnalysisResults(data.full_analysis || '');
             
@@ -525,6 +577,8 @@ export const useTvVideoProcessor = () => {
             toast.success('¡Procesamiento completado!', {
               description: 'El video fue procesado exitosamente'
             });
+          } else {
+            throw new Error('No se pudo obtener los resultados de la transcripción');
           }
         } catch (error) {
           console.error('[TvVideoProcessor] Error resuming processing:', error);
@@ -537,7 +591,49 @@ export const useTvVideoProcessor = () => {
         }
       })();
     }
-  }, []); // Only run on mount
+  }, [activeProcessingId]); // FIX: Include activeProcessingId to properly trigger resume
+  
+  // FIX: Restore transcription from database on mount if we have ID but no text
+  useEffect(() => {
+    const restoreFromDatabase = async () => {
+      // Only restore if we have an ID but no text (and not currently processing)
+      if (transcriptionId && !transcriptionText && !isProcessing && !activeProcessingId) {
+        console.log('[TvVideoProcessor] Restoring transcription from database:', transcriptionId);
+        
+        try {
+          const { data, error } = await supabase
+            .from('tv_transcriptions')
+            .select('transcription_text, full_analysis, status')
+            .eq('id', transcriptionId)
+            .single();
+          
+          if (!error && data?.status === 'completed' && data.transcription_text) {
+            console.log('[TvVideoProcessor] Restored transcription from DB:', {
+              length: data.transcription_text.length,
+              hasAnalysis: !!data.full_analysis
+            });
+            
+            setTranscriptionText(data.transcription_text);
+            setAnalysisResults(data.full_analysis || '');
+            
+            setTranscriptionResult({
+              text: data.transcription_text,
+              utterances: [],
+              words: []
+            });
+          } else if (data?.status === 'processing') {
+            // If still processing, set the active processing ID to resume polling
+            console.log('[TvVideoProcessor] Found processing job in DB, setting active ID');
+            setActiveProcessingId(transcriptionId);
+          }
+        } catch (error) {
+          console.error('[TvVideoProcessor] Error restoring from database:', error);
+        }
+      }
+    };
+    
+    restoreFromDatabase();
+  }, [transcriptionId, transcriptionText, isProcessing, activeProcessingId]);
 
   // Sync UI state when tab becomes visible
   useEffect(() => {
