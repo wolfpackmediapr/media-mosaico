@@ -98,9 +98,18 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
     if (!videoRef.current) return;
 
     try {
-      // Check if MediaSource is supported
-      if (!window.MediaSource) {
-        // Fallback: Load first chunk as regular video
+      // Check if MediaSource is supported for this MIME type
+      const isMediaSourceSupported = window.MediaSource && 
+        MediaSource.isTypeSupported(mimeType);
+      
+      console.log('[ChunkedVideoPlayer] MediaSource support check:', {
+        hasMediaSource: !!window.MediaSource,
+        mimeType,
+        isSupported: isMediaSourceSupported
+      });
+      
+      if (!isMediaSourceSupported) {
+        console.log('[ChunkedVideoPlayer] MediaSource not supported for', mimeType, '- using fallback');
         await loadFirstChunkAsFallback(chunks[0]);
         return;
       }
@@ -121,20 +130,20 @@ export const ChunkedVideoPlayer: React.FC<ChunkedVideoPlayerProps> = ({
           loadChunksProgressively(chunks);
 
         } catch (err) {
-          console.error('Error creating source buffer:', err);
+          console.error('[ChunkedVideoPlayer] Error creating source buffer:', err);
           // Fallback to first chunk
           loadFirstChunkAsFallback(chunks[0]);
         }
       });
 
       mediaSource.addEventListener('error', (e) => {
-        console.error('MediaSource error:', e);
+        console.error('[ChunkedVideoPlayer] MediaSource error:', e);
         // Fallback to first chunk
         loadFirstChunkAsFallback(chunks[0]);
       });
 
     } catch (err) {
-      console.error('Error initializing MediaSource:', err);
+      console.error('[ChunkedVideoPlayer] Error initializing MediaSource:', err);
       // Fallback to first chunk
       await loadFirstChunkAsFallback(chunks[0]);
     }

@@ -35,12 +35,19 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   const resolveSource = useCallback(async () => {
     if (!src) return;
     
+    console.log('[EnhancedVideoPlayer] Resolving source:', {
+      src: src.substring(0, 80),
+      isBlob: src.startsWith('blob:'),
+      isChunked: src.startsWith('chunked:')
+    });
+    
     try {
       setIsLoading(true);
       setError(null);
       
-      // Handle blob URLs directly (uploaded files)
+      // Handle blob URLs directly - they're immediately valid for playback
       if (src.startsWith('blob:')) {
+        console.log('[EnhancedVideoPlayer] Using blob URL directly');
         if (isMountedRef.current) {
           setVideoSource({
             type: 'assembled',
@@ -52,8 +59,24 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
         return;
       }
       
+      // Handle chunked video references
+      if (src.startsWith('chunked:')) {
+        const sessionId = src.replace('chunked:', '');
+        console.log('[EnhancedVideoPlayer] Chunked video, sessionId:', sessionId);
+        if (isMountedRef.current) {
+          setVideoSource({
+            type: 'chunked',
+            sessionId,
+            isAvailable: true
+          });
+          setIsLoading(false);
+        }
+        return;
+      }
+      
       // Otherwise resolve from Supabase storage
       const source = await resolveVideoSource(src);
+      console.log('[EnhancedVideoPlayer] Resolved source:', source);
       
       if (isMountedRef.current) {
         setVideoSource(source);
