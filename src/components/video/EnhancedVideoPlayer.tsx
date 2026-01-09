@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import VideoPlayer from './VideoPlayer';
 import { ChunkedVideoPlayer } from './ChunkedVideoPlayer';
 import { resolveVideoSource, getAssembledVideoUrl, type VideoSource } from '@/services/video/videoSourceResolver';
@@ -15,6 +15,8 @@ interface EnhancedVideoPlayerProps {
 /**
  * Enhanced video player that automatically resolves the video source type
  * and uses the appropriate player component (regular or chunked)
+ * 
+ * Includes visibility change handling to recover from invalid blob URLs
  */
 export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   src,
@@ -28,17 +30,10 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const prevSrcRef = useRef<string>('');
+  const isMountedRef = useRef(true);
 
-  // Phase 2: Only resolve if src actually changed
-  useEffect(() => {
-    if (prevSrcRef.current !== src) {
-      prevSrcRef.current = src;
-      resolveSource();
-    }
-  }, [src]);
-
-  const resolveSource = async () => {
-    let isMounted = true;
+  const resolveSource = useCallback(async () => {
+    if (!src) return;
     
     try {
       setIsLoading(true);
@@ -46,7 +41,7 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       
       // Handle blob URLs directly (uploaded files)
       if (src.startsWith('blob:')) {
-        if (isMounted) {
+        if (isMountedRef.current) {
           setVideoSource({
             type: 'assembled',
             path: src,
@@ -60,7 +55,7 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       // Otherwise resolve from Supabase storage
       const source = await resolveVideoSource(src);
       
-      if (isMounted) {
+      if (isMountedRef.current) {
         setVideoSource(source);
         
         if (!source.isAvailable) {
@@ -68,20 +63,55 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
         }
       }
     } catch (err) {
-      console.error('Error resolving video source:', err);
-      if (isMounted) {
+      console.error('[EnhancedVideoPlayer] Error resolving video source:', err);
+      if (isMountedRef.current) {
         setError('Failed to load video');
       }
     } finally {
-      if (isMounted) {
+      if (isMountedRef.current) {
         setIsLoading(false);
       }
     }
-    
-    return () => {
-      isMounted = false;
+  }, [src]);
+
+  // Only resolve if src actually changed
+  useEffect(() => {
+    if (prevSrcRef.current !== src) {
+      prevSrcRef.current = src;
+      resolveSource();
+    }
+  }, [src, resolveSource]);
+
+  // NEW: Visibility change handler to recover from invalid sources on tab switch
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && videoSource) {
+        // Check if the current source might be invalid (blob URL after tab switch)
+        if (videoSource.path?.startsWith('blob:')) {
+          console.log('[EnhancedVideoPlayer] Tab visible with blob URL, verifying validity...');
+          
+          // Blob URLs can become invalid after tab switch - try to detect this
+          // by checking if we have an alternative Supabase path in the original src
+          if (src && !src.startsWith('blob:')) {
+            console.log('[EnhancedVideoPlayer] Original src is not blob, re-resolving from:', src);
+            prevSrcRef.current = ''; // Force re-resolve
+            resolveSource();
+          }
+        }
+      }
     };
-  };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [videoSource, src, resolveSource]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   if (isLoading) {
     return (

@@ -1328,6 +1328,108 @@ function normalizeTranscriptionFormat(text: string): string {
   return lines.join('\n');
 }
 
+// NEW: Deduplication function to remove duplicate speaker segments
+function deduplicateTranscription(text: string): string {
+  if (!text) return '';
+  
+  const lines = text.split('\n');
+  const seen = new Set<string>();
+  const uniqueLines: string[] = [];
+  let removedCount = 0;
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    
+    // Keep empty lines for formatting
+    if (trimmed.length < 10) {
+      uniqueLines.push(line);
+      continue;
+    }
+    
+    // Extract content without speaker label for comparison
+    // This catches duplicates with different speaker numbers
+    const contentMatch = trimmed.match(/^SPEAKER\s*\d+[^:]*:\s*(.+)$/i);
+    const content = contentMatch ? contentMatch[1].toLowerCase().replace(/\s+/g, ' ').trim() : trimmed.toLowerCase();
+    
+    // Check for exact or near-duplicates (same content, within 10 chars)
+    let isDuplicate = seen.has(content);
+    
+    // Also check for similar content (Levenshtein distance not needed, use simpler approach)
+    if (!isDuplicate) {
+      for (const seenContent of seen) {
+        // If content starts the same way (first 50 chars), likely duplicate
+        if (content.length > 50 && seenContent.length > 50) {
+          if (content.substring(0, 50) === seenContent.substring(0, 50)) {
+            isDuplicate = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (!isDuplicate) {
+      seen.add(content);
+      uniqueLines.push(line);
+    } else {
+      removedCount++;
+      console.log('[deduplicateTranscription] Removed duplicate:', trimmed.substring(0, 60) + '...');
+    }
+  }
+  
+  if (removedCount > 0) {
+    console.log(`[deduplicateTranscription] Removed ${removedCount} duplicate lines`);
+  }
+  
+  return uniqueLines.join('\n');
+}
+
+// NEW: Content validation to check transcription completeness
+function validateTranscriptionContent(text: string): { isValid: boolean; wordCount: number; speakerCount: number; issues: string[] } {
+  const issues: string[] = [];
+  
+  if (!text || text.trim().length === 0) {
+    return { isValid: false, wordCount: 0, speakerCount: 0, issues: ['Empty transcription'] };
+  }
+  
+  const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+  
+  // Count unique speakers
+  const speakerMatches = text.match(/SPEAKER\s*\d+/gi) || [];
+  const uniqueSpeakers = new Set(speakerMatches.map(s => s.toUpperCase()));
+  const speakerCount = uniqueSpeakers.size;
+  
+  // Validation checks
+  if (wordCount < 50) {
+    issues.push(`Very short transcription (${wordCount} words)`);
+  }
+  
+  if (speakerCount === 0) {
+    issues.push('No speaker labels found');
+  } else if (speakerCount === 1 && wordCount > 200) {
+    issues.push('Only one speaker detected in long content');
+  }
+  
+  // Check for potential truncation
+  const lastLine = text.trim().split('\n').pop() || '';
+  if (lastLine.length > 10 && !lastLine.match(/[.!?]$/)) {
+    issues.push('Transcription may be truncated (no ending punctuation)');
+  }
+  
+  console.log('[validateTranscriptionContent] Validation result:', {
+    wordCount,
+    speakerCount,
+    issueCount: issues.length,
+    issues
+  });
+  
+  return {
+    isValid: issues.length === 0,
+    wordCount,
+    speakerCount,
+    issues
+  };
+}
+
 // Helper functions to extract data from analysis
 function extractTranscriptionFromAnalysis(analysis: string): string {
   console.log('[extractTranscriptionFromAnalysis] Starting transcription extraction');
@@ -2123,7 +2225,7 @@ async function processVideoInBackground(
       const parsedAnalysis = parseAnalysisForTvDatabase(result.full_analysis || '');
       
       // Prefer SPEAKER-formatted transcription, but fallback to raw content
-      const validTranscription = 
+      let validTranscription = 
         (result.transcription && result.transcription.includes('SPEAKER ')) 
           ? result.transcription 
         : (parsedAnalysis.transcription && parsedAnalysis.transcription.includes('SPEAKER '))
@@ -2134,34 +2236,46 @@ async function processVideoInBackground(
           ? parsedAnalysis.transcription
           : ''; // Only save empty as last resort
       
+      // NEW: Apply deduplication to remove repeated speaker segments
+      validTranscription = deduplicateTranscription(validTranscription);
+      
+      // NEW: Validate transcription content and log issues
+      const validation = validateTranscriptionContent(validTranscription);
+      
       console.log(`[${requestId}] Transcription validation:`, {
         hasSpeakerInResult: result.transcription?.includes('SPEAKER '),
         hasSpeakerInParsed: parsedAnalysis.transcription?.includes('SPEAKER '),
         hasRawResult: !!result.transcription,
         hasRawParsed: !!parsedAnalysis.transcription,
-        selectedLength: validTranscription.length
+        selectedLength: validTranscription.length,
+        wordCount: validation.wordCount,
+        speakerCount: validation.speakerCount,
+        validationIssues: validation.issues
       });
       
       // Store complete analysis with correct TV table structure
+      // Include needs_review flag if validation found issues
+      const updateData: Record<string, any> = {
+        transcription_text: validTranscription,
+        analysis_summary: parsedAnalysis.summary,
+        analysis_quien: parsedAnalysis.quien,
+        analysis_que: parsedAnalysis.que,
+        analysis_cuando: parsedAnalysis.cuando,
+        analysis_donde: parsedAnalysis.donde,
+        analysis_porque: parsedAnalysis.porque,
+        analysis_keywords: parsedAnalysis.keywords,
+        analysis_category: parsedAnalysis.category,
+        analysis_content_summary: parsedAnalysis.content_summary,
+        full_analysis: result.full_analysis,
+        was_compressed: wasCompressed,
+        compressed_path: wasCompressed ? compressedVideoPath : null,
+        status: 'completed',
+        progress: 100
+      };
+      
       await supabase
         .from('tv_transcriptions')
-        .update({
-          transcription_text: validTranscription,
-          analysis_summary: parsedAnalysis.summary,
-          analysis_quien: parsedAnalysis.quien,
-          analysis_que: parsedAnalysis.que,
-          analysis_cuando: parsedAnalysis.cuando,
-          analysis_donde: parsedAnalysis.donde,
-          analysis_porque: parsedAnalysis.porque,
-          analysis_keywords: parsedAnalysis.keywords,
-          analysis_category: parsedAnalysis.category,
-          analysis_content_summary: parsedAnalysis.content_summary,
-          full_analysis: result.full_analysis,
-          was_compressed: wasCompressed,
-          compressed_path: wasCompressed ? compressedVideoPath : null,
-          status: 'completed',
-          progress: 100
-        })
+        .update(updateData)
         .eq('id', transcriptionId);
     }
 

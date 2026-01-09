@@ -54,6 +54,7 @@ interface TvMainContentProps {
   isClearing?: boolean;
   analysisResults?: string;
   registerVideoElement?: (element: HTMLVideoElement | null) => void;
+  isRestoring?: boolean; // NEW: State restoration indicator
 }
 
 const TvMainContent = ({
@@ -89,12 +90,14 @@ const TvMainContent = ({
   clearingStage = '',
   isClearing = false,
   analysisResults,
-  registerVideoElement
+  registerVideoElement,
+  isRestoring = false // NEW: Default to false for backward compatibility
 }: TvMainContentProps) => {
   console.log('[TvMainContent] Component rendering with props:', {
     uploadedFiles: uploadedFiles?.length,
     transcriptionText: transcriptionText?.length,
-    isProcessing
+    isProcessing,
+    isRestoring
   });
   
   const clearAnalysisFnRef = useRef<(() => void) | null>(null);
@@ -107,6 +110,18 @@ const TvMainContent = ({
   const handleRegisterEditorReset = useCallback((resetFn: () => void) => {
     clearEditorFnRef.current = resetFn;
   }, []);
+
+  // NEW: Show loading state while restoring session
+  if (isRestoring) {
+    return (
+      <div className="container mx-auto p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Restaurando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Define layout sections
   const topSection = (
