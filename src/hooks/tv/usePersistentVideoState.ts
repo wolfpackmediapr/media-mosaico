@@ -238,18 +238,26 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
     };
   }, [setActiveMediaRoute, activeMediaRoute, currentFileId, isMediaPlaying, updatePlaybackPosition]);
 
-  // FIX: Restore permanent video URL from sessionStorage and update uploadedFiles
+  // FIX: Restore permanent video URL from sessionStorage ONLY on initial load (not during processing)
+  // This prevents the video from reloading when processing starts
+  const hasRestoredFromStorage = useRef(false);
+  
   useEffect(() => {
+    // Only restore once on initial mount, not during processing
+    if (hasRestoredFromStorage.current) return;
+    
     // Check if we have a stored permanent URL from upload
     const storedVideoUrl = sessionStorage.getItem('tv-uploaded-video-url');
-    const storedFilename = sessionStorage.getItem('tv-uploaded-video-filename');
     
     if (storedVideoUrl && uploadedFiles.length > 0) {
       const firstFile = uploadedFiles[0];
       
-      // If the file doesn't have a filePath yet, or has an invalid blob URL, update it
-      if (!firstFile.filePath || firstFile.filePath.startsWith('blob:')) {
-        console.log('[usePersistentVideoState] Restoring permanent URL from sessionStorage:', storedVideoUrl);
+      // Only update file object if it doesn't have a working preview (blob or http)
+      // This prevents interrupting video playback during processing
+      const hasWorkingPreview = firstFile.preview?.startsWith('blob:') || firstFile.preview?.startsWith('http');
+      
+      if (!hasWorkingPreview && !firstFile.filePath) {
+        console.log('[usePersistentVideoState] Restoring permanent URL on initial load:', storedVideoUrl.substring(0, 50));
         
         // Update the file object with the permanent URL
         const updatedFile = Object.assign(firstFile, {
@@ -259,39 +267,33 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
         
         // Update uploadedFiles with the permanent URL
         setUploadedFiles([updatedFile]);
+        hasRestoredFromStorage.current = true;
+      } else {
+        // Mark as restored even if we didn't need to update - prevents future updates
+        hasRestoredFromStorage.current = true;
         
-        // Also update currentVideoPath
-        setCurrentVideoPath(storedVideoUrl);
-        
-        console.log('[usePersistentVideoState] Updated file with permanent URL');
+        // Silently update the filePath in the background without triggering re-render
+        // This ensures the permanent URL is available for recovery
+        if (!firstFile.filePath || firstFile.filePath.startsWith('blob:')) {
+          firstFile.filePath = storedVideoUrl;
+        }
       }
     }
-    
-    // Sync currentVideoPath with uploaded files - prioritize Supabase paths over blob URLs
+  }, [uploadedFiles, setUploadedFiles]);
+  
+  // Separate effect for currentVideoPath - only sync when needed for recovery
+  useEffect(() => {
     if (uploadedFiles.length > 0) {
       const firstFile = uploadedFiles[0];
       
-      // FIX: Always prefer filePath (Supabase storage) over blob URLs
-      const videoPath = firstFile.filePath || 
-        (firstFile.preview && !firstFile.preview.startsWith('blob:') ? firstFile.preview : null);
-      
-      // Update if we have a valid path and current path is empty, blob, or different
-      const shouldUpdate = videoPath && (
-        !currentVideoPath || 
-        currentVideoPath.startsWith('blob:') ||
-        currentVideoPath !== videoPath
-      );
-      
-      if (shouldUpdate) {
-        console.log('[usePersistentVideoState] Updating currentVideoPath:', {
-          from: currentVideoPath?.substring(0, 50),
-          to: videoPath?.substring(0, 50),
-          reason: !currentVideoPath ? 'empty' : currentVideoPath.startsWith('blob:') ? 'blob' : 'different'
-        });
-        setCurrentVideoPath(videoPath);
+      // Only update currentVideoPath if it's empty (for recovery purposes)
+      // Don't change it during active playback
+      if (!currentVideoPath && firstFile.filePath) {
+        console.log('[usePersistentVideoState] Setting initial currentVideoPath:', firstFile.filePath.substring(0, 50));
+        setCurrentVideoPath(firstFile.filePath);
       }
     }
-  }, [uploadedFiles, currentVideoPath, setCurrentVideoPath, setUploadedFiles]);
+  }, [uploadedFiles, currentVideoPath, setCurrentVideoPath]);
 
   // Phase 3: Improved auto-resume logic with timeout and better validation
   useEffect(() => {
