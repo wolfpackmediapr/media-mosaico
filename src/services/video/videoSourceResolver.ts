@@ -14,9 +14,9 @@ export interface VideoSource {
  */
 export const resolveVideoSource = async (filePath: string): Promise<VideoSource> => {
   try {
-    // Skip resolution for blob URLs (local previews)
+    // Blob URLs are valid for immediate playback (local previews)
     if (filePath.startsWith('blob:')) {
-      return { type: 'assembled', path: filePath, isAvailable: false };
+      return { type: 'assembled', path: filePath, isAvailable: true };
     }
     
     // Check if this is a chunked file reference
