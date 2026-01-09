@@ -54,21 +54,19 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
     { storage: 'sessionStorage' }
   );
 
-  // FIX: Track visibility but DON'T pause video (YouTube-like behavior)
+  // Phase 5: Add visibility tracking
   useEffect(() => {
     const handleVisibilityChange = () => {
       const visible = !document.hidden;
       setIsTabVisible(visible);
       console.log('[VideoPlayer] Tab visibility changed:', visible ? 'visible' : 'hidden');
       
-      // YouTube behavior: video continues playing in background
-      // Only log for debugging, don't pause
-      if (videoRef.current) {
-        console.log('[VideoPlayer] Video state:', {
-          src: videoRef.current.src?.substring(0, 50),
+      // Don't unmount the video element, just log for debugging
+      if (visible && videoRef.current) {
+        console.log('[VideoPlayer] Tab visible - video element still mounted:', {
+          src: videoRef.current.src,
           paused: videoRef.current.paused,
-          currentTime: videoRef.current.currentTime,
-          readyState: videoRef.current.readyState
+          currentTime: videoRef.current.currentTime
         });
       }
     };

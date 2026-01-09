@@ -97,7 +97,7 @@ const VideoFileItem = ({
         <div className="relative mb-4">
           <EnhancedVideoPlayer 
             src={file.filePath || file.preview!} 
-            key={(file as any)._fileId || file.filePath || file.preview || `${file.name}-${file.size}-${index}`}
+            key={(file as any)._fileId || `${file.name}-${file.size}-${file.lastModified}`}
             className="aspect-video min-h-64"
             registerVideoElement={registerVideoElement}
             isPlaying={isPlaying}

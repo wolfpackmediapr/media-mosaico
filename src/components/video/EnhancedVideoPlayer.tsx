@@ -52,20 +52,6 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
         return;
       }
       
-      // FIX: Handle Supabase public URLs directly without checking
-      if (src.includes('supabase.co/storage/v1/object/public/')) {
-        console.log('[EnhancedVideoPlayer] Supabase public URL detected, using directly:', src);
-        if (isMountedRef.current) {
-          setVideoSource({
-            type: 'assembled',
-            path: src,
-            isAvailable: true
-          });
-          setIsLoading(false);
-        }
-        return;
-      }
-      
       // Otherwise resolve from Supabase storage
       const source = await resolveVideoSource(src);
       
@@ -96,27 +82,29 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
     }
   }, [src, resolveSource]);
 
-  // NEW: Visibility change handler to recover from invalid sources on tab switch
+  // FIX: Visibility change handler to recover from invalid blob URLs
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (!document.hidden && videoSource) {
         // Check if the current source might be invalid (blob URL after tab switch)
         if (videoSource.path?.startsWith('blob:')) {
           console.log('[EnhancedVideoPlayer] Tab visible with blob URL, checking for permanent URL...');
           
-          // FIX: Check sessionStorage for the permanent URL
+          // Check sessionStorage for the permanent URL
           const storedVideoUrl = sessionStorage.getItem('tv-uploaded-video-url');
           
           if (storedVideoUrl && !storedVideoUrl.startsWith('blob:')) {
-            console.log('[EnhancedVideoPlayer] Found permanent URL in sessionStorage, switching to:', storedVideoUrl);
-            prevSrcRef.current = ''; // Force re-resolve
-            // Trigger re-resolution with the permanent URL
-            resolveSource();
-          } else if (src && !src.startsWith('blob:')) {
-            // Fallback to original src if it's not a blob
-            console.log('[EnhancedVideoPlayer] Original src is not blob, re-resolving from:', src);
-            prevSrcRef.current = ''; // Force re-resolve
-            resolveSource();
+            console.log('[EnhancedVideoPlayer] Found permanent URL, updating video source:', storedVideoUrl);
+            
+            // Directly update the video source without re-resolving
+            if (isMountedRef.current) {
+              setVideoSource({
+                type: storedVideoUrl.startsWith('chunked:') ? 'chunked' : 'assembled',
+                path: storedVideoUrl,
+                sessionId: storedVideoUrl.startsWith('chunked:') ? storedVideoUrl.replace('chunked:', '') : undefined,
+                isAvailable: true
+              });
+            }
           }
         }
       }
@@ -124,7 +112,7 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [videoSource, src, resolveSource]);
+  }, [videoSource]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -171,16 +159,10 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   }
 
   if (videoSource.type === 'assembled' && videoSource.path) {
-    // FIX: For blob URLs or Supabase public URLs, use them directly
-    // Only call getAssembledVideoUrl for storage paths
-    let videoUrl: string;
-    if (videoSource.path.startsWith('blob:')) {
-      videoUrl = videoSource.path;
-    } else if (videoSource.path.includes('supabase.co/storage/v1/object/public/')) {
-      videoUrl = videoSource.path; // Already a public URL
-    } else {
-      videoUrl = getAssembledVideoUrl(videoSource.path); // Storage path, get public URL
-    }
+    // For blob URLs, use them directly; for storage paths, get the public URL
+    const videoUrl = videoSource.path.startsWith('blob:') 
+      ? videoSource.path 
+      : getAssembledVideoUrl(videoSource.path);
     
     return (
       <VideoPlayer
