@@ -60,14 +60,25 @@ export const usePersistentVideoState = () => {
         return parsed.map((fileData: any) => {
           const fileId = fileData._fileId;
           
-          // Use filePath (Supabase URL) as primary, preview as fallback
-          // Note: blob URLs won't work after page reload - user may need to re-upload
-          const effectivePreview = fileData.filePath || fileData.preview;
+          // FIX: Prioritize filePath (Supabase URL) over blob URLs
+          // Blob URLs starting with 'blob:' are invalid after navigation/reload
+          let effectivePreview = fileData.filePath;
+          
+          // Only use preview as fallback if it's NOT a blob URL
+          if (!effectivePreview && fileData.preview && !fileData.preview.startsWith('blob:')) {
+            effectivePreview = fileData.preview;
+          }
+          
+          // FIX: If we still don't have a valid URL, check if filePath contains supabase storage URL
+          if (!effectivePreview && fileData.filePath) {
+            effectivePreview = fileData.filePath;
+          }
           
           console.log(`[usePersistentVideoState] Restoring file ${fileId}:`, {
             hasFilePath: !!fileData.filePath,
             hasPreview: !!fileData.preview,
-            effectivePreview: effectivePreview?.substring(0, 50)
+            previewIsBlob: fileData.preview?.startsWith('blob:'),
+            effectivePreview: effectivePreview?.substring(0, 80)
           });
           
           const file = new File([], fileData.name, {
@@ -162,14 +173,28 @@ export const usePersistentVideoState = () => {
     };
   }, [setActiveMediaRoute, activeMediaRoute, currentFileId, isMediaPlaying, updatePlaybackPosition]);
 
-  // Phase 1: Sync currentVideoPath with uploaded files
+  // FIX: Sync currentVideoPath with uploaded files - prioritize Supabase paths over blob URLs
   useEffect(() => {
-    if (uploadedFiles.length > 0 && !currentVideoPath) {
-      // Prioritize filePath (Supabase storage) over preview (blob URL)
+    if (uploadedFiles.length > 0) {
       const firstFile = uploadedFiles[0];
-      const videoPath = firstFile.filePath || firstFile.preview;
-      if (videoPath) {
-        console.log('[usePersistentVideoState] Setting currentVideoPath from uploaded file:', videoPath);
+      
+      // FIX: Always prefer filePath (Supabase storage) over blob URLs
+      const videoPath = firstFile.filePath || 
+        (firstFile.preview && !firstFile.preview.startsWith('blob:') ? firstFile.preview : null);
+      
+      // Update if we have a valid path and current path is empty, blob, or different
+      const shouldUpdate = videoPath && (
+        !currentVideoPath || 
+        currentVideoPath.startsWith('blob:') ||
+        currentVideoPath !== videoPath
+      );
+      
+      if (shouldUpdate) {
+        console.log('[usePersistentVideoState] Updating currentVideoPath:', {
+          from: currentVideoPath?.substring(0, 50),
+          to: videoPath?.substring(0, 50),
+          reason: !currentVideoPath ? 'empty' : currentVideoPath.startsWith('blob:') ? 'blob' : 'different'
+        });
         setCurrentVideoPath(videoPath);
       }
     }
