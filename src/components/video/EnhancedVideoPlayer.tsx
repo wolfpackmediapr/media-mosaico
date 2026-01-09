@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import VideoPlayer from './VideoPlayer';
 import { ChunkedVideoPlayer } from './ChunkedVideoPlayer';
 import { resolveVideoSource, getAssembledVideoUrl, type VideoSource } from '@/services/video/videoSourceResolver';
+import { recreateBlobUrl, getCachedFile, getFileId } from '@/hooks/tv/useFileCache';
 
 interface EnhancedVideoPlayerProps {
   src: string;
@@ -10,6 +11,7 @@ interface EnhancedVideoPlayerProps {
   onTimeUpdate?: (currentTime: number) => void;
   registerVideoElement?: (element: HTMLVideoElement | null) => void;
   isPlaying?: boolean;
+  fileId?: string; // Optional file ID for cache lookup
 }
 
 /**
@@ -24,7 +26,8 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   onLoadedMetadata,
   onTimeUpdate,
   registerVideoElement,
-  isPlaying = false
+  isPlaying = false,
+  fileId
 }) => {
   const [videoSource, setVideoSource] = useState<VideoSource | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -105,21 +108,18 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
     }
   }, [src, resolveSource]);
 
-  // FIX: Visibility change handler to recover from invalid blob URLs
+  // FIX: Visibility change handler to recover from invalid blob URLs using file cache
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (!document.hidden && videoSource) {
-        // Check if the current source might be invalid (blob URL after tab switch)
+        // Check if the current source is a blob URL (may be invalid after tab switch)
         if (videoSource.path?.startsWith('blob:')) {
-          console.log('[EnhancedVideoPlayer] Tab visible with blob URL, checking for permanent URL...');
+          console.log('[EnhancedVideoPlayer] Tab visible with blob URL, attempting recovery...');
           
-          // Check sessionStorage for the permanent URL
+          // First try: Check sessionStorage for permanent URL
           const storedVideoUrl = sessionStorage.getItem('tv-uploaded-video-url');
-          
           if (storedVideoUrl && !storedVideoUrl.startsWith('blob:')) {
-            console.log('[EnhancedVideoPlayer] Found permanent URL, updating video source:', storedVideoUrl);
-            
-            // Directly update the video source without re-resolving
+            console.log('[EnhancedVideoPlayer] Found permanent URL, updating:', storedVideoUrl.substring(0, 50));
             if (isMountedRef.current) {
               setVideoSource({
                 type: storedVideoUrl.startsWith('chunked:') ? 'chunked' : 'assembled',
@@ -128,6 +128,31 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
                 isAvailable: true
               });
             }
+            return;
+          }
+          
+          // Second try: Extract fileId from src or use provided fileId, then recreate blob URL from cache
+          const effectiveFileId = fileId || (src.includes('-') ? src : undefined);
+          if (effectiveFileId) {
+            const cachedFile = getCachedFile(effectiveFileId);
+            if (cachedFile) {
+              const newBlobUrl = recreateBlobUrl(effectiveFileId);
+              if (newBlobUrl && isMountedRef.current) {
+                console.log('[EnhancedVideoPlayer] Recreated blob URL from cache:', newBlobUrl.substring(0, 50));
+                setVideoSource({
+                  type: 'assembled',
+                  path: newBlobUrl,
+                  isAvailable: true
+                });
+                return;
+              }
+            }
+          }
+          
+          // If we can't recover, show error
+          console.log('[EnhancedVideoPlayer] Could not recover blob URL, no permanent URL or cache available');
+          if (isMountedRef.current) {
+            setError('Video no disponible. Por favor, vuelva a subir el archivo.');
           }
         }
       }
@@ -135,7 +160,7 @@ export const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [videoSource]);
+  }, [videoSource, fileId, src]);
 
   // Cleanup on unmount
   useEffect(() => {

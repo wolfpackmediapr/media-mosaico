@@ -4,10 +4,13 @@ import { FileVideo, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { EnhancedVideoPlayer } from "./EnhancedVideoPlayer";
+import { getOriginalSize } from "@/hooks/tv/useFileCache";
 
 interface UploadedFile extends File {
   preview?: string;
   filePath?: string;
+  _fileId?: string;
+  _originalSize?: number;
 }
 
 interface VideoFileItemProps {
@@ -71,6 +74,11 @@ const VideoFileItem = ({
     return "Finalizando procesamiento";
   };
 
+  // Get the display size - prefer cached original size, then _originalSize, then file.size
+  const displaySize = (file._fileId && getOriginalSize(file._fileId)) 
+    || file._originalSize 
+    || file.size;
+
   return (
     <div className="space-y-4 p-4 bg-muted rounded-lg">
       <div className="flex items-center justify-between">
@@ -78,8 +86,8 @@ const VideoFileItem = ({
           <FileVideo className="w-5 h-5" />
           <div>
             <p className="text-sm font-medium">{file.name}</p>
-            <p className="text-xs text-gray-500">
-              {(file.size / (1024 * 1024)).toFixed(2)} MB
+            <p className="text-xs text-muted-foreground">
+              {(displaySize / (1024 * 1024)).toFixed(2)} MB
             </p>
           </div>
         </div>
@@ -98,6 +106,7 @@ const VideoFileItem = ({
           <EnhancedVideoPlayer 
             src={file.filePath || file.preview!} 
             key={(file as any)._fileId || `${file.name}-${file.size}-${file.lastModified}`}
+            fileId={file._fileId}
             className="aspect-video min-h-64"
             registerVideoElement={registerVideoElement}
             isPlaying={isPlaying}

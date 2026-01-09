@@ -2,16 +2,24 @@ import { useState, useEffect, useRef } from "react";
 import { useMediaPersistence } from "@/context/MediaPersistenceContext";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useVideoVisibilitySync } from "./processing/useVideoVisibilitySync";
+import { 
+  cacheFile, 
+  getCachedFile, 
+  recreateBlobUrl, 
+  getFileId as getCacheFileId,
+  removeFromCache 
+} from "./useFileCache";
 
-// HYBRID FIX: Simplified file ID helper (no module-level cache)
+// Use cache's getFileId for consistency
 const getFileId = (file: any): string => {
-  return file._fileId || file.filePath || `${file.name}-${file.size}-${file.lastModified}`;
+  return file._fileId || getCacheFileId(file);
 };
 
 interface UploadedFile extends File {
   preview?: string;
   filePath?: string;
   _fileId?: string;
+  _originalSize?: number;
 }
 
 export interface PersistentVideoStateReturn {
@@ -46,9 +54,8 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
     lastPlaybackPosition 
   } = useMediaPersistence();
   
-  // HYBRID FIX: Simplified file management - store only metadata, not blob URLs
-  // Blob URLs don't survive page reloads anyway (same as Radio behavior)
-  const [uploadedFiles, setUploadedFiles] = usePersistentState<UploadedFile[]>(
+  // File management with caching support for tab-switch recovery
+  const [uploadedFiles, setUploadedFilesInternal] = usePersistentState<UploadedFile[]>(
     "tv-uploaded-files",
     [],
     { 
@@ -56,15 +63,19 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
       serialize: (files) => {
         const sanitized = files.map(f => {
           const fileId = getFileId(f);
+          // Get original size from cache or use current size
+          const cachedFile = getCachedFile(fileId);
+          const originalSize = cachedFile?.originalSize || f._originalSize || f.size;
+          
           return {
             name: f.name,
             size: f.size,
             type: f.type,
             lastModified: f.lastModified,
-            // Store preview (blob URL may be invalid after page reload - that's OK)
             preview: f.preview,
             filePath: f.filePath,
-            _fileId: fileId
+            _fileId: fileId,
+            _originalSize: originalSize
           };
         });
         console.log(`[usePersistentVideoState] Serialized ${files.length} files`);
@@ -82,24 +93,23 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
         return parsed.map((fileData: any) => {
           const fileId = fileData._fileId;
           
-          // FIX: Prioritize filePath (Supabase URL) over blob URLs
-          // Blob URLs starting with 'blob:' are invalid after navigation/reload
-          let effectivePreview = fileData.filePath;
+          // Try to get blob URL from cache first (survives tab switch)
+          const cachedFile = getCachedFile(fileId);
+          let effectivePreview = cachedFile?.blobUrl;
           
-          // Only use preview as fallback if it's NOT a blob URL
-          if (!effectivePreview && fileData.preview && !fileData.preview.startsWith('blob:')) {
-            effectivePreview = fileData.preview;
-          }
-          
-          // FIX: If we still don't have a valid URL, check if filePath contains supabase storage URL
+          // If no cached blob, use filePath (Supabase URL) 
           if (!effectivePreview && fileData.filePath) {
             effectivePreview = fileData.filePath;
           }
           
+          // Last resort: use stored preview if it's not a blob URL
+          if (!effectivePreview && fileData.preview && !fileData.preview.startsWith('blob:')) {
+            effectivePreview = fileData.preview;
+          }
+          
           console.log(`[usePersistentVideoState] Restoring file ${fileId}:`, {
+            hasCachedBlob: !!cachedFile,
             hasFilePath: !!fileData.filePath,
-            hasPreview: !!fileData.preview,
-            previewIsBlob: fileData.preview?.startsWith('blob:'),
             effectivePreview: effectivePreview?.substring(0, 80)
           });
           
@@ -111,12 +121,35 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
           return Object.assign(file, {
             preview: effectivePreview,
             filePath: fileData.filePath,
-            _fileId: fileId
+            _fileId: fileId,
+            _originalSize: fileData._originalSize || fileData.size
           }) as UploadedFile;
         });
       }
     }
   );
+
+  // Wrapper for setUploadedFiles that caches new files
+  const setUploadedFiles = (files: UploadedFile[]) => {
+    const processedFiles = files.map(f => {
+      // If this is a real File with content (size > 0), cache it
+      if (f.size > 0 && f instanceof File) {
+        const { fileId, blobUrl } = cacheFile(f);
+        
+        // Update preview to use cached blob URL if not already set to a permanent URL
+        if (!f.filePath || f.filePath.startsWith('blob:')) {
+          return Object.assign(f, {
+            preview: blobUrl,
+            _fileId: fileId,
+            _originalSize: f.size
+          }) as UploadedFile;
+        }
+      }
+      return f;
+    });
+    
+    setUploadedFilesInternal(processedFiles);
+  };
   
   // Video controls state
   const [volume, setVolume] = usePersistentState<number[]>(
