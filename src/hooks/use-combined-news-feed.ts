@@ -47,6 +47,8 @@ async function fetchCombinedNewsFeed(
   page: number, 
   filters: CombinedFeedFilters
 ): Promise<CombinedFeedResult> {
+  console.log('[useCombinedNewsFeed] Starting fetch with:', { page, filters });
+  
   const from = (page - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
@@ -86,8 +88,14 @@ async function fetchCombinedNewsFeed(
 
   const { data: articles, error: articlesError, count } = await query.range(from, to);
 
+  console.log('[useCombinedNewsFeed] Query result:', { 
+    articlesCount: articles?.length || 0, 
+    totalCount: count,
+    error: articlesError 
+  });
+
   if (articlesError) {
-    console.error('Error fetching articles:', articlesError);
+    console.error('[useCombinedNewsFeed] Error fetching articles:', articlesError);
     throw articlesError;
   }
 
