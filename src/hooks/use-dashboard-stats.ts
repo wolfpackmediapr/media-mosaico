@@ -105,8 +105,6 @@ export function useDashboardStats(dateFrom?: Date, dateTo?: Date) {
   return useQuery({
     queryKey: ['dashboard-stats', dateFrom?.toISOString(), dateTo?.toISOString()],
     queryFn: async (): Promise<DashboardStats> => {
-      console.log('[useDashboardStats] Fetching stats for date range:', { dateFrom, dateTo });
-      
       // Use date range if provided, otherwise default to last 7 days
       const rangeEnd = dateTo || new Date();
       const rangeStart = dateFrom || subDays(startOfDay(new Date()), 6);
@@ -116,25 +114,24 @@ export function useDashboardStats(dateFrom?: Date, dateTo?: Date) {
       const previousEnd = new Date(rangeStart.getTime());
       const previousStart = new Date(rangeStart.getTime() - rangeDuration);
 
-      try {
-        // Parallel queries for all stats - using limit(1) instead of head:true for reliability
-        const [
-          articlesInRange,
-          articlesPrevious,
-          articlesTotal,
-          radioInRange,
-          radioPrevious,
-          radioTotal,
-          tvInRange,
-          tvPrevious,
-          tvTotal,
-          pressInRange,
-          pressPrevious,
-          pressTotal,
-          feedsData,
-          clientsTotal,
-          alertsData
-        ] = await Promise.all([
+      // Parallel queries for all stats - using limit(1) instead of head:true for reliability
+      const [
+        articlesInRange,
+        articlesPrevious,
+        articlesTotal,
+        radioInRange,
+        radioPrevious,
+        radioTotal,
+        tvInRange,
+        tvPrevious,
+        tvTotal,
+        pressInRange,
+        pressPrevious,
+        pressTotal,
+        feedsData,
+        clientsTotal,
+        alertsData
+      ] = await Promise.all([
           // Prensa Digital stats - using limit(1) for faster responses
           supabase.from('news_articles').select('id', { count: 'exact' })
             .gte('created_at', rangeStart.toISOString())
@@ -192,7 +189,7 @@ export function useDashboardStats(dateFrom?: Date, dateTo?: Date) {
         const feeds = feedsData.data || [];
         const alerts = alertsData.data || [];
 
-        const stats = {
+        return {
           prensaDigital: {
             today: articlesInRange.count || 0,
             yesterday: articlesPrevious.count || 0,
@@ -234,13 +231,6 @@ export function useDashboardStats(dateFrom?: Date, dateTo?: Date) {
             total: alertsData.count || 0,
           },
         };
-
-        console.log('[useDashboardStats] Stats fetched successfully:', stats);
-        return stats;
-      } catch (error) {
-        console.error('[useDashboardStats] Error fetching stats:', error);
-        throw error;
-      }
     },
     refetchInterval: 30000,
     staleTime: 10000,
@@ -251,7 +241,7 @@ export function useContentActivity(dateFrom?: Date, dateTo?: Date) {
   return useQuery({
     queryKey: ['dashboard-content-activity', dateFrom?.toISOString(), dateTo?.toISOString()],
     queryFn: async (): Promise<ContentActivityData[]> => {
-      console.log('[useContentActivity] Fetching content activity for:', { dateFrom, dateTo });
+      // Calculate days based on date range
       
       // Calculate days based on date range
       const rangeEnd = dateTo || new Date();
@@ -305,7 +295,7 @@ export function useContentActivity(dateFrom?: Date, dateTo?: Date) {
         });
       }
 
-      console.log('[useContentActivity] Activity data fetched:', results);
+      return results;
       return results;
     },
     staleTime: 60000,

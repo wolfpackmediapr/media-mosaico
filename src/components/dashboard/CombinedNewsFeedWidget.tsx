@@ -48,12 +48,7 @@ export function CombinedNewsFeedWidget({ className }: CombinedNewsFeedWidgetProp
   });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   
-  const { data, isLoading, isRefetching, refetch, error } = useCombinedNewsFeed(currentPage, filters);
-  
-  // Log any errors for debugging
-  if (error) {
-    console.error('[CombinedNewsFeedWidget] Error fetching news:', error);
-  }
+  const { data, isLoading, isRefetching, refetch } = useCombinedNewsFeed(currentPage, filters);
   const { data: clients } = useClientsForFilter();
   const queryClient = useQueryClient();
   
