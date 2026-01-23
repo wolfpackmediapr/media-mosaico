@@ -53,8 +53,8 @@ const DashboardContent = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         <DashboardStatCard
           title="Prensa Digital"
-          value={stats?.prensaDigital.today || 0}
-          description={`${stats?.prensaDigital.total.toLocaleString() || 0} total`}
+          value={stats?.prensaDigital.total || 0}
+          description={`${stats?.prensaDigital.today || 0} en período seleccionado`}
           icon={Newspaper}
           trend={stats?.prensaDigital.trend}
           isLoading={isLoading}
@@ -62,8 +62,8 @@ const DashboardContent = () => {
         />
         <DashboardStatCard
           title="Radio"
-          value={stats?.radio.today || 0}
-          description={`${stats?.radio.total.toLocaleString() || 0} total`}
+          value={stats?.radio.total || 0}
+          description={`${stats?.radio.today || 0} en período seleccionado`}
           icon={Radio}
           trend={stats?.radio.trend}
           isLoading={isLoading}
@@ -71,8 +71,8 @@ const DashboardContent = () => {
         />
         <DashboardStatCard
           title="TV"
-          value={stats?.tv.today || 0}
-          description={`${stats?.tv.total.toLocaleString() || 0} total`}
+          value={stats?.tv.total || 0}
+          description={`${stats?.tv.today || 0} en período seleccionado`}
           icon={Monitor}
           trend={stats?.tv.trend}
           isLoading={isLoading}
@@ -80,8 +80,8 @@ const DashboardContent = () => {
         />
         <DashboardStatCard
           title="Prensa Escrita"
-          value={stats?.prensaEscrita.thisWeek || 0}
-          description={`${stats?.prensaEscrita.total.toLocaleString() || 0} total`}
+          value={stats?.prensaEscrita.total || 0}
+          description={`${stats?.prensaEscrita.thisWeek || 0} en período seleccionado`}
           icon={FileText}
           isLoading={isLoading}
           onClick={() => navigate('/prensa-escrita')}

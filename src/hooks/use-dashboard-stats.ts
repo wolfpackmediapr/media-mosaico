@@ -105,6 +105,8 @@ export function useDashboardStats(dateFrom?: Date, dateTo?: Date) {
   return useQuery({
     queryKey: ['dashboard-stats', dateFrom?.toISOString(), dateTo?.toISOString()],
     queryFn: async (): Promise<DashboardStats> => {
+      console.log('[useDashboardStats] Fetching stats for date range:', { dateFrom, dateTo });
+      
       // Use date range if provided, otherwise default to last 7 days
       const rangeEnd = dateTo || new Date();
       const rangeStart = dateFrom || subDays(startOfDay(new Date()), 6);
@@ -114,115 +116,131 @@ export function useDashboardStats(dateFrom?: Date, dateTo?: Date) {
       const previousEnd = new Date(rangeStart.getTime());
       const previousStart = new Date(rangeStart.getTime() - rangeDuration);
 
-      // Parallel queries for all stats
-      const [
-        articlesInRange,
-        articlesPrevious,
-        articlesTotal,
-        radioInRange,
-        radioPrevious,
-        radioTotal,
-        tvInRange,
-        tvPrevious,
-        tvTotal,
-        pressInRange,
-        pressPrevious,
-        pressTotal,
-        feedsData,
-        clientsTotal,
-        alertsData
-      ] = await Promise.all([
-        // Prensa Digital stats
-        supabase.from('news_articles').select('id', { count: 'exact', head: true })
-          .gte('created_at', rangeStart.toISOString())
-          .lte('created_at', rangeEnd.toISOString()),
-        supabase.from('news_articles').select('id', { count: 'exact', head: true })
-          .gte('created_at', previousStart.toISOString())
-          .lt('created_at', previousEnd.toISOString()),
-        supabase.from('news_articles').select('id', { count: 'exact', head: true }),
-        
-        // Radio stats
-        supabase.from('transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', rangeStart.toISOString())
-          .lte('created_at', rangeEnd.toISOString()),
-        supabase.from('transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', previousStart.toISOString())
-          .lt('created_at', previousEnd.toISOString()),
-        supabase.from('transcriptions').select('id', { count: 'exact', head: true }),
-        
-        // TV stats
-        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', rangeStart.toISOString())
-          .lte('created_at', rangeEnd.toISOString()),
-        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
-          .gte('created_at', previousStart.toISOString())
-          .lt('created_at', previousEnd.toISOString()),
-        supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true }),
-        
-        // Prensa Escrita stats
-        supabase.from('press_clippings').select('id', { count: 'exact', head: true })
-          .gte('created_at', rangeStart.toISOString())
-          .lte('created_at', rangeEnd.toISOString()),
-        supabase.from('press_clippings').select('id', { count: 'exact', head: true })
-          .gte('created_at', previousStart.toISOString())
-          .lt('created_at', previousEnd.toISOString()),
-        supabase.from('press_clippings').select('id', { count: 'exact', head: true }),
-        
-        // Feeds stats
-        supabase.from('feed_sources').select('id, active, error_count'),
-        
-        // Clients stats
-        supabase.from('clients').select('id', { count: 'exact', head: true }),
-        
-        // Alerts stats
-        supabase.from('client_alerts').select('id, read_at', { count: 'exact' })
-      ]);
+      try {
+        // Parallel queries for all stats - using limit(1) instead of head:true for reliability
+        const [
+          articlesInRange,
+          articlesPrevious,
+          articlesTotal,
+          radioInRange,
+          radioPrevious,
+          radioTotal,
+          tvInRange,
+          tvPrevious,
+          tvTotal,
+          pressInRange,
+          pressPrevious,
+          pressTotal,
+          feedsData,
+          clientsTotal,
+          alertsData
+        ] = await Promise.all([
+          // Prensa Digital stats - using limit(1) for faster responses
+          supabase.from('news_articles').select('id', { count: 'exact' })
+            .gte('created_at', rangeStart.toISOString())
+            .lte('created_at', rangeEnd.toISOString())
+            .limit(1),
+          supabase.from('news_articles').select('id', { count: 'exact' })
+            .gte('created_at', previousStart.toISOString())
+            .lt('created_at', previousEnd.toISOString())
+            .limit(1),
+          supabase.from('news_articles').select('id', { count: 'exact' }).limit(1),
+          
+          // Radio stats
+          supabase.from('transcriptions').select('id', { count: 'exact' })
+            .gte('created_at', rangeStart.toISOString())
+            .lte('created_at', rangeEnd.toISOString())
+            .limit(1),
+          supabase.from('transcriptions').select('id', { count: 'exact' })
+            .gte('created_at', previousStart.toISOString())
+            .lt('created_at', previousEnd.toISOString())
+            .limit(1),
+          supabase.from('transcriptions').select('id', { count: 'exact' }).limit(1),
+          
+          // TV stats
+          supabase.from('tv_transcriptions').select('id', { count: 'exact' })
+            .gte('created_at', rangeStart.toISOString())
+            .lte('created_at', rangeEnd.toISOString())
+            .limit(1),
+          supabase.from('tv_transcriptions').select('id', { count: 'exact' })
+            .gte('created_at', previousStart.toISOString())
+            .lt('created_at', previousEnd.toISOString())
+            .limit(1),
+          supabase.from('tv_transcriptions').select('id', { count: 'exact' }).limit(1),
+          
+          // Prensa Escrita stats
+          supabase.from('press_clippings').select('id', { count: 'exact' })
+            .gte('created_at', rangeStart.toISOString())
+            .lte('created_at', rangeEnd.toISOString())
+            .limit(1),
+          supabase.from('press_clippings').select('id', { count: 'exact' })
+            .gte('created_at', previousStart.toISOString())
+            .lt('created_at', previousEnd.toISOString())
+            .limit(1),
+          supabase.from('press_clippings').select('id', { count: 'exact' }).limit(1),
+          
+          // Feeds stats
+          supabase.from('feed_sources').select('id, active, error_count'),
+          
+          // Clients stats
+          supabase.from('clients').select('id', { count: 'exact' }).limit(1),
+          
+          // Alerts stats
+          supabase.from('client_alerts').select('id, read_at', { count: 'exact' })
+        ]);
 
-      const feeds = feedsData.data || [];
-      const alerts = alertsData.data || [];
+        const feeds = feedsData.data || [];
+        const alerts = alertsData.data || [];
 
-      return {
-        prensaDigital: {
-          today: articlesInRange.count || 0,
-          yesterday: articlesPrevious.count || 0,
-          thisWeek: articlesInRange.count || 0,
-          lastWeek: articlesPrevious.count || 0,
-          total: articlesTotal.count || 0,
-          trend: calculateTrend(articlesInRange.count || 0, articlesPrevious.count || 0),
-        },
-        radio: {
-          today: radioInRange.count || 0,
-          yesterday: radioPrevious.count || 0,
-          thisWeek: radioInRange.count || 0,
-          lastWeek: radioPrevious.count || 0,
-          total: radioTotal.count || 0,
-          trend: calculateTrend(radioInRange.count || 0, radioPrevious.count || 0),
-        },
-        tv: {
-          today: tvInRange.count || 0,
-          yesterday: tvPrevious.count || 0,
-          thisWeek: tvInRange.count || 0,
-          lastWeek: tvPrevious.count || 0,
-          total: tvTotal.count || 0,
-          trend: calculateTrend(tvInRange.count || 0, tvPrevious.count || 0),
-        },
-        prensaEscrita: {
-          total: pressTotal.count || 0,
-          thisWeek: pressInRange.count || 0,
-        },
-        feeds: {
-          active: feeds.filter(f => f.active).length,
-          withErrors: feeds.filter(f => (f.error_count || 0) > 0).length,
-          total: feeds.length,
-        },
-        clients: {
-          total: clientsTotal.count || 0,
-        },
-        alerts: {
-          unread: alerts.filter(a => !a.read_at).length,
-          total: alertsData.count || 0,
-        },
-      };
+        const stats = {
+          prensaDigital: {
+            today: articlesInRange.count || 0,
+            yesterday: articlesPrevious.count || 0,
+            thisWeek: articlesInRange.count || 0,
+            lastWeek: articlesPrevious.count || 0,
+            total: articlesTotal.count || 0,
+            trend: calculateTrend(articlesInRange.count || 0, articlesPrevious.count || 0),
+          },
+          radio: {
+            today: radioInRange.count || 0,
+            yesterday: radioPrevious.count || 0,
+            thisWeek: radioInRange.count || 0,
+            lastWeek: radioPrevious.count || 0,
+            total: radioTotal.count || 0,
+            trend: calculateTrend(radioInRange.count || 0, radioPrevious.count || 0),
+          },
+          tv: {
+            today: tvInRange.count || 0,
+            yesterday: tvPrevious.count || 0,
+            thisWeek: tvInRange.count || 0,
+            lastWeek: tvPrevious.count || 0,
+            total: tvTotal.count || 0,
+            trend: calculateTrend(tvInRange.count || 0, tvPrevious.count || 0),
+          },
+          prensaEscrita: {
+            total: pressTotal.count || 0,
+            thisWeek: pressInRange.count || 0,
+          },
+          feeds: {
+            active: feeds.filter(f => f.active).length,
+            withErrors: feeds.filter(f => (f.error_count || 0) > 0).length,
+            total: feeds.length,
+          },
+          clients: {
+            total: clientsTotal.count || 0,
+          },
+          alerts: {
+            unread: alerts.filter(a => !a.read_at).length,
+            total: alertsData.count || 0,
+          },
+        };
+
+        console.log('[useDashboardStats] Stats fetched successfully:', stats);
+        return stats;
+      } catch (error) {
+        console.error('[useDashboardStats] Error fetching stats:', error);
+        throw error;
+      }
     },
     refetchInterval: 30000,
     staleTime: 10000,
@@ -233,6 +251,8 @@ export function useContentActivity(dateFrom?: Date, dateTo?: Date) {
   return useQuery({
     queryKey: ['dashboard-content-activity', dateFrom?.toISOString(), dateTo?.toISOString()],
     queryFn: async (): Promise<ContentActivityData[]> => {
+      console.log('[useContentActivity] Fetching content activity for:', { dateFrom, dateTo });
+      
       // Calculate days based on date range
       const rangeEnd = dateTo || new Date();
       const rangeStart = dateFrom || subDays(startOfDay(new Date()), 6);
@@ -253,33 +273,39 @@ export function useContentActivity(dateFrom?: Date, dateTo?: Date) {
         };
       });
 
-      const results = await Promise.all(
-        days.map(async (day) => {
-          const [articles, radio, tv, press] = await Promise.all([
-            supabase.from('news_articles').select('id', { count: 'exact', head: true })
-              .gte('created_at', day.start)
-              .lt('created_at', day.end),
-            supabase.from('transcriptions').select('id', { count: 'exact', head: true })
-              .gte('created_at', day.start)
-              .lt('created_at', day.end),
-            supabase.from('tv_transcriptions').select('id', { count: 'exact', head: true })
-              .gte('created_at', day.start)
-              .lt('created_at', day.end),
-            supabase.from('press_clippings').select('id', { count: 'exact', head: true })
-              .gte('created_at', day.start)
-              .lt('created_at', day.end),
-          ]);
+      // Process days sequentially to avoid request overload
+      const results: ContentActivityData[] = [];
+      
+      for (const day of days) {
+        const [articles, radio, tv, press] = await Promise.all([
+          supabase.from('news_articles').select('id', { count: 'exact' })
+            .gte('created_at', day.start)
+            .lt('created_at', day.end)
+            .limit(1),
+          supabase.from('transcriptions').select('id', { count: 'exact' })
+            .gte('created_at', day.start)
+            .lt('created_at', day.end)
+            .limit(1),
+          supabase.from('tv_transcriptions').select('id', { count: 'exact' })
+            .gte('created_at', day.start)
+            .lt('created_at', day.end)
+            .limit(1),
+          supabase.from('press_clippings').select('id', { count: 'exact' })
+            .gte('created_at', day.start)
+            .lt('created_at', day.end)
+            .limit(1),
+        ]);
 
-          return {
-            date: day.label,
-            prensaDigital: articles.count || 0,
-            radio: radio.count || 0,
-            tv: tv.count || 0,
-            prensaEscrita: press.count || 0,
-          };
-        })
-      );
+        results.push({
+          date: day.label,
+          prensaDigital: articles.count || 0,
+          radio: radio.count || 0,
+          tv: tv.count || 0,
+          prensaEscrita: press.count || 0,
+        });
+      }
 
+      console.log('[useContentActivity] Activity data fetched:', results);
       return results;
     },
     staleTime: 60000,
