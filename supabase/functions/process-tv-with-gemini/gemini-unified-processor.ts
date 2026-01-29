@@ -347,7 +347,7 @@ Responde en español de manera concisa y profesional. Asegúrate de:
     try {
       console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxRetries}`);
       
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

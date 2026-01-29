@@ -424,7 +424,7 @@ async function generateComprehensiveAnalysis(
 
   try {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
         headers: {
@@ -670,7 +670,7 @@ async function processChunkedUploadWithGemini(
         console.log(`[gemini-unified] Transcription attempt ${attempt}/${maxTranscriptionAttempts}`);
         
         const transcriptionResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -805,7 +805,7 @@ async function processChunkedUploadWithGemini(
         console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
         
         const analysisResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
           {
             method: 'POST',
             headers: {
@@ -1041,7 +1041,7 @@ async function processAssembledVideoWithGemini(
       console.log('[gemini-unified] Transcription attempt 1/5');
       
       const transcriptionResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1103,7 +1103,7 @@ async function processAssembledVideoWithGemini(
         console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
         
         const analysisResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
           {
             method: 'POST',
             headers: {
