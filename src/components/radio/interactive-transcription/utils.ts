@@ -27,8 +27,10 @@ export const getSpeakerColor = (speakerId: string | number): string => {
  * Normalize timestamp to seconds consistently
  */
 export const normalizeTimeToSeconds = (time: number): number => {
-  // If time is in milliseconds (large number), convert to seconds
-  if (time > 1000) {
+  // If time is clearly in milliseconds (> 10 hours worth of seconds = 36000),
+  // then convert to seconds. This handles the edge case where values between
+  // 60-1000 could be either seconds (for long videos) or milliseconds.
+  if (time > 36000) {
     return time / 1000;
   }
   return time;

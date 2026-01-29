@@ -251,10 +251,12 @@ USA TU CAPACIDAD DE VISIÓN para identificar hablantes:
 - OBSERVA logos de TV y contexto visual para identificar canales/programas
 - DISTINGUE roles: Presentador, Reportero, Invitado, Analista, etc.
 
-FORMATO REQUERIDO (con nombre y rol cuando sea posible):
-SPEAKER 1 (Aixa Vázquez - Presentadora): [texto hablado]
-SPEAKER 2 (José Rivera - Reportero): [texto hablado]
-SPEAKER 3 (Dr. María Sánchez - Invitada): [texto hablado]
+FORMATO REQUERIDO (con nombre, rol y MARCA DE TIEMPO cuando sea posible):
+SPEAKER 1 (Aixa Vázquez - Presentadora) [00:15]: [texto hablado]
+SPEAKER 2 (José Rivera - Reportero) [00:45]: [texto hablado]
+SPEAKER 3 (Dr. María Sánchez - Invitada) [01:23]: [texto hablado]
+
+IMPORTANTE: Incluye el tiempo aproximado [MM:SS] donde comienza cada intervención del hablante.
 
 Si NO puedes identificar visualmente, usa:
 SPEAKER 1: [texto hablado]
@@ -345,7 +347,7 @@ Responde en español de manera concisa y profesional. Asegúrate de:
     try {
       console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxRetries}`);
       
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -446,40 +448,75 @@ function parseGeminiResponse(fullText: string): { transcription: string, analysi
 }
 
 function createUtterancesFromTranscription(transcription: string): any[] {
-  // Parse speaker-based transcription into utterances
+  // Parse speaker-based transcription into utterances with timestamp support
   const lines = transcription.split('\n').filter(line => line.trim());
-  const utterances = [];
-  let currentTime = 0;
+  const utterances: any[] = [];
+  let fallbackTime = 0;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (line) {
-      // Look for speaker pattern (SPEAKER_NAME: text)
+    if (!line) continue;
+    
+    // Try to parse timestamp format: SPEAKER X (Name) [MM:SS]: text
+    const timestampMatch = line.match(/^([^[\]]+?)\s*\[(\d{1,2}):(\d{2})\]:\s*(.*)$/);
+    
+    if (timestampMatch) {
+      const speaker = timestampMatch[1].trim();
+      const minutes = parseInt(timestampMatch[2], 10);
+      const seconds = parseInt(timestampMatch[3], 10);
+      const text = timestampMatch[4].trim();
+      
+      const startMs = (minutes * 60 + seconds) * 1000;
+      
+      // Look ahead for next timestamp to calculate end time
+      let endMs = startMs + 30000; // Default 30s if no next timestamp
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextMatch = lines[j].match(/\[(\d{1,2}):(\d{2})\]/);
+        if (nextMatch) {
+          endMs = (parseInt(nextMatch[1], 10) * 60 + parseInt(nextMatch[2], 10)) * 1000;
+          break;
+        }
+      }
+      
+      utterances.push({
+        start: startMs,
+        end: endMs,
+        text: text,
+        confidence: 0.95,
+        speaker: speaker
+      });
+      fallbackTime = endMs;
+    } else {
+      // Fallback: word-count based estimation for lines without timestamps
       const speakerMatch = line.match(/^([^:]+):\s*(.*)$/);
       if (speakerMatch) {
         const speaker = speakerMatch[1].trim();
         const text = speakerMatch[2].trim();
+        const wordCount = text.split(/\s+/).length;
+        // Estimate ~400ms per word, min 3s, max 15s per utterance
+        const estimatedDuration = Math.max(3000, Math.min(wordCount * 400, 15000));
         
         utterances.push({
-          start: currentTime,
-          end: currentTime + 5000, // 5 seconds per utterance as estimate
+          start: fallbackTime,
+          end: fallbackTime + estimatedDuration,
           text: text,
-          confidence: 0.90,
+          confidence: 0.75,
           speaker: speaker
         });
-        
-        currentTime += 5000;
+        fallbackTime += estimatedDuration;
       } else {
         // Handle lines without clear speaker identification
+        const wordCount = line.split(/\s+/).length;
+        const estimatedDuration = Math.max(2000, Math.min(wordCount * 400, 10000));
+        
         utterances.push({
-          start: currentTime,
-          end: currentTime + 3000,
+          start: fallbackTime,
+          end: fallbackTime + estimatedDuration,
           text: line,
-          confidence: 0.85,
+          confidence: 0.70,
           speaker: "Speaker_Unknown"
         });
-        
-        currentTime += 3000;
+        fallbackTime += estimatedDuration;
       }
     }
   }
@@ -488,7 +525,7 @@ function createUtterancesFromTranscription(transcription: string): any[] {
     start: 0,
     end: 60000,
     text: transcription.substring(0, 500) || "Contenido procesado",
-    confidence: 0.85,
+    confidence: 0.50,
     speaker: "Speaker_0"
   }];
 }
