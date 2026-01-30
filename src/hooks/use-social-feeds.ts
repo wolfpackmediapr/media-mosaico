@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { handleSocialFeedError } from "@/services/social/error-handler";
 import { useState } from "react";
@@ -8,6 +8,7 @@ import { SOCIAL_PLATFORMS, fetchSocialPosts, fetchPlatformsData, fetchPlatformCo
 
 // Add the useSocialFeeds hook for the RedesSociales page
 export function useSocialFeeds() {
+  const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [totalCount, setTotalCount] = useState(0);
@@ -70,9 +71,9 @@ export function useSocialFeeds() {
       // Update last refresh time
       setLastRefreshTime(new Date());
       
-      // Refetch data
-      await fetchPlatforms();
-      await fetchPosts();
+      // Invalidate React Query cache to force refetch with fresh data
+      await queryClient.invalidateQueries({ queryKey: ["social-platforms"] });
+      await queryClient.invalidateQueries({ queryKey: ["social-posts"] });
       
       return { success: true };
     } catch (error) {
