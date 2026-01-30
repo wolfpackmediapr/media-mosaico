@@ -104,6 +104,111 @@ export const SOCIAL_FEEDS = [
     url: "https://rss.app/feeds/v1.1/S0SckdXolEUvQPiF.json",
     name: "Sin Comillas",
     platform: "twitter"
+  },
+  // Commentators & Analysts
+  {
+    url: "https://rss.app/feeds/v1.1/UREQ2nD662VvkWAE.json",
+    name: "Profesor Ángel Rosa",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/XDspEfNp1fHfK9pD.json",
+    name: "Luis Dávila Colón",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/z4IQPa7BfOpThJDJ.json",
+    name: "Julio Rivera-Saniel",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/OP35fv2V2y5Mu1N5.json",
+    name: "Normando Valentín",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/2AVbAbgRPMMeaeXd.json",
+    name: "Yolanda Vélez Arcelay",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/SRlB1utUeO3NSueg.json",
+    name: "Rafael Lenín López",
+    platform: "twitter"
+  },
+  // Journalists
+  {
+    url: "https://rss.app/feeds/v1.1/zzXGELuKTZXUMHse.json",
+    name: "Valeria Collazo Cañizares",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/Nn6AunodvYd31v78.json",
+    name: "Milly Méndez",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/ldoRFGE3OlIHtUjZ.json",
+    name: "Gary Rodríguez",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/XvfG4iqDUQyRXPQl.json",
+    name: "Tatiana Ortiz Ramírez",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/D3lmeb303nJj8AHV.json",
+    name: "Omaya Sosa Pascual",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/2MQtHpmYdKRYqIRe.json",
+    name: "Bianca Graulau",
+    platform: "twitter"
+  },
+  // TV Stations
+  {
+    url: "https://rss.app/feeds/v1.1/yTAy61xHR8R8l5yI.json",
+    name: "TeleOnce Puerto Rico",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/Ox4R1EFbXOIDX2D6.json",
+    name: "Las Noticias TeleOnce",
+    platform: "twitter"
+  },
+  // News Outlets & Media
+  {
+    url: "https://rss.app/feeds/v1.1/zPmWqXqpuJZIKAxt.json",
+    name: "El Calce",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/0L7aeRjOj90wuQvm.json",
+    name: "News is my Business",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/hFDSy2JvbJwjBYEN.json",
+    name: "Periódico El Oriental",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/h7PbLXbnrsLJhpQl.json",
+    name: "ROAM Puerto Rico",
+    platform: "twitter"
+  },
+  // Podcasts & Radio
+  {
+    url: "https://rss.app/feeds/v1.1/jA3hnqyABmFxnvYu.json",
+    name: "Puestos Pa'l Problema",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/GWSpZ5r9stWa9698.json",
+    name: "WALO Radio",
+    platform: "twitter"
   }
 ];
 
