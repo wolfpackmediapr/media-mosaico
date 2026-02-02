@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NewsCards, type NewsCard } from "@/components/ui/news-cards";
+import { Input } from "@/components/ui/input";
 import { 
   useCombinedNewsFeed, 
   useClientsForFilter,
@@ -11,7 +12,7 @@ import {
   type CombinedFeedFilters,
   type ExtendedNewsCard 
 } from "@/hooks/use-combined-news-feed";
-import { ChevronLeft, ChevronRight, Newspaper, Share2, RefreshCw, Filter, Smile, Frown, Meh, HelpCircle, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Newspaper, Share2, RefreshCw, Filter, Smile, Frown, Meh, HelpCircle, Users, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -27,6 +28,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface CombinedNewsFeedWidgetProps {
   className?: string;
@@ -41,12 +43,23 @@ const sentimentConfig = {
 
 export function CombinedNewsFeedWidget({ className }: CombinedNewsFeedWidgetProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<CombinedFeedFilters>({
     sourceType: 'all',
     sentiment: 'all',
-    clientId: null
+    clientId: null,
+    searchTerm: ''
   });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  
+  // Debounce search term to avoid too many API calls
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  
+  // Update filters when debounced search term changes
+  React.useEffect(() => {
+    setFilters(prev => ({ ...prev, searchTerm: debouncedSearchTerm }));
+    setCurrentPage(1);
+  }, [debouncedSearchTerm]);
   
   const { data, isLoading, isRefetching, refetch } = useCombinedNewsFeed(currentPage, filters);
   const { data: clients } = useClientsForFilter();
@@ -83,11 +96,17 @@ export function CombinedNewsFeedWidget({ className }: CombinedNewsFeedWidgetProp
   };
 
   const clearFilters = () => {
-    setFilters({ sourceType: 'all', sentiment: 'all', clientId: null });
+    setFilters({ sourceType: 'all', sentiment: 'all', clientId: null, searchTerm: '' });
+    setSearchTerm('');
     setCurrentPage(1);
   };
 
+  const clearSearch = () => {
+    setSearchTerm('');
+  };
+
   const hasActiveFilters = filters.sourceType !== 'all' || filters.sentiment !== 'all' || filters.clientId !== null;
+  const hasSearchTerm = searchTerm.length > 0;
 
   const statusBars = [
     { id: "1", category: "Prensa Digital", subcategory: `${data?.prensaCount || 0}`, length: 3, opacity: 1 },
@@ -150,6 +169,30 @@ export function CombinedNewsFeedWidget({ className }: CombinedNewsFeedWidgetProp
                 <Share2 className="w-3 h-3" />
                 {data?.socialCount || 0}
               </Badge>
+            </div>
+          </div>
+          
+          {/* Search Input */}
+          <div className="flex-1 max-w-xs mx-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Buscar noticias..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-8 pl-8 pr-8 text-sm"
+              />
+              {hasSearchTerm && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 h-8 w-8 hover:bg-transparent"
+                  onClick={clearSearch}
+                >
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
