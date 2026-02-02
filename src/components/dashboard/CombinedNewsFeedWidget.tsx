@@ -52,14 +52,18 @@ export function CombinedNewsFeedWidget({ className }: CombinedNewsFeedWidgetProp
   });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   
-  // Debounce search term to avoid too many API calls
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  // Debounce search term to avoid too many API calls (500ms for smoother UX)
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   
-  // Update filters when debounced search term changes
+  // Update filters when debounced search term changes (only if 3+ chars or empty)
   React.useEffect(() => {
-    setFilters(prev => ({ ...prev, searchTerm: debouncedSearchTerm }));
+    const effectiveSearchTerm = debouncedSearchTerm.length >= 3 ? debouncedSearchTerm : '';
+    setFilters(prev => ({ ...prev, searchTerm: effectiveSearchTerm }));
     setCurrentPage(1);
   }, [debouncedSearchTerm]);
+  
+  // Track if search is "pending" (user typed but debounce hasn't completed)
+  const isSearchPending = searchTerm !== debouncedSearchTerm && searchTerm.length >= 3;
   
   const { data, isLoading, isRefetching, refetch } = useCombinedNewsFeed(currentPage, filters);
   const { data: clients } = useClientsForFilter();
@@ -175,10 +179,14 @@ export function CombinedNewsFeedWidget({ className }: CombinedNewsFeedWidgetProp
           {/* Search Input */}
           <div className="flex-1 max-w-xs mx-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              {isSearchPending || isRefetching ? (
+                <RefreshCw className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+              ) : (
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              )}
               <Input
                 type="text"
-                placeholder="Buscar noticias..."
+                placeholder="Buscar (mín. 3 caracteres)..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="h-8 pl-8 pr-8 text-sm"
