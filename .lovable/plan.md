@@ -1,95 +1,64 @@
 
+# Plan: Improve Search Behavior in Feed Unificado
 
-# Plan: Fix Platform Counts Not Updating After Refresh
+## Problem
 
-## Problem Identified
-
-The UI shows 0 counts for new feeds even though articles exist in the database. This is because:
-
-1. React Query caches the `["social-platforms"]` query for 5 minutes
-2. When `refreshFeeds()` is called, it calls `fetchPlatforms()` and `fetchPosts()` directly but does NOT invalidate the React Query cache
-3. The UI continues to display stale cached data with 0 counts
+The search feature triggers too quickly as users type, causing the news cards to constantly refresh and flicker. This creates a jarring, distracting experience.
 
 ---
 
 ## Solution
 
-Update the `useSocialFeeds` hook to properly invalidate the React Query cache after refreshing feeds.
+Implement a smoother, more user-friendly search behavior with:
+
+1. **Longer debounce delay** - Increase from 300ms to 500ms
+2. **Minimum character threshold** - Only search when 3+ characters are typed
+3. **Visual feedback while searching** - Show a loading spinner in the search field
+4. **Preserve previous results** - Keep showing current cards until new results are ready
 
 ---
 
 ## Changes Required
 
-### File: `src/hooks/use-social-feeds.ts`
+### File: `src/components/dashboard/CombinedNewsFeedWidget.tsx`
 
-Add `useQueryClient` from React Query and call `invalidateQueries` after fetching new data:
+| Change | Description |
+|--------|-------------|
+| Increase debounce | Change from 300ms to 500ms |
+| Add minimum length check | Only trigger search when user types 3+ characters |
+| Add search indicator | Show loading spinner inside the search input when searching |
+| Improve user hint | Update placeholder to indicate "Buscar (mín. 3 caracteres)..." |
 
-```typescript
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-// ... existing imports
+**Visual Changes:**
+- Search field shows a spinning loader icon when search is in progress
+- Placeholder text clarifies minimum characters needed
+- Cards remain stable until the final search results are ready
 
-export function useSocialFeeds() {
-  const queryClient = useQueryClient();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  // ... rest of state
+---
 
-  // Manual refresh function - updates to use process-social-feeds
-  const refreshFeeds = async () => {
-    try {
-      setIsRefreshing(true);
-      const { error } = await supabase.functions.invoke("process-social-feeds", {
-        body: { 
-          timestamp: new Date().toISOString(),
-          forceFetch: true
-        }
-      });
-      
-      if (error) throw error;
-      
-      // Update last refresh time
-      setLastRefreshTime(new Date());
-      
-      // Invalidate React Query cache to force refetch with fresh data
-      await queryClient.invalidateQueries({ queryKey: ["social-platforms"] });
-      await queryClient.invalidateQueries({ queryKey: ["social-posts"] });
-      
-      return { success: true };
-    } catch (error) {
-      console.error("Error refreshing feeds:", error);
-      return { success: false };
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+## Implementation Details
+
+```
+Search Input Behavior:
   
-  // ... rest of hook
-}
+  User types → Wait 500ms after last keystroke → Check if 3+ chars → Trigger search → Show loader → Display results
+  
+  Less than 3 chars → Clear search filter → Show all results
 ```
 
 ---
 
 ## Summary
 
-| Aspect | Details |
-|--------|---------|
-| Files to modify | 1 (`src/hooks/use-social-feeds.ts`) |
-| Lines changed | ~5-8 |
-| Risk level | Low - no UI changes, only cache invalidation |
-| Other components affected | None |
+| Aspect | Before | After |
+|--------|--------|-------|
+| Debounce delay | 300ms | 500ms |
+| Minimum characters | None | 3 characters |
+| Loading feedback | None | Spinner in search field |
+| Card flickering | Frequent | Minimal |
 
 ---
 
-## Immediate Workaround
+## Files to Modify
 
-While the fix is being implemented, users can:
-1. **Hard refresh the page** (Ctrl+Shift+R or Cmd+Shift+R)
-2. This clears the browser cache and forces React Query to fetch fresh data
-
----
-
-## After Implementation
-
-1. Navigate to Redes Sociales
-2. Click the "Actualizar" (Refresh) button
-3. All 41 feeds should display correct article counts
-
+1. `src/components/dashboard/CombinedNewsFeedWidget.tsx` - Update search behavior and add loading indicator
