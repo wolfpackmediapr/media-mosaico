@@ -16,6 +16,7 @@ export interface CombinedFeedFilters {
   sourceType: SourceTypeFilter;
   sentiment: SentimentFilter;
   clientId: string | null;
+  searchTerm?: string;
 }
 
 export interface ClientInfo {
@@ -82,6 +83,12 @@ async function fetchCombinedNewsFeed(
   // Apply client filter
   if (filters.clientId) {
     query = query.contains('clients', [{ id: filters.clientId }]);
+  }
+
+  // Apply search term filter (search in title and description)
+  if (filters.searchTerm && filters.searchTerm.trim().length > 0) {
+    const searchPattern = `%${filters.searchTerm.trim()}%`;
+    query = query.or(`title.ilike.${searchPattern},description.ilike.${searchPattern}`);
   }
 
   const { data: articles, error: articlesError, count } = await query.range(from, to);
@@ -216,7 +223,7 @@ async function fetchCombinedNewsFeed(
 
 export function useCombinedNewsFeed(
   page: number = 1, 
-  filters: CombinedFeedFilters = { sourceType: 'all', sentiment: 'all', clientId: null }
+  filters: CombinedFeedFilters = { sourceType: 'all', sentiment: 'all', clientId: null, searchTerm: '' }
 ) {
   return useQuery({
     queryKey: ['combined-news-feed', page, filters],
