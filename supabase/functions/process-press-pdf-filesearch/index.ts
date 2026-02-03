@@ -409,53 +409,36 @@ async function analyzeDocumentWithFileSearch(
   const hasClients = clients.length > 0;
   const clientNames = clients.map(c => c.name);
   
-  const detailedPrompt = `Utiliza la herramienta File Search para leer y analizar el documento de prensa completo de "${publicationName}".
-
-**PASO 1**: Lee el documento completo usando File Search para acceder a su contenido.
-
-**PASO 2**: Genera un ANÁLISIS EXHAUSTIVO Y DETALLADO del documento siguiendo el formato estructurado abajo.
+// Reduced prompt to minimize truncation - 300 words max, 5 articles max
+  const detailedPrompt = `Utiliza la herramienta File Search para leer el documento de prensa "${publicationName}".
 
 **IMPORTANTE**: 
-- Responde ÚNICAMENTE con JSON válido, sin texto adicional antes o después
-- El resumen debe ser EXTENSO y DETALLADO (mínimo 500 palabras)
-- SIEMPRE menciona números de página específicos para cada sección y artículo
-- Incluye TODOS los artículos importantes, no solo los relacionados con clientes
+- Responde ÚNICAMENTE con JSON válido, sin markdown ni texto adicional
+- El resumen debe ser CONCISO pero informativo (máximo 300 palabras)
+- Menciona páginas cuando sea posible
+- Máximo 5 artículos destacados
 
 **CATEGORÍAS VÁLIDAS**: ${categories.join(', ')}
 
-${hasClients ? `**CLIENTES Y PALABRAS CLAVE**: Busca artículos que mencionen cualquiera de estas palabras clave o nombres de clientes:
-${clientKeywordsPrompt}
+${hasClients ? `**CLIENTES**: Busca menciones de:\n${clientKeywordsPrompt}\n\nInclúyelos en relevant_clients si aparecen.` : `**NOTA**: Sin clientes configurados. Cuenta todos los artículos.`}
 
-Si un artículo menciona CUALQUIERA de estas palabras clave, inclúyelo en el conteo y marca los clientes relevantes.` : `**NOTA**: No hay clientes configurados. Cuenta TODOS los artículos de prensa encontrados en el documento.`}
-
-Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
+Responde exactamente este formato JSON:
 {
-  "summary": "RESUMEN EJECUTIVO:\\n[Párrafo de 3-4 oraciones describiendo el documento en general, incluyendo nombre de la publicación, fecha si está disponible, y temas principales cubiertos]\\n\\nCONTENIDO POR SECCIONES:\\n• Portada (Pág. 1): [Descripción de los titulares principales y noticias destacadas de la portada]\\n• [Nombre de sección] (Págs. X-Y): [Descripción detallada de los artículos en esta sección, mencionando títulos y temas específicos]\\n• [Nombre de sección] (Págs. X-Y): [Descripción detallada]\\n• [Continuar con todas las secciones identificadas]\\n\\nARTÍCULOS DESTACADOS:\\n1. [Título exacto del artículo] - Pág. X: [Resumen de 2-3 oraciones del contenido del artículo, incluyendo personas mencionadas, instituciones, y datos relevantes]\\n2. [Título exacto del artículo] - Pág. Y: [Resumen detallado]\\n3. [Continuar con los 5-10 artículos más importantes]\\n\\nTEMAS PRINCIPALES IDENTIFICADOS:\\n• [Tema 1]: [Breve explicación de cómo se trata este tema en el documento]\\n• [Tema 2]: [Breve explicación]\\n• [Continuar con 3-5 temas principales]\\n\\nMENCIONES DE ENTIDADES:\\n• Instituciones gubernamentales: [Lista de agencias/instituciones mencionadas con páginas]\\n• Empresas/Organizaciones: [Lista con páginas]\\n• Personas relevantes: [Nombres con cargos y páginas donde aparecen]",
-  "clippings_count": 15,
-  "categories": ["GOBIERNO", "SALUD", "ECONOMIA & NEGOCIOS"],
-  "keywords": ["legislatura", "hospital", "presupuesto", "medicaid", "infraestructura"],
-  "relevant_clients": ${hasClients ? '["MMM", "Auxilio Mutuo"]' : '[]'}
+  "summary": "RESUMEN EJECUTIVO:\\n[2-3 oraciones sobre el documento]\\n\\nSECCIONES:\\n• [Sección] (Págs. X-Y): [1-2 oraciones]\\n\\nARTÍCULOS DESTACADOS:\\n1. [Título] - Pág. X: [1 oración]\\n2. [Título] - Pág. Y: [1 oración]\\n(máximo 5)\\n\\nTEMAS PRINCIPALES:\\n• [Tema 1]\\n• [Tema 2]",
+  "clippings_count": 10,
+  "categories": ["GOBIERNO", "SALUD"],
+  "keywords": ["legislatura", "hospital"],
+  "relevant_clients": ${hasClients ? '["Cliente1"]' : '[]'}
 }`;
 
-  // Retry prompt: shorter + simpler output to reduce truncation/invalid JSON likelihood
-  const simplifiedPrompt = `Utiliza la herramienta File Search para leer y analizar el documento de prensa completo de "${publicationName}".
-
-**IMPORTANTE**:
-- Responde ÚNICAMENTE con JSON válido, sin markdown ni texto adicional
-- Mantén el resumen más corto (mínimo 250 palabras)
-- Menciona páginas cuando sea posible, pero prioriza JSON válido
-
-**CATEGORÍAS VÁLIDAS**: ${categories.join(', ')}
-
-${hasClients ? `**CLIENTES Y PALABRAS CLAVE**: ${clientKeywordsPrompt}\n\nSi un artículo menciona CUALQUIERA de estas palabras clave, inclúyelo en relevant_clients.` : `**NOTA**: No hay clientes configurados. Cuenta TODOS los artículos de prensa encontrados.`}
-
-Responde exactamente este JSON (sin markdown):
+  // Simplified retry prompt - minimal output
+  const simplifiedPrompt = `Lee el documento "${publicationName}" y responde con este JSON exacto (sin markdown):
 {
-  "summary": "RESUMEN EJECUTIVO:\\n[2-3 oraciones]\n\nCONTENIDO POR SECCIONES:\\n• [Sección] (Págs. X-Y): [1-2 oraciones]\n\nARTÍCULOS DESTACADOS:\\n1. [Título] - Pág. X: [1-2 oraciones]\n2. [Título] - Pág. Y: [1-2 oraciones]\n(Máximo 5)\n\nTEMAS PRINCIPALES IDENTIFICADOS:\\n• [Tema 1]\n• [Tema 2]\n• [Tema 3]",
+  "summary": "Resumen breve del documento en 100 palabras máximo.",
   "clippings_count": 0,
   "categories": [],
   "keywords": [],
-  "relevant_clients": ${hasClients ? '[]' : '[]'}
+  "relevant_clients": []
 }`;
 
   const attemptPrompts: Array<{ label: string; prompt: string; maxOutputTokens: number }> = [
@@ -504,13 +487,13 @@ Responde exactamente este JSON (sin markdown):
     }
   }
 
-  // Final fallback: truncated/invalid JSON. Return partial summary to avoid 500s.
+  // Final fallback: use robust extraction for truncated/invalid JSON
   console.log('[FileSearch] Using final fallback after parse retries');
-  const partialSummary = lastCleanContent.match(/"summary"\s*:\s*"([\s\S]*?)"\s*(,|\n|$)/)?.[1]
+  const partialSummary = extractSummaryFromPartialJson(lastCleanContent)
     || `Documento de prensa: ${publicationName}`;
 
   return {
-    summary: partialSummary.replace(/\\n/g, '\n'),
+    summary: partialSummary.replace(/\\n/g, '\n').replace(/\\"/g, '"'),
     clippingsCount: 0,
     categories: [],
     keywords: [],
@@ -531,8 +514,8 @@ async function callGeminiFileSearch(storeId: string, prompt: string, maxOutputTo
           temperature: 0.3,
           topK: 20,
           topP: 0.8,
-          maxOutputTokens,
-          responseMimeType: 'application/json'
+          maxOutputTokens
+          // NOTE: responseMimeType is NOT supported with file_search tool
         }
       })
     }
@@ -590,11 +573,114 @@ function safeParsePossiblyEmbeddedJson(cleanContent: string): any {
 
   // 2) Try to extract first balanced JSON object (handles extra text before/after)
   const extracted = extractFirstBalancedJsonObject(cleanContent);
-  if (!extracted) {
-    throw new Error('No JSON object found');
+  if (extracted) {
+    try {
+      return JSON.parse(extracted);
+    } catch {
+      // continue to repair
+    }
   }
 
-  return JSON.parse(extracted);
+  // 3) Try to repair truncated JSON by closing unclosed braces/brackets
+  const repaired = repairTruncatedJson(cleanContent);
+  try {
+    return JSON.parse(repaired);
+  } catch {
+    // continue
+  }
+
+  throw new Error('Unable to parse JSON after all attempts');
+}
+
+/**
+ * Attempts to repair truncated JSON by closing unclosed braces and brackets
+ */
+function repairTruncatedJson(json: string): string {
+  let braces = 0;
+  let brackets = 0;
+  let inString = false;
+  let escaped = false;
+  
+  for (const ch of json) {
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === '"') { inString = false; }
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{') braces++;
+    if (ch === '}') braces--;
+    if (ch === '[') brackets++;
+    if (ch === ']') brackets--;
+  }
+  
+  // If we're still inside a string, close it first
+  let repaired = json;
+  if (inString) {
+    repaired += '"';
+  }
+  
+  // Close any open brackets/braces
+  while (brackets > 0) { repaired += ']'; brackets--; }
+  while (braces > 0) { repaired += '}'; braces--; }
+  
+  return repaired;
+}
+
+/**
+ * Extracts the summary field from partial/truncated JSON using character-by-character parsing
+ */
+function extractSummaryFromPartialJson(content: string): string | null {
+  const summaryStart = content.indexOf('"summary"');
+  if (summaryStart === -1) return null;
+  
+  const colonPos = content.indexOf(':', summaryStart);
+  if (colonPos === -1) return null;
+  
+  // Find the opening quote of the value
+  let quoteStart = -1;
+  for (let i = colonPos + 1; i < content.length; i++) {
+    if (content[i] === '"') {
+      quoteStart = i;
+      break;
+    }
+    // Skip whitespace
+    if (content[i] !== ' ' && content[i] !== '\n' && content[i] !== '\t') {
+      return null; // Non-whitespace before quote means invalid format
+    }
+  }
+  if (quoteStart === -1) return null;
+  
+  // Find the end of the string value, handling escaped quotes
+  let pos = quoteStart + 1;
+  let escaped = false;
+  let result = '';
+  
+  while (pos < content.length) {
+    const ch = content[pos];
+    if (escaped) { 
+      result += ch;
+      escaped = false; 
+      pos++; 
+      continue; 
+    }
+    if (ch === '\\') { 
+      escaped = true; 
+      result += ch;
+      pos++; 
+      continue; 
+    }
+    if (ch === '"') {
+      // Found the closing quote
+      return result;
+    }
+    result += ch;
+    pos++;
+  }
+  
+  // If we didn't find a closing quote, return what we have (truncated)
+  return result.length > 0 ? result : null;
 }
 
 function extractFirstBalancedJsonObject(input: string): string | null {
