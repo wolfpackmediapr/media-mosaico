@@ -1,64 +1,113 @@
 
-# Plan: Improve Search Behavior in Feed Unificado
 
-## Problem
+# Plan: Fix Truncated JSON Response in PDF Processing
 
-The search feature triggers too quickly as users type, causing the news cards to constantly refresh and flicker. This creates a jarring, distracting experience.
+## Problem Identified
+
+The `process-press-pdf-filesearch` edge function is failing because Gemini's response is **truncated before the JSON is complete**.
+
+**Evidence from logs:**
+```
+[FileSearch] Raw API response: ```json
+{
+  "summary": "RESUMEN EJECUTIVO:\nEl documento \"EL VOCERO DE PUERTO RICO\", publicado el viernes 31 de octubre de 2025...
+```
+
+The response is cut off - there's no closing `}` for the JSON object, causing the parser to fail with:
+```
+Error: No JSON object found in API response
+```
+
+**Root cause:** The `maxOutputTokens: 8192` limit is being hit because the prompt requests a very detailed 500+ word summary with multiple sections.
 
 ---
 
 ## Solution
 
-Implement a smoother, more user-friendly search behavior with:
+### Option 1: Increase Token Limit (Quick Fix)
 
-1. **Longer debounce delay** - Increase from 300ms to 500ms
-2. **Minimum character threshold** - Only search when 3+ characters are typed
-3. **Visual feedback while searching** - Show a loading spinner in the search field
-4. **Preserve previous results** - Keep showing current cards until new results are ready
+Increase `maxOutputTokens` from 8192 to 16384 to allow for longer responses:
+
+```typescript
+generationConfig: {
+  temperature: 0.3,
+  topK: 20,
+  topP: 0.8,
+  maxOutputTokens: 16384  // Doubled from 8192
+}
+```
+
+### Option 2: Reduce Summary Complexity (Recommended - More Robust)
+
+Simplify the expected output format to require less tokens:
+- Reduce minimum summary length from 500 to 300 words
+- Limit "Artículos Destacados" to 5 instead of 5-10
+- Condense section descriptions
+
+### Option 3: Add Truncation Detection + Retry (Most Robust)
+
+1. Detect when response is truncated (missing closing brace)
+2. Retry with a simpler prompt requesting less detail
+3. Add fallback to create a minimal valid response
 
 ---
 
-## Changes Required
+## Recommended Implementation
 
-### File: `src/components/dashboard/CombinedNewsFeedWidget.tsx`
+Combine approaches for maximum reliability:
 
-| Change | Description |
-|--------|-------------|
-| Increase debounce | Change from 300ms to 500ms |
-| Add minimum length check | Only trigger search when user types 3+ characters |
-| Add search indicator | Show loading spinner inside the search input when searching |
-| Improve user hint | Update placeholder to indicate "Buscar (mín. 3 caracteres)..." |
-
-**Visual Changes:**
-- Search field shows a spinning loader icon when search is in progress
-- Placeholder text clarifies minimum characters needed
-- Cards remain stable until the final search results are ready
+| File | Change |
+|------|--------|
+| `supabase/functions/process-press-pdf-filesearch/index.ts` | 1. Increase `maxOutputTokens` to 16384 |
+| | 2. Add truncation detection logic |
+| | 3. Add retry with simplified prompt on truncation |
 
 ---
 
 ## Implementation Details
 
+### Change 1: Increase Token Limit
+```typescript
+// Line ~456
+maxOutputTokens: 16384  // Was 8192
 ```
-Search Input Behavior:
+
+### Change 2: Add Truncation Detection + Fallback
+
+After the regex fails to find a complete JSON object, detect if the response was truncated and generate a fallback:
+
+```typescript
+// After line 542 - when no valid JSON found
+// Check if this looks like truncated JSON (starts with { but no closing })
+if (cleanContent.startsWith('{') && !cleanContent.includes('}')) {
+  console.log('[FileSearch] Detected truncated JSON response, using fallback');
   
-  User types → Wait 500ms after last keystroke → Check if 3+ chars → Trigger search → Show loader → Display results
+  // Extract what we can from the partial response
+  const partialSummary = cleanContent.match(/"summary"\s*:\s*"([^"]+)/)?.[1] || 
+    `Documento de prensa: ${publicationName}`;
   
-  Less than 3 chars → Clear search filter → Show all results
+  return {
+    summary: partialSummary.replace(/\\n/g, '\n'),
+    clippingsCount: 0,
+    categories: [],
+    keywords: [],
+    relevantClients: []
+  };
+}
 ```
+
+### Change 3: Simplify Prompt (Optional)
+
+Reduce the expected summary detail to fit within token limits more reliably.
 
 ---
 
 ## Summary
 
-| Aspect | Before | After |
-|--------|--------|-------|
-| Debounce delay | 300ms | 500ms |
-| Minimum characters | None | 3 characters |
-| Loading feedback | None | Spinner in search field |
-| Card flickering | Frequent | Minimal |
+| Aspect | Details |
+|--------|---------|
+| Files to modify | 1 (`supabase/functions/process-press-pdf-filesearch/index.ts`) |
+| Primary fix | Increase `maxOutputTokens` to 16384 |
+| Fallback | Detect truncated JSON and return partial summary |
+| Risk level | Low - changes are additive and improve robustness |
 
----
-
-## Files to Modify
-
-1. `src/components/dashboard/CombinedNewsFeedWidget.tsx` - Update search behavior and add loading indicator
