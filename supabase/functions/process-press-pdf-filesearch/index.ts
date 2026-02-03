@@ -409,7 +409,7 @@ async function analyzeDocumentWithFileSearch(
   const hasClients = clients.length > 0;
   const clientNames = clients.map(c => c.name);
   
-  const analysisPrompt = `Utiliza la herramienta File Search para leer y analizar el documento de prensa completo de "${publicationName}".
+  const detailedPrompt = `Utiliza la herramienta File Search para leer y analizar el documento de prensa completo de "${publicationName}".
 
 **PASO 1**: Lee el documento completo usando File Search para acceder a su contenido.
 
@@ -437,49 +437,120 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
   "relevant_clients": ${hasClients ? '["MMM", "Auxilio Mutuo"]' : '[]'}
 }`;
 
+  // Retry prompt: shorter + simpler output to reduce truncation/invalid JSON likelihood
+  const simplifiedPrompt = `Utiliza la herramienta File Search para leer y analizar el documento de prensa completo de "${publicationName}".
+
+**IMPORTANTE**:
+- Responde ÚNICAMENTE con JSON válido, sin markdown ni texto adicional
+- Mantén el resumen más corto (mínimo 250 palabras)
+- Menciona páginas cuando sea posible, pero prioriza JSON válido
+
+**CATEGORÍAS VÁLIDAS**: ${categories.join(', ')}
+
+${hasClients ? `**CLIENTES Y PALABRAS CLAVE**: ${clientKeywordsPrompt}\n\nSi un artículo menciona CUALQUIERA de estas palabras clave, inclúyelo en relevant_clients.` : `**NOTA**: No hay clientes configurados. Cuenta TODOS los artículos de prensa encontrados.`}
+
+Responde exactamente este JSON (sin markdown):
+{
+  "summary": "RESUMEN EJECUTIVO:\\n[2-3 oraciones]\n\nCONTENIDO POR SECCIONES:\\n• [Sección] (Págs. X-Y): [1-2 oraciones]\n\nARTÍCULOS DESTACADOS:\\n1. [Título] - Pág. X: [1-2 oraciones]\n2. [Título] - Pág. Y: [1-2 oraciones]\n(Máximo 5)\n\nTEMAS PRINCIPALES IDENTIFICADOS:\\n• [Tema 1]\n• [Tema 2]\n• [Tema 3]",
+  "clippings_count": 0,
+  "categories": [],
+  "keywords": [],
+  "relevant_clients": ${hasClients ? '[]' : '[]'}
+}`;
+
+  const attemptPrompts: Array<{ label: string; prompt: string; maxOutputTokens: number }> = [
+    { label: 'detailed', prompt: detailedPrompt, maxOutputTokens: 16384 },
+    { label: 'simplified', prompt: simplifiedPrompt, maxOutputTokens: 8192 }
+  ];
+
+  let lastCleanContent = '';
+
+  for (let attemptIndex = 0; attemptIndex < attemptPrompts.length; attemptIndex++) {
+    const attempt = attemptPrompts[attemptIndex];
+    console.log(`[FileSearch] Analyzing with prompt: ${attempt.label} (attempt ${attemptIndex + 1}/${attemptPrompts.length})`);
+
+    const data = await callGeminiFileSearch(storeId, attempt.prompt, attempt.maxOutputTokens);
+
+    // Log full response structure for debugging
+    console.log('[FileSearch] Full API response structure:', JSON.stringify(data, null, 2).substring(0, 500));
+
+    const content = extractTextFromGeminiResponse(data);
+    if (!content) {
+      console.warn('[FileSearch] No content received, trying next attempt');
+      continue;
+    }
+
+    console.log('[FileSearch] Raw API response:', content.substring(0, 300));
+
+    const cleanContent = cleanGeminiTextToJson(content);
+    lastCleanContent = cleanContent;
+    console.log('[FileSearch] Cleaned content starts with:', cleanContent.substring(0, 100));
+
+    // Try to parse as JSON
+    try {
+      const parsed = safeParsePossiblyEmbeddedJson(cleanContent);
+      console.log('[FileSearch] ✓ Parsed JSON successfully');
+
+      return {
+        summary: parsed.summary || `Documento de ${publicationName}`,
+        clippingsCount: parsed.clippings_count || 0,
+        categories: parsed.categories || [],
+        keywords: parsed.keywords || [],
+        relevantClients: parsed.relevant_clients || []
+      };
+    } catch (parseErr) {
+      console.warn('[FileSearch] JSON parse failed:', parseErr);
+      // Continue to retry with simplified prompt
+    }
+  }
+
+  // Final fallback: truncated/invalid JSON. Return partial summary to avoid 500s.
+  console.log('[FileSearch] Using final fallback after parse retries');
+  const partialSummary = lastCleanContent.match(/"summary"\s*:\s*"([\s\S]*?)"\s*(,|\n|$)/)?.[1]
+    || `Documento de prensa: ${publicationName}`;
+
+  return {
+    summary: partialSummary.replace(/\\n/g, '\n'),
+    clippingsCount: 0,
+    categories: [],
+    keywords: [],
+    relevantClients: []
+  };
+}
+
+async function callGeminiFileSearch(storeId: string, prompt: string, maxOutputTokens: number): Promise<any> {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{
-          parts: [{ text: analysisPrompt }]
-        }],
-        tools: [{
-          file_search: {
-            file_search_store_names: [storeId]
-          }
-        }],
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ file_search: { file_search_store_names: [storeId] } }],
         generationConfig: {
           temperature: 0.3,
           topK: 20,
           topP: 0.8,
-          maxOutputTokens: 16384
+          maxOutputTokens,
+          responseMimeType: 'application/json'
         }
       })
     }
   );
 
   if (!response.ok) {
-    throw new Error(`Analysis failed: ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(`Analysis failed: ${response.status} - ${errorText}`);
   }
 
-  const data = await response.json();
-  
-  // Log full response structure for debugging
-  console.log('[FileSearch] Full API response structure:', JSON.stringify(data, null, 2).substring(0, 500));
-  
-  // Try to extract content from different possible locations in the response
+  return await response.json();
+}
+
+function extractTextFromGeminiResponse(data: any): string | null {
   let content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  
-  // Check if there's grounding metadata or alternative response structure
+
   if (!content && data.candidates?.[0]?.content?.parts) {
-    // Sometimes with File Search, the response might be in a different part
     const parts = data.candidates[0].content.parts;
-    console.log('[FileSearch] Checking alternative parts structure:', JSON.stringify(parts));
-    
-    // Look for text in any part
     for (const part of parts) {
       if (part.text) {
         content = part.text;
@@ -487,87 +558,85 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
       }
     }
   }
-  
-  if (!content) {
-    console.error('[FileSearch] No content found in any part. Full response:', JSON.stringify(data));
-    console.error('[FileSearch] Candidates structure:', JSON.stringify(data.candidates));
-    
-    // Check if there's a finish reason that explains why no content
-    const finishReason = data.candidates?.[0]?.finishReason;
-    if (finishReason) {
-      throw new Error(`No content generated. Finish reason: ${finishReason}`);
-    }
-    
-    throw new Error(`No analysis content received. API returned: ${JSON.stringify(data).substring(0, 300)}`);
-  }
 
-  console.log('[FileSearch] Raw API response:', content.substring(0, 300));
+  return typeof content === 'string' ? content : null;
+}
 
-  // Clean up the content - remove markdown code blocks
+function cleanGeminiTextToJson(content: string): string {
   let cleanContent = content.trim();
-  
+
   // Remove opening ```json or ``` marker
   if (cleanContent.startsWith('```json')) {
     cleanContent = cleanContent.substring(7).trim();
   } else if (cleanContent.startsWith('```')) {
     cleanContent = cleanContent.substring(3).trim();
   }
-  
+
   // Remove closing ``` marker
   if (cleanContent.endsWith('```')) {
     cleanContent = cleanContent.substring(0, cleanContent.length - 3).trim();
   }
-  
-  console.log('[FileSearch] Cleaned content starts with:', cleanContent.substring(0, 100));
 
-  // Try to parse as JSON
-  let parsed: any;
+  return cleanContent;
+}
+
+function safeParsePossiblyEmbeddedJson(cleanContent: string): any {
+  // 1) Try direct JSON
   try {
-    parsed = JSON.parse(cleanContent);
-    console.log('[FileSearch] Successfully parsed JSON directly');
-  } catch (e) {
-    console.log('[FileSearch] Direct JSON parse failed, trying to extract JSON object');
-    
-    // Try to find JSON object in the content
-    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-    
-    if (jsonMatch) {
-      try {
-        parsed = JSON.parse(jsonMatch[0]);
-        console.log('[FileSearch] Successfully extracted JSON from content');
-      } catch (e2) {
-        console.error('[FileSearch] Failed to parse extracted JSON:', e2);
-        throw new Error(`Failed to parse API response as JSON. Content starts with: ${cleanContent.substring(0, 150)}`);
+    return JSON.parse(cleanContent);
+  } catch {
+    // continue
+  }
+
+  // 2) Try to extract first balanced JSON object (handles extra text before/after)
+  const extracted = extractFirstBalancedJsonObject(cleanContent);
+  if (!extracted) {
+    throw new Error('No JSON object found');
+  }
+
+  return JSON.parse(extracted);
+}
+
+function extractFirstBalancedJsonObject(input: string): string | null {
+  const start = input.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < input.length; i++) {
+    const ch = input[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
       }
-    } else {
-      // Check if this looks like truncated JSON (starts with { but no closing })
-      if (cleanContent.startsWith('{') && !cleanContent.includes('}')) {
-        console.log('[FileSearch] Detected truncated JSON response, using fallback');
-        
-        // Extract what we can from the partial response
-        const partialSummary = cleanContent.match(/"summary"\s*:\s*"([^"]+)/)?.[1] || 
-          `Documento de prensa: ${publicationName}`;
-        
-        return {
-          summary: partialSummary.replace(/\\n/g, '\n'),
-          clippingsCount: 0,
-          categories: [],
-          keywords: [],
-          relevantClients: []
-        };
+      if (ch === '\\') {
+        escaped = true;
+        continue;
       }
-      
-      throw new Error(`No JSON object found in API response. Content starts with: ${cleanContent.substring(0, 150)}`);
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') depth++;
+    if (ch === '}') depth--;
+
+    if (depth === 0) {
+      return input.slice(start, i + 1);
     }
   }
-  
-  return {
-    summary: parsed.summary || `Documento de ${publicationName}`,
-    clippingsCount: parsed.clippings_count || 0,
-    categories: parsed.categories || [],
-    keywords: parsed.keywords || [],
-    relevantClients: parsed.relevant_clients || []
-  };
+
+  return null;
 }
 
 async function analyzeImageWithVision(
