@@ -455,7 +455,7 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
           temperature: 0.3,
           topK: 20,
           topP: 0.8,
-          maxOutputTokens: 8192
+          maxOutputTokens: 16384
         }
       })
     }
@@ -540,6 +540,23 @@ Proporciona exactamente este formato JSON (sin markdown, sin explicaciones):
         throw new Error(`Failed to parse API response as JSON. Content starts with: ${cleanContent.substring(0, 150)}`);
       }
     } else {
+      // Check if this looks like truncated JSON (starts with { but no closing })
+      if (cleanContent.startsWith('{') && !cleanContent.includes('}')) {
+        console.log('[FileSearch] Detected truncated JSON response, using fallback');
+        
+        // Extract what we can from the partial response
+        const partialSummary = cleanContent.match(/"summary"\s*:\s*"([^"]+)/)?.[1] || 
+          `Documento de prensa: ${publicationName}`;
+        
+        return {
+          summary: partialSummary.replace(/\\n/g, '\n'),
+          clippingsCount: 0,
+          categories: [],
+          keywords: [],
+          relevantClients: []
+        };
+      }
+      
       throw new Error(`No JSON object found in API response. Content starts with: ${cleanContent.substring(0, 150)}`);
     }
   }
@@ -615,7 +632,7 @@ Extrae y analiza el texto visible. Proporciona exactamente este formato JSON:
           temperature: 0.3,
           topK: 20,
           topP: 0.8,
-          maxOutputTokens: 8192
+          maxOutputTokens: 16384
         }
       })
     }
