@@ -28,7 +28,7 @@ const PDFUploadContainer = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { thumbnailUrl } = usePdfThumbnail(file);
 
-  const maxFileSizeMB = 40;
+  const maxFileSizeMB = 100;
 
   const handleFileSelected = useCallback((selectedFile: File) => {
     setFile(selectedFile);
