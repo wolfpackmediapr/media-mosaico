@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4" 
-import { SOCIAL_FEEDS, POSTS_PER_FEED } from "./constants.ts"
+import { SOCIAL_FEEDS, WEBSITE_FEEDS, POSTS_PER_FEED } from "./constants.ts"
 import { processRssJsonFeed, updateFeedSource, logProcessingError } from "./feed-processor.ts"
 
 const corsHeaders = {
@@ -30,10 +30,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
     );
     
-    // Process each feed in the SOCIAL_FEEDS array
+    // Process each feed (social + website)
+    const ALL_FEEDS = [...SOCIAL_FEEDS, ...WEBSITE_FEEDS];
     const results = [];
     
-    for (const feed of SOCIAL_FEEDS) {
+    for (const feed of ALL_FEEDS) {
       try {
         console.log(`Processing feed: ${feed.name} (${feed.platform})`);
         
