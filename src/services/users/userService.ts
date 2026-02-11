@@ -61,24 +61,21 @@ export async function createUser(
   username: string,
   role: "administrator" | "data_entry"
 ): Promise<{ data: any | null; error: any | null }> {
-  // Sign up the user (this will create an entry in auth.users)
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        username,
-        role
-      }
-    }
+  const { data: response, error: invokeError } = await supabase.functions.invoke('create-user', {
+    body: { email, password, username, role },
   });
 
-  if (authError) {
-    console.error("Error creating user:", authError);
-    return { data: null, error: authError };
+  if (invokeError) {
+    console.error("Error creating user:", invokeError);
+    return { data: null, error: invokeError };
   }
 
-  return { data: authData, error: null };
+  if (response?.error) {
+    console.error("Error creating user:", response.error);
+    return { data: null, error: { message: response.error } };
+  }
+
+  return { data: response?.data, error: null };
 }
 
 export async function updateUserProfile(
