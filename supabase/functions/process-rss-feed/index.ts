@@ -178,18 +178,39 @@ async function processArticle(
   clients: Client[]
 ) {
   try {
-    const { data: existingArticle } = await supabase
+    // Check for duplicates by exact link
+    const { data: existingByLink } = await supabase
       .from('news_articles')
       .select('id')
       .eq('link', article.link)
       .maybeSingle();
 
-    if (existingArticle) {
-      console.log('Article already exists:', article.title);
+    if (existingByLink) {
+      console.log('Article already exists (link match):', article.title);
       return null;
     }
 
+    // Check for duplicates by title + source + same day (handles URL variants)
     const pubDate = parsePublicationDate(article.pub_date);
+    const dayStart = new Date(pubDate);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(pubDate);
+    dayEnd.setUTCHours(23, 59, 59, 999);
+
+    const { data: existingByTitleSource } = await supabase
+      .from('news_articles')
+      .select('id')
+      .eq('title', article.title)
+      .eq('source', article.source)
+      .gte('pub_date', dayStart.toISOString())
+      .lte('pub_date', dayEnd.toISOString())
+      .maybeSingle();
+
+    if (existingByTitleSource) {
+      console.log('Article already exists (title+source+date match):', article.title);
+      return null;
+    }
+
     console.log(`Parsed date for "${article.title}":`, pubDate.toISOString());
 
     const sevenDaysAgo = new Date();
