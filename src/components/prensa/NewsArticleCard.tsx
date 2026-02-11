@@ -21,7 +21,13 @@ const NewsArticleCard = ({ article }: NewsArticleCardProps) => {
     : "";
   
   // Use the sanitizer to clean up the description
-  const sanitizedDescription = sanitizeSocialContent(article.description || '');
+  // Sanitize and strip any embedded images/iframes from the description
+  const sanitizedDescription = sanitizeSocialContent(article.description || '')
+    .replace(/<img[^>]*>/gi, '')
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '')
+    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
+    .trim();
   
   return (
     <Card className="overflow-hidden transition-shadow hover:shadow-md">
