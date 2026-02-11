@@ -23,8 +23,8 @@ const userSchema = z.object({
   role: z.enum(["administrator", "data_entry"], {
     errorMap: () => ({ message: "Rol no válido" }),
   }),
-  email: z.string().email("Correo electrónico inválido").optional(),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres.").optional(),
+  email: z.string().email("Correo electrónico inválido").optional().or(z.literal("")),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres.").optional().or(z.literal("")),
 });
 
 export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormProps) {
