@@ -212,24 +212,5 @@ export const SOCIAL_FEEDS = [
   }
 ];
 
-// Website RSS feeds to process
-export const WEBSITE_FEEDS = [
-  { url: "https://rss.app/feeds/v1.1/N53FUwMoGGpEWcYZ.json", name: "Magazine PR", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/aBdekpODYJVUfXAm.json", name: "Puerto Rico Posts", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/yPRdtZEgLSuKcMVt.json", name: "Ey Boricua", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/rr4uYU0exnPBtxte.json", name: "Sin Comillas Web", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/9p7W4HKak01RYPbW.json", name: "Bandera Roja", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/E0vAbMUIx0vhOON6.json", name: "CPI Web", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/97t1Cht2SHwkXE3l.json", name: "News is My Business Web", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/OznhSeLipZnDUQO1.json", name: "NotiCel", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/5fBP6x1UPtg4Vl61.json", name: "Metro Puerto Rico", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/u36Cq9VlZgqwplRo.json", name: "El Vocero Web", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/NoW4emysymWXjy7E.json", name: "Primera Hora Web", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/G4qieYTtgGaVQwga.json", name: "El Nuevo Dia Web", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/itsWx81xmLkRi9yj.json", name: "El Adoquin Times", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/b4LX5DmGnivVvzdd.json", name: "La Perla del Sur", platform: "website" },
-  { url: "https://rss.app/feeds/v1.1/lPUtQ7dazJTieWLW.json", name: "Revista Seguros", platform: "website" },
-];
-
 // Number of posts to fetch per feed
 export const POSTS_PER_FEED = 10;
