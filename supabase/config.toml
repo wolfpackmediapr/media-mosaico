@@ -32,3 +32,6 @@ verify_jwt = true
 
 [functions.reanalyze-articles]
 verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false
