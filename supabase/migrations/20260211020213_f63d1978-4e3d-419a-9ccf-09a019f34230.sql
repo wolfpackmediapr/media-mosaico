@@ -1,0 +1,1 @@
+UPDATE feed_sources SET platform = 'news' WHERE platform = 'website';
