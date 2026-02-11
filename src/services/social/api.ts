@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { SocialPost, SocialPlatform } from "@/types/social";
 
 // List of social media platforms to include
-export const SOCIAL_PLATFORMS = ['twitter', 'facebook', 'instagram', 'youtube', 'linkedin', 'social_media', 'website'];
+export const SOCIAL_PLATFORMS = ['twitter', 'facebook', 'instagram', 'youtube', 'linkedin', 'social_media'];
 
 // Social feed URLs - ensure we're using the correct .json format
 export const SOCIAL_FEEDS = [
