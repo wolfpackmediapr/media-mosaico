@@ -1,5 +1,6 @@
 
 import React, { useRef, useEffect, useState } from "react";
+import DOMPurify from "dompurify";
 import NotepadToolbar from "./NotepadToolbar";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -19,18 +20,28 @@ const NotepadEditor = ({
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
 
+  const sanitizeOptions = {
+    ALLOWED_TAGS: ['b', 'i', 'u', 'strong', 'em', 'p', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'div', 'span'],
+    ALLOWED_ATTR: [] as string[],
+    KEEP_CONTENT: true
+  };
+
   // Initialize editor content when component mounts or content changes externally
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== content) {
-      editorRef.current.innerHTML = content || "";
+    if (editorRef.current) {
+      const sanitized = DOMPurify.sanitize(content || "", sanitizeOptions);
+      if (editorRef.current.innerHTML !== sanitized) {
+        editorRef.current.innerHTML = sanitized;
+      }
     }
   }, [content]);
 
-  // Handle input changes with improved event handling
+  // Handle input changes with sanitization
   const handleInput = () => {
     if (editorRef.current) {
-      const newContent = editorRef.current.innerHTML;
-      onContentChange(newContent);
+      const rawContent = editorRef.current.innerHTML;
+      const sanitized = DOMPurify.sanitize(rawContent, sanitizeOptions);
+      onContentChange(sanitized);
     }
   };
 
