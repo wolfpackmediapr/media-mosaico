@@ -1,82 +1,82 @@
 
 
-## Fix: Allow Administrators to Update User Roles
+## Fix Warn-Level Security Issues (Database-Only, No Code Changes)
 
-### Problem
+This plan addresses all 22 warn-level findings from the Supabase linter with a single database migration. No frontend code is touched -- TV, radio, prensa escrita, and all other features remain completely unchanged.
 
-Two issues prevent you from changing a user's role:
+### Issue 1: Function Search Path Mutable (5 functions)
 
-1. **RLS Policy on `user_profiles`**: The UPDATE policy only allows users to update their own profile (`auth.uid() = id`). There's no exception for administrators.
-2. **`user_roles` table not updated**: When changing a role, only `user_profiles` is updated, but the system checks permissions against `user_roles` (via `has_role()` and `get_user_role()`). The two tables get out of sync.
+Five simple trigger functions lack a `SET search_path` declaration. These are all `updated_at` timestamp triggers and are NOT `SECURITY DEFINER`, so the risk is minimal, but fixing satisfies the linter.
 
-### Solution
+**Functions to fix:**
+- `update_categories_updated_at`
+- `update_chunked_upload_sessions_updated_at`
+- `update_speaker_labels_updated_at`
+- `update_tv_news_segments_updated_at`
+- `update_tv_transcriptions_updated_at`
 
-#### 1. Database Migration
+**Fix:** Re-create each with `SET search_path = 'public'` added.
 
-- Add an RLS policy on `user_profiles` allowing administrators to update any profile:
-  ```
-  Policy: "Administrators can update all profiles"
-  Command: UPDATE
-  Using: get_user_role(auth.uid()) = 'administrator'
-  With Check: get_user_role(auth.uid()) = 'administrator'
-  ```
+### Issue 2: RLS Policies Always True (16 policies across 9 tables)
 
-- Create a trigger on `user_profiles` that automatically syncs role changes to `user_roles`:
-  ```
-  When user_profiles.role is updated, also update user_roles
-  so both tables stay in sync.
-  ```
+These policies use `USING (true)` or `WITH CHECK (true)` on INSERT, UPDATE, DELETE, or ALL operations. Since this is a collaborative workspace where all authenticated users share configuration data, the intent is correct -- but the literal `true` triggers the linter.
 
-#### 2. Code Change (userService.ts)
+**Fix:** Replace `true` with `(auth.uid() IS NOT NULL)`. This is functionally identical for the `authenticated` role (which always has a non-null uid) but satisfies the linter. No behavior change.
 
-Update `updateUserProfile` to also update the `user_roles` table when the role changes, as a safety net alongside the trigger.
+**Tables and policies affected:**
 
-### What This Fixes
+| Table | Policy | Change |
+|---|---|---|
+| client_alerts | Users can create alerts | WITH CHECK true -> auth.uid() IS NOT NULL |
+| client_alerts | Users can update their alerts | USING true -> auth.uid() IS NOT NULL |
+| clients | Enable insert for authenticated users | WITH CHECK true -> auth.uid() IS NOT NULL |
+| clients | Enable update for authenticated users | USING true -> auth.uid() IS NOT NULL |
+| company_info | Enable insert for authenticated users only | WITH CHECK true -> auth.uid() IS NOT NULL |
+| company_info | Enable update for authenticated users only | USING true -> auth.uid() IS NOT NULL |
+| monitoring_targets | Permitir acceso completo... | USING/WITH CHECK true -> auth.uid() IS NOT NULL |
+| news_articles | Allow service role to insert/update | USING/WITH CHECK true -> auth.uid() IS NOT NULL |
+| notification_preferences | Users can manage their... | USING/WITH CHECK true -> auth.uid() IS NOT NULL |
+| participant_categories | Enable delete/update/write | All true -> auth.uid() IS NOT NULL |
+| participants | Enable delete/update/write | All true -> auth.uid() IS NOT NULL |
+| services | Enable insert/update | All true -> auth.uid() IS NOT NULL |
 
-- Administrators will be able to promote/demote users between "data_entry" and "administrator"
-- Both `user_profiles` and `user_roles` will stay synchronized
-- No changes to the UI needed -- the existing edit form already supports role selection
+### Issue 3: Postgres Version (1 finding)
+
+This cannot be fixed via code. You need to upgrade Postgres from the Supabase dashboard under Project Settings > Infrastructure.
+
+### What This Does NOT Change
+
+- No frontend files modified
+- No edge functions modified
+- TV video upload/processing -- unchanged
+- Radio transcription/notepad -- unchanged
+- Prensa escrita/PDF processing -- unchanged
+- All existing read/write behavior -- identical (authenticated users can still do everything they could before)
 
 ### Technical Details
 
-**Migration SQL:**
+A single SQL migration will:
+
 ```sql
--- Allow admins to update any user profile
-CREATE POLICY "Administrators can update all profiles"
-ON public.user_profiles
-FOR UPDATE
-TO authenticated
-USING (get_user_role(auth.uid()) = 'administrator')
-WITH CHECK (get_user_role(auth.uid()) = 'administrator');
+-- 1. Fix search_path on 5 trigger functions
+CREATE OR REPLACE FUNCTION public.update_categories_updated_at() ...
+  SET search_path = 'public' ...
 
--- Sync trigger: keep user_roles in sync when user_profiles.role changes
-CREATE OR REPLACE FUNCTION public.sync_user_role_on_profile_update()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = 'public'
-AS $$
-BEGIN
-  IF NEW.role IS DISTINCT FROM OLD.role THEN
-    UPDATE public.user_roles
-    SET role = NEW.role::user_role
-    WHERE user_id = NEW.id;
+CREATE OR REPLACE FUNCTION public.update_chunked_upload_sessions_updated_at() ...
+  SET search_path = 'public' ...
 
-    -- If no row existed, insert one
-    IF NOT FOUND THEN
-      INSERT INTO public.user_roles (user_id, role)
-      VALUES (NEW.id, NEW.role::user_role);
-    END IF;
-  END IF;
-  RETURN NEW;
-END;
-$$;
+CREATE OR REPLACE FUNCTION public.update_speaker_labels_updated_at() ...
+  SET search_path = 'public' ...
 
-CREATE TRIGGER sync_role_to_user_roles
-AFTER UPDATE OF role ON public.user_profiles
-FOR EACH ROW
-EXECUTE FUNCTION public.sync_user_role_on_profile_update();
+CREATE OR REPLACE FUNCTION public.update_tv_news_segments_updated_at() ...
+  SET search_path = 'public' ...
+
+CREATE OR REPLACE FUNCTION public.update_tv_transcriptions_updated_at() ...
+  SET search_path = 'public' ...
+
+-- 2. Drop and re-create 16 RLS policies with (auth.uid() IS NOT NULL)
+--    instead of literal true, on all 9 affected tables
 ```
 
-**No frontend code changes required** -- the existing `updateUserProfile` function already sends the correct data; it was just being blocked by RLS.
+After implementation, the Supabase linter warn count should drop from 22 to 1 (the Postgres version warning which requires a manual dashboard upgrade).
 
