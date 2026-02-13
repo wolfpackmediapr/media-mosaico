@@ -14,9 +14,13 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
   const { user, isLoading: authLoading } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isCheckingRole, setIsCheckingRole] = useState(false);
+  const [checkedUserId, setCheckedUserId] = useState<string | null>(null);
   const location = useLocation();
 
   useEffect(() => {
+    // Skip re-check if we already have the role for this user
+    if (user && checkedUserId === user.id && userRole) return;
+
     const checkUserRole = async () => {
       if (user) {
         setIsCheckingRole(true);
@@ -28,11 +32,8 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
             .single();
           
           if (error) {
-            // If the error is that no rows were returned, the profile doesn't exist yet
             if (error.code === 'PGRST116') {
               console.log('User profile not found, creating default profile');
-              
-              // Create a default profile for the user with 'data_entry' role
               const { error: insertError } = await supabase
                 .from('user_profiles')
                 .insert({ 
@@ -45,12 +46,14 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
                 console.error('Error creating user profile:', insertError);
               } else {
                 setUserRole('data_entry');
+                setCheckedUserId(user.id);
               }
             } else {
               console.error('Error fetching user role:', error);
             }
           } else {
             setUserRole(data?.role || null);
+            setCheckedUserId(user.id);
           }
         } catch (error) {
           console.error('Error in role check:', error);
@@ -58,8 +61,8 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
           setIsCheckingRole(false);
         }
       } else if (!authLoading) {
-        // Reset role when user is not authenticated
         setUserRole(null);
+        setCheckedUserId(null);
       }
     };
 
