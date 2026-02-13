@@ -1,71 +1,73 @@
 
 
-## Fix: Persistent Page Refresh/Redirect in Ajustes Section
+## Plan: Restrict Configuracion to Admins + Allow Admin Password Editing
 
-### Root Cause
+### Changes Overview
 
-The issue stems from two interconnected problems:
+Two changes are needed:
 
-1. **Stale closure in AuthContext**: The `onAuthStateChange` callback captures `session` and `isLoading` in a closure that never updates (empty `[]` dependency array). Every auth event (TOKEN_REFRESHED, SIGNED_IN) creates a new session object. Because `currentSession !== session` uses reference equality against the stale captured value, it **always** evaluates to `true`, causing unnecessary state updates with new object references on every auth event.
+1. **Hide and block "Configuracion" for data_entry users** -- they should not see the sidebar link nor access any `/ajustes` route.
+2. **Allow admins to edit user passwords** -- add a password field to the edit form and create an edge function to update passwords via the Supabase Admin API.
 
-2. **ProtectedRoute re-triggers role check**: The `useEffect` in `ProtectedRoute` depends on `[user, authLoading]`. When AuthContext unnecessarily updates the `user` state (new reference, same user), ProtectedRoute re-enters its loading state (`isCheckingRole = true`), briefly showing a spinner and effectively "refreshing" the page content. This happens on every token refresh (~every few minutes) and on tab visibility changes.
+---
 
-### Fix (2 files, no database changes)
+### Part 1: Block Configuracion for data_entry users
 
-#### File 1: `src/context/AuthContext.tsx`
+**File: `src/components/layout/Sidebar.tsx`**
+- Import the `useAuth` hook and fetch the user's role (reuse the same pattern from ProtectedRoute)
+- Conditionally hide the "Configuracion" menu item when the user's role is `data_entry`
 
-Replace the stale-closure-prone `onAuthStateChange` with one that uses **refs** to track current state, preventing unnecessary re-renders:
+**File: `src/routes/protectedRoutes.tsx`**
+- Change the `/ajustes` route to use `adminOnly: true`: `createProtectedRoute(lazyRoutes.Ajustes, true)`
 
-- Use a `sessionRef` to compare the actual user ID instead of object reference
-- Only call `setSession`/`setUser` when the user actually changes (different ID or sign-out)
-- Use a `loadingRef` to avoid the stale `isLoading` closure
-- This eliminates spurious state updates from TOKEN_REFRESHED, SIGNED_IN events when the user hasn't actually changed
+**File: `src/routes/configurationRoutes.tsx`**
+- Change ALL `ajustes/*` routes to pass `adminOnly = true`: `createProtectedRoute(settingsRoutes.XXX, true)`
+- This ensures that even if a data_entry user navigates directly to an `/ajustes/...` URL, they get redirected to home
 
-#### File 2: `src/components/auth/ProtectedRoute.tsx`
+---
 
-Cache the role check result to prevent re-fetching on every render cycle:
+### Part 2: Admin can edit user passwords
 
-- Store the checked user ID alongside the role so we only re-fetch when the **actual user** changes (not just the object reference)
-- Skip role re-check if we already have the role for the current `user.id`
-- This eliminates the loading flash that causes the perceived "page refresh"
+**New edge function: `supabase/functions/update-user-password/index.ts`**
+- Accepts `{ user_id, password }` in the request body
+- Verifies the caller is an administrator (same pattern as `create-user`)
+- Uses the Supabase Admin API (`adminClient.auth.admin.updateUserById`) to update the password
+- Returns success or error
 
-### What Changes for the User
+**File: `src/services/users/userService.ts`**
+- Add a new function `updateUserPassword(userId: string, password: string)` that invokes the `update-user-password` edge function
 
-- Navigating between tabs/sections within Ajustes will no longer cause unexpected redirects
-- Token refresh events (which happen periodically in the background) will no longer cause page flickers
-- Switching browser tabs and returning will no longer reload the page content
-- All existing authentication and authorization behavior remains identical
+**File: `src/components/settings/users/UserForm.tsx`**
+- Show the password field when editing (currently hidden with `!editingUser`)
+- Make it optional -- if left blank, password is not changed
+- Label it clearly: "Nueva contraseña (dejar en blanco para no cambiar)"
+
+**File: `src/components/settings/users/UsersContainer.tsx`**
+- Update `handleUpdateUser` to also call `updateUserPassword` when a password is provided in the form data
+
+---
 
 ### Technical Details
 
-**AuthContext.tsx changes:**
-```text
-// Before (stale closure):
-if (currentSession !== session && currentSession?.user) {
-  setSession(currentSession);  // Always triggers - reference never matches
-  setUser(currentSession.user);
-}
+**Sidebar role check approach:**
+The sidebar will query `user_profiles` for the current user's role on mount (or use a shared context/hook if one exists). The "Configuracion" link will only render for administrators.
 
-// After (stable comparison via ref):
-const prevUserId = sessionRef.current?.user?.id;
-const newUserId = currentSession?.user?.id;
-if (newUserId !== prevUserId) {
-  // Only update state when the actual user changes
-  sessionRef.current = currentSession;
-  setSession(currentSession);
-  setUser(currentSession?.user ?? null);
-}
+**Edge function `update-user-password`:**
+```text
+1. Verify Authorization header
+2. Verify caller has 'administrator' role via has_role RPC
+3. Parse { user_id, password } from body
+4. Call adminClient.auth.admin.updateUserById(user_id, { password })
+5. Return result
 ```
 
-**ProtectedRoute.tsx changes:**
-```text
-// Before: re-checks on every user reference change
-useEffect(() => { checkUserRole(); }, [user, authLoading]);
+**UserForm password field when editing:**
+- The field appears but is optional
+- Zod schema already allows empty string for password
+- The submit handler will only include password in the update payload if it's non-empty
 
-// After: skips if role already fetched for this user ID
-useEffect(() => {
-  if (user && checkedUserId === user.id && userRole) return; // skip
-  checkUserRole();
-}, [user, authLoading]);
-```
+**Route protection summary:**
+- `/ajustes` and all `/ajustes/*` sub-routes get `adminOnly = true`
+- ProtectedRoute already handles redirecting non-admins to `/`
+- Sidebar hides the link entirely for data_entry users so they never see it
 
