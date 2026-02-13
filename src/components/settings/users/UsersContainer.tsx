@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { fetchUsers, UserProfile, createUser, updateUserProfile, deleteUser } from "@/services/users/userService";
+import { fetchUsers, UserProfile, createUser, updateUserProfile, updateUserPassword, deleteUser } from "@/services/users/userService";
 import { UsersList } from "./UsersList";
 
 export function UsersContainer() {
@@ -97,7 +97,7 @@ export function UsersContainer() {
     }
   };
 
-  const handleUpdateUser = async (user: UserProfile) => {
+  const handleUpdateUser = async (user: UserProfile & { password?: string }) => {
     try {
       const { error } = await updateUserProfile(user.id, {
         username: user.username, 
@@ -105,6 +105,12 @@ export function UsersContainer() {
       });
       
       if (error) throw new Error(error.message);
+
+      // Update password if provided
+      if (user.password) {
+        const { error: pwError } = await updateUserPassword(user.id, user.password);
+        if (pwError) throw new Error(pwError.message);
+      }
       
       toast({
         title: "Usuario actualizado",
@@ -112,7 +118,7 @@ export function UsersContainer() {
       });
       
       // Update local state
-      setAllUsers(allUsers.map(u => u.id === user.id ? user : u));
+      setAllUsers(allUsers.map(u => u.id === user.id ? { ...u, username: user.username, role: user.role } : u));
       setEditingUser(null);
       setShowForm(false);
     } catch (err: any) {
