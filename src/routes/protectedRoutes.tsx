@@ -72,7 +72,7 @@ export const protectedRoutes: RouteObject[] = [
   },
   {
     path: "ajustes",
-    element: createProtectedRoute(lazyRoutes.Ajustes)
+    element: createProtectedRoute(lazyRoutes.Ajustes, true)
   },
   {
     path: "ayuda",

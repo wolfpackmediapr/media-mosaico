@@ -91,6 +91,27 @@ export async function updateUserProfile(
   return { data, error };
 }
 
+export async function updateUserPassword(
+  userId: string,
+  password: string
+): Promise<{ success: boolean; error: any | null }> {
+  const { data: response, error: invokeError } = await supabase.functions.invoke('update-user-password', {
+    body: { user_id: userId, password },
+  });
+
+  if (invokeError) {
+    console.error("Error updating password:", invokeError);
+    return { success: false, error: invokeError };
+  }
+
+  if (response?.error) {
+    console.error("Error updating password:", response.error);
+    return { success: false, error: { message: response.error } };
+  }
+
+  return { success: true, error: null };
+}
+
 export async function deleteUser(
   userId: string
 ): Promise<{ success: boolean; error: any | null }> {

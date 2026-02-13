@@ -1,9 +1,11 @@
 import { Home, Tv, Radio, Newspaper, Bell, BarChart2, Settings, HelpCircle, Send, Rss, Menu, Tablet, FileText, BookOpen } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Image } from "@/components/ui/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const mainMenuItems = [
   { icon: Home, label: "Inicio", path: "/" },
@@ -27,6 +29,21 @@ const bottomMenuItems = [
 const Sidebar = () => {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { user } = useAuth();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      if (data) setUserRole(data.role);
+    };
+    fetchRole();
+  }, [user]);
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
@@ -90,11 +107,16 @@ const Sidebar = () => {
       </nav>
       <div className="p-4 border-t border-gray-200">
         <ul className="space-y-1">
-          {bottomMenuItems.map((item) => (
-            <li key={item.path}>
-              <MenuItem item={item} />
-            </li>
-          ))}
+          {bottomMenuItems
+            .filter(item => {
+              if (item.path === "/ajustes" && userRole !== 'administrator') return false;
+              return true;
+            })
+            .map((item) => (
+              <li key={item.path}>
+                <MenuItem item={item} />
+              </li>
+            ))}
         </ul>
       </div>
     </div>

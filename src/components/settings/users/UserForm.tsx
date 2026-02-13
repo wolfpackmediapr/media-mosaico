@@ -58,12 +58,12 @@ export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormPro
   const handleSubmit = async (values: z.infer<typeof userSchema>) => {
     setLoading(true);
     try {
-      // If editing, we don't need password or email
       if (editingUser) {
-        const { password, email, ...updateData } = values;
+        const { email, ...updateData } = values;
         await onSubmit({
           id: editingUser.id,
           ...updateData,
+          password: values.password || undefined, // only include if non-empty
         });
       } else {
         // Creating new user requires email and password
@@ -121,21 +121,21 @@ export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormPro
               />
             )}
 
-            {!editingUser && (
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contraseña</FormLabel>
-                    <FormControl>
-                      <Input placeholder="******" type="password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {editingUser ? "Nueva contraseña (dejar en blanco para no cambiar)" : "Contraseña"}
+                  </FormLabel>
+                  <FormControl>
+                    <Input placeholder="******" type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
