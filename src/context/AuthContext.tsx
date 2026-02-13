@@ -1,5 +1,5 @@
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User, AuthError } from "@supabase/supabase-js";
 import { toast } from "sonner";
@@ -20,33 +20,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const sessionRef = useRef<Session | null>(null);
+  const loadingRef = useRef(true);
 
   useEffect(() => {
-    // Best practice: Set up auth state listener FIRST to avoid missing auth events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
         console.log('[AuthContext] Auth state change event:', event);
         
-        // Handle auth state changes
         if (event === 'SIGNED_OUT') {
+          sessionRef.current = null;
           setSession(null);
           setUser(null);
-        } else if (currentSession !== session && currentSession?.user) {
-          setSession(currentSession);
-          setUser(currentSession.user);
+        } else {
+          const prevUserId = sessionRef.current?.user?.id;
+          const newUserId = currentSession?.user?.id;
+          if (newUserId !== prevUserId) {
+            sessionRef.current = currentSession;
+            setSession(currentSession);
+            setUser(currentSession?.user ?? null);
+          }
         }
         
-        // Only set loading to false after initial session check
-        if (isLoading) {
+        if (loadingRef.current) {
+          loadingRef.current = false;
           setIsLoading(false);
         }
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      sessionRef.current = currentSession;
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
+      loadingRef.current = false;
       setIsLoading(false);
     });
 
