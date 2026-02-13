@@ -1,82 +1,71 @@
 
 
-## Fix Warn-Level Security Issues (Database-Only, No Code Changes)
+## Fix: Persistent Page Refresh/Redirect in Ajustes Section
 
-This plan addresses all 22 warn-level findings from the Supabase linter with a single database migration. No frontend code is touched -- TV, radio, prensa escrita, and all other features remain completely unchanged.
+### Root Cause
 
-### Issue 1: Function Search Path Mutable (5 functions)
+The issue stems from two interconnected problems:
 
-Five simple trigger functions lack a `SET search_path` declaration. These are all `updated_at` timestamp triggers and are NOT `SECURITY DEFINER`, so the risk is minimal, but fixing satisfies the linter.
+1. **Stale closure in AuthContext**: The `onAuthStateChange` callback captures `session` and `isLoading` in a closure that never updates (empty `[]` dependency array). Every auth event (TOKEN_REFRESHED, SIGNED_IN) creates a new session object. Because `currentSession !== session` uses reference equality against the stale captured value, it **always** evaluates to `true`, causing unnecessary state updates with new object references on every auth event.
 
-**Functions to fix:**
-- `update_categories_updated_at`
-- `update_chunked_upload_sessions_updated_at`
-- `update_speaker_labels_updated_at`
-- `update_tv_news_segments_updated_at`
-- `update_tv_transcriptions_updated_at`
+2. **ProtectedRoute re-triggers role check**: The `useEffect` in `ProtectedRoute` depends on `[user, authLoading]`. When AuthContext unnecessarily updates the `user` state (new reference, same user), ProtectedRoute re-enters its loading state (`isCheckingRole = true`), briefly showing a spinner and effectively "refreshing" the page content. This happens on every token refresh (~every few minutes) and on tab visibility changes.
 
-**Fix:** Re-create each with `SET search_path = 'public'` added.
+### Fix (2 files, no database changes)
 
-### Issue 2: RLS Policies Always True (16 policies across 9 tables)
+#### File 1: `src/context/AuthContext.tsx`
 
-These policies use `USING (true)` or `WITH CHECK (true)` on INSERT, UPDATE, DELETE, or ALL operations. Since this is a collaborative workspace where all authenticated users share configuration data, the intent is correct -- but the literal `true` triggers the linter.
+Replace the stale-closure-prone `onAuthStateChange` with one that uses **refs** to track current state, preventing unnecessary re-renders:
 
-**Fix:** Replace `true` with `(auth.uid() IS NOT NULL)`. This is functionally identical for the `authenticated` role (which always has a non-null uid) but satisfies the linter. No behavior change.
+- Use a `sessionRef` to compare the actual user ID instead of object reference
+- Only call `setSession`/`setUser` when the user actually changes (different ID or sign-out)
+- Use a `loadingRef` to avoid the stale `isLoading` closure
+- This eliminates spurious state updates from TOKEN_REFRESHED, SIGNED_IN events when the user hasn't actually changed
 
-**Tables and policies affected:**
+#### File 2: `src/components/auth/ProtectedRoute.tsx`
 
-| Table | Policy | Change |
-|---|---|---|
-| client_alerts | Users can create alerts | WITH CHECK true -> auth.uid() IS NOT NULL |
-| client_alerts | Users can update their alerts | USING true -> auth.uid() IS NOT NULL |
-| clients | Enable insert for authenticated users | WITH CHECK true -> auth.uid() IS NOT NULL |
-| clients | Enable update for authenticated users | USING true -> auth.uid() IS NOT NULL |
-| company_info | Enable insert for authenticated users only | WITH CHECK true -> auth.uid() IS NOT NULL |
-| company_info | Enable update for authenticated users only | USING true -> auth.uid() IS NOT NULL |
-| monitoring_targets | Permitir acceso completo... | USING/WITH CHECK true -> auth.uid() IS NOT NULL |
-| news_articles | Allow service role to insert/update | USING/WITH CHECK true -> auth.uid() IS NOT NULL |
-| notification_preferences | Users can manage their... | USING/WITH CHECK true -> auth.uid() IS NOT NULL |
-| participant_categories | Enable delete/update/write | All true -> auth.uid() IS NOT NULL |
-| participants | Enable delete/update/write | All true -> auth.uid() IS NOT NULL |
-| services | Enable insert/update | All true -> auth.uid() IS NOT NULL |
+Cache the role check result to prevent re-fetching on every render cycle:
 
-### Issue 3: Postgres Version (1 finding)
+- Store the checked user ID alongside the role so we only re-fetch when the **actual user** changes (not just the object reference)
+- Skip role re-check if we already have the role for the current `user.id`
+- This eliminates the loading flash that causes the perceived "page refresh"
 
-This cannot be fixed via code. You need to upgrade Postgres from the Supabase dashboard under Project Settings > Infrastructure.
+### What Changes for the User
 
-### What This Does NOT Change
-
-- No frontend files modified
-- No edge functions modified
-- TV video upload/processing -- unchanged
-- Radio transcription/notepad -- unchanged
-- Prensa escrita/PDF processing -- unchanged
-- All existing read/write behavior -- identical (authenticated users can still do everything they could before)
+- Navigating between tabs/sections within Ajustes will no longer cause unexpected redirects
+- Token refresh events (which happen periodically in the background) will no longer cause page flickers
+- Switching browser tabs and returning will no longer reload the page content
+- All existing authentication and authorization behavior remains identical
 
 ### Technical Details
 
-A single SQL migration will:
+**AuthContext.tsx changes:**
+```text
+// Before (stale closure):
+if (currentSession !== session && currentSession?.user) {
+  setSession(currentSession);  // Always triggers - reference never matches
+  setUser(currentSession.user);
+}
 
-```sql
--- 1. Fix search_path on 5 trigger functions
-CREATE OR REPLACE FUNCTION public.update_categories_updated_at() ...
-  SET search_path = 'public' ...
-
-CREATE OR REPLACE FUNCTION public.update_chunked_upload_sessions_updated_at() ...
-  SET search_path = 'public' ...
-
-CREATE OR REPLACE FUNCTION public.update_speaker_labels_updated_at() ...
-  SET search_path = 'public' ...
-
-CREATE OR REPLACE FUNCTION public.update_tv_news_segments_updated_at() ...
-  SET search_path = 'public' ...
-
-CREATE OR REPLACE FUNCTION public.update_tv_transcriptions_updated_at() ...
-  SET search_path = 'public' ...
-
--- 2. Drop and re-create 16 RLS policies with (auth.uid() IS NOT NULL)
---    instead of literal true, on all 9 affected tables
+// After (stable comparison via ref):
+const prevUserId = sessionRef.current?.user?.id;
+const newUserId = currentSession?.user?.id;
+if (newUserId !== prevUserId) {
+  // Only update state when the actual user changes
+  sessionRef.current = currentSession;
+  setSession(currentSession);
+  setUser(currentSession?.user ?? null);
+}
 ```
 
-After implementation, the Supabase linter warn count should drop from 22 to 1 (the Postgres version warning which requires a manual dashboard upgrade).
+**ProtectedRoute.tsx changes:**
+```text
+// Before: re-checks on every user reference change
+useEffect(() => { checkUserRole(); }, [user, authLoading]);
+
+// After: skips if role already fetched for this user ID
+useEffect(() => {
+  if (user && checkedUserId === user.id && userRole) return; // skip
+  checkUserRole();
+}, [user, authLoading]);
+```
 
