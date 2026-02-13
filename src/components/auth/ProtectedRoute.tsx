@@ -13,13 +13,16 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) => {
   const { user, isLoading: authLoading } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isCheckingRole, setIsCheckingRole] = useState(false);
+  const [isCheckingRole, setIsCheckingRole] = useState(true);
   const [checkedUserId, setCheckedUserId] = useState<string | null>(null);
   const location = useLocation();
 
   useEffect(() => {
     // Skip re-check if we already have the role for this user
-    if (user && checkedUserId === user.id && userRole) return;
+    if (user && checkedUserId === user.id && userRole) {
+      setIsCheckingRole(false);
+      return;
+    }
 
     const checkUserRole = async () => {
       if (user) {
