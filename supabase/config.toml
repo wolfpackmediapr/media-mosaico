@@ -28,7 +28,10 @@ memory_mb = 1024
 verify_jwt = true
 
 [functions.process-rss-feed]
-verify_jwt = true
+verify_jwt = false
+
+[functions.process-social-feeds]
+verify_jwt = false
 
 [functions.reanalyze-articles]
 verify_jwt = false
