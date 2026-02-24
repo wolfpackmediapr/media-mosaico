@@ -409,40 +409,65 @@ async function analyzeDocumentWithFileSearch(
   const hasClients = clients.length > 0;
   const clientNames = clients.map(c => c.name);
   
-// Reduced prompt to minimize truncation - 300 words max, 5 articles max
-  const detailedPrompt = `Utiliza la herramienta File Search para leer el documento de prensa "${publicationName}".
+  const detailedPrompt = `Utiliza la herramienta File Search para leer COMPLETO el documento de prensa "${publicationName}".
 
-**IMPORTANTE**: 
-- Responde ÚNICAMENTE con JSON válido, sin markdown ni texto adicional
-- El resumen debe ser CONCISO pero informativo (máximo 300 palabras)
-- Menciona páginas cuando sea posible
-- Máximo 5 artículos destacados
+**INSTRUCCIONES**: Analiza el periódico COMPLETO página por página. Identifica TODOS los artículos, noticias, columnas y contenido editorial.
 
 **CATEGORÍAS VÁLIDAS**: ${categories.join(', ')}
 
-${hasClients ? `**CLIENTES**: Busca menciones de:\n${clientKeywordsPrompt}\n\nInclúyelos en relevant_clients si aparecen.` : `**NOTA**: Sin clientes configurados. Cuenta todos los artículos.`}
+${hasClients ? `**CLIENTES Y PALABRAS CLAVE**: Busca menciones de:\n${clientKeywordsPrompt}\n\nInclúyelos en relevant_clients si aparecen.` : `**NOTA**: Sin clientes configurados. Cuenta todos los artículos.`}
 
-Responde exactamente este formato JSON:
+**FORMATO DE RESPUESTA**: Responde ÚNICAMENTE con JSON válido (sin markdown, sin texto adicional):
+
 {
-  "summary": "RESUMEN EJECUTIVO:\\n[2-3 oraciones sobre el documento]\\n\\nSECCIONES:\\n• [Sección] (Págs. X-Y): [1-2 oraciones]\\n\\nARTÍCULOS DESTACADOS:\\n1. [Título] - Pág. X: [1 oración]\\n2. [Título] - Pág. Y: [1 oración]\\n(máximo 5)\\n\\nTEMAS PRINCIPALES:\\n• [Tema 1]\\n• [Tema 2]",
-  "clippings_count": 10,
+  "resumen_ejecutivo": "Párrafo de 3-5 oraciones describiendo los temas principales del periódico del día, mencionando las noticias más importantes y su contexto.",
+  "articulos": [
+    {
+      "titulo": "Título exacto del artículo",
+      "pagina": 1,
+      "seccion": "Noticias",
+      "categoria": "GOBIERNO",
+      "resumen": "Resumen de 2-3 oraciones del contenido del artículo.",
+      "personas_mencionadas": ["Nombre 1", "Nombre 2"],
+      "organizaciones": ["Org 1"],
+      "relevancia_clientes": ["Cliente relevante si aplica"]
+    }
+  ],
+  "analisis_5w": {
+    "quien": "Principales personas, funcionarios, organizaciones y figuras mencionadas en todo el periódico",
+    "que": "Eventos, decisiones, acciones y situaciones principales cubiertas",
+    "cuando": "Fechas, plazos y referencias temporales importantes",
+    "donde": "Lugares, municipios, países e instituciones mencionadas",
+    "por_que": "Causas, contexto y motivos detrás de las noticias principales"
+  },
+  "temas_principales": ["Tema 1", "Tema 2", "Tema 3"],
+  "clippings_count": 15,
   "categories": ["GOBIERNO", "SALUD"],
   "keywords": ["legislatura", "hospital"],
   "relevant_clients": ${hasClients ? '["Cliente1"]' : '[]'}
-}`;
+}
 
-  // Simplified retry prompt - minimal output
+**REGLAS**:
+- Incluye TODOS los artículos encontrados en el periódico (no solo 5)
+- El resumen ejecutivo debe dar una visión general clara del periódico del día
+- Cada artículo debe tener un resumen informativo, no solo el título
+- El análisis 5W debe cubrir TODO el periódico, no solo un artículo
+- Usa las categorías válidas proporcionadas`;
+
   const simplifiedPrompt = `Lee el documento "${publicationName}" y responde con este JSON exacto (sin markdown):
 {
-  "summary": "Resumen breve del documento en 100 palabras máximo.",
+  "resumen_ejecutivo": "Resumen del periódico en 3 oraciones.",
+  "articulos": [],
+  "analisis_5w": {"quien": "", "que": "", "cuando": "", "donde": "", "por_que": ""},
+  "temas_principales": [],
   "clippings_count": 0,
   "categories": [],
   "keywords": [],
   "relevant_clients": []
 }`;
 
-  const attemptPrompts: Array<{ label: string; prompt: string; maxOutputTokens: number }> = [
-    { label: 'detailed', prompt: detailedPrompt, maxOutputTokens: 16384 },
+    const attemptPrompts: Array<{ label: string; prompt: string; maxOutputTokens: number }> = [
+    { label: 'detailed', prompt: detailedPrompt, maxOutputTokens: 32768 },
     { label: 'simplified', prompt: simplifiedPrompt, maxOutputTokens: 8192 }
   ];
 
@@ -474,9 +499,11 @@ Responde exactamente este formato JSON:
       const parsed = safeParsePossiblyEmbeddedJson(cleanContent);
       console.log('[FileSearch] ✓ Parsed JSON successfully');
 
+      // Build structured summary from new format
+      const structuredSummary = buildStructuredSummary(parsed, publicationName);
       return {
-        summary: parsed.summary || `Documento de ${publicationName}`,
-        clippingsCount: parsed.clippings_count || 0,
+        summary: structuredSummary,
+        clippingsCount: parsed.clippings_count || parsed.articulos?.length || 0,
         categories: parsed.categories || [],
         keywords: parsed.keywords || [],
         relevantClients: parsed.relevant_clients || []
@@ -484,7 +511,23 @@ Responde exactamente este formato JSON:
     } catch (parseErr) {
       console.warn('[FileSearch] JSON parse failed:', parseErr);
       // Continue to retry with simplified prompt
-    }
+}
+
+/**
+ * Builds a structured summary string from the parsed analysis JSON.
+ * Stored as the document_summary field - the UI parses this to render structured sections.
+ */
+function buildStructuredSummary(parsed: any, publicationName: string): string {
+  // Store the full structured data as JSON string for the UI to parse
+  const structuredData = {
+    resumen_ejecutivo: parsed.resumen_ejecutivo || parsed.summary || `Documento de ${publicationName}`,
+    articulos: parsed.articulos || [],
+    analisis_5w: parsed.analisis_5w || null,
+    temas_principales: parsed.temas_principales || [],
+  };
+  
+  return JSON.stringify(structuredData);
+}
   }
 
   // Final fallback: use robust extraction for truncated/invalid JSON
