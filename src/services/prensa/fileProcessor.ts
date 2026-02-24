@@ -5,7 +5,8 @@ import { ERROR_MESSAGES } from "@/hooks/prensa/constants";
 export const createProcessingJob = async (
   fileName: string,
   publicationName: string,
-  filePath: string
+  filePath: string,
+  publicationDate?: Date
 ): Promise<ProcessingJob> => {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   
@@ -160,7 +161,8 @@ export const cleanupFailedJob = async (jobId: string): Promise<void> => {
 export const processFileWithFileSearch = async (
   file: File,
   publicationName: string,
-  userId: string
+  userId: string,
+  publicationDate?: Date
 ): Promise<{
   documentId: string;
   summary: string;
@@ -186,7 +188,8 @@ export const processFileWithFileSearch = async (
       publicationName,
       userId,
       fileName: file.name,
-      fileSize: file.size
+      fileSize: file.size,
+      publicationDate: publicationDate?.toISOString()
     }
   });
 

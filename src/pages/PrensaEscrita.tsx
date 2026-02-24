@@ -36,9 +36,9 @@ export default function PrensaEscrita() {
   }, []);
 
   // Real file handling
-  const handleFileSelect = async (file: File, pubName: string) => {
+  const handleFileSelect = async (file: File, pubName: string, pubDate?: Date) => {
     try {
-      await processFile(file, pubName);
+      await processFile(file, pubName, pubDate);
       
       // Switch to results tab after successful processing
       setTimeout(() => {

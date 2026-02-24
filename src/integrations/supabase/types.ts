@@ -2179,6 +2179,10 @@ export type Database = {
         Returns: undefined
       }
       update_tv_programs: { Args: never; Returns: undefined }
+      update_user_password: {
+        Args: { new_password: string; target_user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       content_category:

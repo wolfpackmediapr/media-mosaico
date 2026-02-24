@@ -4,7 +4,7 @@ import PDFUploadContainer from "@/components/prensa-escrita/upload/PDFUploadCont
 import SearchClippingsContainer from "@/components/prensa-escrita/search/SearchClippingsContainer";
 
 interface UploadContentTabProps {
-  onFileSelect: (file: File, publicationName: string) => void;
+  onFileSelect: (file: File, publicationName: string, publicationDate?: Date) => void;
   onCancelProcessing?: () => void;
   isUploading: boolean;
   uploadProgress: number;

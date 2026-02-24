@@ -10,7 +10,7 @@ import PDFUploadForm from "./PDFUploadForm";
 import PDFUploadProgress from "../PDFUploadProgress";
 
 interface PDFUploadContainerProps {
-  onFileSelect: (file: File, publicationName: string) => void;
+  onFileSelect: (file: File, publicationName: string, publicationDate?: Date) => void;
   onCancelProcessing?: () => void;
   isUploading: boolean;
   uploadProgress: number;
@@ -24,6 +24,7 @@ const PDFUploadContainer = ({
 }: PDFUploadContainerProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [publicationName, setPublicationName] = useState("");
+  const [publicationDate, setPublicationDate] = useState<Date | undefined>(new Date());
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { thumbnailUrl } = usePdfThumbnail(file);
@@ -71,7 +72,7 @@ const PDFUploadContainer = ({
     
     try {
       console.log("Submitting file for processing:", file.name);
-      await onFileSelect(file, publicationName);
+      await onFileSelect(file, publicationName, publicationDate);
       console.log("File submitted successfully");
     } catch (error) {
       console.error("Error processing file:", error);
@@ -79,9 +80,10 @@ const PDFUploadContainer = ({
       toast.error("Error", {
         description: "Error al procesar el archivo. Por favor, intenta nuevamente."
       });
+    } finally {
       setIsSubmitting(false);
     }
-  }, [file, publicationName, onFileSelect]);
+  }, [file, publicationName, publicationDate, onFileSelect]);
 
   return (
     <Card>
@@ -133,6 +135,8 @@ const PDFUploadContainer = ({
               <PDFUploadForm
                 publicationName={publicationName}
                 onPublicationNameChange={setPublicationName}
+                publicationDate={publicationDate}
+                onPublicationDateChange={setPublicationDate}
                 onSubmit={handleSubmit}
                 isUploading={isUploading}
                 isSubmitting={isSubmitting}
