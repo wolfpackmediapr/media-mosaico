@@ -25,7 +25,7 @@ export const useFileProcessing = ({
 }: UseFileProcessingProps) => {
   const [isUploading, setIsUploading] = useState(false);
 
-  const processFile = useCallback(async (file: File, publicationName: string) => {
+  const processFile = useCallback(async (file: File, publicationName: string, publicationDate?: Date) => {
     setIsUploading(true);
     
     try {
@@ -45,7 +45,8 @@ export const useFileProcessing = ({
         const result = await processFileWithFileSearch(
           file,
           publicationName,
-          authData.user.id
+          authData.user.id,
+          publicationDate
         );
         
         console.log('[FileSearch] Upload complete:', result);
@@ -77,7 +78,7 @@ export const useFileProcessing = ({
         console.log("Generated file path:", filePath);
         
         // Create processing job with the file path
-        const jobData = await createProcessingJob(file.name, publicationName, filePath);
+        const jobData = await createProcessingJob(file.name, publicationName, filePath, publicationDate);
         
         if (!jobData) {
           throw new Error("No se pudo crear el trabajo de procesamiento");

@@ -1,9 +1,10 @@
 
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Search } from "lucide-react";
+import { FileText, Search, Clock } from "lucide-react";
 import UploadContentTab from "./UploadContentTab";
 import ResultsContainer from "./results/ResultsContainer";
+import ProcessingHistoryContainer from "./history/ProcessingHistoryContainer";
 import { PressClipping, DocumentMetadata } from "@/hooks/prensa/types";
 
 interface PressTabsContainerProps {
@@ -15,7 +16,7 @@ interface PressTabsContainerProps {
   publicationName: string;
   documentSummary?: string;
   documentMetadata?: DocumentMetadata;
-  onFileSelect: (file: File, publicationName: string) => void;
+  onFileSelect: (file: File, publicationName: string, publicationDate?: Date) => void;
   onCancelProcessing?: () => void;
 }
 
@@ -33,7 +34,7 @@ const PressTabsContainer = ({
 }: PressTabsContainerProps) => {
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
-      <TabsList className="grid w-full md:w-[400px] grid-cols-2">
+      <TabsList className="grid w-full md:w-[500px] grid-cols-3">
         <TabsTrigger value="upload">
           <FileText className="h-4 w-4 mr-2" />
           Subir PDF
@@ -46,6 +47,10 @@ const PressTabsContainer = ({
               {clippings.length}
             </span>
           )}
+        </TabsTrigger>
+        <TabsTrigger value="history">
+          <Clock className="h-4 w-4 mr-2" />
+          Historial
         </TabsTrigger>
       </TabsList>
       
@@ -67,6 +72,10 @@ const PressTabsContainer = ({
           documentMetadata={documentMetadata}
           setActiveTab={setActiveTab}
         />
+      </TabsContent>
+
+      <TabsContent value="history" className="space-y-6 mt-6">
+        <ProcessingHistoryContainer />
       </TabsContent>
     </Tabs>
   );

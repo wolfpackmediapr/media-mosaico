@@ -26,9 +26,9 @@ const SearchClippingsContainer = () => {
       return;
     }
 
-    await searchClippings(searchQuery);
+    const results = await searchClippings(searchQuery);
 
-    if (searchResults.length === 0 && !searchError) {
+    if (results.length === 0 && !searchError) {
       toast.info("Sin resultados", {
         description: "No se encontraron recortes de prensa que coincidan con tu búsqueda"
       });

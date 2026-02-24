@@ -103,7 +103,7 @@ export const usePdfProcessing = () => {
     handleProcessingError
   ]);
 
-  const processFile = useCallback(async (file: File, newPublicationName: string) => {
+  const processFile = useCallback(async (file: File, newPublicationName: string, publicationDate?: Date) => {
     try {
       setIsUploading(true);
       setUploadProgress(0);
@@ -123,7 +123,7 @@ export const usePdfProcessing = () => {
 
       console.log(`Starting processing for file: ${file.name}, publication: ${newPublicationName}`);
       
-      await processFileInternal(file, newPublicationName);
+      await processFileInternal(file, newPublicationName, publicationDate);
       
       clearInterval(uploadProgressInterval);
       
