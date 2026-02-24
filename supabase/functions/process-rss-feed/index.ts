@@ -382,7 +382,8 @@ serve(async (req) => {
     const { data: feedSources, error: feedSourcesError } = await supabase
       .from('feed_sources')
       .select('*')
-      .eq('active', true);
+      .eq('active', true)
+      .or('platform.eq.news,platform.is.null');
 
     if (feedSourcesError) {
       throw feedSourcesError;
