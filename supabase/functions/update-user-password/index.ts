@@ -53,7 +53,11 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error('Error updating password:', updateError);
-      return new Response(JSON.stringify({ error: updateError.message }), { status: 400, headers: corsHeaders });
+      let userMessage = updateError.message;
+      if (updateError.message?.includes('weak') || updateError.message?.includes('pwned') || (updateError as any).code === 'weak_password') {
+        userMessage = 'La contraseña es demasiado débil o ha sido comprometida en filtraciones de datos. Por favor, elija una contraseña más segura y única.';
+      }
+      return new Response(JSON.stringify({ error: userMessage }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     return new Response(JSON.stringify({ success: true }), {
