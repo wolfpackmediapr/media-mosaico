@@ -282,7 +282,7 @@ async function uploadVideoToGeminiStream(
 async function waitForFileProcessing(fileName: string, apiKey: string): Promise<void> {
   console.log('[gemini-unified] Waiting for file processing...', fileName);
   
-  const maxAttempts = 15; // Reduced attempts
+  const maxAttempts = 60; // Allow ~3 minutes for large files
   const baseDelay = 3000; // 3 seconds
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -323,13 +323,13 @@ async function waitForFileProcessing(fileName: string, apiKey: string): Promise<
     } catch (error) {
       console.error(`[gemini-unified] File status check attempt ${attempt} failed:`, error);
       if (attempt === maxAttempts) {
-        // Continue instead of throwing to allow processing with uploaded file
-        console.log('[gemini-unified] File processing timeout, continuing with analysis...');
-        return;
+        throw new Error(`File processing timeout after ${maxAttempts} attempts (~3 minutes). The file never reached ACTIVE state.`);
       }
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
+  
+  throw new Error(`File processing timeout after ${maxAttempts} attempts`);
 }
 
 // Helper to extract retry delay from Gemini 429 error responses
@@ -663,6 +663,7 @@ async function processChunkedUploadWithGemini(
     }
 
     let speakerTranscription = '';
+    let lastTranscriptionData: any = null;
     const maxTranscriptionAttempts = 5; // Increased for rate limit handling
 
     for (let attempt = 1; attempt <= maxTranscriptionAttempts; attempt++) {
@@ -735,6 +736,7 @@ async function processChunkedUploadWithGemini(
         }
 
         const transcriptionData = await transcriptionResponse.json();
+        lastTranscriptionData = transcriptionData;
         if (transcriptionData.candidates?.[0]?.content?.parts?.[0]?.text) {
           const rawTranscription = transcriptionData.candidates[0].content.parts[0].text.trim();
           
@@ -768,8 +770,8 @@ async function processChunkedUploadWithGemini(
           console.warn('[gemini-unified] All transcription attempts failed. Attempting fallback extraction...');
           // Try to extract any text from last response as fallback
           try {
-            if (transcriptionData?.candidates?.[0]?.content?.parts?.[0]?.text) {
-              const fallbackText = transcriptionData.candidates[0].content.parts[0].text.trim();
+            if (lastTranscriptionData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+              const fallbackText = lastTranscriptionData.candidates[0].content.parts[0].text.trim();
               if (fallbackText.length > 50) {
                 console.log('[gemini-unified] Using fallback transcription', { length: fallbackText.length });
                 speakerTranscription = fallbackText;
