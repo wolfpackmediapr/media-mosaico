@@ -52,8 +52,8 @@ export const fetchPlatformsData = async () => {
   return data || [];
 };
 
-// Fetch platform counts
-export const fetchPlatformCounts = async () => {
+// Fetch platform counts using individual count queries to avoid the 1000-row PostgREST limit
+export const fetchPlatformCounts = async (): Promise<Array<{ feed_source: { name: string; platform: string } }>> => {
   console.log('Fetching platform counts...');
   
   // Get feed source IDs for social feeds
@@ -67,27 +67,38 @@ export const fetchPlatformCounts = async () => {
     throw sourcesError;
   }
   
-  console.log('Feed sources found:', feedSources?.map(s => s.name) || []);
-  
-  const feedSourceIds = feedSources?.map(fs => fs.id) || [];
-  if (feedSourceIds.length === 0) {
-    console.log('No feed sources found, returning empty array');
+  if (!feedSources || feedSources.length === 0) {
     return [];
   }
-  
-  // Now get articles only from these feed sources to count them
-  const { data: articles, error } = await supabase
-    .from('news_articles')
-    .select('id, feed_source:feed_source_id(name, platform)')
-    .in('feed_source_id', feedSourceIds);
+
+  // Query counts per feed source using exact count (avoids 1000-row limit)
+  const countPromises = feedSources.map(async (fs) => {
+    const { count, error } = await supabase
+      .from('news_articles')
+      .select('id', { count: 'exact', head: true })
+      .eq('feed_source_id', fs.id);
     
-  if (error) {
-    console.error('Error fetching article counts:', error);
-    throw error;
-  }
+    if (error) {
+      console.error(`Error counting articles for ${fs.name}:`, error);
+      return { name: fs.name, platform: fs.platform, count: 0 };
+    }
+    
+    return { name: fs.name, platform: fs.platform, count: count || 0 };
+  });
+
+  const counts = await Promise.all(countPromises);
+  console.log('Platform counts (exact):', counts.filter(c => c.count > 0));
   
-  console.log('Articles fetched for platform counts:', articles?.length || 0);
-  return articles || [];
+  // Return in the format expected by calculatePlatformCounts
+  // Each entry represents one article with its feed_source info
+  const result: Array<{ feed_source: { name: string; platform: string } }> = [];
+  counts.forEach(c => {
+    for (let i = 0; i < c.count; i++) {
+      result.push({ feed_source: { name: c.name, platform: c.platform } });
+    }
+  });
+  
+  return result;
 };
 
 // Fetch social media posts
