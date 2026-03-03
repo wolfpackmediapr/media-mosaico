@@ -2,6 +2,12 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -11,6 +17,7 @@ import {
   VolumeX,
   Maximize,
   Minimize,
+  Settings,
 } from "lucide-react";
 import { useMediaSession } from "@/hooks/use-media-session";
 import { usePersistentState } from "@/hooks/use-persistent-state";
@@ -40,6 +47,7 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isTabVisible, setIsTabVisible] = useState(!document.hidden);
+  const [playbackRate, setPlaybackRate] = useState(1);
   
   // Use sticky state for the player (optional floating mode)
   const { isSticky, stickyRef, toggleSticky } = useStickyState({
@@ -125,6 +133,7 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
 
     // Set initial volume from stored preferences
     video.volume = volume[0] / 100;
+    video.playbackRate = playbackRate;
     
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
@@ -236,6 +245,12 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
     }
   };
 
+  const handlePlaybackRateChange = (rate: number) => {
+    if (!videoRef.current) return;
+    videoRef.current.playbackRate = rate;
+    setPlaybackRate(rate);
+  };
+
   const toggleFullscreen = async () => {
     if (!videoRef.current) return;
     
@@ -337,6 +352,37 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
             </div>
+
+            {/* Playback Speed Control */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20 mr-2"
+                  title="Playback Speed"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                  <DropdownMenuItem
+                    key={rate}
+                    onClick={() => handlePlaybackRateChange(rate)}
+                    className={cn(
+                      "cursor-pointer justify-between",
+                      playbackRate === rate && "bg-accent"
+                    )}
+                  >
+                    <span>{rate}x</span>
+                    {playbackRate === rate && (
+                      <span className="h-2 w-2 rounded-full bg-primary" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* PIP/Sticky mode toggle */}
             <Button
