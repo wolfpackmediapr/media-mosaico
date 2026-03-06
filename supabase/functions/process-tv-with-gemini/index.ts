@@ -1970,7 +1970,7 @@ serve(async (req) => {
 
     // Start background processing (doesn't block response)
     console.log(`[${requestId}] Starting background processing for transcription ${transcriptionId}`);
-    EdgeRuntime.waitUntil(
+    (globalThis as any).EdgeRuntime.waitUntil(
       processVideoInBackground(requestId, videoPath, transcriptionId, supabaseUrl, supabaseServiceKey, authHeader)
     );
 
