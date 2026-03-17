@@ -686,7 +686,7 @@ async function processChunkedUploadWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 16384
+                maxOutputTokens: 32768
               }
             })
           }
@@ -790,8 +790,8 @@ async function processChunkedUploadWithGemini(
     }
 
     // Add small delay between API calls to reduce rate limit hits
-    console.log('[gemini-unified] Waiting 3s before analysis call to avoid rate limits...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    console.log('[gemini-unified] Waiting 1s before analysis call to avoid rate limits...');
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // ===== SECOND CALL: Generate Content Analysis =====
     if (transcriptionId) {
@@ -833,7 +833,7 @@ async function processChunkedUploadWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384
                 // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
