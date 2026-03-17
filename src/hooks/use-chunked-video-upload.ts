@@ -278,7 +278,7 @@ export const useChunkedVideoUpload = () => {
         return await assembleFileEdgeFunction(session, file, fileName, chunks);
       }
 
-      return null; // Should never reach here
+      
     } catch (error) {
       console.error('Chunked upload error:', error);
       throw error;
