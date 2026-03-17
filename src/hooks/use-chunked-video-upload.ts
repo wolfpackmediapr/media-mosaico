@@ -172,24 +172,16 @@ export const useChunkedVideoUpload = () => {
       
       console.log(`Continuing upload: ${fileName}, chunks: ${chunks}, uploaded: ${session.uploadedChunks}`);
 
-      // Use consistent chunked upload strategy for all file sizes
-      // Upload chunks to temporary location for edge function reassembly
-      for (let i = session.uploadedChunks; i < chunks; i++) {
-        if (isPaused) {
-          console.log('Upload paused');
-          break;
-        }
-
-        const start = i * CHUNK_SIZE;
+      // Upload chunks in parallel batches for faster uploads
+      const uploadSingleChunk = async (chunkIndex: number): Promise<void> => {
+        const start = chunkIndex * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
-        const chunkFileName = `chunks/${session.sessionId}/chunk_${i.toString().padStart(4, '0')}`;
+        const chunkFileName = `chunks/${session.sessionId}/chunk_${chunkIndex.toString().padStart(4, '0')}`;
 
         let retries = 0;
         while (retries < MAX_RETRIES) {
           try {
-            setChunkProgress((i / chunks) * 100);
-            
             const { error } = await supabase.storage
               .from('video')
               .upload(chunkFileName, chunk, {
@@ -201,32 +193,46 @@ export const useChunkedVideoUpload = () => {
               throw error;
             }
 
-            console.log(`Uploaded chunk ${i + 1}/${chunks}`);
-            
-            // Update session progress in both local storage and database
-            session.uploadedChunks = i + 1;
-            updateSession(session);
-            
-            // Update database session progress
-            await supabase
-              .from('chunked_upload_sessions')
-              .update({ uploaded_chunks: session.uploadedChunks })
-              .eq('session_id', session.sessionId);
-            
-            setUploadProgress((session.uploadedChunks / session.totalChunks) * 100);
-            break;
+            console.log(`Uploaded chunk ${chunkIndex + 1}/${chunks}`);
+            return;
           } catch (error) {
             retries++;
-            console.error(`Error uploading chunk ${i} (attempt ${retries}):`, error);
+            console.error(`Error uploading chunk ${chunkIndex} (attempt ${retries}):`, error);
             
             if (retries >= MAX_RETRIES) {
-              throw new Error(`Failed to upload chunk ${i} after ${MAX_RETRIES} attempts: ${error}`);
+              throw new Error(`Failed to upload chunk ${chunkIndex} after ${MAX_RETRIES} attempts: ${error}`);
             }
             
-            // Wait before retrying
             await new Promise(resolve => setTimeout(resolve, 1000 * retries));
           }
         }
+      };
+
+      // Process chunks in parallel batches of PARALLEL_UPLOADS
+      for (let batchStart = session.uploadedChunks; batchStart < chunks; batchStart += PARALLEL_UPLOADS) {
+        if (isPaused) {
+          console.log('Upload paused');
+          break;
+        }
+
+        const batchEnd = Math.min(batchStart + PARALLEL_UPLOADS, chunks);
+        const batchIndices = Array.from({ length: batchEnd - batchStart }, (_, i) => batchStart + i);
+        
+        setChunkProgress((batchStart / chunks) * 100);
+        
+        // Upload batch concurrently
+        await Promise.all(batchIndices.map(idx => uploadSingleChunk(idx)));
+        
+        // Update session progress after batch completes
+        session.uploadedChunks = batchEnd;
+        updateSession(session);
+        
+        await supabase
+          .from('chunked_upload_sessions')
+          .update({ uploaded_chunks: session.uploadedChunks })
+          .eq('session_id', session.sessionId);
+        
+        setUploadProgress((session.uploadedChunks / session.totalChunks) * 100);
       }
 
       if (isPaused) {
