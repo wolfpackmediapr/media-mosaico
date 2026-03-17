@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { TvTranscriptionService } from "@/services/tv/tvTranscriptionService";
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+const CHUNK_SIZE = 15 * 1024 * 1024; // 15MB chunks for faster uploads
+const PARALLEL_UPLOADS = 3; // Upload 3 chunks concurrently
 const MAX_RETRIES = 3;
 const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024; // 50MB threshold for client-side reassembly
 
