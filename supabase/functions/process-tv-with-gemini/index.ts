@@ -998,7 +998,7 @@ async function processAssembledVideoWithGemini(
       await updateDatabaseProgress(transcriptionId, 10, 'Downloading video...');
     }
 
-     // Download video from Supabase storage (use appropriate bucket for compressed videos)
+     // Stream video from Supabase signed URL to Gemini (avoids downloading blob into memory)
      const isCompressed = videoPath.includes('_compressed.');
      const bucket = isCompressed ? 'media' : 'video';
      const sessionId = videoPath.includes('/') ? videoPath.split('/')[0] : undefined;
@@ -1007,24 +1007,68 @@ async function processAssembledVideoWithGemini(
      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
      const supabaseClient = createClient(supabaseUrl!, supabaseServiceKey!);
      
-     const { data: videoData, error: downloadError } = await supabaseClient
-       .storage
+     // Get file metadata first to determine size without downloading
+     const { data: fileList } = await supabaseClient.storage
        .from(bucket)
-       .download(videoPath);
+       .list(videoPath.includes('/') ? videoPath.substring(0, videoPath.lastIndexOf('/')) : '', {
+         search: videoPath.includes('/') ? videoPath.substring(videoPath.lastIndexOf('/') + 1) : videoPath
+       });
+     
+     const fileMeta = fileList?.find(f => videoPath.endsWith(f.name));
+     const fileSize = fileMeta?.metadata?.size || 0;
+     
+     let fileInfo;
+     
+     if (fileSize > 50 * 1024 * 1024) {
+       // Large file: stream via signed URL to avoid memory issues
+       console.log(`[gemini-unified] Large assembled file (${Math.round(fileSize / 1024 / 1024)}MB), using streaming upload`);
+       
+       const { data: signedUrlData, error: signedUrlError } = await supabaseClient.storage
+         .from(bucket)
+         .createSignedUrl(videoPath, 600); // 10 min expiry
+       
+       if (signedUrlError || !signedUrlData?.signedUrl) {
+         throw new Error(`Failed to create signed URL: ${signedUrlError?.message}`);
+       }
+       
+       // Fetch as stream from signed URL
+       const videoResponse = await fetch(signedUrlData.signedUrl);
+       if (!videoResponse.ok || !videoResponse.body) {
+         throw new Error(`Failed to stream video from signed URL: ${videoResponse.status}`);
+       }
+       
+       if (transcriptionId) {
+         await updateDatabaseProgress(transcriptionId, 20, 'Streaming video to Gemini...');
+       }
+       
+       const contentLength = parseInt(videoResponse.headers.get('content-length') || '0', 10) || fileSize;
+       const mimeType = videoResponse.headers.get('content-type') || 'video/mp4';
+       
+       fileInfo = await uploadVideoToGeminiStream(
+         contentLength,
+         mimeType,
+         videoPath.split('/').pop() || 'video.mp4',
+         videoResponse.body
+       );
+     } else {
+       // Small file: download blob (simpler, works fine for <50MB)
+       const { data: videoData, error: downloadError } = await supabaseClient
+         .storage
+         .from(bucket)
+         .download(videoPath);
 
-     if (downloadError) {
-       throw new Error(`Failed to download video: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`);
-     }
+       if (downloadError) {
+         throw new Error(`Failed to download video: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`);
+       }
 
-     const videoBlob = new Blob([videoData], { type: 'video/mp4' });
+       const videoBlob = new Blob([videoData], { type: 'video/mp4' });
     
-    // Update progress
-    if (transcriptionId) {
-      await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
-    }
+       if (transcriptionId) {
+         await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
+       }
 
-    // Upload to Gemini and wait for processing
-    const fileInfo = await uploadVideoToGemini(videoBlob, videoPath.split('/').pop() || 'video.mp4');
+       fileInfo = await uploadVideoToGemini(videoBlob, videoPath.split('/').pop() || 'video.mp4');
+     }
     console.log('[gemini-unified] File processing completed successfully');
 
     // Generate speaker-separated transcription
