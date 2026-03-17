@@ -1131,9 +1131,9 @@ async function processAssembledVideoWithGemini(
       // Continue without speaker transcription - will fall back to extraction
     }
 
-    // Wait 3 seconds before analysis call to avoid rate limits
-    console.log('[gemini-unified] Waiting 3s before analysis call to avoid rate limits...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Wait 1 second before analysis call to avoid rate limits
+    console.log('[gemini-unified] Waiting 1s before analysis call to avoid rate limits...');
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Update progress
     if (transcriptionId) {

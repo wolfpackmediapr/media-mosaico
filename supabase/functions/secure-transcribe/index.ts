@@ -23,9 +23,31 @@ serve(async (req) => {
   try {
     console.log('Starting secure-transcribe process...');
     
+    // Check Content-Length before parsing form data to avoid memory issues
+    const contentLength = req.headers.get('content-length');
+    if (contentLength) {
+      const sizeBytes = parseInt(contentLength, 10);
+      if (sizeBytes > MAX_FILE_SIZE_BYTES + 1024 * 1024) { // Allow 1MB overhead for form metadata
+        console.error(`Request too large: ${sizeBytes} bytes (max: ${MAX_FILE_SIZE_BYTES} bytes)`);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `El archivo excede el tamaño máximo permitido de ${MAX_FILE_SIZE_MB}MB. Para archivos grandes, usa el procesador de video con Gemini.` 
+          }),
+          { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+    
     // Get the form data
     const formData = await req.formData().catch(error => {
       console.error('Error parsing form data:', error);
+      
+      // Check if it's a size-related error
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (errorMsg.includes('size') || errorMsg.includes('limit') || errorMsg.includes('memory') || errorMsg.includes('too large')) {
+        throw new Error(`El archivo es demasiado grande para procesarse. Límite: ${MAX_FILE_SIZE_MB}MB.`);
+      }
       throw new Error('Invalid form data');
     });
     
