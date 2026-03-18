@@ -915,7 +915,12 @@ async function processChunkedUploadWithGemini(
         
         // Add robust null-safe extraction with detailed error logging
         if (!analysisData.candidates || analysisData.candidates.length === 0) {
+          const blockReason = analysisData.promptFeedback?.blockReason;
           console.error('[gemini-unified] No candidates in analysis response:', JSON.stringify(analysisData).substring(0, 500));
+          if (blockReason) {
+            console.error(`[gemini-unified] Content blocked by Gemini: ${blockReason}`, analysisData.promptFeedback);
+            throw new Error(`Content blocked by Gemini: ${blockReason}`);
+          }
           throw new Error('No analysis response from Gemini');
         }
 
