@@ -976,7 +976,7 @@ async function processChunkedUploadWithGemini(
   } catch (extractionError) {
     console.error('[gemini-unified] Transcription extraction failed:', extractionError);
     // Fallback: return first 1000 chars of analysis as transcription
-    finalTranscription = `SPEAKER 1: ${analysisResult.substring(0, 1000).trim()}`;
+    finalTranscription = `SPEAKER 1: ${(analysisResult || '').substring(0, 1000).trim()}`;
   }
 
   return {
