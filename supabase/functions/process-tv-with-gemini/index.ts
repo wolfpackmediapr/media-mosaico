@@ -686,7 +686,7 @@ async function processChunkedUploadWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 32768
+                maxOutputTokens: 16384
               }
             })
           }
@@ -789,9 +789,9 @@ async function processChunkedUploadWithGemini(
       }
     }
 
-    // Add small delay between API calls to reduce rate limit hits
-    console.log('[gemini-unified] Waiting 1s before analysis call to avoid rate limits...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Add delay between API calls to reduce TPM pressure and avoid rate limits
+    console.log('[gemini-unified] Waiting 5s before analysis call to spread TPM usage...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     // ===== SECOND CALL: Generate Content Analysis =====
     if (transcriptionId) {
@@ -833,7 +833,7 @@ async function processChunkedUploadWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 16384
+                maxOutputTokens: 8192
                 // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
@@ -1079,9 +1079,9 @@ async function processAssembledVideoWithGemini(
 
     console.log('[gemini-unified] Starting speaker-separated transcription...');
 
-    // Wait 1 second to avoid rate limits before making transcription call
-    console.log('[gemini-unified] Waiting 1s before transcription call to avoid rate limits...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait before making transcription call to spread TPM usage
+    console.log('[gemini-unified] Waiting 5s before transcription call to spread TPM usage...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     try {
       console.log('[gemini-unified] Transcription attempt 1/5');
@@ -1102,7 +1102,7 @@ async function processAssembledVideoWithGemini(
               temperature: 0.1,
               topK: 32,
               topP: 0.8,
-                maxOutputTokens: 32768
+                maxOutputTokens: 16384
             }
           })
         }
@@ -1131,9 +1131,9 @@ async function processAssembledVideoWithGemini(
       // Continue without speaker transcription - will fall back to extraction
     }
 
-    // Wait 1 second before analysis call to avoid rate limits
-    console.log('[gemini-unified] Waiting 1s before analysis call to avoid rate limits...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait before analysis call to spread TPM usage across minute boundaries
+    console.log('[gemini-unified] Waiting 5s before analysis call to spread TPM usage...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Update progress
     if (transcriptionId) {
@@ -1175,7 +1175,7 @@ async function processAssembledVideoWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 16384
+                maxOutputTokens: 8192
                 // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
@@ -1206,6 +1206,11 @@ async function processAssembledVideoWithGemini(
 
         const analysisData = await analysisResponse.json();
         if (!analysisData.candidates || analysisData.candidates.length === 0) {
+          const blockReason = analysisData.promptFeedback?.blockReason;
+          if (blockReason) {
+            console.error(`[gemini-unified] Content blocked by Gemini: ${blockReason}`, analysisData.promptFeedback);
+            throw new Error(`Content blocked by Gemini: ${blockReason}`);
+          }
           throw new Error('No analysis response from Gemini');
         }
 
@@ -1228,6 +1233,12 @@ async function processAssembledVideoWithGemini(
         }
         await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
       }
+    }
+
+    // Guard against null analysisResult (e.g. all attempts blocked by Gemini)
+    if (!analysisResult) {
+      console.error('[gemini-unified] All analysis attempts failed - analysisResult is null');
+      throw new Error('Analysis failed: all attempts returned no results. Content may have been blocked by Gemini.');
     }
 
     console.log('[gemini-unified] Analysis completed successfully');
@@ -1477,7 +1488,11 @@ function validateTranscriptionContent(text: string): { isValid: boolean; wordCou
 }
 
 // Helper functions to extract data from analysis
-function extractTranscriptionFromAnalysis(analysis: string): string {
+function extractTranscriptionFromAnalysis(analysis: string | null): string {
+  if (!analysis) {
+    console.warn('[extractTranscriptionFromAnalysis] Analysis is null/empty, returning empty string');
+    return '';
+  }
   console.log('[extractTranscriptionFromAnalysis] Starting transcription extraction');
   
   // Strategy 0: Check if it's already pure SPEAKER format (from dedicated transcription call)

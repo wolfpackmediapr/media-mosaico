@@ -338,7 +338,7 @@ Responde en español de manera concisa y profesional. Asegúrate de:
     ],
     generationConfig: {
       temperature: 0.1,
-      maxOutputTokens: 16384,
+      maxOutputTokens: 8192,
     }
   };
 
