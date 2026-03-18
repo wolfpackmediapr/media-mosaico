@@ -737,6 +737,17 @@ async function processChunkedUploadWithGemini(
 
         const transcriptionData = await transcriptionResponse.json();
         lastTranscriptionData = transcriptionData;
+        // Check for blocked content before extracting
+        if (!transcriptionData.candidates || transcriptionData.candidates.length === 0) {
+          const blockReason = transcriptionData.promptFeedback?.blockReason;
+          console.error('[gemini-unified] No candidates in transcription response:', JSON.stringify(transcriptionData).substring(0, 500));
+          if (blockReason) {
+            console.error(`[gemini-unified] Transcription blocked by Gemini: ${blockReason}`, transcriptionData.promptFeedback);
+            throw new Error(`Transcription blocked by Gemini: ${blockReason}`);
+          }
+          throw new Error('No transcription response from Gemini');
+        }
+        
         if (transcriptionData.candidates?.[0]?.content?.parts?.[0]?.text) {
           const rawTranscription = transcriptionData.candidates[0].content.parts[0].text.trim();
           
