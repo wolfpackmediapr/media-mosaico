@@ -1569,7 +1569,7 @@ function extractTranscriptionFromAnalysis(analysis: string | null): string {
   // Strategy 0: Check if it's already pure SPEAKER format (from dedicated transcription call)
   if (analysis.trim().startsWith('SPEAKER ') && analysis.includes('SPEAKER 2:')) {
     console.log('[extractTranscriptionFromAnalysis] Found pure speaker format from dedicated call');
-    return analysis.trim();
+    return detectAndTruncateRepetition(analysis.trim());
   }
   
   // Strategy 1 REMOVED: Was incorrectly extracting analysis summaries instead of SPEAKER dialogue
