@@ -1175,7 +1175,7 @@ async function processAssembledVideoWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 16384
+                maxOutputTokens: 8192
                 // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
