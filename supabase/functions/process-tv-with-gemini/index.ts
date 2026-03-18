@@ -1508,6 +1508,55 @@ function validateTranscriptionContent(text: string): { isValid: boolean; wordCou
     issues
   };
 }
+// Detect and truncate repetitive text loops from Gemini output
+function detectAndTruncateRepetition(text: string): string {
+  if (!text || text.length < 100) return text;
+  
+  // Check for repeated phrases (3+ word sequences repeated 5+ times)
+  const words = text.split(/\s+/);
+  if (words.length < 20) return text;
+  
+  // Try phrase lengths from 1 to 8 words
+  for (let phraseLen = 1; phraseLen <= 8; phraseLen++) {
+    let maxRepeat = 0;
+    let repeatStartIdx = -1;
+    let repeatedPhrase = '';
+    
+    for (let i = 0; i <= words.length - phraseLen * 2; i++) {
+      const phrase = words.slice(i, i + phraseLen).join(' ').toLowerCase();
+      if (phrase.length < 3) continue; // skip very short phrases
+      
+      let count = 1;
+      let j = i + phraseLen;
+      while (j + phraseLen <= words.length) {
+        const nextPhrase = words.slice(j, j + phraseLen).join(' ').toLowerCase();
+        if (nextPhrase === phrase) {
+          count++;
+          j += phraseLen;
+        } else {
+          break;
+        }
+      }
+      
+      if (count > maxRepeat && count >= 5) {
+        maxRepeat = count;
+        repeatStartIdx = i;
+        repeatedPhrase = phrase;
+      }
+    }
+    
+    // If we found 5+ consecutive repetitions, truncate
+    if (maxRepeat >= 5 && repeatStartIdx >= 0) {
+      console.warn(`[detectRepetition] Found "${repeatedPhrase}" repeated ${maxRepeat} times at word index ${repeatStartIdx}. Truncating.`);
+      // Keep text up to the 2nd repetition and add a note
+      const keepUntil = repeatStartIdx + phraseLen * 2;
+      const truncated = words.slice(0, keepUntil).join(' ');
+      return truncated + '\n\n[Nota: texto repetitivo detectado y truncado automáticamente]';
+    }
+  }
+  
+  return text;
+}
 
 // Helper functions to extract data from analysis
 function extractTranscriptionFromAnalysis(analysis: string | null): string {
