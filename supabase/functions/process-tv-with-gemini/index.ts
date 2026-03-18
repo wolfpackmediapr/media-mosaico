@@ -789,9 +789,9 @@ async function processChunkedUploadWithGemini(
       }
     }
 
-    // Add small delay between API calls to reduce rate limit hits
-    console.log('[gemini-unified] Waiting 1s before analysis call to avoid rate limits...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Add delay between API calls to reduce TPM pressure and avoid rate limits
+    console.log('[gemini-unified] Waiting 5s before analysis call to spread TPM usage...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     // ===== SECOND CALL: Generate Content Analysis =====
     if (transcriptionId) {
