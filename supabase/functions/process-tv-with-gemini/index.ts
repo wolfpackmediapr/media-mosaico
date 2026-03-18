@@ -1272,9 +1272,11 @@ async function processAssembledVideoWithGemini(
     console.log('[gemini-unified] File cleanup completed successfully');
 
     // Normalize and finalize transcription
-    const finalTranscription = speakerTranscription 
-      ? normalizeTranscriptionFormat(speakerTranscription)
-      : extractTranscriptionFromAnalysis(analysisResult);
+    const finalTranscription = detectAndTruncateRepetition(
+      speakerTranscription 
+        ? normalizeTranscriptionFormat(speakerTranscription)
+        : extractTranscriptionFromAnalysis(analysisResult)
+    );
 
     return {
       success: true,
