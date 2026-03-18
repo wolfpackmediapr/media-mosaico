@@ -1488,7 +1488,11 @@ function validateTranscriptionContent(text: string): { isValid: boolean; wordCou
 }
 
 // Helper functions to extract data from analysis
-function extractTranscriptionFromAnalysis(analysis: string): string {
+function extractTranscriptionFromAnalysis(analysis: string | null): string {
+  if (!analysis) {
+    console.warn('[extractTranscriptionFromAnalysis] Analysis is null/empty, returning empty string');
+    return '';
+  }
   console.log('[extractTranscriptionFromAnalysis] Starting transcription extraction');
   
   // Strategy 0: Check if it's already pure SPEAKER format (from dedicated transcription call)
