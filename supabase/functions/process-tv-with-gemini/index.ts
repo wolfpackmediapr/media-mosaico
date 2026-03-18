@@ -955,6 +955,12 @@ async function processChunkedUploadWithGemini(
       }
     }
 
+    // Guard against null analysisResult after all retries
+    if (!analysisResult) {
+      console.error('[gemini-unified] All analysis attempts failed in chunked path - analysisResult is null');
+      throw new Error('Analysis failed: all attempts returned no results. Content may have been blocked by Gemini.');
+    }
+
     console.log('[gemini-unified] Analysis completed successfully');
 
     // Clean up file
