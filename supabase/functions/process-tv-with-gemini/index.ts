@@ -737,6 +737,17 @@ async function processChunkedUploadWithGemini(
 
         const transcriptionData = await transcriptionResponse.json();
         lastTranscriptionData = transcriptionData;
+        // Check for blocked content before extracting
+        if (!transcriptionData.candidates || transcriptionData.candidates.length === 0) {
+          const blockReason = transcriptionData.promptFeedback?.blockReason;
+          console.error('[gemini-unified] No candidates in transcription response:', JSON.stringify(transcriptionData).substring(0, 500));
+          if (blockReason) {
+            console.error(`[gemini-unified] Transcription blocked by Gemini: ${blockReason}`, transcriptionData.promptFeedback);
+            throw new Error(`Transcription blocked by Gemini: ${blockReason}`);
+          }
+          throw new Error('No transcription response from Gemini');
+        }
+        
         if (transcriptionData.candidates?.[0]?.content?.parts?.[0]?.text) {
           const rawTranscription = transcriptionData.candidates[0].content.parts[0].text.trim();
           
@@ -904,7 +915,12 @@ async function processChunkedUploadWithGemini(
         
         // Add robust null-safe extraction with detailed error logging
         if (!analysisData.candidates || analysisData.candidates.length === 0) {
+          const blockReason = analysisData.promptFeedback?.blockReason;
           console.error('[gemini-unified] No candidates in analysis response:', JSON.stringify(analysisData).substring(0, 500));
+          if (blockReason) {
+            console.error(`[gemini-unified] Content blocked by Gemini: ${blockReason}`, analysisData.promptFeedback);
+            throw new Error(`Content blocked by Gemini: ${blockReason}`);
+          }
           throw new Error('No analysis response from Gemini');
         }
 
@@ -939,6 +955,12 @@ async function processChunkedUploadWithGemini(
       }
     }
 
+    // Guard against null analysisResult after all retries
+    if (!analysisResult) {
+      console.error('[gemini-unified] All analysis attempts failed in chunked path - analysisResult is null');
+      throw new Error('Analysis failed: all attempts returned no results. Content may have been blocked by Gemini.');
+    }
+
     console.log('[gemini-unified] Analysis completed successfully');
 
     // Clean up file
@@ -954,7 +976,7 @@ async function processChunkedUploadWithGemini(
   } catch (extractionError) {
     console.error('[gemini-unified] Transcription extraction failed:', extractionError);
     // Fallback: return first 1000 chars of analysis as transcription
-    finalTranscription = `SPEAKER 1: ${analysisResult.substring(0, 1000).trim()}`;
+    finalTranscription = `SPEAKER 1: ${(analysisResult || '').substring(0, 1000).trim()}`;
   }
 
   return {
