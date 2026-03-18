@@ -1,49 +1,60 @@
 
 
-## Fix: TV Video Processing "File Not ACTIVE" Failure
+## Revised Plan: Fix TV Processing Crash + Reduce TPM Usage
 
-### Root Cause Analysis
+### Problem
 
-The edge function `process-tv-with-gemini` has **two bugs** causing the 346MB `.mov` file processing to fail:
+1. **TPM over limit**: Gemini 2.5 Flash shows 1.31M/1M TPM usage. The large `maxOutputTokens` values (32,768 and 16,384) count toward TPM even when not fully used, and large video inputs (263K tokens for a single video) consume most of the budget.
+2. **Null crash**: When Gemini blocks/refuses a request, `analysisResult` stays `null` and the code crashes on `.trim()`.
 
-1. **Premature file usage after timeout**: The `waitForFileProcessing` function only waits 15 attempts x 3 seconds = 45 seconds. For large files (~350MB), Gemini needs more time. When all 15 checks show `PROCESSING`, the function **silently returns** (line 327-328: "continuing with analysis...") instead of throwing. The file is then used immediately while still in `PROCESSING` state, causing the `400 FAILED_PRECONDITION: File is not in an ACTIVE state` error on both transcription and analysis calls.
+### Changes
 
-2. **`transcriptionData` is not defined**: On line 771, the fallback extraction references `transcriptionData` which is declared *inside* the `try` block (line 737) but the fallback runs in the `catch` block where it's out of scope. This causes a `ReferenceError` and prevents any fallback recovery.
+#### 1. Roll back token limits to conservative values
+**File:** `supabase/functions/process-tv-with-gemini/index.ts`
+- Transcription `maxOutputTokens`: 32,768 → **16,384**
+- Analysis `maxOutputTokens`: 16,384 → **8,192**
+- These apply to all call sites (lines ~689, ~836, ~1105, ~1178)
 
-### Solution
+**File:** `supabase/functions/process-tv-with-gemini/gemini-unified-processor.ts`
+- Analysis `maxOutputTokens`: 16,384 → **8,192**
 
-#### Fix 1: Increase wait time and fail properly if file never becomes ACTIVE
+**File:** `supabase/functions/process-tv-with-gemini/gemini-client.ts`
+- Already at 8,192 — no change needed
 
-In `waitForFileProcessing` (line 282):
-- Increase `maxAttempts` from **15 to 60** (matching the architecture memory: "60-attempt wait time")
-- **Throw an error** instead of silently returning when the file never reaches ACTIVE state
-- This gives ~3 minutes for large files to finish processing on Gemini's side
+#### 2. Fix null crash after blocked/failed analysis
+**File:** `supabase/functions/process-tv-with-gemini/index.ts`
+- After analysis retry loop: throw descriptive error if `analysisResult` is still null
+- In `extractTranscriptionFromAnalysis`: add `if (!analysis) return '';` guard
+- Log `promptFeedback.blockReason` when Gemini returns no candidates
 
-#### Fix 2: Fix `transcriptionData` scoping bug
+#### 3. Add inter-request delay to spread TPM usage
+**File:** `supabase/functions/process-tv-with-gemini/index.ts`
+- Increase delay between transcription and analysis calls from 1s → **5s** to avoid TPM spikes within the same minute window
 
-In the transcription retry loop (lines 665-788):
-- Declare a `lastTranscriptionData` variable **outside** the loop (next to `speakerTranscription` at line 665)
-- Assign it after each successful API response parse (after line 737)
-- Reference `lastTranscriptionData` instead of `transcriptionData` in the fallback block (line 771)
+### Technical Details
+
+The Gemini API counts both input and output tokens toward the TPM limit. A single video can consume 200K-300K input tokens. With the current output limits (32K + 16K), a single processing run uses ~300K+ tokens — meaning only ~3 videos can process per minute before hitting the 1M TPM ceiling.
+
+Rolling back to 16K + 8K output tokens and adding a 5s delay between calls reduces per-run TPM pressure by ~24K tokens and spreads usage across minute boundaries.
+
+```text
+Current per-run token budget:
+  Input:  ~263K (video) + ~1K (prompt) × 2 calls = ~528K
+  Output: 32K + 16K = 48K max
+  Total:  ~576K per video run
+
+Revised per-run token budget:
+  Input:  ~263K (video) + ~1K (prompt) × 2 calls = ~528K
+  Output: 16K + 8K = 24K max
+  Total:  ~552K per video run
+```
+
+The main saving comes from the 5s delay ensuring the two calls don't land in the same TPM minute window.
 
 ### Files Changed
 
 | File | Change |
 |---|---|
-| `supabase/functions/process-tv-with-gemini/index.ts` | Fix `waitForFileProcessing` timeout (15 to 60 attempts) and throw on timeout instead of silently continuing; fix `transcriptionData` scoping bug in fallback extraction |
-
-### Technical Details
-
-```text
-waitForFileProcessing (line 282-332):
-  - maxAttempts: 15 -> 60
-  - Remove silent return on line 327-328
-  - Replace with: throw new Error('File processing timeout...')
-
-Transcription loop (line 665-788):
-  - Add: let lastTranscriptionData: any = null;  (after line 665)
-  - Add: lastTranscriptionData = transcriptionData;  (after line 737)
-  - Change line 771: transcriptionData -> lastTranscriptionData
-  - Change line 772: transcriptionData -> lastTranscriptionData
-```
+| `supabase/functions/process-tv-with-gemini/index.ts` | Roll back maxOutputTokens, add null guards, add block-reason logging, increase inter-call delay |
+| `supabase/functions/process-tv-with-gemini/gemini-unified-processor.ts` | Roll back maxOutputTokens to 8,192 |
 
