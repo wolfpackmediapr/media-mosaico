@@ -1235,6 +1235,12 @@ async function processAssembledVideoWithGemini(
       }
     }
 
+    // Guard against null analysisResult (e.g. all attempts blocked by Gemini)
+    if (!analysisResult) {
+      console.error('[gemini-unified] All analysis attempts failed - analysisResult is null');
+      throw new Error('Analysis failed: all attempts returned no results. Content may have been blocked by Gemini.');
+    }
+
     console.log('[gemini-unified] Analysis completed successfully');
 
     // Clean up file
