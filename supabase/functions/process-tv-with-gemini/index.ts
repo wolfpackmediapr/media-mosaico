@@ -970,9 +970,11 @@ async function processChunkedUploadWithGemini(
   // Normalize and finalize transcription with error handling
   let finalTranscription = '';
   try {
-    finalTranscription = speakerTranscription 
-      ? normalizeTranscriptionFormat(speakerTranscription)
-      : extractTranscriptionFromAnalysis(analysisResult);
+    finalTranscription = detectAndTruncateRepetition(
+      speakerTranscription 
+        ? normalizeTranscriptionFormat(speakerTranscription)
+        : extractTranscriptionFromAnalysis(analysisResult)
+    );
   } catch (extractionError) {
     console.error('[gemini-unified] Transcription extraction failed:', extractionError);
     // Fallback: return first 1000 chars of analysis as transcription
