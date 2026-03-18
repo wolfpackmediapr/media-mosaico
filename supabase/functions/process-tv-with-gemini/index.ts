@@ -1206,6 +1206,11 @@ async function processAssembledVideoWithGemini(
 
         const analysisData = await analysisResponse.json();
         if (!analysisData.candidates || analysisData.candidates.length === 0) {
+          const blockReason = analysisData.promptFeedback?.blockReason;
+          if (blockReason) {
+            console.error(`[gemini-unified] Content blocked by Gemini: ${blockReason}`, analysisData.promptFeedback);
+            throw new Error(`Content blocked by Gemini: ${blockReason}`);
+          }
           throw new Error('No analysis response from Gemini');
         }
 
