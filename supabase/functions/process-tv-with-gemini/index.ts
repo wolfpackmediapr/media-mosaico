@@ -1079,9 +1079,9 @@ async function processAssembledVideoWithGemini(
 
     console.log('[gemini-unified] Starting speaker-separated transcription...');
 
-    // Wait 1 second to avoid rate limits before making transcription call
-    console.log('[gemini-unified] Waiting 1s before transcription call to avoid rate limits...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait before making transcription call to spread TPM usage
+    console.log('[gemini-unified] Waiting 5s before transcription call to spread TPM usage...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     try {
       console.log('[gemini-unified] Transcription attempt 1/5');
