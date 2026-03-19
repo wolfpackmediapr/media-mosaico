@@ -102,11 +102,13 @@ const VideoPlayer = ({ src, className, title = "Video", registerVideoElement, is
     const video = videoRef.current;
     if (!video) return;
 
+    let lastSavedTime = 0;
     const handleTimeUpdate = () => {
       setCurrentTime(video.currentTime);
       
-      // Save position periodically
-      if (src) {
+      // Save position every 5 seconds to avoid excessive sessionStorage writes
+      if (src && Math.abs(video.currentTime - lastSavedTime) >= 5) {
+        lastSavedTime = video.currentTime;
         setPlaybackPositions(prev => ({
           ...prev,
           [src]: video.currentTime
