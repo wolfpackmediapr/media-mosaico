@@ -10,19 +10,11 @@ verify_jwt = true
 verify_jwt = true
 import_map = "./functions/process-press-pdf/import_map.json"
 
-[functions.process-press-pdf.limits]
-cpu_ms = 300000
-memory_mb = 512
-
 [functions.compress-press-pdf]
 verify_jwt = false
 
 [functions.process-press-pdf-filesearch]
 verify_jwt = true
-
-[functions.process-press-pdf-filesearch.limits]
-cpu_ms = 600000
-memory_mb = 1024
 
 [functions.search-press-filesearch]
 verify_jwt = true
