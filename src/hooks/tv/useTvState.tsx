@@ -80,19 +80,20 @@ export const useTvState = () => {
   const handleProcess = (file: File) => {
     // Pass callback to update uploadedFiles with the permanent Supabase URL
     // This prevents the video from going gray when the blob URL becomes invalid
+    // IMPORTANT: File objects are native browser objects and CANNOT be cloned
+    // with Object.assign — that causes "Illegal invocation". Instead, we
+    // mutate the filePath property directly on the existing object.
     processVideo(file, (publicUrl: string) => {
-      console.log('[useTvState] Updating uploadedFiles with permanent URL:', publicUrl.substring(0, 60));
-      setUploadedFiles(
-        uploadedFiles.map(f => {
-          if (f.name === file.name && f.size === file.size) {
-            // Create a new object with the filePath set
-            return Object.assign(Object.create(Object.getPrototypeOf(f)), f, {
-              filePath: publicUrl
-            });
-          }
-          return f;
-        })
-      );
+      console.log('[useTvState] Setting filePath on uploaded file:', publicUrl.substring(0, 60));
+      const updatedFiles = uploadedFiles.map(f => {
+        if (f.name === file.name && f.size === file.size) {
+          // Safely set filePath on the native File object without cloning
+          (f as any).filePath = publicUrl;
+        }
+        return f;
+      });
+      // Trigger a re-render by setting a new array reference
+      setUploadedFiles([...updatedFiles]);
     });
   };
 
