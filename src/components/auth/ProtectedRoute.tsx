@@ -24,6 +24,11 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
       return;
     }
 
+    // Safety timeout: never let the spinner run more than 6 seconds
+    const safetyTimer = setTimeout(() => {
+      setIsCheckingRole(false);
+    }, 6000);
+
     const checkUserRole = async () => {
       if (user) {
         setIsCheckingRole(true);
@@ -36,7 +41,6 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
           
           if (error) {
             if (error.code === 'PGRST116') {
-              console.log('User profile not found, creating default profile');
               const { error: insertError } = await supabase
                 .from('user_profiles')
                 .insert({ 
@@ -61,11 +65,15 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
         } catch (error) {
           console.error('Error in role check:', error);
         } finally {
+          clearTimeout(safetyTimer);
           setIsCheckingRole(false);
         }
       } else if (!authLoading) {
+        // FIX: No user and auth is done loading — stop the spinner immediately
         setUserRole(null);
         setCheckedUserId(null);
+        clearTimeout(safetyTimer);
+        setIsCheckingRole(false);
       }
     };
 
