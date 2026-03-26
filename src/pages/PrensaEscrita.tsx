@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { toast } from "@/services/toastService";
 import PressTabsContainer from "@/components/prensa-escrita/PressTabsContainer";
 import { usePdfProcessing } from "@/hooks/prensa/usePdfProcessing";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 export default function PrensaEscrita() {
   const [activeTab, setActiveTab] = useState("upload");
@@ -58,6 +59,7 @@ export default function PrensaEscrita() {
   };
 
   return (
+    <ErrorBoundary>
     <div className="w-full space-y-6">
       <div className="flex flex-col space-y-1.5">
         <h2 className="text-3xl font-bold tracking-tight">Prensa Escrita</h2>
@@ -79,5 +81,6 @@ export default function PrensaEscrita() {
         onCancelProcessing={handleCancelProcessing}
       />
     </div>
+    </ErrorBoundary>
   );
 }

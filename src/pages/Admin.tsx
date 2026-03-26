@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
 import { makeUserAdmin } from "@/utils/adminUtils";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 interface User {
   id: string;
@@ -83,6 +84,7 @@ const Admin = () => {
   }
 
   return (
+    <ErrorBoundary>
     <Card className="w-full max-w-4xl mx-auto mt-8">
       <CardHeader>
         <CardTitle>Administración de Usuarios</CardTitle>
@@ -126,6 +128,7 @@ const Admin = () => {
         </div>
       </CardContent>
     </Card>
+    </ErrorBoundary>
   );
 };
 

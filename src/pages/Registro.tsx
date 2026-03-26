@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 // Form validation schema
 const formSchema = z.object({
@@ -104,6 +105,7 @@ const Registro = () => {
   }
 
   return (
+    <ErrorBoundary>
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle>Crear cuenta</CardTitle>
@@ -237,6 +239,7 @@ const Registro = () => {
         </CardFooter>
       </form>
     </Card>
+    </ErrorBoundary>
   );
 };
 

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import TvMainContent from "@/components/tv/containers/TvMainContent";
 import { useTvState } from "@/hooks/tv/useTvState";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const Tv = () => {
   console.log('[Tv] Component rendering');
@@ -40,10 +41,12 @@ const Tv = () => {
   };
 
   return (
-    <TvMainContent
-      {...tvState}
-      testAnalysis={testAnalysis}
-    />
+    <ErrorBoundary>
+      <TvMainContent
+        {...tvState}
+        testAnalysis={testAnalysis}
+      />
+    </ErrorBoundary>
   );
 };
 

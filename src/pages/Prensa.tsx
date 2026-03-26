@@ -7,6 +7,7 @@ import FeedStatus from "@/components/prensa/FeedStatus";
 import { useNewsFeed } from "@/hooks/use-news-feed";
 import { toast } from "sonner";
 import { format, startOfDay } from "date-fns";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -84,6 +85,7 @@ const Prensa = () => {
   };
 
   return (
+    <ErrorBoundary>
     <div className="w-full space-y-6">
       <div className="flex flex-col space-y-1.5">
         <h2 className="text-3xl font-bold tracking-tight">Prensa Digital</h2>
@@ -119,6 +121,7 @@ const Prensa = () => {
         onPageChange={handlePageChange}
       />
     </div>
+    </ErrorBoundary>
   );
 };
 

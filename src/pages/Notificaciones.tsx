@@ -14,6 +14,7 @@ import NotificationActions from "@/components/notifications/NotificationActions"
 import ClientSelectionHandler from "@/components/notifications/ClientSelectionHandler";
 import RelevanceAnalysisWrapper from "@/components/notifications/RelevanceAnalysisWrapper";
 import NotificationPreferenceDialogWrapper from "@/components/notifications/NotificationPreferenceDialogWrapper";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const Notificaciones = () => {
   const location = useLocation();
@@ -92,6 +93,7 @@ const Notificaciones = () => {
   };
 
   return (
+    <ErrorBoundary>
     <div className="space-y-6">
       <NotificationHeader 
         clients={clients || []}
@@ -152,6 +154,7 @@ const Notificaciones = () => {
         selectedClient={selectedClient}
       />
     </div>
+    </ErrorBoundary>
   );
 };
 

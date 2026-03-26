@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Bell, CheckCircle, Clock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const sentAlerts = [
   {
@@ -25,6 +26,7 @@ const sentAlerts = [
 
 const EnvioAlertas = () => {
   return (
+    <ErrorBoundary>
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Envío de Alertas</h1>
@@ -96,6 +98,7 @@ const EnvioAlertas = () => {
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   );
 };
 

@@ -3,11 +3,13 @@ import { useReportData } from "@/hooks/use-report-data";
 import ReportStats from "@/components/reports/ReportStats";
 import MentionsChart from "@/components/reports/MentionsChart";
 import RecentReportsList from "@/components/reports/RecentReportsList";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const Reportes = () => {
   const { recentReports, dailyMentions, stats } = useReportData();
 
   return (
+    <ErrorBoundary>
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Reportes</h1>
@@ -26,6 +28,7 @@ const Reportes = () => {
 
       <RecentReportsList reports={recentReports} />
     </div>
+    </ErrorBoundary>
   );
 };
 

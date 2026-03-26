@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { z } from "zod";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 // Email validation schema
 const emailSchema = z
@@ -99,6 +100,7 @@ const Auth = () => {
   }
 
   return (
+    <ErrorBoundary>
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle>Iniciar sesión</CardTitle>
@@ -193,6 +195,7 @@ const Auth = () => {
         </CardFooter>
       </form>
     </Card>
+    </ErrorBoundary>
   );
 };
 

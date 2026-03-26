@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { seedTvData } from "@/services/tv";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const Ajustes = () => {
   const { toast } = useToast();
@@ -84,6 +85,7 @@ const Ajustes = () => {
   ];
 
   return (
+    <ErrorBoundary>
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -205,6 +207,7 @@ const Ajustes = () => {
         </Card>
       </div>
     </div>
+    </ErrorBoundary>
   );
 };
 

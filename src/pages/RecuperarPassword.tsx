@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { z } from "zod";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const emailSchema = z
   .string()
@@ -75,6 +76,7 @@ const RecuperarPassword = () => {
   }
 
   return (
+    <ErrorBoundary>
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle>Recuperar contraseña</CardTitle>
@@ -150,6 +152,7 @@ const RecuperarPassword = () => {
         </form>
       )}
     </Card>
+    </ErrorBoundary>
   );
 };
 

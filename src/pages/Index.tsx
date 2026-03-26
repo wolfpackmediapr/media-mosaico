@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DashboardDateProvider, useDashboardDate } from "@/contexts/DashboardDateContext";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 const DashboardContent = () => {
   const navigate = useNavigate();
@@ -142,9 +143,11 @@ const DashboardContent = () => {
 
 const Index = () => {
   return (
-    <DashboardDateProvider>
-      <DashboardContent />
-    </DashboardDateProvider>
+    <ErrorBoundary>
+      <DashboardDateProvider>
+        <DashboardContent />
+      </DashboardDateProvider>
+    </ErrorBoundary>
   );
 };
 

@@ -8,6 +8,7 @@ import { MonitoringTargetsManager } from "@/components/monitoring/MonitoringTarg
 import ProcessingJobsTable from "@/components/monitoring/ProcessingJobsTable";
 import DeliveryLogsTable from "@/components/monitoring/DeliveryLogsTable";
 import { useNotificationProcessing } from "@/hooks/use-notification-processing";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 export default function MediaMonitoring() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -27,6 +28,7 @@ export default function MediaMonitoring() {
   } = useNotificationProcessing();
 
   return (
+    <ErrorBoundary>
     <div className="container mx-auto py-8 space-y-8">
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Monitoreo de Medios</h1>
@@ -126,5 +128,6 @@ export default function MediaMonitoring() {
         </div>
       </Tabs>
     </div>
+    </ErrorBoundary>
   );
 }
