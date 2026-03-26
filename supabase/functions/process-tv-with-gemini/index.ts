@@ -844,7 +844,7 @@ async function processChunkedUploadWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384
                 // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
@@ -941,10 +941,24 @@ async function processChunkedUploadWithGemini(
         }
 
         analysisResult = candidate.content.parts[0].text;
+        
+        // FIX: Check finishReason for truncation detection
+        const finishReason = candidate.finishReason;
         console.log('[gemini-unified] Analysis extraction successful', { 
           length: analysisResult.length,
+          finishReason: finishReason,
           preview: analysisResult.substring(0, 100)
         });
+        
+        if (finishReason === 'MAX_TOKENS') {
+          console.warn('[gemini-unified] WARNING: Analysis was truncated due to MAX_TOKENS. Output length:', analysisResult.length);
+          // Don't throw - use what we have, but log the truncation
+        } else if (finishReason === 'RECITATION') {
+          console.warn('[gemini-unified] WARNING: Analysis stopped due to RECITATION policy.');
+        } else if (finishReason && finishReason !== 'STOP') {
+          console.warn(`[gemini-unified] Unexpected finishReason: ${finishReason}`);
+        }
+        
         break;
       } catch (error) {
         console.error(`[gemini-unified] Analysis attempt ${attempt} failed:`, error);
@@ -1199,7 +1213,7 @@ async function processAssembledVideoWithGemini(
                 temperature: 0.1,
                 topK: 32,
                 topP: 0.8,
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384
                 // Note: No responseMimeType - allow flexible [TIPO DE CONTENIDO:] format
               }
             })
@@ -1238,7 +1252,25 @@ async function processAssembledVideoWithGemini(
           throw new Error('No analysis response from Gemini');
         }
 
-        analysisResult = analysisData.candidates[0].content.parts[0].text;
+        const candidate2 = analysisData.candidates[0];
+        analysisResult = candidate2.content.parts[0].text;
+        
+        // FIX: Check finishReason for truncation detection
+        const finishReason2 = candidate2.finishReason;
+        console.log('[gemini-unified] Analysis extraction successful (assembled path)', { 
+          length: analysisResult.length,
+          finishReason: finishReason2,
+          preview: analysisResult.substring(0, 100)
+        });
+        
+        if (finishReason2 === 'MAX_TOKENS') {
+          console.warn('[gemini-unified] WARNING: Analysis was truncated due to MAX_TOKENS. Output length:', analysisResult.length);
+        } else if (finishReason2 === 'RECITATION') {
+          console.warn('[gemini-unified] WARNING: Analysis stopped due to RECITATION policy.');
+        } else if (finishReason2 && finishReason2 !== 'STOP') {
+          console.warn(`[gemini-unified] Unexpected finishReason: ${finishReason2}`);
+        }
+        
         break;
       } catch (error) {
         console.error(`[gemini-unified] Analysis attempt ${attempt} failed:`, error);

@@ -1,5 +1,5 @@
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { FileVideo, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -56,6 +56,25 @@ const VideoFileItem = ({
     });
   }, [file]);
 
+  // FIX: Compute the video src with stable priority.
+  // During processing, the blob URL is still valid — don't switch to the
+  // Supabase URL mid-playback because that causes a loading flash (gray screen).
+  // The Supabase URL is stored in filePath for recovery after tab navigation,
+  // but the ACTIVE playback source should only change when the blob URL is
+  // actually dead (handled by EnhancedVideoPlayer's visibility change handler).
+  const videoSrc = useMemo(() => {
+    // If we have a working blob preview, always prefer it for active playback
+    if (file.preview && file.preview.startsWith('blob:')) {
+      return file.preview;
+    }
+    // If no blob preview, use the permanent Supabase URL (recovery scenario)
+    if (file.filePath && !file.filePath.startsWith('blob:')) {
+      return file.filePath;
+    }
+    // Fallback: use whatever is available
+    return file.preview || file.filePath || '';
+  }, [file.preview, file.filePath]);
+
   const getButtonText = () => {
     if (!isProcessing) return "Procesar Video";
     if (progress < 15) return "Subiendo video...";
@@ -101,10 +120,10 @@ const VideoFileItem = ({
         </Button>
       </div>
 
-      {(file.preview || file.filePath) && (
+      {videoSrc && (
         <div className="relative mb-4">
           <EnhancedVideoPlayer 
-            src={file.filePath && !file.filePath.startsWith('blob:') ? file.filePath : (file.preview || file.filePath!)}
+            src={videoSrc}
             key={(file as any)._fileId || `${file.name}-${file.size}-${file.lastModified}`}
             fileId={file._fileId}
             className="aspect-video min-h-64"

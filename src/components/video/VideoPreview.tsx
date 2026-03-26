@@ -57,8 +57,11 @@ const VideoPreview = ({
             <p className="text-center text-gray-500 py-8">No hay videos subidos</p>
           ) : (
             uploadedFiles.map((file, index) => {
-              // Use stable ID for key to prevent unnecessary remounts
-              const stableKey = (file as any)._fileId || (file as any).filePath || (file as any).preview || `${file.name}-${file.size}-${file.lastModified}`;
+              // FIX: Use _fileId as the ONLY stable key source.
+              // Previously, this fell through to filePath or preview, which change
+              // when the Supabase URL is resolved during processing — causing a
+              // full remount that destroys the active video player.
+              const stableKey = (file as any)._fileId || `${file.name}-${file.size}-${file.lastModified}`;
               
               return (
                 <VideoFileItem
@@ -87,8 +90,13 @@ export default React.memo(VideoPreview, (prevProps, nextProps) => {
   const filesEqual = 
     prevProps.uploadedFiles.length === nextProps.uploadedFiles.length &&
     prevProps.uploadedFiles.every((file, idx) => {
-      const prevId = (file as any)._fileId || (file as any).filePath || (file as any).preview;
-      const nextId = (nextProps.uploadedFiles[idx] as any)._fileId || (nextProps.uploadedFiles[idx] as any).filePath || (nextProps.uploadedFiles[idx] as any).preview;
+      // FIX: Compare using _fileId only — filePath and preview changes should
+      // NOT cause a re-render since the video player handles source recovery
+      // internally via the visibility change handler.
+      const nextFile = nextProps.uploadedFiles[idx];
+      if (!nextFile) return false;
+      const prevId = (file as any)._fileId || `${file.name}-${file.size}-${file.lastModified}`;
+      const nextId = (nextFile as any)._fileId || `${nextFile.name}-${nextFile.size}-${nextFile.lastModified}`;
       return prevId === nextId;
     });
   

@@ -338,7 +338,7 @@ Responde en español de manera concisa y profesional. Asegúrate de:
     ],
     generationConfig: {
       temperature: 0.1,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 16384,
     }
   };
 
@@ -377,7 +377,21 @@ Responde en español de manera concisa y profesional. Asegúrate de:
       }
       
       const fullResponseText = result.candidates[0].content.parts[0].text;
-      console.log('[gemini-unified] Analysis completed successfully');
+      
+      // FIX: Check finishReason for truncation detection
+      const finishReason = result.candidates[0].finishReason;
+      console.log('[gemini-unified] Analysis completed successfully', {
+        length: fullResponseText.length,
+        finishReason: finishReason
+      });
+      
+      if (finishReason === 'MAX_TOKENS') {
+        console.warn('[gemini-unified] WARNING: Analysis was truncated due to MAX_TOKENS. Output length:', fullResponseText.length);
+      } else if (finishReason === 'RECITATION') {
+        console.warn('[gemini-unified] WARNING: Analysis stopped due to RECITATION policy.');
+      } else if (finishReason && finishReason !== 'STOP') {
+        console.warn(`[gemini-unified] Unexpected finishReason: ${finishReason}`);
+      }
       
       // Parse the response to separate transcription and analysis
       const { transcription, analysis } = parseGeminiResponse(fullResponseText);
