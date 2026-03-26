@@ -238,12 +238,12 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
     };
   }, [setActiveMediaRoute, activeMediaRoute, currentFileId, isMediaPlaying, updatePlaybackPosition]);
 
-  // FIX: Restore permanent video URL from sessionStorage ONLY on initial load (not during processing)
-  // This prevents the video from reloading when processing starts
+  // FIX: Restore permanent video URL from sessionStorage on initial load
+  // Always ensures filePath is set so the video player can use it for recovery
   const hasRestoredFromStorage = useRef(false);
   
   useEffect(() => {
-    // Only restore once on initial mount, not during processing
+    // Only restore once on initial mount
     if (hasRestoredFromStorage.current) return;
     
     // Check if we have a stored permanent URL from upload
@@ -251,32 +251,37 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
     
     if (storedVideoUrl && uploadedFiles.length > 0) {
       const firstFile = uploadedFiles[0];
+      hasRestoredFromStorage.current = true;
       
-      // Only update file object if it doesn't have a working preview (blob or http)
-      // This prevents interrupting video playback during processing
-      const hasWorkingPreview = firstFile.preview?.startsWith('blob:') || firstFile.preview?.startsWith('http');
+      // Always ensure filePath is set on the file object
+      // This is critical: even if a blob preview exists, we need filePath
+      // for recovery when the blob URL becomes invalid after tab navigation
+      const needsFilePathUpdate = !firstFile.filePath || firstFile.filePath.startsWith('blob:');
       
-      if (!hasWorkingPreview && !firstFile.filePath) {
-        console.log('[usePersistentVideoState] Restoring permanent URL on initial load:', storedVideoUrl.substring(0, 50));
+      if (needsFilePathUpdate) {
+        console.log('[usePersistentVideoState] Setting filePath from sessionStorage:', storedVideoUrl.substring(0, 80));
         
-        // Update the file object with the permanent URL
         const updatedFile = Object.assign(firstFile, {
           filePath: storedVideoUrl,
           _fileId: firstFile._fileId || `${firstFile.name}-${firstFile.size}-${firstFile.lastModified}`
         });
         
-        // Update uploadedFiles with the permanent URL
-        setUploadedFiles([updatedFile]);
-        hasRestoredFromStorage.current = true;
-      } else {
-        // Mark as restored even if we didn't need to update - prevents future updates
-        hasRestoredFromStorage.current = true;
+        // Only trigger a full state update if we don't have a working preview
+        // (i.e., we're restoring after navigation, not during active playback)
+        const hasWorkingBlobPreview = firstFile.preview?.startsWith('blob:');
         
-        // Silently update the filePath in the background without triggering re-render
-        // This ensures the permanent URL is available for recovery
-        if (!firstFile.filePath || firstFile.filePath.startsWith('blob:')) {
-          firstFile.filePath = storedVideoUrl;
+        if (!hasWorkingBlobPreview) {
+          // No blob preview — use the permanent URL as the preview too
+          updatedFile.preview = storedVideoUrl;
+          setUploadedFiles([updatedFile]);
+          console.log('[usePersistentVideoState] Full restore: using permanent URL as preview');
+        } else {
+          // Blob preview exists (initial load) — just attach filePath silently
+          // The EnhancedVideoPlayer visibility handler will use it if the blob becomes invalid
+          console.log('[usePersistentVideoState] Blob preview active: filePath set for recovery');
         }
+      } else {
+        console.log('[usePersistentVideoState] filePath already set, no restore needed');
       }
     }
   }, [uploadedFiles, setUploadedFiles]);

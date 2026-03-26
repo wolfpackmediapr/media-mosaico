@@ -38,7 +38,14 @@ export const resolveVideoSource = async (filePath: string): Promise<VideoSource>
       return { type: 'chunked', sessionId, isAvailable: true };
     }
     
-    // For regular assembled files, check if they exist in storage
+    // If the path is already a full Supabase public URL, trust it directly
+    // This avoids unreliable storage list searches that cause false negatives
+    if (filePath.includes('/storage/v1/object/public/')) {
+      console.log('[videoSourceResolver] Supabase public URL detected, using directly');
+      return { type: 'assembled', path: filePath, isAvailable: true };
+    }
+
+    // For regular assembled files (relative paths), check if they exist in storage
     try {
       const { data, error } = await supabase.storage
         .from('video')
@@ -46,15 +53,17 @@ export const resolveVideoSource = async (filePath: string): Promise<VideoSource>
       
       if (error) {
         console.error('Error checking assembled file:', error);
-        return { type: 'assembled', path: filePath, isAvailable: false };
+        // Fall back to assuming available — let the video element handle 404
+        return { type: 'assembled', path: filePath, isAvailable: true };
       }
       
       const fileExists = data && data.length > 0;
-      return { type: 'assembled', path: filePath, isAvailable: fileExists };
+      return { type: 'assembled', path: filePath, isAvailable: fileExists || true };
       
     } catch (storageError) {
       console.error('Storage check failed:', storageError);
-      return { type: 'assembled', path: filePath, isAvailable: false };
+      // Fall back to assuming available — let the video element handle errors
+      return { type: 'assembled', path: filePath, isAvailable: true };
     }
     
   } catch (error) {

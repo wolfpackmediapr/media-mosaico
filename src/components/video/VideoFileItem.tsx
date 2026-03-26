@@ -104,7 +104,7 @@ const VideoFileItem = ({
       {(file.preview || file.filePath) && (
         <div className="relative mb-4">
           <EnhancedVideoPlayer 
-            src={file.preview?.startsWith('blob:') ? file.preview : (file.filePath || file.preview!)}
+            src={file.filePath && !file.filePath.startsWith('blob:') ? file.filePath : (file.preview || file.filePath!)}
             key={(file as any)._fileId || `${file.name}-${file.size}-${file.lastModified}`}
             fileId={file._fileId}
             className="aspect-video min-h-64"
