@@ -78,8 +78,22 @@ export const useTvState = () => {
   });
 
   const handleProcess = (file: File) => {
-    processVideo(file);
-    // Phase 1: Don't set mock video path - let the video player set the actual src
+    // Pass callback to update uploadedFiles with the permanent Supabase URL
+    // This prevents the video from going gray when the blob URL becomes invalid
+    processVideo(file, (publicUrl: string) => {
+      console.log('[useTvState] Updating uploadedFiles with permanent URL:', publicUrl.substring(0, 60));
+      setUploadedFiles(
+        uploadedFiles.map(f => {
+          if (f.name === file.name && f.size === file.size) {
+            // Create a new object with the filePath set
+            return Object.assign(Object.create(Object.getPrototypeOf(f)), f, {
+              filePath: publicUrl
+            });
+          }
+          return f;
+        })
+      );
+    });
   };
 
   const handleRemoveFile = (index: number) => {

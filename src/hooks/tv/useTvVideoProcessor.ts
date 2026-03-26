@@ -53,7 +53,7 @@ export const useTvVideoProcessor = () => {
   const removeTranscriptionResult = () => setTranscriptionResult(null);
   const removeNewsSegments = () => setNewsSegments([]);
 
-  const processVideo = async (file: File) => {
+  const processVideo = async (file: File, onFilePathResolved?: (publicUrl: string) => void) => {
     setIsProcessing(true);
     setProgress(0);
     // Clear previous results
@@ -157,9 +157,23 @@ export const useTvVideoProcessor = () => {
         
         // FIX: Store the chunked video path for persistence
         // Chunked videos use a special format: chunked:sessionId
-        sessionStorage.setItem('tv-uploaded-video-url', fileName); // fileName is already "chunked:sessionId"
+        // For chunked uploads, generate the actual public URL from the assembled file path
+        const chunkedSessionId = matchingChunkSession.session_id;
+        const assembledFileName = matchingChunkSession.file_name.replace(/\s+/g, '_');
+        const chunkedFilePath = `${user.id}/${assembledFileName}`;
+        const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
+          .from('video')
+          .getPublicUrl(chunkedFilePath);
+        
+        sessionStorage.setItem('tv-uploaded-video-url', chunkedPublicUrl);
         sessionStorage.setItem('tv-uploaded-video-filename', file.name);
-        console.log('[TvVideoProcessor] Stored chunked video path:', fileName);
+        console.log('[TvVideoProcessor] Stored chunked video public URL:', chunkedPublicUrl);
+        
+        // Notify caller so the video player can switch to the permanent URL
+        if (onFilePathResolved) {
+          console.log('[TvVideoProcessor] Notifying caller of resolved chunked file path');
+          onFilePathResolved(chunkedPublicUrl);
+        }
         
         toast.info("Archivo ya subido", {
           description: "Validando y preparando video..."
@@ -208,6 +222,12 @@ export const useTvVideoProcessor = () => {
         // Store the permanent URL in sessionStorage for persistence
         sessionStorage.setItem('tv-uploaded-video-url', publicUrl);
         sessionStorage.setItem('tv-uploaded-video-filename', file.name);
+        
+        // Notify caller so the video player can switch to the permanent URL
+        if (onFilePathResolved) {
+          console.log('[TvVideoProcessor] Notifying caller of resolved file path');
+          onFilePathResolved(publicUrl);
+        }
         
         setProgress(10);
 

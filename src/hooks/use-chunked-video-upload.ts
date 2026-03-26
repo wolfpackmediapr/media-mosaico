@@ -458,6 +458,14 @@ export const useChunkedVideoUpload = () => {
       const preview = URL.createObjectURL(file);
       console.log('Client-side assembly completed successfully');
       
+      // Store the permanent Supabase URL for video persistence
+      const { data: { publicUrl } } = supabase.storage
+        .from('video')
+        .getPublicUrl(fileName);
+      sessionStorage.setItem('tv-uploaded-video-url', publicUrl);
+      sessionStorage.setItem('tv-uploaded-video-filename', file.name);
+      console.log('Stored permanent URL for chunked upload:', publicUrl);
+      
       toast.success("Archivo subido exitosamente", {
         description: "El archivo ha sido procesado correctamente mediante ensamblaje del lado del cliente."
       });
@@ -546,6 +554,14 @@ export const useChunkedVideoUpload = () => {
       const preview = URL.createObjectURL(file);
       console.log('Edge function upload completed successfully');
       
+      // Store the permanent Supabase URL for video persistence
+      const { data: { publicUrl: edgePublicUrl } } = supabase.storage
+        .from('video')
+        .getPublicUrl(fileName);
+      sessionStorage.setItem('tv-uploaded-video-url', edgePublicUrl);
+      sessionStorage.setItem('tv-uploaded-video-filename', file.name);
+      console.log('Stored permanent URL for edge function chunked upload:', edgePublicUrl);
+      
       toast.success("Archivo subido exitosamente", {
         description: "El archivo ha sido procesado correctamente."
       });
@@ -566,6 +582,14 @@ export const useChunkedVideoUpload = () => {
         console.log('Session was completed despite validation error');
         removeSession(session.sessionId);
         const preview = URL.createObjectURL(file);
+        
+        // Store the permanent Supabase URL for video persistence (fallback path)
+        const { data: { publicUrl: fallbackPublicUrl } } = supabase.storage
+          .from('video')
+          .getPublicUrl(fileName);
+        sessionStorage.setItem('tv-uploaded-video-url', fallbackPublicUrl);
+        sessionStorage.setItem('tv-uploaded-video-filename', file.name);
+        
         toast.success("Archivo subido exitosamente", {
           description: "El archivo ha sido procesado correctamente."
         });
