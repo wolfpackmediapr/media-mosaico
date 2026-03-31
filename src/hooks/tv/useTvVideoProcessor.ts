@@ -488,7 +488,7 @@ export const useTvVideoProcessor = () => {
 
   // Poll for processing completion with visibility-aware adaptive intervals
   const pollForProcessingCompletion = async (transcriptionId: string) => {
-    const maxAttempts = 120; // 10 minutes max with adaptive intervals
+    const maxAttempts = 360; // 30 minutes max with adaptive intervals for large files
     let attempts = 0;
     let isTabVisible = !document.hidden;
     
