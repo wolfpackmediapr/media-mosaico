@@ -979,6 +979,12 @@ serve(async (req) => {
     
     // Fetch clients and categories from database
     const clientsData = await fetchClientsAndCategories(supabase);
+    if (!clientsData) {
+      return new Response(JSON.stringify({ error: 'Failed to fetch clients data' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
     console.log(`[Legacy] Using ${clientsData.clients.length} clients with ${clientsData.allKeywords.length} keywords`);
     
     const { jobId } = await req.json();

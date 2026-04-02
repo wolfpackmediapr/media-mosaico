@@ -166,7 +166,7 @@ export async function generateAnalysisWithVideo(videoBlob: Blob, apiKey: string,
             { text: prompt },
             {
               file_data: {
-                mime_type: 'video/mp4',
+                mime_type: processedFile.mimeType || 'video/mp4',
                 file_uri: processedFile.uri
               }
             }

@@ -1119,7 +1119,7 @@ async function processAssembledVideoWithGemini(
          throw new Error(`Failed to download video: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`);
        }
 
-       const videoBlob = new Blob([videoData], { type: 'video/mp4' });
+       const videoBlob = new Blob([videoData], { type: getMimeTypeFromPath(videoPath) });
     
        if (transcriptionId) {
          await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
