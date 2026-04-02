@@ -1105,7 +1105,7 @@ async function processAssembledVideoWithGemini(
        fileInfo = await uploadVideoToGeminiStream(
          contentLength,
          mimeType,
-         videoPath.split('/').pop() || 'video.mp4',
+         videoPath.split('/').pop() || `video${videoPath.includes('.') ? videoPath.substring(videoPath.lastIndexOf('.')) : '.mp4'}`,
          videoResponse.body
        );
      } else {
