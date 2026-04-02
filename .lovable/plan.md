@@ -1,27 +1,55 @@
 
 
-## Deactivate Broken RSS Feed Sources
-
-### Problem
-Two feed sources have expired RSS.app URLs returning 404 errors with 1,100+ error counts each. Working replacements ("Web" versions) are already active.
-
-| Broken Source | Error Count | Replacement |
-|---|---|---|
-| El Nuevo Día (`e9652094...`) | 1,137 | El Nuevo Dia Web (`59e08c69...`) |
-| Primera Hora (`7bef020c...`) | 1,135 | Primera Hora Web (`40edbf7d...`) |
+## Combined Fix: Retry Logic + MIME Type Bug + Build Errors
 
 ### Changes
 
-**Data operation** (using Supabase insert/update tool):
+#### 1. Add 429 retry logic to `uploadVideoToGeminiStream()`
+**File:** `supabase/functions/process-tv-with-gemini/index.ts` (lines 228-244)
 
-```sql
-UPDATE feed_sources 
-SET active = false, error_count = 0, last_fetch_error = 'Deactivated: replaced by Web source'
-WHERE id IN (
-  'e9652094-1504-4fa0-92ce-2054b8c4f80f',
-  '7bef020c-97f9-43fe-a51b-617608b89f7d'
-);
+Wrap the resumable upload initialization in a retry loop (3 attempts, 15s/30s/60s backoff). Extract `Retry-After` header when available.
+
+#### 2. Fix MIME type hardcoding on small-file path
+**File:** `supabase/functions/process-tv-with-gemini/index.ts` (line 1102)
+
+Replace:
+```typescript
+const videoBlob = new Blob([videoData], { type: 'video/mp4' });
+```
+With a helper that infers MIME from the file extension:
+```typescript
+function getMimeTypeFromPath(path: string): string {
+  if (path.endsWith('.mov')) return 'video/quicktime';
+  if (path.endsWith('.webm')) return 'video/webm';
+  if (path.endsWith('.avi')) return 'video/x-msvideo';
+  return 'video/mp4';
+}
+const videoBlob = new Blob([videoData], { type: getMimeTypeFromPath(videoPath) });
 ```
 
-No code changes needed -- the feed processing edge functions already skip inactive sources (`WHERE active = true`).
+Also fix the display name fallback on line 1088 to preserve the actual extension instead of always defaulting to `.mp4`.
+
+#### 3. Fix hardcoded MIME in gemini-client.ts (line 169)
+**File:** `supabase/functions/process-tv-with-gemini/gemini-client.ts`
+
+The `generateAnalysisWithVideo` function hardcodes `mime_type: 'video/mp4'`. Change to use the uploaded file's actual MIME type from `processedFile.mimeType`.
+
+#### 4. Fix TypeScript build errors in process-press-pdf
+**File:** `supabase/functions/process-press-pdf/index.ts`
+
+- Line 878: Replace `publimediaClients` with `cachedClientsData?.clientsByCategory || {}`
+- Line 982: Add null guard before accessing `clientsData.clients.length`
+- Lines 1060, 1098, 1110: Add non-null assertion after the guard at 982
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `supabase/functions/process-tv-with-gemini/index.ts` | Add retry loop to upload init; add `getMimeTypeFromPath()` helper; fix small-file blob MIME |
+| `supabase/functions/process-tv-with-gemini/gemini-client.ts` | Use actual file MIME type instead of hardcoded `video/mp4` |
+| `supabase/functions/process-press-pdf/index.ts` | Fix `publimediaClients` undefined + null guards |
+
+### What this does NOT fix
+
+**Tier 1 TPM ceiling** — if you're consistently over 1M TPM, retries delay failure but don't prevent it. You need to request Tier 2 access from Google for sustained multi-video processing. This is an infrastructure action, not a code fix.
 
