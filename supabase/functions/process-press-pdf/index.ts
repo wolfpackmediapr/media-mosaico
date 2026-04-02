@@ -1101,7 +1101,7 @@ serve(async (req) => {
                 job.file_path,
                 supabase,
                 jobId,
-                clientsData
+                clientsData!
               );
               allClippings = result.clippings;
               
