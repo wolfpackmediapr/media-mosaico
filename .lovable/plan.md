@@ -1,55 +1,32 @@
 
 
-## Combined Fix: Retry Logic + MIME Type Bug + Build Errors
+## Fix: Memory Limit on Retry + Redeploy Press PDF
+
+### Root Cause
+
+The 429 retry logic works, but during the 15-second backoff wait, the edge function holds ~222MB of video data in memory. Supabase Edge Functions have a ~150MB memory limit → **OOM kill before retry completes**.
+
+The retry delay isn't the problem — the problem is that the video data stream has already been consumed and is buffered in memory by the time the 429 hits. The upload initialization (the part that gets 429'd) happens *before* the actual data upload, so we can retry the init without holding video data.
 
 ### Changes
 
-#### 1. Add 429 retry logic to `uploadVideoToGeminiStream()`
-**File:** `supabase/functions/process-tv-with-gemini/index.ts` (lines 228-244)
+#### 1. Restructure retry to avoid holding video data during backoff
+**File:** `supabase/functions/process-tv-with-gemini/index.ts`
 
-Wrap the resumable upload initialization in a retry loop (3 attempts, 15s/30s/60s backoff). Extract `Retry-After` header when available.
+The upload init request (lines 244-257) is a lightweight JSON POST that doesn't send video data — it just gets the upload URL. The video stream is consumed later (lines 282-289). So the retry loop around the init is fine in isolation.
 
-#### 2. Fix MIME type hardcoding on small-file path
-**File:** `supabase/functions/process-tv-with-gemini/index.ts` (line 1102)
+The real memory issue: the function downloads all 15 chunks from Supabase Storage into memory *before* calling `uploadVideoToGeminiStream`. Find where chunks are assembled and check if the full video is buffered.
 
-Replace:
-```typescript
-const videoBlob = new Blob([videoData], { type: 'video/mp4' });
-```
-With a helper that infers MIME from the file extension:
-```typescript
-function getMimeTypeFromPath(path: string): string {
-  if (path.endsWith('.mov')) return 'video/quicktime';
-  if (path.endsWith('.webm')) return 'video/webm';
-  if (path.endsWith('.avi')) return 'video/x-msvideo';
-  return 'video/mp4';
-}
-const videoBlob = new Blob([videoData], { type: getMimeTypeFromPath(videoPath) });
-```
+**Investigation needed:** Check the chunk assembly code to see if all chunks are concatenated into a single buffer before streaming. If so, refactor to use a streaming approach that doesn't hold the full video.
 
-Also fix the display name fallback on line 1088 to preserve the actual extension instead of always defaulting to `.mp4`.
+**Quick fix (if streaming refactor is too large):** Remove the 15s/30s/60s delays from the retry loop. Instead, fail fast on 429 and let the *outer* retry mechanism (the caller) handle re-invocation. This avoids holding memory during backoff.
 
-#### 3. Fix hardcoded MIME in gemini-client.ts (line 169)
-**File:** `supabase/functions/process-tv-with-gemini/gemini-client.ts`
+Alternatively, reduce backoff to 2s/4s/8s — short enough that the function doesn't get killed, but still gives Gemini time to cool down.
 
-The `generateAnalysisWithVideo` function hardcodes `mime_type: 'video/mp4'`. Change to use the uploaded file's actual MIME type from `processedFile.mimeType`.
+#### 2. Redeploy `process-press-pdf`
+Trigger a fresh deploy. The code fixes (null guards + `publimediaClients`) are already in the codebase — it just needs the deploy to land.
 
-#### 4. Fix TypeScript build errors in process-press-pdf
-**File:** `supabase/functions/process-press-pdf/index.ts`
+### Investigation Step (before finalizing plan)
 
-- Line 878: Replace `publimediaClients` with `cachedClientsData?.clientsByCategory || {}`
-- Line 982: Add null guard before accessing `clientsData.clients.length`
-- Lines 1060, 1098, 1110: Add non-null assertion after the guard at 982
-
-### Files Changed
-
-| File | Change |
-|---|---|
-| `supabase/functions/process-tv-with-gemini/index.ts` | Add retry loop to upload init; add `getMimeTypeFromPath()` helper; fix small-file blob MIME |
-| `supabase/functions/process-tv-with-gemini/gemini-client.ts` | Use actual file MIME type instead of hardcoded `video/mp4` |
-| `supabase/functions/process-press-pdf/index.ts` | Fix `publimediaClients` undefined + null guards |
-
-### What this does NOT fix
-
-**Tier 1 TPM ceiling** — if you're consistently over 1M TPM, retries delay failure but don't prevent it. You need to request Tier 2 access from Google for sustained multi-video processing. This is an infrastructure action, not a code fix.
+I need to check how chunks are assembled before the upload call to determine if the full video is buffered in memory. This will determine whether we need a streaming refactor or just shorter retry delays.
 
