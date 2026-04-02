@@ -212,6 +212,16 @@ async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{
   }
 }
 
+// Helper to infer MIME type from file path
+function getMimeTypeFromPath(path: string): string {
+  const lower = path.toLowerCase();
+  if (lower.endsWith('.mov')) return 'video/quicktime';
+  if (lower.endsWith('.webm')) return 'video/webm';
+  if (lower.endsWith('.avi')) return 'video/x-msvideo';
+  if (lower.endsWith('.mkv')) return 'video/x-matroska';
+  return 'video/mp4';
+}
+
 // Streaming upload to Gemini File API
 async function uploadVideoToGeminiStream(
   totalSize: number,
