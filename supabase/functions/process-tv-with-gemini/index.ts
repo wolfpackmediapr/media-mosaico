@@ -212,6 +212,16 @@ async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{
   }
 }
 
+// Helper to infer MIME type from file path
+function getMimeTypeFromPath(path: string): string {
+  const lower = path.toLowerCase();
+  if (lower.endsWith('.mov')) return 'video/quicktime';
+  if (lower.endsWith('.webm')) return 'video/webm';
+  if (lower.endsWith('.avi')) return 'video/x-msvideo';
+  if (lower.endsWith('.mkv')) return 'video/x-matroska';
+  return 'video/mp4';
+}
+
 // Streaming upload to Gemini File API
 async function uploadVideoToGeminiStream(
   totalSize: number,
@@ -225,23 +235,43 @@ async function uploadVideoToGeminiStream(
     throw new Error('Google Gemini API key not configured');
   }
   try {
-    // Initialize resumable upload
-    const initResponse = await fetch(
-      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'X-Goog-Upload-Protocol': 'resumable',
-          'X-Goog-Upload-Command': 'start',
-          'X-Goog-Upload-Header-Content-Length': totalSize.toString(),
-          'X-Goog-Upload-Header-Content-Type': mimeType || 'video/mp4',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ file: { display_name: fileName } })
+    // Initialize resumable upload with retry logic for 429 rate limits
+    const maxInitRetries = 3;
+    const initBackoffs = [15000, 30000, 60000]; // 15s, 30s, 60s
+    let initResponse: Response | null = null;
+    
+    for (let initAttempt = 0; initAttempt < maxInitRetries; initAttempt++) {
+      initResponse = await fetch(
+        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'X-Goog-Upload-Protocol': 'resumable',
+            'X-Goog-Upload-Command': 'start',
+            'X-Goog-Upload-Header-Content-Length': totalSize.toString(),
+            'X-Goog-Upload-Header-Content-Type': mimeType || 'video/mp4',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ file: { display_name: fileName } })
+        }
+      );
+      
+      if (initResponse.status === 429) {
+        const retryAfter = initResponse.headers.get('Retry-After');
+        const delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : initBackoffs[initAttempt];
+        console.warn(`[gemini-unified] Upload init got 429 (attempt ${initAttempt + 1}/${maxInitRetries}), retrying in ${delay / 1000}s...`);
+        if (initAttempt < maxInitRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
       }
-    );
-    if (!initResponse.ok) {
-      throw new Error(`Failed to initialize streaming upload: ${initResponse.status} ${initResponse.statusText}`);
+      
+      break; // Success or non-429 error
+    }
+    
+    if (!initResponse || !initResponse.ok) {
+      const errorText = initResponse ? await initResponse.text() : 'No response';
+      throw new Error(`Failed to initialize streaming upload: ${initResponse?.status || 'unknown'} - ${errorText}`);
     }
     const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
     if (!uploadUrl) {
@@ -1085,7 +1115,7 @@ async function processAssembledVideoWithGemini(
        fileInfo = await uploadVideoToGeminiStream(
          contentLength,
          mimeType,
-         videoPath.split('/').pop() || 'video.mp4',
+         videoPath.split('/').pop() || `video${videoPath.includes('.') ? videoPath.substring(videoPath.lastIndexOf('.')) : '.mp4'}`,
          videoResponse.body
        );
      } else {
@@ -1099,7 +1129,7 @@ async function processAssembledVideoWithGemini(
          throw new Error(`Failed to download video: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`);
        }
 
-       const videoBlob = new Blob([videoData], { type: 'video/mp4' });
+       const videoBlob = new Blob([videoData], { type: getMimeTypeFromPath(videoPath) });
     
        if (transcriptionId) {
          await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');

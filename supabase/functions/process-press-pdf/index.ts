@@ -875,7 +875,7 @@ function identifyClientRelevance(clipping: any): string[] {
   const relevantClients: string[] = [];
   
   // Check if the clipping category matches any client category
-  for (const [category, clients] of Object.entries(publimediaClients)) {
+  for (const [category, clients] of Object.entries(cachedClientsData?.clientsByCategory || {})) {
     // Direct category match
     if (clipping.category.includes(category)) {
       relevantClients.push(...clients as string[]);
@@ -979,6 +979,12 @@ serve(async (req) => {
     
     // Fetch clients and categories from database
     const clientsData = await fetchClientsAndCategories(supabase);
+    if (!clientsData) {
+      return new Response(JSON.stringify({ error: 'Failed to fetch clients data' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
     console.log(`[Legacy] Using ${clientsData.clients.length} clients with ${clientsData.allKeywords.length} keywords`);
     
     const { jobId } = await req.json();
@@ -1057,7 +1063,7 @@ serve(async (req) => {
               imageBlob,
               job.file_path,
               1,
-              clientsData
+              clientsData!
             );
             
             if (allClippings.length === 0) {
@@ -1095,7 +1101,7 @@ serve(async (req) => {
                 job.file_path,
                 supabase,
                 jobId,
-                clientsData
+                clientsData!
               );
               allClippings = result.clippings;
               
@@ -1107,7 +1113,7 @@ serve(async (req) => {
                 pdfBlob,
                 job.file_path,
                 1,
-                clientsData
+                clientsData!
               );
             }
             
