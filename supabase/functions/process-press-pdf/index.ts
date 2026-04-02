@@ -875,7 +875,7 @@ function identifyClientRelevance(clipping: any): string[] {
   const relevantClients: string[] = [];
   
   // Check if the clipping category matches any client category
-  for (const [category, clients] of Object.entries(publimediaClients)) {
+  for (const [category, clients] of Object.entries(cachedClientsData?.clientsByCategory || {})) {
     // Direct category match
     if (clipping.category.includes(category)) {
       relevantClients.push(...clients as string[]);
