@@ -1063,7 +1063,7 @@ serve(async (req) => {
               imageBlob,
               job.file_path,
               1,
-              clientsData
+              clientsData!
             );
             
             if (allClippings.length === 0) {
