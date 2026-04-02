@@ -7,6 +7,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function getMimeTypeFromFileName(fileName: string): string {
+  const ext = fileName.toLowerCase().split(".").pop();
+  const mimeTypes: Record<string, string> = {
+    "mov": "video/quicktime",
+    "mp4": "video/mp4",
+    "avi": "video/x-msvideo",
+    "mkv": "video/x-matroska",
+    "webm": "video/webm",
+    "flv": "video/x-flv",
+    "wmv": "video/x-ms-wmv",
+    "m4v": "video/x-m4v",
+    "3gp": "video/3gpp",
+  };
+  return mimeTypes[ext || ""] || "video/mp4";
+}
+
 // TV Prompt Builder Function
 function constructTvPrompt(
   categories: string[],
@@ -156,7 +172,7 @@ async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{
           'X-Goog-Upload-Protocol': 'resumable',
           'X-Goog-Upload-Command': 'start',
           'X-Goog-Upload-Header-Content-Length': videoBlob.size.toString(),
-          'X-Goog-Upload-Header-Content-Type': 'video/mp4',
+          'X-Goog-Upload-Header-Content-Type': getMimeTypeFromFileName(fileName),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -204,7 +220,7 @@ async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{
 
     return {
       uri: fileUri,
-      mimeType: 'video/mp4'
+      mimeType: getMimeTypeFromFileName(fileName)
     };
   } catch (error) {
     console.error('[gemini-unified] Video upload error:', error);
@@ -225,25 +241,38 @@ async function uploadVideoToGeminiStream(
     throw new Error('Google Gemini API key not configured');
   }
   try {
-    // Initialize resumable upload
-    const initResponse = await fetch(
-      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'X-Goog-Upload-Protocol': 'resumable',
-          'X-Goog-Upload-Command': 'start',
-          'X-Goog-Upload-Header-Content-Length': totalSize.toString(),
-          'X-Goog-Upload-Header-Content-Type': mimeType || 'video/mp4',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ file: { display_name: fileName } })
+    // Initialize resumable upload (with retry logic for 429 rate limiting)
+    const uploadInitDelays = [15000, 30000, 60000];
+    let initResponse: Response | null = null;
+    for (let attempt = 0; attempt <= 3; attempt++) {
+      initResponse = await fetch(
+        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'X-Goog-Upload-Protocol': 'resumable',
+            'X-Goog-Upload-Command': 'start',
+            'X-Goog-Upload-Header-Content-Length': totalSize.toString(),
+            'X-Goog-Upload-Header-Content-Type': mimeType || getMimeTypeFromFileName(fileName),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ file: { display_name: fileName } })
+        }
+      );
+      if (initResponse.status !== 429) break;
+      if (attempt === 3) {
+        throw new Error('Upload rate limited after 3 retries. Gemini API quota exceeded. Try again in a few minutes.');
       }
-    );
-    if (!initResponse.ok) {
-      throw new Error(`Failed to initialize streaming upload: ${initResponse.status} ${initResponse.statusText}`);
+      const retryAfterHeader = initResponse.headers.get('Retry-After');
+      const waitMs = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : uploadInitDelays[attempt];
+      const waitSec = Math.round(waitMs / 1000);
+      console.log(`[gemini-unified] Rate limited on upload init, retry attempt ${attempt + 1}/3, waiting ${waitSec}s...`);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
     }
-    const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
+    if (!initResponse!.ok) {
+      throw new Error(`Failed to initialize streaming upload: ${initResponse!.status} ${initResponse!.statusText}`);
+    }
+    const uploadUrl = initResponse!.headers.get('X-Goog-Upload-URL');
     if (!uploadUrl) {
       throw new Error('No upload URL received from Gemini');
     }
@@ -271,7 +300,7 @@ async function uploadVideoToGeminiStream(
 
     await waitForFileProcessing(uploadResult.file.name, geminiApiKey);
 
-    return { uri: fileUri, mimeType: mimeType || 'video/mp4' };
+    return { uri: fileUri, mimeType: mimeType || getMimeTypeFromFileName(fileName) };
   } catch (error) {
     console.error('[gemini-unified] Streaming upload error:', error);
     throw new Error(`Streaming upload failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -1099,7 +1128,7 @@ async function processAssembledVideoWithGemini(
          throw new Error(`Failed to download video: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`);
        }
 
-       const videoBlob = new Blob([videoData], { type: 'video/mp4' });
+       const videoBlob = new Blob([videoData], { type: getMimeTypeFromFileName(videoPath.split("/").pop() || "video.mp4") });
     
        if (transcriptionId) {
          await updateDatabaseProgress(transcriptionId, 30, 'Uploading to Gemini...');
