@@ -1113,7 +1113,7 @@ serve(async (req) => {
                 pdfBlob,
                 job.file_path,
                 1,
-                clientsData
+                clientsData!
               );
             }
             
