@@ -237,7 +237,7 @@ async function uploadVideoToGeminiStream(
   try {
     // Initialize resumable upload with retry logic for 429 rate limits
     const maxInitRetries = 3;
-    const initBackoffs = [15000, 30000, 60000]; // 15s, 30s, 60s
+    const initBackoffs = [2000, 4000, 8000]; // 2s, 4s, 8s — short to avoid OOM on edge functions
     let initResponse: Response | null = null;
     
     for (let initAttempt = 0; initAttempt < maxInitRetries; initAttempt++) {
