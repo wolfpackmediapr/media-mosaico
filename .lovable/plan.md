@@ -1,32 +1,126 @@
 
 
-## Fix: Memory Limit on Retry + Redeploy Press PDF
+## Dual Gemini API Key Rotation
 
-### Root Cause
+### Summary
+Add a key manager to `process-tv-with-gemini` that tries the primary key first, rotates to the secondary on 429, and tracks which key was used in the database.
 
-The 429 retry logic works, but during the 15-second backoff wait, the edge function holds ~222MB of video data in memory. Supabase Edge Functions have a ~150MB memory limit → **OOM kill before retry completes**.
+### Database Migration
 
-The retry delay isn't the problem — the problem is that the video data stream has already been consumed and is buffered in memory by the time the 429 hits. The upload initialization (the part that gets 429'd) happens *before* the actual data upload, so we can retry the init without holding video data.
+Add two columns to `tv_transcriptions`:
+```sql
+ALTER TABLE tv_transcriptions 
+ADD COLUMN IF NOT EXISTS provider_used TEXT,
+ADD COLUMN IF NOT EXISTS provider_fallback_reason TEXT;
+```
 
-### Changes
+### Code Changes
 
-#### 1. Restructure retry to avoid holding video data during backoff
-**File:** `supabase/functions/process-tv-with-gemini/index.ts`
+**File: `supabase/functions/process-tv-with-gemini/index.ts`**
 
-The upload init request (lines 244-257) is a lightweight JSON POST that doesn't send video data — it just gets the upload URL. The video stream is consumed later (lines 282-289). So the retry loop around the init is fine in isolation.
+**A. Add key manager after imports (after line 8):**
 
-The real memory issue: the function downloads all 15 chunks from Supabase Storage into memory *before* calling `uploadVideoToGeminiStream`. Find where chunks are assembled and check if the full video is buffered.
+```typescript
+const GEMINI_KEYS = [
+  Deno.env.get('GOOGLE_GEMINI_API_KEY_TV'),
+  Deno.env.get('GOOGLE_GEMINI_API_KEY_TV_2')
+].filter(Boolean) as string[];
 
-**Investigation needed:** Check the chunk assembly code to see if all chunks are concatenated into a single buffer before streaming. If so, refactor to use a streaming approach that doesn't hold the full video.
+let currentKeyIndex = 0;
+let rotationCount = 0;
+const MAX_ROTATIONS = 1;
 
-**Quick fix (if streaming refactor is too large):** Remove the 15s/30s/60s delays from the retry loop. Instead, fail fast on 429 and let the *outer* retry mechanism (the caller) handle re-invocation. This avoids holding memory during backoff.
+function getApiKey(): string {
+  return GEMINI_KEYS[currentKeyIndex % GEMINI_KEYS.length];
+}
 
-Alternatively, reduce backoff to 2s/4s/8s — short enough that the function doesn't get killed, but still gives Gemini time to cool down.
+function getKeyLabel(): string {
+  return currentKeyIndex === 0 ? 'gemini-primary' : 'gemini-secondary';
+}
 
-#### 2. Redeploy `process-press-pdf`
-Trigger a fresh deploy. The code fixes (null guards + `publimediaClients`) are already in the codebase — it just needs the deploy to land.
+function rotateKey(reason: string): boolean {
+  if (GEMINI_KEYS.length < 2) return false;
+  if (rotationCount >= MAX_ROTATIONS) return false;
+  const prev = currentKeyIndex;
+  currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
+  rotationCount++;
+  console.warn(`[gemini-unified] Rotated from key ${prev} to ${currentKeyIndex}: ${reason}`);
+  return true;
+}
 
-### Investigation Step (before finalizing plan)
+function resetRotationState(): void {
+  currentKeyIndex = 0;
+  rotationCount = 0;
+}
+```
 
-I need to check how chunks are assembled before the upload call to determine if the full video is buffered in memory. This will determine whether we need a streaming refactor or just shorter retry delays.
+**B. Add `resetRotationState()` at the very start of the `serve()` handler** (before any processing), so each request starts fresh.
+
+**C. Replace all 10 hardcoded `Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')` calls with `getApiKey()`:**
+
+| Location | Line | Context |
+|---|---|---|
+| `uploadVideoToGemini()` | 144 | Local var assignment |
+| `uploadVideoToGeminiStream()` | 233 | Local var assignment |
+| `cleanupGeminiFile()` | 383 | Local var assignment |
+| `generateComprehensiveAnalysis()` | 442 | Local var assignment |
+| Transcription fetch (chunked path) | 704 | Inline in URL |
+| Analysis fetch (chunked path) | 851 | Inline in URL |
+| Transcription fetch (direct path) | 1158 | Inline in URL |
+| Analysis fetch (direct path) | 1220 | Inline in URL |
+| Environment validation | 2123 | Startup check |
+
+For lines 704, 851, 1158, 1220 — change from inline `Deno.env.get(...)` to `getApiKey()`.
+
+For lines 144, 233, 383, 442 — remove local `geminiApiKey` var and null check, use `getApiKey()` directly (the key manager already guarantees a valid key since env validation happens at startup).
+
+For line 2123 — change validation to check `GEMINI_KEYS.length >= 1` and log count of available keys.
+
+**D. Add rotation logic to 429 retry blocks:**
+
+There are 4 places with 429 handling (lines 729, 897, 259, and the direct-path equivalents). In each, after exhausting retries on one key:
+
+```typescript
+// After max retries on current key hit 429:
+if (rotateKey('429_rate_limit_exhausted')) {
+  attempt = 0; // Reset retry counter for new key
+  continue;
+}
+throw new Error('Both API keys rate limited. Try again in 60 seconds.');
+```
+
+**E. Update `environment.ts`** to validate at least one key exists (not specifically `GOOGLE_GEMINI_API_KEY_TV`), and return the first available key.
+
+**F. Add provider tracking to database writes:**
+
+At every point where `tv_transcriptions` is updated with `status: 'completed'`, add:
+```typescript
+provider_used: getKeyLabel(),
+provider_fallback_reason: rotationCount > 0 ? '429_rate_limit_exhausted' : null,
+```
+
+**G. Add per-request summary log** at end of processing:
+```typescript
+console.log(`[gemini-unified] Request complete: provider=${getKeyLabel()}, rotations=${rotationCount}`);
+```
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `supabase/functions/process-tv-with-gemini/index.ts` | Key manager, replace 10 lookups, rotation on 429, provider tracking, per-request logging |
+| `supabase/functions/process-tv-with-gemini/environment.ts` | Validate at least 1 key exists, log key count |
+| DB migration | Add `provider_used` and `provider_fallback_reason` columns |
+
+### Behavior
+
+```text
+Request arrives → resetRotationState()
+  → Try primary key (KEY_TV)
+    → Success → provider_used: 'gemini-primary'
+    → 429 after retries → rotateKey()
+      → Try secondary key (KEY_TV_2)
+        → Success → provider_used: 'gemini-secondary', reason: '429_rate_limit_exhausted'
+        → 429 again → fail: "Both API keys rate limited"
+```
 
