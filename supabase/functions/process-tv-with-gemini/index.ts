@@ -711,6 +711,7 @@ async function processChunkedUploadWithGemini(
           stream
         );
         console.log('[gemini-unified] File processing completed successfully (streamed)');
+        pinCurrentKey();
       }
     }
 
@@ -726,6 +727,7 @@ async function processChunkedUploadWithGemini(
       }
       fileInfo = await uploadVideoToGemini(videoBlob, displayName);
       console.log('[gemini-unified] File processing completed successfully');
+      pinCurrentKey();
     }
 
     // === STAGE BOUNDARY: Upload complete → Reset rotation for transcription ===
@@ -2195,7 +2197,7 @@ serve(async (req) => {
 
   try {
     // Reset key rotation state for this request
-    resetRotationState();
+    resetRotationState(true);
     
     // Environment validation
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
