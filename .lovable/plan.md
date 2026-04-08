@@ -1,35 +1,35 @@
 
 
-## Switch Frontend to Call Qwen Instead of Gemini
+## Fix: Deploy Qwen Function + Fix Parameter Mismatch
 
-### Problem
-The frontend (`useTvVideoProcessor.ts` and `useTvAnalysis.ts`) still calls `process-tv-with-gemini`, which keeps hitting Gemini rate limits and content blocks. The `process-tv-with-qwen` function is deployed and ready but never called.
+### Root Cause
 
-### Key compatibility detail
-The Qwen function runs synchronously and returns `{ success, transcription, analysis }`. The frontend already has a sync response handler (lines 428-446 in `useTvVideoProcessor.ts`) that processes this exact shape — so the switch is a direct string replacement with minor field mapping.
+Two issues preventing the Qwen function from working:
 
-The Qwen function also writes `status: 'completed'` and all analysis fields to `tv_transcriptions`, so the DB state will be consistent.
+1. **Function not deployed** — The `process-tv-with-qwen` edge function has zero logs, meaning it was never deployed to Supabase. The config.toml entry alone doesn't deploy it.
 
-### One difference to handle
-The Qwen function returns `analysis` (parsed JSON object), while the frontend expects `full_analysis` (string). Need to map this in the response handling or adjust the field name check.
+2. **Parameter name mismatch** — The frontend sends `transcriptionId` but the Qwen function destructures `transcriptId`:
+   - Frontend (line 337): `transcriptionId: actualTranscriptionId`
+   - Qwen function (line 199): `const { videoPath, transcriptId, ... } = body;`
+   
+   This means `transcriptId` is always `undefined`, so the function never updates the DB record and the frontend can't track progress.
 
 ### Changes
 
-**File 1: `src/hooks/tv/useTvVideoProcessor.ts`**
-- Line 334: Change `'process-tv-with-gemini'` → `'process-tv-with-qwen'`
-- Line ~439: Add `result.analysis` as a fallback for `result.full_analysis` since Qwen returns `analysis` not `full_analysis`
+**File: `supabase/functions/process-tv-with-qwen/index.ts`** — Accept both parameter names
 
-**File 2: `src/hooks/tv/useTvAnalysis.ts`**
-- Line 106: Change `'process-tv-with-gemini'` → `'process-tv-with-qwen'`
+Line 199: Change destructuring to accept `transcriptionId` and fall back:
+```typescript
+const { videoPath, transcriptionId, transcriptId: transcriptIdAlt, categories = [], clients = [] } = body;
+const transcriptId = transcriptionId || transcriptIdAlt;
+```
 
-Two files, three line changes total. No other files modified.
+This is a 1-line change that makes the function compatible with both the frontend's `transcriptionId` and the original curl-style `transcriptId`.
+
+**Deployment**: Deploy `process-tv-with-qwen` edge function after the fix.
 
 ### What stays the same
-- All polling logic, stale-job detection, error handling
-- The Gemini function remains deployed (can switch back if needed)
-- Radio, press, and all other modules untouched
-- Database schema unchanged
-
-### After deployment
-The next video upload will go through Qwen instead of Gemini, bypassing the rate limit and content blocking issues entirely.
+- No changes to any other files
+- Gemini function untouched
+- Radio, press modules untouched
 
