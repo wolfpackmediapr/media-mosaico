@@ -228,18 +228,22 @@ export const useTvVideoProcessor = () => {
           assembledFilePath: matchingChunkSession.assembled_file_path
         });
         
-        const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
-          .from('video')
-          .getPublicUrl(chunkedFilePath);
-        
-        sessionStorage.setItem('tv-uploaded-video-url', chunkedPublicUrl);
-        sessionStorage.setItem('tv-uploaded-video-filename', file.name);
-        console.log('[TvVideoProcessor] Stored chunked video public URL:', chunkedPublicUrl);
-        
-        // Notify caller so the video player can switch to the permanent URL
-        if (onFilePathResolved) {
-          console.log('[TvVideoProcessor] Notifying caller of resolved chunked file path');
-          onFilePathResolved(chunkedPublicUrl);
+        // For chunked: references, skip public URL — the video player handles manifest playback
+        if (!chunkedFilePath.startsWith('chunked:')) {
+          const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
+            .from('video')
+            .getPublicUrl(chunkedFilePath);
+          
+          sessionStorage.setItem('tv-uploaded-video-url', chunkedPublicUrl);
+          sessionStorage.setItem('tv-uploaded-video-filename', file.name);
+          console.log('[TvVideoProcessor] Stored chunked video public URL:', chunkedPublicUrl);
+          
+          if (onFilePathResolved) {
+            console.log('[TvVideoProcessor] Notifying caller of resolved chunked file path');
+            onFilePathResolved(chunkedPublicUrl);
+          }
+        } else {
+          console.log('[TvVideoProcessor] Chunked reference — skipping public URL (manifest playback handles this)');
         }
         
         toast.info("Archivo ya subido", {
