@@ -7,6 +7,45 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ========== Dual API Key Rotation Manager ==========
+const GEMINI_KEYS = [
+  Deno.env.get('GOOGLE_GEMINI_API_KEY_TV'),
+  Deno.env.get('GOOGLE_GEMINI_API_KEY_TV_2')
+].filter(Boolean) as string[];
+
+let currentKeyIndex = 0;
+let rotationCount = 0;
+const MAX_ROTATIONS = 1;
+
+function getApiKey(): string {
+  return GEMINI_KEYS[currentKeyIndex % GEMINI_KEYS.length];
+}
+
+function getKeyLabel(): string {
+  return currentKeyIndex === 0 ? 'gemini-primary' : 'gemini-secondary';
+}
+
+function getMaskedKey(): string {
+  const key = getApiKey();
+  return key ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}` : 'none';
+}
+
+function rotateKey(reason: string): boolean {
+  if (GEMINI_KEYS.length < 2) return false;
+  if (rotationCount >= MAX_ROTATIONS) return false;
+  const prev = currentKeyIndex;
+  currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
+  rotationCount++;
+  console.warn(`[gemini-unified] Rotated from key ${prev} (${getMaskedKey()}) to key ${currentKeyIndex}: ${reason}`);
+  return true;
+}
+
+function resetRotationState(): void {
+  currentKeyIndex = 0;
+  rotationCount = 0;
+}
+// ========== End Key Rotation Manager ==========
+
 // TV Prompt Builder Function
 function constructTvPrompt(
   categories: string[],
@@ -141,15 +180,10 @@ function categorizeError(message: string): string {
 async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{ uri: string; mimeType: string }> {
   console.log('[gemini-unified] Uploading video to Gemini...', fileName);
   
-  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
-  if (!geminiApiKey) {
-    throw new Error('Google Gemini API key not configured');
-  }
-
   try {
     // First, start resumable upload
     const initResponse = await fetch(
-      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${getApiKey()}`,
       {
         method: 'POST',
         headers: {
@@ -230,10 +264,6 @@ async function uploadVideoToGeminiStream(
   dataStream: ReadableStream<Uint8Array>
 ): Promise<{ uri: string; mimeType: string }> {
   console.log('[gemini-unified] Streaming upload to Gemini...', { fileName, totalSize, mimeType });
-  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
-  if (!geminiApiKey) {
-    throw new Error('Google Gemini API key not configured');
-  }
   try {
     // Initialize resumable upload with retry logic for 429 rate limits
     const maxInitRetries = 3;
@@ -241,8 +271,9 @@ async function uploadVideoToGeminiStream(
     let initResponse: Response | null = null;
     
     for (let initAttempt = 0; initAttempt < maxInitRetries; initAttempt++) {
+      console.log(`[gemini-unified] Upload init attempt ${initAttempt + 1}/${maxInitRetries} using key: ${getMaskedKey()}`);
       initResponse = await fetch(
-        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
+        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${getApiKey()}`,
         {
           method: 'POST',
           headers: {
@@ -259,9 +290,15 @@ async function uploadVideoToGeminiStream(
       if (initResponse.status === 429) {
         const retryAfter = initResponse.headers.get('Retry-After');
         const delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : initBackoffs[initAttempt];
-        console.warn(`[gemini-unified] Upload init got 429 (attempt ${initAttempt + 1}/${maxInitRetries}), retrying in ${delay / 1000}s...`);
+        console.warn(`[gemini-unified] Upload init got 429 (attempt ${initAttempt + 1}/${maxInitRetries}), key: ${getMaskedKey()}, retrying in ${delay / 1000}s...`);
         if (initAttempt < maxInitRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        // Last attempt on this key failed — try rotating
+        if (rotateKey('429_upload_init_exhausted')) {
+          console.log(`[gemini-unified] Rotated key for upload init, resetting attempts`);
+          initAttempt = -1; // Will become 0 on next iteration
           continue;
         }
       }
@@ -380,15 +417,9 @@ function extractRetryDelay(errorData: any): number {
 async function cleanupGeminiFile(fileName: string): Promise<void> {
   console.log('[gemini-unified] Cleaning up Gemini file...', fileName);
   
-  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
-  if (!geminiApiKey) {
-    console.error('[gemini-unified] No API key for cleanup');
-    return;
-  }
-
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${getApiKey()}`,
       {
         method: 'DELETE'
       }
@@ -439,11 +470,6 @@ async function generateComprehensiveAnalysis(
 ): Promise<string> {
   console.log('[gemini-unified] Generating comprehensive analysis...');
   
-  const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
-  if (!geminiApiKey) {
-    throw new Error('Google Gemini API key not configured');
-  }
-
   // Build TV-specific Spanish prompt using the proper prompt builder
   const prompt = constructTvPrompt(
     categories.map(c => c.name),
@@ -454,7 +480,7 @@ async function generateComprehensiveAnalysis(
 
   try {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${getApiKey()}`,
       {
         method: 'POST',
         headers: {
@@ -700,8 +726,9 @@ async function processChunkedUploadWithGemini(
       try {
         console.log(`[gemini-unified] Transcription attempt ${attempt}/${maxTranscriptionAttempts}`);
         
+        console.log(`[gemini-unified] Transcription using key: ${getMaskedKey()}`);
         const transcriptionResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${getApiKey()}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -730,7 +757,7 @@ async function processChunkedUploadWithGemini(
             const retryDelay = extractRetryDelay(errorData);
             const backoffDelay = Math.min(retryDelay * attempt, 120000); // Max 2 minutes
             
-            console.warn(`[gemini-unified] Rate limit on transcription attempt ${attempt}. Retrying in ${backoffDelay/1000}s...`);
+            console.warn(`[gemini-unified] Rate limit on transcription attempt ${attempt}, key: ${getMaskedKey()}. Retrying in ${backoffDelay/1000}s...`);
             
             if (transcriptionId) {
               await updateDatabaseProgress(
@@ -738,6 +765,15 @@ async function processChunkedUploadWithGemini(
                 35 + attempt, 
                 `Límite alcanzado. Reintentando en ${backoffDelay/1000}s... (${attempt}/${maxTranscriptionAttempts})`
               );
+            }
+            
+            // If this is the last attempt, try rotating key
+            if (attempt === maxTranscriptionAttempts - 1) {
+              if (rotateKey('429_transcription_exhausted')) {
+                console.log(`[gemini-unified] Rotated key for transcription, will retry`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                continue;
+              }
             }
             
             await new Promise(resolve => setTimeout(resolve, backoffDelay));
