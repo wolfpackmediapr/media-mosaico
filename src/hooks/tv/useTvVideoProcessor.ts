@@ -199,6 +199,8 @@ export const useTvVideoProcessor = () => {
         const chunkedSessionId = matchingChunkSession.session_id;
         const assembledFileName = matchingChunkSession.file_name.replace(/\s+/g, '_');
         const chunkedFilePath = `${user.id}/${assembledFileName}`;
+        // FIX: Update fileName to actual storage path so edge function can find it
+        fileName = chunkedFilePath;
         const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
           .from('video')
           .getPublicUrl(chunkedFilePath);
