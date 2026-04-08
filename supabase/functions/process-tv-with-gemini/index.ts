@@ -15,7 +15,7 @@ const GEMINI_KEYS = [
 
 let currentKeyIndex = 0;
 let rotationCount = 0;
-const MAX_ROTATIONS = 1;
+const MAX_ROTATIONS_PER_STAGE = 1; // Allow one rotation (primary → secondary) per processing stage
 
 function getApiKey(): string {
   return GEMINI_KEYS[currentKeyIndex % GEMINI_KEYS.length];
