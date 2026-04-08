@@ -1,0 +1,1 @@
+ALTER TABLE tv_transcriptions ADD COLUMN IF NOT EXISTS provider_used TEXT, ADD COLUMN IF NOT EXISTS provider_fallback_reason TEXT;
