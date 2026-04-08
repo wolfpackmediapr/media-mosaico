@@ -211,79 +211,24 @@ serve(async (req) => {
       clientsCount: clients.length,
     });
 
-    // ── Generate signed URL (with reassembly fallback for chunked uploads) ──
-    let resolvedVideoPath = videoPath;
+    // ── Generate signed URL ──
+    // The frontend is responsible for ensuring a single assembled file exists at this path.
+    // For manifest-based chunked uploads, the frontend reassembles the file before calling this function.
+    console.log(`[qwen-tv][${requestId}] Generating signed URL for path: ${videoPath}`);
+    
     const { data: signedUrlData, error: signedUrlError } = await supabaseClient
       .storage
       .from('video')
       .createSignedUrl(videoPath, 3600);
 
-    let videoUrl: string;
-
     if (signedUrlError || !signedUrlData?.signedUrl) {
-      console.warn(`[qwen-tv][${requestId}] Signed URL failed for path: ${videoPath}, attempting chunked reassembly...`);
-
-      // Extract sessionId from the path (format: sessionId/filename)
-      const pathParts = videoPath.split('/');
-      const sessionId = pathParts[0];
-      const fileName = pathParts[pathParts.length - 1] || 'video.mp4';
-
-      // Look up the chunked upload session
-      const { data: sessionData, error: sessionError } = await supabaseClient
-        .from('chunked_upload_sessions')
-        .select('total_chunks, status, file_name')
-        .eq('session_id', sessionId)
-        .single();
-
-      if (sessionError || !sessionData) {
-        console.error(`[qwen-tv][${requestId}] No chunked session found for: ${sessionId}`);
-        throw new Error('No se pudo generar URL firmada para el video y no se encontró sesión de carga');
-      }
-
-      console.log(`[qwen-tv][${requestId}] Found chunked session, triggering reassembly: ${sessionData.total_chunks} chunks`);
-
-      // Call the reassembly function
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const reassemblyResponse = await fetch(`${supabaseUrl}/functions/v1/reassemble-chunked-video`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sessionId: sessionId,
-          fileName: fileName,
-          totalChunks: sessionData.total_chunks,
-        }),
-      });
-
-      if (!reassemblyResponse.ok) {
-        const errText = await reassemblyResponse.text();
-        console.error(`[qwen-tv][${requestId}] Reassembly failed:`, errText);
-        throw new Error(`Reassembly failed: ${errText}`);
-      }
-
-      console.log(`[qwen-tv][${requestId}] Reassembly completed, retrying signed URL...`);
-      resolvedVideoPath = `${sessionId}/${fileName}`;
-
-      // Retry signed URL with the reassembled path
-      const { data: retrySignedUrl, error: retryError } = await supabaseClient
-        .storage
-        .from('video')
-        .createSignedUrl(resolvedVideoPath, 3600);
-
-      if (retryError || !retrySignedUrl?.signedUrl) {
-        console.error(`[qwen-tv][${requestId}] Signed URL still failed after reassembly:`, retryError);
-        throw new Error('No se pudo generar URL firmada para el video después del reensamblaje');
-      }
-
-      videoUrl = retrySignedUrl.signedUrl;
-      console.log(`[qwen-tv][${requestId}] Signed URL generated after reassembly`);
-    } else {
-      videoUrl = signedUrlData.signedUrl;
-      console.log(`[qwen-tv][${requestId}] Signed URL generated successfully`);
+      const errMsg = signedUrlError?.message || 'Unknown error';
+      console.error(`[qwen-tv][${requestId}] Signed URL failed for path "${videoPath}":`, errMsg);
+      throw new Error(`No se pudo generar URL firmada para el video. Path: ${videoPath}. Error: ${errMsg}`);
     }
+
+    const videoUrl = signedUrlData.signedUrl;
+    console.log(`[qwen-tv][${requestId}] Signed URL generated successfully`);
 
     // ── Update status to processing ──
     if (transcriptId) {
