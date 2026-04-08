@@ -157,58 +157,23 @@ export const useTvVideoProcessor = () => {
       }
       
       if (matchingChunkSession) {
-        // Look for transcription with chunked path matching this session
-        const { data: chunkedTranscriptions, error: searchError } = await supabase
-          .from('tv_transcriptions')
-          .select('id, original_file_path, status')
-          .eq('user_id', user.id)
-          .like('original_file_path', `chunked:${matchingChunkSession.session_id}%`)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (searchError) {
-          console.error('[TvVideoProcessor] Error searching for chunked transcriptions:', searchError);
-        }
-
-        if (chunkedTranscriptions && chunkedTranscriptions.length > 0) {
-          existingTranscription = chunkedTranscriptions[0];
-          fileName = existingTranscription.original_file_path;
-          skipUpload = true;
-          console.log('[TvVideoProcessor] Found existing chunked transcription:', {
-            transcriptionId: existingTranscription.id,
-            originalPath: fileName,
-            status: existingTranscription.status,
-            sessionId: matchingChunkSession.session_id
-          });
-        } else {
-          console.log('[TvVideoProcessor] No transcription found for chunked session, will proceed with regular upload');
-        }
-      } else {
-        console.log('[TvVideoProcessor] No completed chunked upload found for this file, proceeding with regular upload');
-      }
-
-      if (skipUpload && existingTranscription) {
-        // File was already uploaded via chunks, skip upload step
-        console.log('[TvVideoProcessor] Skipping upload - using existing chunked file');
-        setProgress(15);
-        setTranscriptionId(existingTranscription.id);
-        
-        // For chunked uploads, we need to ensure a single assembled file exists in storage
-        // before calling the Qwen edge function (which needs a single video URL).
-        const rawFileName = matchingChunkSession!.file_name.replace(/\s+/g, '_');
+        // Check if this is a manifest-based chunked upload that needs client-side reassembly
+        // This must happen BEFORE looking for existing transcription, as the assembled file
+        // is needed regardless of whether a transcription record exists
+        const rawFileName = matchingChunkSession.file_name.replace(/\s+/g, '_');
         const baseFileName = rawFileName.includes('/') ? rawFileName.split('/').pop()! : rawFileName;
         
-        let chunkedFilePath = matchingChunkSession!.assembled_file_path;
+        let chunkedFilePath = matchingChunkSession.assembled_file_path;
         
         // If no assembled file exists (manifest-based large uploads), reassemble client-side
-        if (!chunkedFilePath && matchingChunkSession!.playback_type === 'chunked' && matchingChunkSession!.manifest_created) {
+        if (!chunkedFilePath && matchingChunkSession.playback_type === 'chunked' && matchingChunkSession.manifest_created) {
           console.log('[TvVideoProcessor] Manifest-based chunked upload detected — reassembling client-side...');
           toast.info("Ensamblando video", {
             description: "Combinando fragmentos del video. Esto puede tardar 1-3 minutos..."
           });
           
-          const totalChunks = matchingChunkSession!.total_chunks;
-          const sessionId = matchingChunkSession!.session_id;
+          const totalChunks = matchingChunkSession.total_chunks;
+          const sessionId = matchingChunkSession.session_id;
           const chunkBlobs: Blob[] = [];
           
           for (let i = 0; i < totalChunks; i++) {
@@ -262,11 +227,61 @@ export const useTvVideoProcessor = () => {
         
         // Fallback path construction if still no assembled path
         if (!chunkedFilePath) {
-          chunkedFilePath = `${matchingChunkSession!.session_id}/${baseFileName}`;
+          chunkedFilePath = `${matchingChunkSession.session_id}/${baseFileName}`;
         }
         
-        console.log('[TvVideoProcessor] Resolved chunked file path:', { chunkedFilePath, assembledFilePath: matchingChunkSession!.assembled_file_path, baseFileName });
+        // Store the resolved path for use in transcription
         fileName = chunkedFilePath;
+        
+        // Look for transcription with chunked path matching this session
+        const { data: chunkedTranscriptions, error: searchError } = await supabase
+          .from('tv_transcriptions')
+          .select('id, original_file_path, status')
+          .eq('user_id', user.id)
+          .like('original_file_path', `chunked:${matchingChunkSession.session_id}%`)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (searchError) {
+          console.error('[TvVideoProcessor] Error searching for chunked transcriptions:', searchError);
+        }
+
+        if (chunkedTranscriptions && chunkedTranscriptions.length > 0) {
+          existingTranscription = chunkedTranscriptions[0];
+          skipUpload = true;
+          console.log('[TvVideoProcessor] Found existing chunked transcription:', {
+            transcriptionId: existingTranscription.id,
+            originalPath: existingTranscription.original_file_path,
+            status: existingTranscription.status,
+            sessionId: matchingChunkSession.session_id,
+            resolvedFilePath: chunkedFilePath
+          });
+        } else {
+          // No transcription exists yet, but we have the assembled file ready
+          // Set skipUpload to true since chunks are already uploaded
+          skipUpload = true;
+          console.log('[TvVideoProcessor] No transcription found for chunked session, but file is ready:', {
+            sessionId: matchingChunkSession.session_id,
+            resolvedFilePath: chunkedFilePath
+          });
+        }
+      } else {
+        console.log('[TvVideoProcessor] No completed chunked upload found for this file, proceeding with regular upload');
+      }
+
+      if (skipUpload && matchingChunkSession) {
+        // File was already uploaded via chunks, skip upload step
+        console.log('[TvVideoProcessor] Skipping upload - using existing chunked file');
+        setProgress(15);
+        
+        // fileName was already set during the reassembly check above
+        const chunkedFilePath = fileName;
+        
+        console.log('[TvVideoProcessor] Resolved chunked file path:', { 
+          chunkedFilePath, 
+          assembledFilePath: matchingChunkSession.assembled_file_path
+        });
+        
         const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
           .from('video')
           .getPublicUrl(chunkedFilePath);
@@ -285,11 +300,36 @@ export const useTvVideoProcessor = () => {
           description: "Validando y preparando video..."
         });
 
-        // Update transcription status to processing
-        await TvTranscriptionService.updateTranscription(existingTranscription.id, {
-          status: 'processing',
-          progress: 15
-        });
+        // If we have an existing transcription, update it; otherwise create one
+        if (existingTranscription) {
+          setTranscriptionId(existingTranscription.id);
+          await TvTranscriptionService.updateTranscription(existingTranscription.id, {
+            status: 'processing',
+            progress: 15
+          });
+        } else {
+          // Create new transcription for this chunked upload
+          console.log('[TvVideoProcessor] Creating new transcription for chunked upload');
+          const { data: newTranscription, error: createError } = await supabase
+            .from('tv_transcriptions')
+            .insert({
+              user_id: user.id,
+              original_file_path: `chunked:${matchingChunkSession.session_id}/${file.name}`,
+              status: 'processing',
+              progress: 15,
+              provider_used: 'qwen-primary'
+            })
+            .select('id')
+            .single();
+          
+          if (createError || !newTranscription) {
+            throw new Error(`Failed to create transcription: ${createError?.message}`);
+          }
+          
+          existingTranscription = newTranscription;
+          setTranscriptionId(newTranscription.id);
+          console.log('[TvVideoProcessor] Created new transcription:', newTranscription.id);
+        }
       } else {
         // Regular upload flow for new files
         setProgress(5);
