@@ -28,6 +28,9 @@ verify_jwt = false
 [functions.reanalyze-articles]
 verify_jwt = false
 
+[functions.process-tv-with-qwen]
+verify_jwt = true
+
 [functions.create-user]
 verify_jwt = false
 
