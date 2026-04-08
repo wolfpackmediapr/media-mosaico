@@ -15,6 +15,8 @@ export const useTvVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [assemblyId, setAssemblyId] = useState<string | null>(null);
+  const PROCESSING_STALE_TIMEOUT_MS = 5 * 60 * 1000;
+  const STALE_PROCESSING_MESSAGE = 'El procesamiento dejó de responder. Intenta de nuevo.';
   
   // Cooldown: prevent rapid re-submissions that exhaust Gemini quota
   const [lastSubmitTime, setLastSubmitTime] = useState<number>(0);
@@ -56,6 +58,26 @@ export const useTvVideoProcessor = () => {
   const removeTranscriptionMetadata = () => setTranscriptionMetadata(undefined);
   const removeTranscriptionResult = () => setTranscriptionResult(null);
   const removeNewsSegments = () => setNewsSegments([]);
+
+  const markTranscriptionAsStale = async (targetTranscriptionId: string) => {
+    const staleReason = 'Stale job detected after 5 minutes without status or progress changes.';
+
+    const { error } = await supabase
+      .from('tv_transcriptions')
+      .update({
+        status: 'failed:stale',
+        progress: 0,
+        provider_fallback_reason: staleReason,
+      })
+      .eq('id', targetTranscriptionId);
+
+    if (error) {
+      console.error('[TvVideoProcessor] Failed to mark stale transcription:', error);
+      return;
+    }
+
+    console.warn('[TvVideoProcessor] Marked transcription as stale:', targetTranscriptionId);
+  };
 
   const processVideo = async (file: File, onFilePathResolved?: (publicUrl: string) => void) => {
     // Cooldown check: prevent rapid re-submissions
@@ -466,11 +488,28 @@ export const useTvVideoProcessor = () => {
       
       if (failedTranscriptionId) {
         try {
-          await TvTranscriptionService.updateTranscription(failedTranscriptionId, {
-            status: 'failed',
-            progress: 100
-          });
-          console.log('[TvVideoProcessor] Updated transcription status to failed:', failedTranscriptionId);
+          const { data: currentTranscription, error: currentStatusError } = await supabase
+            .from('tv_transcriptions')
+            .select('status')
+            .eq('id', failedTranscriptionId)
+            .single();
+
+          if (currentStatusError) {
+            console.error('[TvVideoProcessor] Failed to check current transcription status:', currentStatusError);
+          }
+
+          const currentStatus = currentTranscription?.status;
+          const hasTerminalStatus = currentStatus === 'completed' || currentStatus === 'failed' || currentStatus?.startsWith('failed:');
+
+          if (!hasTerminalStatus) {
+            await TvTranscriptionService.updateTranscription(failedTranscriptionId, {
+              status: 'failed',
+              progress: 100
+            });
+            console.log('[TvVideoProcessor] Updated transcription status to failed:', failedTranscriptionId);
+          } else {
+            console.log('[TvVideoProcessor] Preserving terminal transcription status:', currentStatus);
+          }
         } catch (updateError) {
           console.error('[TvVideoProcessor] Failed to update error status:', updateError);
         }
@@ -507,6 +546,9 @@ export const useTvVideoProcessor = () => {
     const maxAttempts = 360; // 30 minutes max with adaptive intervals for large files
     let attempts = 0;
     let isTabVisible = !document.hidden;
+    let lastObservedStatus: string | null = null;
+    let lastObservedProgress: number | null = null;
+    let lastStateChangeAt = Date.now();
     
     // Listen for visibility changes during polling
     const handleVisibilityChange = () => {
@@ -529,7 +571,7 @@ export const useTvVideoProcessor = () => {
         try {
           const { data, error } = await supabase
             .from('tv_transcriptions')
-            .select('status, progress')
+            .select('status, progress, updated_at, provider_fallback_reason')
             .eq('id', transcriptionId)
             .single();
           
@@ -546,14 +588,7 @@ export const useTvVideoProcessor = () => {
           }
           
           if (data.status === 'failed' || data.status?.startsWith('failed:')) {
-            // Read the actual backend error from the DB
-            const { data: errorData } = await supabase
-              .from('tv_transcriptions')
-              .select('provider_fallback_reason, status')
-              .eq('id', transcriptionId)
-              .single();
-            
-            const backendReason = errorData?.provider_fallback_reason || '';
+            const backendReason = data.provider_fallback_reason || '';
             const failureType = data.status;
             
             if (failureType === 'failed:quota_exhausted') {
@@ -562,10 +597,36 @@ export const useTvVideoProcessor = () => {
               throw new Error('El archivo es demasiado grande para procesar. Intenta con un video más corto.');
             } else if (failureType === 'failed:timeout') {
               throw new Error('El procesamiento tardó demasiado. Intenta con un video más corto.');
+            } else if (failureType === 'failed:stale' || failureType === 'failed:runtime') {
+              throw new Error(STALE_PROCESSING_MESSAGE);
             } else if (backendReason) {
               throw new Error(`Error del servidor: ${backendReason.substring(0, 200)}`);
             } else {
               throw new Error('Processing failed on server');
+            }
+          }
+
+          const hasStateChanged = data.status !== lastObservedStatus || data.progress !== lastObservedProgress;
+          if (hasStateChanged) {
+            lastObservedStatus = data.status;
+            lastObservedProgress = data.progress;
+            lastStateChangeAt = Date.now();
+          } else {
+            const updatedAtMs = data.updated_at ? new Date(data.updated_at).getTime() : null;
+            const staleElapsedMs = Math.max(
+              Date.now() - lastStateChangeAt,
+              updatedAtMs ? Date.now() - updatedAtMs : 0
+            );
+
+            if (staleElapsedMs >= PROCESSING_STALE_TIMEOUT_MS) {
+              console.warn('[TvVideoProcessor] Detected stale TV processing job:', {
+                transcriptionId,
+                status: data.status,
+                progress: data.progress,
+                staleElapsedMs,
+              });
+              await markTranscriptionAsStale(transcriptionId);
+              throw new Error(STALE_PROCESSING_MESSAGE);
             }
           }
           

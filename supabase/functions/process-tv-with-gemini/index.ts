@@ -2301,10 +2301,12 @@ async function processVideoInBackground(
   authHeader: string
 ): Promise<void> {
   console.log(`[${requestId}] [Background] Starting background video processing...`);
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  let completedSuccessfully = false;
+  let finalFailureStatus = 'failed:runtime';
+  let finalFailureReason = 'Edge function exited before writing a terminal status.';
   
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
     // Detect MP4 files for enhanced processing
     const isMP4File = videoPath.toLowerCase().includes('.mp4');
     if (isMP4File) {
@@ -2562,6 +2564,10 @@ async function processVideoInBackground(
         .from('tv_transcriptions')
         .update(updateData)
         .eq('id', transcriptionId);
+
+      completedSuccessfully = true;
+      finalFailureStatus = 'completed';
+      finalFailureReason = '';
     }
 
     console.log(`[gemini-unified] Request complete: provider=${getKeyLabel()}, rotations=${rotationCount}, key=${getMaskedKey()}`);
@@ -2583,6 +2589,7 @@ async function processVideoInBackground(
   } catch (error) {
     console.error(`[${requestId}] [Background] === PROCESSING FAILED ===`);
     const errorMsg = error instanceof Error ? error.message : String(error);
+    finalFailureReason = errorMsg.substring(0, 500);
     console.error(`[${requestId}] Error details:`, {
       message: errorMsg,
       stack: error instanceof Error ? error.stack : undefined,
@@ -2599,10 +2606,10 @@ async function processVideoInBackground(
     } else if (errorMsg.includes('timeout')) {
       failureStatus = 'failed:timeout';
     }
+    finalFailureStatus = failureStatus;
 
     // Update transcription status to failed WITH the error reason
     try {
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
       // Persist the actual failure reason so the frontend can display it
       await supabase
         .from('tv_transcriptions')
@@ -2621,5 +2628,40 @@ async function processVideoInBackground(
     // Categorize error
     const errorMessage = categorizeError(error instanceof Error ? error.message : String(error));
     console.error(`[${requestId}] [Background] Final error:`, errorMessage);
+  } finally {
+    if (!transcriptionId || completedSuccessfully) {
+      return;
+    }
+
+    try {
+      const { data: currentRecord, error: readError } = await supabase
+        .from('tv_transcriptions')
+        .select('status')
+        .eq('id', transcriptionId)
+        .single();
+
+      if (readError) {
+        console.error(`[${requestId}] [Background] Failed to verify terminal status:`, readError);
+      }
+
+      const currentStatus = currentRecord?.status;
+      const hasTerminalStatus = currentStatus === 'completed' || currentStatus === 'failed' || currentStatus?.startsWith('failed:');
+
+      if (!hasTerminalStatus) {
+        await supabase
+          .from('tv_transcriptions')
+          .update({
+            status: finalFailureStatus,
+            progress: 0,
+            provider_used: getKeyLabel(),
+            provider_fallback_reason: finalFailureReason,
+          })
+          .eq('id', transcriptionId);
+
+        console.warn(`[${requestId}] [Background] Forced terminal status write in finally: ${finalFailureStatus}`);
+      }
+    } catch (finalizeError) {
+      console.error(`[${requestId}] [Background] Failed to force terminal status in finally:`, finalizeError);
+    }
   }
 }
