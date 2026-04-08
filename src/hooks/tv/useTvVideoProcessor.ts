@@ -126,7 +126,7 @@ export const useTvVideoProcessor = () => {
       console.log('[TvVideoProcessor] Checking for existing chunked upload sessions...');
       const { data: chunkSessions, error: sessionError } = await supabase
         .from('chunked_upload_sessions')
-        .select('id, session_id, file_name, file_size, status, created_at, assembled_file_path')
+        .select('id, session_id, file_name, file_size, status, created_at, assembled_file_path, playback_type, manifest_created, total_chunks')
         .eq('user_id', user.id)
         .eq('file_size', file.size)
         .eq('status', 'completed')
@@ -193,15 +193,79 @@ export const useTvVideoProcessor = () => {
         setProgress(15);
         setTranscriptionId(existingTranscription.id);
         
-        // FIX: Store the chunked video path for persistence
-        // Chunked videos use a special format: chunked:sessionId
-        // For chunked uploads, generate the actual public URL from the assembled file path
-        // Use assembled_file_path from DB if available, otherwise construct from sessionId + base filename
-        // file_name may include userId prefix (e.g. "userId/timestamp_file.mov"), so extract just the basename
-        const rawFileName = matchingChunkSession.file_name.replace(/\s+/g, '_');
+        // For chunked uploads, we need to ensure a single assembled file exists in storage
+        // before calling the Qwen edge function (which needs a single video URL).
+        const rawFileName = matchingChunkSession!.file_name.replace(/\s+/g, '_');
         const baseFileName = rawFileName.includes('/') ? rawFileName.split('/').pop()! : rawFileName;
-        const chunkedFilePath = matchingChunkSession.assembled_file_path || `${matchingChunkSession.session_id}/${baseFileName}`;
-        console.log('[TvVideoProcessor] Resolved chunked file path:', { chunkedFilePath, assembledFilePath: matchingChunkSession.assembled_file_path, baseFileName });
+        
+        let chunkedFilePath = matchingChunkSession!.assembled_file_path;
+        
+        // If no assembled file exists (manifest-based large uploads), reassemble client-side
+        if (!chunkedFilePath && matchingChunkSession!.playback_type === 'chunked' && matchingChunkSession!.manifest_created) {
+          console.log('[TvVideoProcessor] Manifest-based chunked upload detected — reassembling client-side...');
+          toast.info("Ensamblando video", {
+            description: "Combinando fragmentos del video. Esto puede tardar 1-3 minutos..."
+          });
+          
+          const totalChunks = matchingChunkSession!.total_chunks;
+          const sessionId = matchingChunkSession!.session_id;
+          const chunkBlobs: Blob[] = [];
+          
+          for (let i = 0; i < totalChunks; i++) {
+            const chunkPath = `chunks/${sessionId}/chunk_${String(i).padStart(4, '0')}`;
+            const { data: signedUrlData, error: signedUrlErr } = await supabase.storage
+              .from('video')
+              .createSignedUrl(chunkPath, 600);
+            
+            if (signedUrlErr || !signedUrlData?.signedUrl) {
+              throw new Error(`No se pudo obtener URL firmada para chunk ${i}: ${signedUrlErr?.message}`);
+            }
+            
+            const chunkResponse = await fetch(signedUrlData.signedUrl);
+            if (!chunkResponse.ok) {
+              throw new Error(`Error descargando chunk ${i}: HTTP ${chunkResponse.status}`);
+            }
+            
+            chunkBlobs.push(await chunkResponse.blob());
+            const reassemblyProgress = Math.round(5 + (i / totalChunks) * 8); // 5-13% range
+            setProgress(reassemblyProgress);
+            console.log(`[TvVideoProcessor] Downloaded chunk ${i + 1}/${totalChunks}`);
+          }
+          
+          // Concatenate all chunks into a single Blob
+          const assembledBlob = new Blob(chunkBlobs, { type: 'video/mp4' });
+          console.log(`[TvVideoProcessor] Assembled blob: ${(assembledBlob.size / 1024 / 1024).toFixed(1)}MB`);
+          
+          // Upload to video bucket
+          const assembledPath = `${sessionId}/${baseFileName}`;
+          const { error: uploadErr } = await supabase.storage
+            .from('video')
+            .upload(assembledPath, assembledBlob, {
+              cacheControl: '3600',
+              upsert: true
+            });
+          
+          if (uploadErr) {
+            throw new Error(`Error subiendo video ensamblado: ${uploadErr.message}`);
+          }
+          
+          // Update DB so we don't reassemble again
+          await supabase
+            .from('chunked_upload_sessions')
+            .update({ assembled_file_path: assembledPath })
+            .eq('session_id', sessionId);
+          
+          chunkedFilePath = assembledPath;
+          console.log('[TvVideoProcessor] Client-side reassembly complete:', chunkedFilePath);
+          toast.success("Video ensamblado", { description: "Continuando con el análisis..." });
+        }
+        
+        // Fallback path construction if still no assembled path
+        if (!chunkedFilePath) {
+          chunkedFilePath = `${matchingChunkSession!.session_id}/${baseFileName}`;
+        }
+        
+        console.log('[TvVideoProcessor] Resolved chunked file path:', { chunkedFilePath, assembledFilePath: matchingChunkSession!.assembled_file_path, baseFileName });
         fileName = chunkedFilePath;
         const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
           .from('video')
