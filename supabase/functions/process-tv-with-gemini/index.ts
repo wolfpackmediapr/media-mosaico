@@ -15,14 +15,17 @@ const GEMINI_KEYS = [
 
 let currentKeyIndex = 0;
 let rotationCount = 0;
-const MAX_ROTATIONS_PER_STAGE = 1; // Allow one rotation (primary → secondary) per processing stage
+let pinnedKeyIndex: number | null = null;
+const MAX_ROTATIONS_PER_STAGE = 1;
 
 function getApiKey(): string {
+  if (pinnedKeyIndex !== null) return GEMINI_KEYS[pinnedKeyIndex];
   return GEMINI_KEYS[currentKeyIndex % GEMINI_KEYS.length];
 }
 
 function getKeyLabel(): string {
-  return currentKeyIndex === 0 ? 'gemini-primary' : 'gemini-secondary';
+  const idx = pinnedKeyIndex !== null ? pinnedKeyIndex : currentKeyIndex;
+  return idx === 0 ? 'gemini-primary' : 'gemini-secondary';
 }
 
 function getMaskedKey(): string {
@@ -30,8 +33,17 @@ function getMaskedKey(): string {
   return key ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}` : 'none';
 }
 
+function pinCurrentKey(): void {
+  pinnedKeyIndex = currentKeyIndex;
+  console.log(`[gemini-unified] Pinned to key ${currentKeyIndex} (${getMaskedKey()}) for file ownership`);
+}
+
 function rotateKey(reason: string): boolean {
   if (GEMINI_KEYS.length < 2) return false;
+  if (pinnedKeyIndex !== null) {
+    console.warn(`[gemini-unified] Cannot rotate — file is pinned to key ${pinnedKeyIndex} (${getMaskedKey()}). Will use longer backoff instead.`);
+    return false;
+  }
   if (rotationCount >= MAX_ROTATIONS_PER_STAGE) return false;
   const prev = currentKeyIndex;
   currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
@@ -40,8 +52,12 @@ function rotateKey(reason: string): boolean {
   return true;
 }
 
-function resetRotationState(): void {
-  currentKeyIndex = 0;
+function resetRotationState(fullReset = false): void {
+  if (fullReset) {
+    currentKeyIndex = 0;
+    pinnedKeyIndex = null;
+  }
+  // Only clear rotation count between stages; keep pinnedKeyIndex and currentKeyIndex
   rotationCount = 0;
 }
 // ========== End Key Rotation Manager ==========
@@ -695,6 +711,7 @@ async function processChunkedUploadWithGemini(
           stream
         );
         console.log('[gemini-unified] File processing completed successfully (streamed)');
+        pinCurrentKey();
       }
     }
 
@@ -710,6 +727,7 @@ async function processChunkedUploadWithGemini(
       }
       fileInfo = await uploadVideoToGemini(videoBlob, displayName);
       console.log('[gemini-unified] File processing completed successfully');
+      pinCurrentKey();
     }
 
     // === STAGE BOUNDARY: Upload complete → Reset rotation for transcription ===
@@ -1191,6 +1209,7 @@ async function processAssembledVideoWithGemini(
        fileInfo = await uploadVideoToGemini(videoBlob, videoPath.split('/').pop() || 'video.mp4');
      }
     console.log('[gemini-unified] File processing completed successfully');
+    pinCurrentKey();
 
     // === STAGE BOUNDARY: Upload complete → Reset rotation for transcription ===
     resetRotationState();
@@ -2179,7 +2198,7 @@ serve(async (req) => {
 
   try {
     // Reset key rotation state for this request
-    resetRotationState();
+    resetRotationState(true);
     
     // Environment validation
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
