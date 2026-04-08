@@ -12,7 +12,7 @@ const QWEN_API_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/cha
 const PRIMARY_MODEL = 'qwen3.5-omni-plus';
 const FALLBACK_MODEL = 'qwen3.5-omni-flash';
 const MAX_RETRIES = 3;
-const MAX_VIDEO_DURATION_SECONDS = 400; // ~6.7 min at 720p
+
 
 // ─── Prompts ───────────────────────────────────────────────────────────
 
@@ -212,7 +212,7 @@ serve(async (req) => {
     // ── Generate signed URL ──
     const { data: signedUrlData, error: signedUrlError } = await supabaseClient
       .storage
-      .from('media')
+      .from('video')
       .createSignedUrl(videoPath, 3600); // 1 hour
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
