@@ -195,10 +195,12 @@ serve(async (req) => {
     const body = await req.json();
     const {
       videoPath,
-      transcriptId,
+      transcriptionId,
+      transcriptId: transcriptIdAlt,
       categories = [],
       clients = [],
     } = body;
+    const transcriptId = transcriptionId || transcriptIdAlt;
 
     if (!videoPath) throw new Error('videoPath es requerido');
 
