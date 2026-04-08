@@ -1,84 +1,119 @@
 
 
-## Fix: Pin API Key After Upload
+## New Edge Function: `process-tv-with-qwen`
 
-### Problem
+### What this does
 
-Gemini Files API scopes files to the API key that uploaded them. The current per-stage rotation resets `currentKeyIndex` between upload → transcription → analysis. If the upload rotated to Key 2, but the reset sends transcription back to Key 1, Key 1 gets 403 PERMISSION_DENIED because it doesn't own the file.
+Creates a standalone Supabase Edge Function that processes TV videos using Alibaba's Qwen3.5-Omni model via the DashScope API (OpenAI-compatible). This runs independently from the existing Gemini pipeline — no existing files are modified.
 
-Log evidence:
-- Upload rotated from Key 1 (`AIza...5avE`) to Key 2 (`AIza...Zvho`) due to 429
-- File `y82o1015rblp` uploaded successfully under Key 2
-- Transcription and analysis both fail with 403 on Key 2 (all 5 attempts) — the file reference is cross-key
-
-### Fix
-
-**File: `supabase/functions/process-tv-with-gemini/index.ts`**
-
-1. **Add a "pinned key" concept to the key manager**
-
-After a successful file upload, pin the key index so all subsequent stages use the same key that owns the file.
-
-```typescript
-let pinnedKeyIndex: number | null = null;
-
-function pinCurrentKey() {
-  pinnedKeyIndex = currentKeyIndex;
-  console.log(`[gemini-unified] Pinned to key ${currentKeyIndex} (${getMaskedKey()}) for file ownership`);
-}
-
-function getApiKey(): string {
-  if (pinnedKeyIndex !== null) return GEMINI_KEYS[pinnedKeyIndex];
-  return GEMINI_KEYS[currentKeyIndex];
-}
-```
-
-2. **Pin the key right after file upload succeeds** (both upload paths)
-
-After `uploadVideoToGemini()` and `uploadVideoToGeminiStream()` return successfully, call `pinCurrentKey()`.
-
-3. **Change `resetRotationState()` to NOT reset `currentKeyIndex` when pinned**
-
-The reset should only clear `rotationCount` so the stage can still attempt rotation if needed, but it should not move away from the pinned key. If a 429 forces rotation during transcription/analysis, that rotation should be blocked (since the other key can't access the file anyway).
-
-4. **Update rotation logic for post-upload stages**
-
-When `pinnedKeyIndex !== null`, `rotateKey()` should return `false` and log a warning: "Cannot rotate — file is pinned to this key." The correct behavior on 429 post-upload is to wait longer, not switch keys.
-
-5. **Reset pinned key at request start**
-
-In `resetRotationState()` at request entry, also reset `pinnedKeyIndex = null`.
-
-6. **Increase backoff for post-upload 429s**
-
-Since key rotation is no longer available after upload, increase the backoff delays for transcription and analysis 429s to give the quota time to recover (e.g., 15s, 30s, 60s, 90s, 120s across 5 attempts).
-
-### Files Changed
-
-| File | Change |
-|------|--------|
-| `supabase/functions/process-tv-with-gemini/index.ts` | Add `pinnedKeyIndex`, `pinCurrentKey()`, update `getApiKey()`, `rotateKey()`, `resetRotationState()`, and backoff delays |
-
-### Behavior After Fix
+### Architecture
 
 ```text
-Request arrives → resetRotationState() (clears pin + rotation count)
-  Upload stage:
-    Key 1 → 429 → rotate to Key 2 → success
-    pinCurrentKey() → locked to Key 2
-  
-  Transcription stage:
-    resetRotationState() clears rotation count but keeps pin
-    Always uses Key 2 (file owner)
-    429 → longer backoff (no rotation possible)
-  
-  Analysis stage:
-    resetRotationState() clears rotation count but keeps pin  
-    Always uses Key 2 (file owner)
-    429 → longer backoff (no rotation possible)
+Frontend → calls process-tv-with-qwen → gets signed URL from Supabase Storage
+  → sends video_url to DashScope API (qwen3.5-omni-plus)
+  → receives transcription + analysis
+  → writes results to tv_transcriptions table
 ```
 
-### What this does NOT fix
+Key difference from Gemini: Qwen accepts a direct video URL — no File API upload/polling needed. This eliminates the entire upload → wait-for-ACTIVE → transcribe → analyze multi-step pipeline.
 
-If both keys are heavily rate-limited simultaneously, the longer backoff helps but can still fail. The real fix for sustained throughput remains Tier 2 upgrade.
+### API format (confirmed from research)
+
+```text
+POST https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions
+Authorization: Bearer $QWEN_API_KEY
+Content-Type: application/json
+
+{
+  "model": "qwen3.5-omni-plus",
+  "messages": [{
+    "role": "user",
+    "content": [
+      { "type": "video_url", "video_url": { "url": "<signed-url>" } },
+      { "type": "text", "text": "<prompt>" }
+    ]
+  }],
+  "modalities": ["text"]
+}
+```
+
+### Qwen limits (from docs)
+
+- ~400 seconds (6.7 min) of 720p video per request at 256K token context
+- Supports MP4, MOV, AVI
+- Video must be publicly accessible URL (Supabase signed URLs work)
+- Recommended: videos under 30 minutes, chunked for best results
+
+### Files created
+
+**1. `supabase/functions/process-tv-with-qwen/index.ts`**
+
+Single file containing:
+
+- **CORS handler** — standard OPTIONS preflight
+- **Auth validation** — verify JWT from request header
+- **Request parsing** — accept `videoPath`, `transcriptId`, `categories`, `clients`
+- **Signed URL generation** — create 1-hour signed URL from Supabase Storage for the video
+- **Qwen API call** — OpenAI-compatible POST to DashScope with `video_url` content type
+- **Two-stage processing**:
+  - Stage 1: Transcription (reuse the existing `buildTranscriptionOnlyPrompt()` style prompt, adapted for Qwen)
+  - Stage 2: Analysis (reuse the existing `constructTvPrompt()` style prompt with the transcription as context)
+- **Retry logic** — exponential backoff on 429, up to 3 attempts
+- **Model fallback** — if `qwen3.5-omni-plus` fails, retry with `qwen3.5-omni-flash`
+- **DB write** — update `tv_transcriptions` with results, set `provider_used: 'qwen-primary'` or `'qwen-fallback'`
+- **Error handling** — categorized errors, stored in `provider_fallback_reason`
+
+**2. `supabase/config.toml` update**
+
+Add function config entry:
+```toml
+[functions.process-tv-with-qwen]
+verify_jwt = true
+```
+
+### What is NOT included in Phase 1
+
+- **Chunking logic** — Phase 1 handles videos ≤6.7 min. For 17-min videos, the function will return a clear error: "Video exceeds Qwen single-request limit. Chunking available in Phase 2."
+- **Frontend integration** — no UI changes; test via curl only
+- **No modifications** to `process-tv-with-gemini`, radio, press, or any other module
+
+### Database changes (proposed, not executed)
+
+```sql
+ALTER TABLE tv_transcriptions
+ADD COLUMN IF NOT EXISTS chunk_count INTEGER DEFAULT 1;
+```
+
+This column will track how many chunks a video was split into (default 1 for single-request). Only needed for Phase 2 chunking.
+
+### Secret needed
+
+- `QWEN_API_KEY` — Alibaba Cloud DashScope API key (user must add before deploying)
+
+### Test curl command
+
+```bash
+curl -X POST \
+  https://qpozetnbnzdinqkrafze.supabase.co/functions/v1/process-tv-with-qwen \
+  -H "Authorization: Bearer <user-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "videoPath": "tv-videos/sample-5min.mp4",
+    "transcriptId": "<existing-transcript-uuid>",
+    "categories": ["Política", "Economía"],
+    "clients": [{"name": "LUMA", "keywords": ["energía", "apagón"]}]
+  }'
+```
+
+### Summary table
+
+| Item | Detail |
+|------|--------|
+| New files | `supabase/functions/process-tv-with-qwen/index.ts` |
+| Modified files | `supabase/config.toml` (add function entry only) |
+| New secret | `QWEN_API_KEY` |
+| DB migration | `chunk_count` column (proposed, Phase 2) |
+| Video limit | ≤6.7 min in Phase 1 |
+| Fallback | `qwen3.5-omni-plus` → `qwen3.5-omni-flash` |
+| Existing code touched | None |
 
