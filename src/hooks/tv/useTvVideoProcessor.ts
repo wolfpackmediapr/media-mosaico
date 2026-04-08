@@ -58,6 +58,18 @@ export const useTvVideoProcessor = () => {
   const removeNewsSegments = () => setNewsSegments([]);
 
   const processVideo = async (file: File, onFilePathResolved?: (publicUrl: string) => void) => {
+    // Cooldown check: prevent rapid re-submissions
+    const now = Date.now();
+    if (now - lastSubmitTime < COOLDOWN_MS) {
+      const waitSeconds = Math.ceil((COOLDOWN_MS - (now - lastSubmitTime)) / 1000);
+      toast.error(`Espera ${waitSeconds}s antes de procesar otro video`, {
+        description: "El límite de la API requiere un tiempo de espera entre envíos.",
+        duration: 5000
+      });
+      return;
+    }
+    setLastSubmitTime(now);
+    
     setIsProcessing(true);
     setProgress(0);
     // Clear previous results
@@ -533,8 +545,28 @@ export const useTvVideoProcessor = () => {
             return; // Success!
           }
           
-          if (data.status === 'failed') {
-            throw new Error('Processing failed on server');
+          if (data.status === 'failed' || data.status?.startsWith('failed:')) {
+            // Read the actual backend error from the DB
+            const { data: errorData } = await supabase
+              .from('tv_transcriptions')
+              .select('provider_fallback_reason, status')
+              .eq('id', transcriptionId)
+              .single();
+            
+            const backendReason = errorData?.provider_fallback_reason || '';
+            const failureType = data.status;
+            
+            if (failureType === 'failed:quota_exhausted') {
+              throw new Error('Ambas llaves API alcanzaron el límite de cuota. Por favor espera 60 segundos e intenta de nuevo.');
+            } else if (failureType === 'failed:memory_limit') {
+              throw new Error('El archivo es demasiado grande para procesar. Intenta con un video más corto.');
+            } else if (failureType === 'failed:timeout') {
+              throw new Error('El procesamiento tardó demasiado. Intenta con un video más corto.');
+            } else if (backendReason) {
+              throw new Error(`Error del servidor: ${backendReason.substring(0, 200)}`);
+            } else {
+              throw new Error('Processing failed on server');
+            }
           }
           
           // Update progress in UI
