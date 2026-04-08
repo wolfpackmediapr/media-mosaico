@@ -32,7 +32,7 @@ function getMaskedKey(): string {
 
 function rotateKey(reason: string): boolean {
   if (GEMINI_KEYS.length < 2) return false;
-  if (rotationCount >= MAX_ROTATIONS) return false;
+  if (rotationCount >= MAX_ROTATIONS_PER_STAGE) return false;
   const prev = currentKeyIndex;
   currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
   rotationCount++;
@@ -712,6 +712,10 @@ async function processChunkedUploadWithGemini(
       console.log('[gemini-unified] File processing completed successfully');
     }
 
+    // === STAGE BOUNDARY: Upload complete → Reset rotation for transcription ===
+    resetRotationState();
+    console.log('[gemini-unified] Reset rotation state for transcription stage');
+
     // ===== FIRST CALL: Extract Verbatim Transcription =====
     console.log('[gemini-unified] Starting speaker-separated transcription...');
     if (transcriptionId) {
@@ -866,9 +870,13 @@ async function processChunkedUploadWithGemini(
       }
     }
 
+    // === STAGE BOUNDARY: Transcription complete → Reset rotation for analysis ===
+    resetRotationState();
+    console.log('[gemini-unified] Reset rotation state for analysis stage');
+
     // Add delay between API calls to reduce TPM pressure and avoid rate limits
-    console.log('[gemini-unified] Waiting 5s before analysis call to spread TPM usage...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log('[gemini-unified] Waiting 10s before analysis call to spread TPM usage...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
 
     // ===== SECOND CALL: Generate Content Analysis =====
     if (transcriptionId) {
@@ -1184,6 +1192,10 @@ async function processAssembledVideoWithGemini(
      }
     console.log('[gemini-unified] File processing completed successfully');
 
+    // === STAGE BOUNDARY: Upload complete → Reset rotation for transcription ===
+    resetRotationState();
+    console.log('[gemini-unified] Reset rotation state for transcription stage (assembled)');
+
     // Generate speaker-separated transcription
     let speakerTranscription = null;
     if (transcriptionId) {
@@ -1244,9 +1256,13 @@ async function processAssembledVideoWithGemini(
       // Continue without speaker transcription - will fall back to extraction
     }
 
+    // === STAGE BOUNDARY: Transcription complete → Reset rotation for analysis ===
+    resetRotationState();
+    console.log('[gemini-unified] Reset rotation state for analysis stage (assembled)');
+
     // Wait before analysis call to spread TPM usage across minute boundaries
-    console.log('[gemini-unified] Waiting 5s before analysis call to spread TPM usage...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log('[gemini-unified] Waiting 10s before analysis call to spread TPM usage...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
 
     // Update progress
     if (transcriptionId) {
