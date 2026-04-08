@@ -2563,18 +2563,38 @@ async function processVideoInBackground(
 
   } catch (error) {
     console.error(`[${requestId}] [Background] === PROCESSING FAILED ===`);
+    const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`[${requestId}] Error details:`, {
-      message: error instanceof Error ? error.message : String(error),
+      message: errorMsg,
       stack: error instanceof Error ? error.stack : undefined,
       name: error instanceof Error ? error.name : 'UnknownError',
-      isMemoryError: (error instanceof Error && error.message?.includes('memory')) || (error instanceof Error && error.message?.includes('heap'))
+      isMemoryError: errorMsg?.includes('memory') || errorMsg?.includes('heap')
     });
 
-    // Update transcription status to failed
+    // Determine user-friendly status message that preserves the technical cause
+    let failureStatus = 'failed';
+    if (errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
+      failureStatus = 'failed:quota_exhausted';
+    } else if (errorMsg.includes('memory') || errorMsg.includes('heap')) {
+      failureStatus = 'failed:memory_limit';
+    } else if (errorMsg.includes('timeout')) {
+      failureStatus = 'failed:timeout';
+    }
+
+    // Update transcription status to failed WITH the error reason
     try {
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      await updateDatabaseProgress(transcriptionId, 0, 'failed');
-      console.log(`[${requestId}] [Background] Updated transcription status to failed`);
+      // Persist the actual failure reason so the frontend can display it
+      await supabase
+        .from('tv_transcriptions')
+        .update({ 
+          status: failureStatus,
+          progress: 0,
+          provider_used: getKeyLabel(),
+          provider_fallback_reason: errorMsg.substring(0, 500)
+        })
+        .eq('id', transcriptionId);
+      console.log(`[${requestId}] [Background] Updated transcription status to ${failureStatus}`);
     } catch (updateError) {
       console.error(`[${requestId}] [Background] Could not update transcription status:`, updateError);
     }
