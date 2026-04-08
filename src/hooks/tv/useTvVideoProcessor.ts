@@ -126,7 +126,7 @@ export const useTvVideoProcessor = () => {
       console.log('[TvVideoProcessor] Checking for existing chunked upload sessions...');
       const { data: chunkSessions, error: sessionError } = await supabase
         .from('chunked_upload_sessions')
-        .select('id, session_id, file_name, file_size, status, created_at')
+        .select('id, session_id, file_name, file_size, status, created_at, assembled_file_path')
         .eq('user_id', user.id)
         .eq('file_size', file.size)
         .eq('status', 'completed')
@@ -196,10 +196,9 @@ export const useTvVideoProcessor = () => {
         // FIX: Store the chunked video path for persistence
         // Chunked videos use a special format: chunked:sessionId
         // For chunked uploads, generate the actual public URL from the assembled file path
-        const chunkedSessionId = matchingChunkSession.session_id;
         const assembledFileName = matchingChunkSession.file_name.replace(/\s+/g, '_');
-        const chunkedFilePath = `${user.id}/${assembledFileName}`;
-        // FIX: Update fileName to actual storage path so edge function can find it
+        const chunkedFilePath = matchingChunkSession.assembled_file_path || `${matchingChunkSession.session_id}/${assembledFileName}`;
+        // FIX: Use actual storage path from DB instead of manually constructing it
         fileName = chunkedFilePath;
         const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
           .from('video')
