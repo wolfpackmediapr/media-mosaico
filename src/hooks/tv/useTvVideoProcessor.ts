@@ -165,64 +165,10 @@ export const useTvVideoProcessor = () => {
         
         let chunkedFilePath = matchingChunkSession.assembled_file_path;
         
-        // If no assembled file exists (manifest-based large uploads), reassemble client-side
+        // If no assembled file exists (manifest-based large uploads), pass chunked reference to backend
         if (!chunkedFilePath && matchingChunkSession.playback_type === 'chunked' && matchingChunkSession.manifest_created) {
-          console.log('[TvVideoProcessor] Manifest-based chunked upload detected — reassembling client-side...');
-          toast.info("Ensamblando video", {
-            description: "Combinando fragmentos del video. Esto puede tardar 1-3 minutos..."
-          });
-          
-          const totalChunks = matchingChunkSession.total_chunks;
-          const sessionId = matchingChunkSession.session_id;
-          const chunkBlobs: Blob[] = [];
-          
-          for (let i = 0; i < totalChunks; i++) {
-            const chunkPath = `chunks/${sessionId}/chunk_${String(i).padStart(4, '0')}`;
-            const { data: signedUrlData, error: signedUrlErr } = await supabase.storage
-              .from('video')
-              .createSignedUrl(chunkPath, 600);
-            
-            if (signedUrlErr || !signedUrlData?.signedUrl) {
-              throw new Error(`No se pudo obtener URL firmada para chunk ${i}: ${signedUrlErr?.message}`);
-            }
-            
-            const chunkResponse = await fetch(signedUrlData.signedUrl);
-            if (!chunkResponse.ok) {
-              throw new Error(`Error descargando chunk ${i}: HTTP ${chunkResponse.status}`);
-            }
-            
-            chunkBlobs.push(await chunkResponse.blob());
-            const reassemblyProgress = Math.round(5 + (i / totalChunks) * 8); // 5-13% range
-            setProgress(reassemblyProgress);
-            console.log(`[TvVideoProcessor] Downloaded chunk ${i + 1}/${totalChunks}`);
-          }
-          
-          // Concatenate all chunks into a single Blob
-          const assembledBlob = new Blob(chunkBlobs, { type: 'video/mp4' });
-          console.log(`[TvVideoProcessor] Assembled blob: ${(assembledBlob.size / 1024 / 1024).toFixed(1)}MB`);
-          
-          // Upload to video bucket
-          const assembledPath = `${sessionId}/${baseFileName}`;
-          const { error: uploadErr } = await supabase.storage
-            .from('video')
-            .upload(assembledPath, assembledBlob, {
-              cacheControl: '3600',
-              upsert: true
-            });
-          
-          if (uploadErr) {
-            throw new Error(`Error subiendo video ensamblado: ${uploadErr.message}`);
-          }
-          
-          // Update DB so we don't reassemble again
-          await supabase
-            .from('chunked_upload_sessions')
-            .update({ assembled_file_path: assembledPath })
-            .eq('session_id', sessionId);
-          
-          chunkedFilePath = assembledPath;
-          console.log('[TvVideoProcessor] Client-side reassembly complete:', chunkedFilePath);
-          toast.success("Video ensamblado", { description: "Continuando con el análisis..." });
+          console.log('[TvVideoProcessor] Manifest-based chunked upload — passing chunked reference to backend');
+          chunkedFilePath = `chunked:${matchingChunkSession.session_id}`;
         }
         
         // Fallback path construction if still no assembled path
@@ -282,18 +228,22 @@ export const useTvVideoProcessor = () => {
           assembledFilePath: matchingChunkSession.assembled_file_path
         });
         
-        const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
-          .from('video')
-          .getPublicUrl(chunkedFilePath);
-        
-        sessionStorage.setItem('tv-uploaded-video-url', chunkedPublicUrl);
-        sessionStorage.setItem('tv-uploaded-video-filename', file.name);
-        console.log('[TvVideoProcessor] Stored chunked video public URL:', chunkedPublicUrl);
-        
-        // Notify caller so the video player can switch to the permanent URL
-        if (onFilePathResolved) {
-          console.log('[TvVideoProcessor] Notifying caller of resolved chunked file path');
-          onFilePathResolved(chunkedPublicUrl);
+        // For chunked: references, skip public URL — the video player handles manifest playback
+        if (!chunkedFilePath.startsWith('chunked:')) {
+          const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
+            .from('video')
+            .getPublicUrl(chunkedFilePath);
+          
+          sessionStorage.setItem('tv-uploaded-video-url', chunkedPublicUrl);
+          sessionStorage.setItem('tv-uploaded-video-filename', file.name);
+          console.log('[TvVideoProcessor] Stored chunked video public URL:', chunkedPublicUrl);
+          
+          if (onFilePathResolved) {
+            console.log('[TvVideoProcessor] Notifying caller of resolved chunked file path');
+            onFilePathResolved(chunkedPublicUrl);
+          }
+        } else {
+          console.log('[TvVideoProcessor] Chunked reference — skipping public URL (manifest playback handles this)');
         }
         
         toast.info("Archivo ya subido", {
@@ -449,6 +399,19 @@ export const useTvVideoProcessor = () => {
       if (processError) {
         console.error('[TvVideoProcessor] Processing error:', processError);
         throw new Error(`Processing failed: ${processError.message}`);
+      }
+
+      // Handle MANIFEST_NOT_SUPPORTED (422) — video too large for AI processing
+      if (result?.error === 'MANIFEST_NOT_SUPPORTED') {
+        console.warn('[TvVideoProcessor] Manifest-based video not supported for AI analysis');
+        setIsProcessing(false);
+        setProgress(0);
+        setActiveProcessingId(null);
+        toast.error("Video demasiado grande para análisis AI", {
+          description: "La reproducción del video funciona correctamente, pero el análisis AI requiere un archivo único menor.",
+          duration: 8000
+        });
+        return;
       }
 
       // Check if we got a 202 Accepted response (background processing)
