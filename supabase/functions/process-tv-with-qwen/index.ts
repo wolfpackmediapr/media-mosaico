@@ -211,6 +211,30 @@ serve(async (req) => {
       clientsCount: clients.length,
     });
 
+    // ── Detect manifest-based chunked uploads ──
+    if (videoPath.startsWith('chunked:')) {
+      const sessionId = videoPath.replace('chunked:', '');
+      console.log(`[qwen-tv][${requestId}] Chunked session detected: ${sessionId}. Manifest-based videos cannot be processed directly.`);
+
+      if (transcriptId) {
+        await supabaseClient.from('tv_transcriptions').update({
+          status: 'failed:manifest_not_supported',
+          progress: 0,
+          provider_fallback_reason: 'Video demasiado grande para procesamiento AI. La reproducción funciona correctamente.',
+          updated_at: new Date().toISOString(),
+        }).eq('id', transcriptId);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'MANIFEST_NOT_SUPPORTED',
+          message: 'Este video usa almacenamiento fragmentado. El análisis AI requiere un archivo único. La reproducción del video funciona correctamente.',
+        }),
+        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // ── Generate signed URL ──
     // The frontend is responsible for ensuring a single assembled file exists at this path.
     // For manifest-based chunked uploads, the frontend reassembles the file before calling this function.
