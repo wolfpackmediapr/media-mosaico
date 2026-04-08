@@ -103,7 +103,7 @@ export const useTvAnalysis = ({
       }
 
       // Use the unified Gemini processing function
-      const { data, error } = await supabase.functions.invoke('process-tv-with-gemini', {
+      const { data, error } = await supabase.functions.invoke('process-tv-with-qwen', {
         body: { 
           videoPath: videoPath,
           transcriptionId: transcriptionId,

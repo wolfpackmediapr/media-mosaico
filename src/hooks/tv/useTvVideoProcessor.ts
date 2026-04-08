@@ -331,7 +331,7 @@ export const useTvVideoProcessor = () => {
       setActiveProcessingId(actualTranscriptionId);
       
       const { data: result, error: processError } = await supabase.functions
-        .invoke('process-tv-with-gemini', {
+        .invoke('process-tv-with-qwen', {
           body: { 
             videoPath: fileName,
             transcriptionId: actualTranscriptionId
@@ -436,7 +436,7 @@ export const useTvVideoProcessor = () => {
       setNewsSegments(result.segments || []);
       
       // Automatically set analysis results from Gemini processing
-      const analysisText = result.full_analysis || result.summary || '';
+      const analysisText = result.full_analysis || (result.analysis ? JSON.stringify(result.analysis) : '') || result.summary || '';
       setAnalysisResults(analysisText);
       console.log('[TvVideoProcessor] Analysis automatically populated:', {
         hasFullAnalysis: !!result.full_analysis,
