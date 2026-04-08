@@ -1209,6 +1209,7 @@ async function processAssembledVideoWithGemini(
        fileInfo = await uploadVideoToGemini(videoBlob, videoPath.split('/').pop() || 'video.mp4');
      }
     console.log('[gemini-unified] File processing completed successfully');
+    pinCurrentKey();
 
     // === STAGE BOUNDARY: Upload complete → Reset rotation for transcription ===
     resetRotationState();
