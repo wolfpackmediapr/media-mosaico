@@ -234,7 +234,7 @@ async function uploadVideoToGemini(videoBlob: Blob, fileName: string): Promise<{
       throw new Error('No file URI received from upload');
     }
 
-    await waitForFileProcessing(uploadResult.file.name, geminiApiKey);
+    await waitForFileProcessing(uploadResult.file.name, getApiKey());
 
     return {
       uri: fileUri,
@@ -336,7 +336,7 @@ async function uploadVideoToGeminiStream(
       throw new Error('No file URI received from upload');
     }
 
-    await waitForFileProcessing(uploadResult.file.name, geminiApiKey);
+    await waitForFileProcessing(uploadResult.file.name, getApiKey());
 
     return { uri: fileUri, mimeType: mimeType || 'video/mp4' };
   } catch (error) {
