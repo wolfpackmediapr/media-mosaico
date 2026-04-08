@@ -15,7 +15,7 @@ const GEMINI_KEYS = [
 
 let currentKeyIndex = 0;
 let rotationCount = 0;
-const MAX_ROTATIONS = 1;
+const MAX_ROTATIONS_PER_STAGE = 1; // Allow one rotation (primary → secondary) per processing stage
 
 function getApiKey(): string {
   return GEMINI_KEYS[currentKeyIndex % GEMINI_KEYS.length];
@@ -32,7 +32,7 @@ function getMaskedKey(): string {
 
 function rotateKey(reason: string): boolean {
   if (GEMINI_KEYS.length < 2) return false;
-  if (rotationCount >= MAX_ROTATIONS) return false;
+  if (rotationCount >= MAX_ROTATIONS_PER_STAGE) return false;
   const prev = currentKeyIndex;
   currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
   rotationCount++;
@@ -712,6 +712,10 @@ async function processChunkedUploadWithGemini(
       console.log('[gemini-unified] File processing completed successfully');
     }
 
+    // === STAGE BOUNDARY: Upload complete → Reset rotation for transcription ===
+    resetRotationState();
+    console.log('[gemini-unified] Reset rotation state for transcription stage');
+
     // ===== FIRST CALL: Extract Verbatim Transcription =====
     console.log('[gemini-unified] Starting speaker-separated transcription...');
     if (transcriptionId) {
@@ -866,9 +870,13 @@ async function processChunkedUploadWithGemini(
       }
     }
 
+    // === STAGE BOUNDARY: Transcription complete → Reset rotation for analysis ===
+    resetRotationState();
+    console.log('[gemini-unified] Reset rotation state for analysis stage');
+
     // Add delay between API calls to reduce TPM pressure and avoid rate limits
-    console.log('[gemini-unified] Waiting 5s before analysis call to spread TPM usage...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log('[gemini-unified] Waiting 10s before analysis call to spread TPM usage...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
 
     // ===== SECOND CALL: Generate Content Analysis =====
     if (transcriptionId) {
@@ -1184,6 +1192,10 @@ async function processAssembledVideoWithGemini(
      }
     console.log('[gemini-unified] File processing completed successfully');
 
+    // === STAGE BOUNDARY: Upload complete → Reset rotation for transcription ===
+    resetRotationState();
+    console.log('[gemini-unified] Reset rotation state for transcription stage (assembled)');
+
     // Generate speaker-separated transcription
     let speakerTranscription = null;
     if (transcriptionId) {
@@ -1244,9 +1256,13 @@ async function processAssembledVideoWithGemini(
       // Continue without speaker transcription - will fall back to extraction
     }
 
+    // === STAGE BOUNDARY: Transcription complete → Reset rotation for analysis ===
+    resetRotationState();
+    console.log('[gemini-unified] Reset rotation state for analysis stage (assembled)');
+
     // Wait before analysis call to spread TPM usage across minute boundaries
-    console.log('[gemini-unified] Waiting 5s before analysis call to spread TPM usage...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log('[gemini-unified] Waiting 10s before analysis call to spread TPM usage...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
 
     // Update progress
     if (transcriptionId) {
@@ -2547,18 +2563,38 @@ async function processVideoInBackground(
 
   } catch (error) {
     console.error(`[${requestId}] [Background] === PROCESSING FAILED ===`);
+    const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`[${requestId}] Error details:`, {
-      message: error instanceof Error ? error.message : String(error),
+      message: errorMsg,
       stack: error instanceof Error ? error.stack : undefined,
       name: error instanceof Error ? error.name : 'UnknownError',
-      isMemoryError: (error instanceof Error && error.message?.includes('memory')) || (error instanceof Error && error.message?.includes('heap'))
+      isMemoryError: errorMsg?.includes('memory') || errorMsg?.includes('heap')
     });
 
-    // Update transcription status to failed
+    // Determine user-friendly status message that preserves the technical cause
+    let failureStatus = 'failed';
+    if (errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
+      failureStatus = 'failed:quota_exhausted';
+    } else if (errorMsg.includes('memory') || errorMsg.includes('heap')) {
+      failureStatus = 'failed:memory_limit';
+    } else if (errorMsg.includes('timeout')) {
+      failureStatus = 'failed:timeout';
+    }
+
+    // Update transcription status to failed WITH the error reason
     try {
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      await updateDatabaseProgress(transcriptionId, 0, 'failed');
-      console.log(`[${requestId}] [Background] Updated transcription status to failed`);
+      // Persist the actual failure reason so the frontend can display it
+      await supabase
+        .from('tv_transcriptions')
+        .update({ 
+          status: failureStatus,
+          progress: 0,
+          provider_used: getKeyLabel(),
+          provider_fallback_reason: errorMsg.substring(0, 500)
+        })
+        .eq('id', transcriptionId);
+      console.log(`[${requestId}] [Background] Updated transcription status to ${failureStatus}`);
     } catch (updateError) {
       console.error(`[${requestId}] [Background] Could not update transcription status:`, updateError);
     }
