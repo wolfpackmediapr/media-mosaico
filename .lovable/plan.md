@@ -1,63 +1,72 @@
 
 
-## Fix: Qwen Function for Chunked/Manifest Video Uploads
+## Fix: Remove Failing Client-Side Reassembly, Add Chunked Detection to Qwen
 
-### Root Cause (confirmed with DB evidence)
+### Problem
+The client-side reassembly downloads all chunks (~350MB) then tries to upload a single blob back to the `video` bucket, which rejects it due to bucket file size limits. This is the direct cause of every recent 500.
 
-All recent uploads are **manifest-based chunked uploads** (~350MB files):
-- `assembled_file_path = NULL`
-- `playback_type = 'chunked'`
-- `manifest_created = true`
-- Chunks stored at `chunks/{sessionId}/chunk_XXXX` in `video` bucket (24 chunks × 15MB)
-- No single assembled file exists in storage
+### Solution
+Two changes — stop the frontend from attempting the impossible upload, and make the Qwen function handle `chunked:` references gracefully.
 
-The Qwen function tries to sign a non-existent single file path → 500.
+### File 1: `src/hooks/tv/useTvVideoProcessor.ts`
 
-The `reassemble-chunked-video` edge function **rejects files >50MB** (line 82), so it cannot help here.
+**Lines ~169-226**: Replace the entire client-side reassembly block (download chunks → build blob → upload → update DB) with a simple path assignment:
 
-### Key constraint
+```typescript
+if (!chunkedFilePath && matchingChunkSession.playback_type === 'chunked' && matchingChunkSession.manifest_created) {
+  console.log('[TvVideoProcessor] Manifest-based chunked upload — passing chunked reference to backend');
+  chunkedFilePath = `chunked:${matchingChunkSession.session_id}`;
+}
+```
 
-Qwen API requires a **single video URL**. Edge functions have ~150MB memory. These files are ~350MB. Edge-function-based reassembly is not possible for these files.
+This eliminates the 350MB download+upload cycle entirely. The rest of the flow (transcription lookup, skipUpload, public URL for playback) stays the same.
 
-### Solution: Frontend-side reassembly before Qwen call
+**Lines ~285-291**: The public URL generation for playback still needs a real storage path. When `chunkedFilePath` starts with `chunked:`, use the first chunk's path or skip the public URL assignment (the video player already handles chunked playback via manifest).
 
-The frontend already has access to the chunk manifest. It should reassemble the file into a single storage object **before** invoking the Qwen function. This happens client-side where there are no memory constraints.
+### File 2: `supabase/functions/process-tv-with-qwen/index.ts`
 
-### Implementation
+**After parsing `videoPath` (~line 205)**: Add detection for `chunked:` prefix:
 
-#### File 1: `src/hooks/tv/useTvVideoProcessor.ts`
+```typescript
+if (videoPath.startsWith('chunked:')) {
+  const sessionId = videoPath.replace('chunked:', '');
+  console.log(`[qwen-tv] Chunked session detected: ${sessionId}`);
+  
+  // Update transcription status with clear message
+  if (transcriptId) {
+    await supabaseClient.from('tv_transcriptions').update({
+      status: 'failed:manifest_not_supported',
+      progress: 0,
+      error_message: 'Video demasiado grande para procesamiento AI. La reproducción funciona correctamente.',
+      updated_at: new Date().toISOString(),
+    }).eq('id', transcriptId);
+  }
+  
+  return new Response(JSON.stringify({
+    success: false,
+    error: 'MANIFEST_NOT_SUPPORTED',
+    message: 'Este video usa almacenamiento fragmentado. El análisis AI requiere un archivo único. La reproducción del video funciona correctamente.',
+  }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+}
+```
 
-**When a chunked session has `playback_type = 'chunked'` and no `assembled_file_path`:**
+### File 1 additional: Error handling for 422
 
-1. Add `playback_type, manifest_created` to the chunked session select query
-2. Before calling Qwen, detect manifest-based sessions
-3. Download each chunk from storage using signed URLs, concatenate into a Blob
-4. Upload the assembled Blob to `video/{sessionId}/{basename}` 
-5. Update `assembled_file_path` in DB so this only happens once
-6. Pass the assembled path to Qwen
+In the section where Qwen function response is handled (~line 500+), add handling for the `MANIFEST_NOT_SUPPORTED` error code so the UI shows a specific toast instead of a generic failure.
 
-This is a one-time cost per video — subsequent processing uses the cached assembled file.
-
-#### File 2: `supabase/functions/process-tv-with-qwen/index.ts`
-
-1. Remove the broken reassembly fallback (lines 223-283) — the frontend now handles this
-2. Keep simple: if signed URL fails, return a clear error with the path that failed
-3. Add detailed logging of incoming `videoPath` for debugging
-
-### Changes summary
-
-| File | Change |
-|------|--------|
-| `src/hooks/tv/useTvVideoProcessor.ts` | Add client-side chunk reassembly before Qwen call |
-| `supabase/functions/process-tv-with-qwen/index.ts` | Remove broken reassembly, improve error messages |
+### What this achieves
+- Large chunked uploads stop crashing with "exceeded maximum allowed size"
+- Users get a clear Spanish-language message explaining playback works but AI analysis is blocked
+- The transcription record gets a specific failure status (`failed:manifest_not_supported`) instead of hanging
+- No more infinite polling loops for these files
 
 ### What stays the same
-- No radio, press, or UI changes
+- No radio, press, or UI layout changes
 - No DB migration needed
-- `reassemble-chunked-video` untouched
-- `process-tv-with-gemini` untouched
+- Gemini function untouched
 - Chunk upload flow untouched
+- Small/medium files that already have `assembled_file_path` continue working normally
 
-### Risk note
-Client-side reassembly of 350MB files requires the user to keep the browser tab open during download+reupload (~2-4 min on fast connection). Progress feedback will be shown. The assembled file is cached in storage so it only happens once per video.
+### Future: To enable AI analysis for large files
+A separate storage bucket limit increase (`UPDATE storage.buckets SET file_size_limit = 524288000 WHERE name = 'video'`) would allow the client-side reassembly to succeed. That is a separate approval item.
 
