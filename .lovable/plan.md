@@ -1,129 +1,84 @@
 
-Goal: fix the TV pipeline so each stage (upload, transcription, analysis) can independently fall back to the second Gemini key, while also reducing quota pressure and improving the user-facing error flow.
 
-What I think of the proposed plan:
-- The diagnosis is correct: the current rotation state is global per request, so an early 429 can consume the only rotation before transcription or analysis runs.
-- The backend change is necessary.
-- The frontend cooldown is useful, but it is not the root fix by itself.
-- I recommend a few adjustments so it is safer and matches the current code structure.
+## Fix: Pin API Key After Upload
 
-Recommended implementation
+### Problem
 
-1. Refactor key rotation to be stage-scoped
-- In `supabase/functions/process-tv-with-gemini/index.ts`, replace the single global rotation budget with per-stage state.
-- Best approach:
-  - keep `currentKeyIndex`
-  - replace `rotationCount` with either:
-    - a per-stage counter map, or
-    - a simple reset between stages if you want the smallest change
-- Since the current code already has clear stage boundaries, the smallest safe fix is:
-  - rename constant to `MAX_ROTATIONS_PER_STAGE`
-  - call `resetRotationState()`:
-    - at request start
-    - after upload/file activation succeeds, before transcription
-    - after transcription succeeds, before analysis
+Gemini Files API scopes files to the API key that uploaded them. The current per-stage rotation resets `currentKeyIndex` between upload → transcription → analysis. If the upload rotated to Key 2, but the reset sends transcription back to Key 1, Key 1 gets 403 PERMISSION_DENIED because it doesn't own the file.
 
-2. Important correction to your proposed constant
-- Your note says:
-  - `const MAX_ROTATIONS_PER_STAGE = 2; // Allow up to 2 rotations per stage (try both keys)`
-- With only 2 keys and starting on primary, `2` rotations is more than needed:
-  - try primary
-  - rotate once
-  - try secondary
-- Recommendation:
-  - use `const MAX_ROTATIONS_PER_STAGE = 1`
-- If you set it to `2`, the code can rotate back to the primary and waste attempts unless additional guards are added.
-- So the intent “try both keys once per stage” is correct, but the value should likely stay `1`.
+Log evidence:
+- Upload rotated from Key 1 (`AIza...5avE`) to Key 2 (`AIza...Zvho`) due to 429
+- File `y82o1015rblp` uploaded successfully under Key 2
+- Transcription and analysis both fail with 403 on Key 2 (all 5 attempts) — the file reference is cross-key
 
-3. Apply the reset at actual stage boundaries
-In the current function there are two main processing paths:
-- `processChunkedUploadWithGemini(...)`
-- `processAssembledVideoWithGemini(...)`
+### Fix
 
-Add resets in both paths:
-- after `uploadVideoToGemini(...)` / `uploadVideoToGeminiStream(...)` completes and file is ACTIVE
-- after transcription is accepted/finalized, before the analysis call
+**File: `supabase/functions/process-tv-with-gemini/index.ts`**
 
-4. Increase stage spacing to reduce quota collisions
-Current code already waits 5s in several places.
-Recommended updates:
-- change the 5s wait before analysis to 10s in both processing paths
-- keep or slightly increase the wait before transcription in assembled path too
-- update log text to explicitly mention 10s
-This won’t eliminate quota pressure, but it should reduce same-minute burst failures.
+1. **Add a "pinned key" concept to the key manager**
 
-5. Strengthen 429 behavior
-Current code already retries and rotates in several places, but it should return clearer terminal failures.
-When both keys are exhausted for a stage, use a specific error like:
-- `Both API keys rate limited. Gemini free tier allows very limited requests per minute. Please wait 60 seconds and try again.`
-Also make sure this message is preserved up to the frontend instead of being collapsed into a generic server failure.
+After a successful file upload, pin the key index so all subsequent stages use the same key that owns the file.
 
-6. Frontend cooldown is a good complement
-In `src/hooks/tv/useTvVideoProcessor.ts`:
-- add `lastSubmitTime`
-- block rapid repeat submissions before upload begins
-- show a specific toast with remaining seconds
-This is especially useful because users may be retriggering processing while a previous request has already consumed quota.
+```typescript
+let pinnedKeyIndex: number | null = null;
 
-7. One more recommendation the proposal missed
-The current polling code throws only:
-- `Processing failed on server`
-That masks the real backend cause.
-I recommend extending the backend to persist the exact technical failure reason on `tv_transcriptions` and then reading it in `pollForProcessingCompletion()`.
-Without that, even after the key-rotation fix, the UI may still look like a generic failure when quota is the actual issue.
+function pinCurrentKey() {
+  pinnedKeyIndex = currentKeyIndex;
+  console.log(`[gemini-unified] Pinned to key ${currentKeyIndex} (${getMaskedKey()}) for file ownership`);
+}
 
-Assessment of current codebase
-- The current edge function already has:
-  - dual key lookup
-  - rotation function
-  - request-start reset
-  - 429 handling in upload init, transcription, and analysis
-- The current weakness is specifically that:
-  - `rotationCount` is shared across the whole request
-  - provider tracking at completion reflects final request state only, not stage-specific behavior
-- The frontend currently has:
-  - no submission cooldown
-  - generic failed polling message
-  - quota toasts only when the thrown error text contains 429/quota
-
-Recommended final scope
-
-Backend
-- Replace global request-wide rotation budget with per-stage reset behavior
-- Keep one rotation per stage, not two
-- Reset before transcription and before analysis
-- Increase analysis spacing from 5s to 10s
-- Improve final 429 error message
-- Optionally persist backend error detail for UI display
-
-Frontend
-- Add 60-second submission cooldown in `useTvVideoProcessor.ts`
-- Surface a clearer “wait before retrying” toast
-- If possible, read exact backend failure text from DB instead of always throwing “Processing failed on server”
-
-Technical note
-```text
-Preferred behavior per stage:
-
-Stage starts
-  key = primary
-  try/retry on same key
-  if 429 exhausted:
-    rotate once -> secondary
-    retry stage
-  if secondary also exhausted:
-    fail stage with quota-specific error
-
-Then:
-  resetRotationState()
-  proceed to next stage
+function getApiKey(): string {
+  if (pinnedKeyIndex !== null) return GEMINI_KEYS[pinnedKeyIndex];
+  return GEMINI_KEYS[currentKeyIndex];
+}
 ```
 
-Files to change
-- `supabase/functions/process-tv-with-gemini/index.ts`
-- `src/hooks/tv/useTvVideoProcessor.ts`
+2. **Pin the key right after file upload succeeds** (both upload paths)
 
-Recommendation summary
-- Yes, implement this fix.
-- Change one detail: do not use `MAX_ROTATIONS_PER_STAGE = 2` unless you also redesign the rotation logic. For the current architecture, `1` rotation per stage is the correct value.
-- If you want this to fully improve debugging, include exact backend error persistence/display as part of the same pass.
+After `uploadVideoToGemini()` and `uploadVideoToGeminiStream()` return successfully, call `pinCurrentKey()`.
+
+3. **Change `resetRotationState()` to NOT reset `currentKeyIndex` when pinned**
+
+The reset should only clear `rotationCount` so the stage can still attempt rotation if needed, but it should not move away from the pinned key. If a 429 forces rotation during transcription/analysis, that rotation should be blocked (since the other key can't access the file anyway).
+
+4. **Update rotation logic for post-upload stages**
+
+When `pinnedKeyIndex !== null`, `rotateKey()` should return `false` and log a warning: "Cannot rotate — file is pinned to this key." The correct behavior on 429 post-upload is to wait longer, not switch keys.
+
+5. **Reset pinned key at request start**
+
+In `resetRotationState()` at request entry, also reset `pinnedKeyIndex = null`.
+
+6. **Increase backoff for post-upload 429s**
+
+Since key rotation is no longer available after upload, increase the backoff delays for transcription and analysis 429s to give the quota time to recover (e.g., 15s, 30s, 60s, 90s, 120s across 5 attempts).
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `supabase/functions/process-tv-with-gemini/index.ts` | Add `pinnedKeyIndex`, `pinCurrentKey()`, update `getApiKey()`, `rotateKey()`, `resetRotationState()`, and backoff delays |
+
+### Behavior After Fix
+
+```text
+Request arrives → resetRotationState() (clears pin + rotation count)
+  Upload stage:
+    Key 1 → 429 → rotate to Key 2 → success
+    pinCurrentKey() → locked to Key 2
+  
+  Transcription stage:
+    resetRotationState() clears rotation count but keeps pin
+    Always uses Key 2 (file owner)
+    429 → longer backoff (no rotation possible)
+  
+  Analysis stage:
+    resetRotationState() clears rotation count but keeps pin  
+    Always uses Key 2 (file owner)
+    429 → longer backoff (no rotation possible)
+```
+
+### What this does NOT fix
+
+If both keys are heavily rate-limited simultaneously, the longer backoff helps but can still fail. The real fix for sustained throughput remains Tier 2 upgrade.
+
