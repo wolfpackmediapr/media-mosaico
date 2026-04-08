@@ -2529,6 +2529,8 @@ async function processVideoInBackground(
         .eq('id', transcriptionId);
     }
 
+    console.log(`[gemini-unified] Request complete: provider=${getKeyLabel()}, rotations=${rotationCount}, key=${getMaskedKey()}`);
+
     // Clean up compressed video if it was created
     if (compressedVideoPath !== videoPath) {
       try {
