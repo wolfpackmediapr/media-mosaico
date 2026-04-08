@@ -396,22 +396,27 @@ export const useTvVideoProcessor = () => {
           }
         });
 
+      // Handle MANIFEST_NOT_SUPPORTED (422) — video too large for AI processing
+      // supabase.functions.invoke treats non-2xx as an error, so check both error and result
       if (processError) {
+        // Check if this is a MANIFEST_NOT_SUPPORTED error (422 from Qwen)
+        const isManifestError = processError.message?.includes('non-2xx') || 
+                                result?.error === 'MANIFEST_NOT_SUPPORTED';
+        
+        if (isManifestError || result?.error === 'MANIFEST_NOT_SUPPORTED') {
+          console.warn('[TvVideoProcessor] Manifest-based video not supported for AI analysis');
+          setIsProcessing(false);
+          setProgress(0);
+          setActiveProcessingId(null);
+          toast.error("Video demasiado grande para análisis AI", {
+            description: "La reproducción del video funciona correctamente, pero el análisis AI requiere un archivo único menor.",
+            duration: 8000
+          });
+          return;
+        }
+        
         console.error('[TvVideoProcessor] Processing error:', processError);
         throw new Error(`Processing failed: ${processError.message}`);
-      }
-
-      // Handle MANIFEST_NOT_SUPPORTED (422) — video too large for AI processing
-      if (result?.error === 'MANIFEST_NOT_SUPPORTED') {
-        console.warn('[TvVideoProcessor] Manifest-based video not supported for AI analysis');
-        setIsProcessing(false);
-        setProgress(0);
-        setActiveProcessingId(null);
-        toast.error("Video demasiado grande para análisis AI", {
-          description: "La reproducción del video funciona correctamente, pero el análisis AI requiere un archivo único menor.",
-          duration: 8000
-        });
-        return;
       }
 
       // Check if we got a 202 Accepted response (background processing)
