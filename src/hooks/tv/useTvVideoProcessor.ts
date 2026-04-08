@@ -16,6 +16,10 @@ export const useTvVideoProcessor = () => {
   const [progress, setProgress] = useState(0);
   const [assemblyId, setAssemblyId] = useState<string | null>(null);
   
+  // Cooldown: prevent rapid re-submissions that exhaust Gemini quota
+  const [lastSubmitTime, setLastSubmitTime] = useState<number>(0);
+  const COOLDOWN_MS = 60000; // 60 seconds between video submissions
+  
   // HYBRID FIX: Keep critical data persistent (survives page refresh)
   const [transcriptionText, setTranscriptionText, removeTranscriptionText] = usePersistentState<string>(
     "tv-transcription-text",
