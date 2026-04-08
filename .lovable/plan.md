@@ -1,35 +1,31 @@
 
 
-## Fix: Deploy Qwen Function + Fix Parameter Mismatch
+## Fix: Duplicated User ID in Video Path
 
 ### Root Cause
 
-Two issues preventing the Qwen function from working:
+The reassemble-chunked-video function stores assembled files at `${sessionId}/${fileName}` in the `video` bucket (line 63 of reassemble-chunked-video/index.ts), and saves this as `assembled_file_path` in the DB.
 
-1. **Function not deployed** — The `process-tv-with-qwen` edge function has zero logs, meaning it was never deployed to Supabase. The config.toml entry alone doesn't deploy it.
+But the frontend (line 201 of useTvVideoProcessor.ts) constructs the path as `${user.id}/${assembledFileName}` — which is wrong. This produces a doubled-ID path that doesn't exist in storage.
 
-2. **Parameter name mismatch** — The frontend sends `transcriptionId` but the Qwen function destructures `transcriptId`:
-   - Frontend (line 337): `transcriptionId: actualTranscriptionId`
-   - Qwen function (line 199): `const { videoPath, transcriptId, ... } = body;`
-   
-   This means `transcriptId` is always `undefined`, so the function never updates the DB record and the frontend can't track progress.
+### Fix (single file: `src/hooks/tv/useTvVideoProcessor.ts`)
 
-### Changes
-
-**File: `supabase/functions/process-tv-with-qwen/index.ts`** — Accept both parameter names
-
-Line 199: Change destructuring to accept `transcriptionId` and fall back:
+**Change 1 — Line 129**: Add `assembled_file_path` to the select query:
 ```typescript
-const { videoPath, transcriptionId, transcriptId: transcriptIdAlt, categories = [], clients = [] } = body;
-const transcriptId = transcriptionId || transcriptIdAlt;
+.select('id, session_id, file_name, file_size, status, created_at, assembled_file_path')
 ```
 
-This is a 1-line change that makes the function compatible with both the frontend's `transcriptionId` and the original curl-style `transcriptId`.
+**Change 2 — Lines 199-203**: Use the stored `assembled_file_path` instead of manually constructing it:
+```typescript
+const assembledFileName = matchingChunkSession.file_name.replace(/\s+/g, '_');
+const chunkedFilePath = matchingChunkSession.assembled_file_path || `${matchingChunkSession.session_id}/${assembledFileName}`;
+fileName = chunkedFilePath;
+```
 
-**Deployment**: Deploy `process-tv-with-qwen` edge function after the fix.
+This uses the actual path the reassembly function wrote to storage. Falls back to `sessionId/fileName` (the pattern used by the reassembly function) if `assembled_file_path` is null for any reason.
 
-### What stays the same
-- No changes to any other files
-- Gemini function untouched
+### No other files changed
+- Edge function untouched
+- No DB migration needed
 - Radio, press modules untouched
 
