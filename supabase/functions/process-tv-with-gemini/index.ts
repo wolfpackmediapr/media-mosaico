@@ -881,10 +881,10 @@ async function processChunkedUploadWithGemini(
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
+        console.log(`[gemini-unified] Analysis using key: ${getMaskedKey()}`);
         
         const analysisResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${getApiKey()}`,
           {
             method: 'POST',
             headers: {
@@ -929,12 +929,12 @@ async function processChunkedUploadWithGemini(
             mimeType: fileInfo.mimeType
           });
           
-          // Handle rate limit (429) with exponential backoff
+          // Handle rate limit (429) with exponential backoff + key rotation
           if (analysisResponse.status === 429) {
             const retryDelay = extractRetryDelay(errorData);
             const backoffDelay = Math.min(retryDelay * attempt, 120000); // Max 2 minutes
             
-            console.warn(`[gemini-unified] Rate limit on analysis attempt ${attempt}. Retrying in ${backoffDelay/1000}s...`);
+            console.warn(`[gemini-unified] Rate limit on analysis attempt ${attempt}, key: ${getMaskedKey()}. Retrying in ${backoffDelay/1000}s...`);
             
             if (transcriptionId) {
               await updateDatabaseProgress(
@@ -942,6 +942,15 @@ async function processChunkedUploadWithGemini(
                 60 + attempt, 
                 `Límite alcanzado. Reintentando en ${backoffDelay/1000}s... (${attempt}/${maxAttempts})`
               );
+            }
+            
+            // If this is the last attempt, try rotating key
+            if (attempt === maxAttempts - 1) {
+              if (rotateKey('429_analysis_exhausted')) {
+                console.log(`[gemini-unified] Rotated key for analysis, will retry`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                continue;
+              }
             }
             
             await new Promise(resolve => setTimeout(resolve, backoffDelay));
@@ -1191,7 +1200,7 @@ async function processAssembledVideoWithGemini(
       console.log('[gemini-unified] Transcription attempt 1/5');
       
       const transcriptionResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${getApiKey()}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1253,7 +1262,7 @@ async function processAssembledVideoWithGemini(
         console.log(`[gemini-unified] Analysis attempt ${attempt}/${maxAttempts}`);
         
         const analysisResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GOOGLE_GEMINI_API_KEY_TV')}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${getApiKey()}`,
           {
             method: 'POST',
             headers: {
@@ -2153,24 +2162,29 @@ serve(async (req) => {
   }
 
   try {
+    // Reset key rotation state for this request
+    resetRotationState();
+    
     // Environment validation
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY_TV');
 
     console.log('[process-tv-with-gemini] Environment validation:', {
       hasSupabaseUrl: !!supabaseUrl,
       hasSupabaseServiceKey: !!supabaseServiceKey,
-      hasGeminiApiKey: !!geminiApiKey,
+      geminiKeysAvailable: GEMINI_KEYS.length,
       supabaseUrlLength: supabaseUrl?.length,
-      geminiKeyLength: geminiApiKey?.length
     });
 
-    if (!supabaseUrl || !supabaseServiceKey || !geminiApiKey) {
-      throw new Error('Missing required environment variables');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Missing required Supabase environment variables');
     }
-
-    console.log(`[${requestId}] Environment validated successfully`);
+    
+    if (GEMINI_KEYS.length === 0) {
+      throw new Error('No Gemini API keys configured (need GOOGLE_GEMINI_API_KEY_TV or GOOGLE_GEMINI_API_KEY_TV_2)');
+    }
+    
+    console.log(`[${requestId}] Environment validated: ${GEMINI_KEYS.length} Gemini key(s) available`);
     
     console.log(`[${requestId}] Request details:`, {
       videoPath,
@@ -2504,7 +2518,9 @@ async function processVideoInBackground(
         was_compressed: wasCompressed,
         compressed_path: wasCompressed ? compressedVideoPath : null,
         status: 'completed',
-        progress: 100
+        progress: 100,
+        provider_used: getKeyLabel(),
+        provider_fallback_reason: rotationCount > 0 ? '429_rate_limit_exhausted' : null
       };
       
       await supabase
