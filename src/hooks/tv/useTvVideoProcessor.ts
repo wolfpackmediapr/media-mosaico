@@ -196,9 +196,12 @@ export const useTvVideoProcessor = () => {
         // FIX: Store the chunked video path for persistence
         // Chunked videos use a special format: chunked:sessionId
         // For chunked uploads, generate the actual public URL from the assembled file path
-        const assembledFileName = matchingChunkSession.file_name.replace(/\s+/g, '_');
-        const chunkedFilePath = matchingChunkSession.assembled_file_path || `${matchingChunkSession.session_id}/${assembledFileName}`;
-        // FIX: Use actual storage path from DB instead of manually constructing it
+        // Use assembled_file_path from DB if available, otherwise construct from sessionId + base filename
+        // file_name may include userId prefix (e.g. "userId/timestamp_file.mov"), so extract just the basename
+        const rawFileName = matchingChunkSession.file_name.replace(/\s+/g, '_');
+        const baseFileName = rawFileName.includes('/') ? rawFileName.split('/').pop()! : rawFileName;
+        const chunkedFilePath = matchingChunkSession.assembled_file_path || `${matchingChunkSession.session_id}/${baseFileName}`;
+        console.log('[TvVideoProcessor] Resolved chunked file path:', { chunkedFilePath, assembledFilePath: matchingChunkSession.assembled_file_path, baseFileName });
         fileName = chunkedFilePath;
         const { data: { publicUrl: chunkedPublicUrl } } = supabase.storage
           .from('video')
