@@ -1,65 +1,46 @@
 
 
-## Fix: Qwen Analysis 403 + [object Object] Display
+## Upgrade TV Analysis Prompt to Match Production Quality
 
-### What you described vs what the plan does
+### Problem
+The current Qwen `buildAnalysisPrompt()` (lines 67-131 in `process-tv-with-qwen/index.ts`) is a stripped-down generic JSON prompt. The old Gemini prompt (lines 1440-1537 in `process-tv-with-gemini/index.ts`) produced the rich output shown in the DOCX — ad/program separation, 70-100 sentence summaries, client-keyword mapping, category justification, tone analysis. The Qwen version has none of this.
 
-Yes — this is exactly inline with your vision:
+### What changes
 
-1. **Qwen vision** identifies speakers visually (lower thirds, clothing, chyrons, PR personalities) — this already works for **small/single files** via `video_url` + `buildTranscriptionOnlyPrompt()` (lines 742-750)
-2. **AssemblyAI** does the audio transcription for **large chunked files** (since Qwen can't receive 350MB video in one call)
-3. **Qwen text analysis** runs the full 5W analysis on the transcription — same master prompt structure as Gemini
+**One file**: `supabase/functions/process-tv-with-qwen/index.ts`
 
-The speaker naming (`SPEAKER 1 (Name - Role):`) is already in the prompt for single files. For large files, AssemblyAI returns `SPEAKER A/B/C` labels but not names — so we should add a Qwen step that takes AssemblyAI's raw speaker-labeled text and enriches it with visual context from a few key frames (if available), or at minimum keeps the `SPEAKER X:` format consistent.
+Rewrite `buildAnalysisPrompt()` (lines 67-131) to replicate the Gemini `buildFullAnalysisPrompt` structure:
 
-### Two bugs to fix now
+1. **Content-type separation**: Add `[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]` and `[TIPO DE CONTENIDO: PROGRAMA REGULAR]` markers — the TV UI already renders these as yellow/blue cards
+2. **Ad detection rules**: Prices, CTAs, contact info, repetitive brand mentions, persuasive language
+3. **Ad detail extraction**: Brand, key messages, CTA, tone, duration per ad
+4. **Program analysis**: 70-100 sentence summary with chronological development, textual quotes, participant interactions, speaker identification by name
+5. **Temas principales**: Ordered by importance with subtopics and connections
+6. **Tone analysis**: Formal/informal, language type, content focus (informativo/editorial/debate)
+7. **Default categories fallback**: 16 hardcoded categories (same as radio) when none provided from DB
+8. **Client-keyword correlation mapping**: Explicit `- ClientName: keyword1, keyword2` block (same format as radio)
+9. **Category justification**: Principal and secondary categories with justification text
+10. **Speaker name instructions**: When speaker labels are present, use names not generic labels
+11. **Increase `max_tokens`** to accommodate richer structured output
 
-**Bug 1: Qwen 403 on text-only analysis calls**
+The function signature stays the same: `buildAnalysisPrompt(categories, clients, transcriptionText, contextText)`. The clients and categories variables are already passed in — they just need to be formatted into the richer prompt structure (keyword mapping block, default categories list).
 
-The `callQwenStreaming` function uses `qwen3.5-omni-plus` (a multimodal model) for the text-only analysis step. Omni models require audio/video input — text-only calls return 403. The fix: use a text-compatible model (`qwen-plus`) for analysis calls.
+### Also fix the 403 bug (same file)
+- Add `TEXT_MODEL = 'qwen-plus'` and `TEXT_MODEL_FALLBACK = 'qwen-turbo'`
+- Use these for all text-only analysis calls instead of the Omni multimodal model
 
-- **File**: `supabase/functions/process-tv-with-qwen/index.ts`
-- Add constant: `const TEXT_MODEL = 'qwen-plus';`
-- Line 502: Change `callQwenStreaming(qwenApiKey, PRIMARY_MODEL, ...)` → `callQwenStreaming(qwenApiKey, TEXT_MODEL, ...)`
-- Line 506: Change fallback to `TEXT_MODEL` as well (or `qwen-turbo`)
-- Line 788-795: Same change for the single-file analysis path — use `TEXT_MODEL` instead of `analysisModel`
-
-**Bug 2: `[object Object]` in analysis display**
-
-When analysis fails (403), the function stores `{"error":"HTTP 403:...","parsed":false}` in `full_analysis`. The parser hits line 165: `parsed.toString()` → `[object Object]`.
-
-- **File**: `src/utils/tv/analysisParser.ts`
-- In `convertJsonToReadableFormat` (line 163-166), before falling through to `parsed.toString()`, check for error objects:
-```
-if (parsed.error) {
-  return `Error en análisis: ${parsed.error}`;
-}
-if (parsed.raw_analysis && typeof parsed.raw_analysis === 'string') {
-  return parsed.raw_analysis;
-}
-if (!isAnalysisJson) {
-  return JSON.stringify(parsed, null, 2);
-}
-```
-
-### Scope
-
-| File | Change |
-|------|--------|
-| `supabase/functions/process-tv-with-qwen/index.ts` | Add `TEXT_MODEL = 'qwen-plus'`, use it for all text-only analysis calls (4 lines) |
-| `src/utils/tv/analysisParser.ts` | Handle error/unparseable objects gracefully instead of `.toString()` |
+### Fix `[object Object]` display
+**File**: `src/utils/tv/analysisParser.ts`
+- Handle error objects gracefully in `convertJsonToReadableFormat`
 
 ### What stays the same
 - No radio, press, navigation, or UI layout changes
 - No DB migration
-- Qwen vision still used for transcription on single files
-- AssemblyAI still used for large file audio transcription
-- Master prompts (`buildTranscriptionOnlyPrompt`, `buildAnalysisPrompt`) unchanged
-- Speaker identification prompt with lower thirds, chyrons, PR personalities unchanged
+- `TvFormattedAnalysisResult.tsx` already supports `[TIPO DE CONTENIDO:]` markers
+- `buildTranscriptionOnlyPrompt()` unchanged (visual speaker ID for small files)
+- AssemblyAI pipeline for large files unchanged
+- Redeploy edge function after changes
 
-### Expected result after fix
-- AssemblyAI transcription works (already confirmed)
-- Qwen `qwen-plus` runs 5W analysis successfully on the transcription text
-- Analysis displays formatted sections (5W, resumen, palabras clave, relevancia clientes, alertas) instead of `[object Object]`
-- Speaker labels show `SPEAKER 1 (Name - Role):` for small files (Qwen vision) and `SPEAKER A/B/C:` for large files (AssemblyAI)
+### Expected output quality
+After this change, TV analysis output will match the DOCX reference: named speakers, ad/program separation with blue/yellow cards, 70-100 sentence summaries, categorized themes, client relevance with keyword justification, and tone analysis.
 
