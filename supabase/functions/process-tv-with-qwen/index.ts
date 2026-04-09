@@ -505,6 +505,63 @@ async function transcribeWithAssemblyAI(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Extract structured DB fields from free-text analysis output
+// ═══════════════════════════════════════════════════════════════════════
+
+function extractAnalysisFieldsFromText(text: string, payload: any): void {
+  if (!text || text.startsWith('Error en análisis')) return;
+
+  // Extract 5W fields using common patterns
+  const extract5W = (label: string): string | undefined => {
+    const patterns = [
+      new RegExp(`${label}[:\\s]*([^\\n]+(?:\\n(?![A-ZÁÉÍÓÚÑÜ]{3,})[^\\n]+)*)`, 'i'),
+      new RegExp(`\\*\\*${label}\\*\\*[:\\s]*([^\\n]+)`, 'i'),
+    ];
+    for (const p of patterns) {
+      const m = text.match(p);
+      if (m) return m[1].trim().replace(/^\*\*|\*\*$/g, '');
+    }
+    return undefined;
+  };
+
+  const quien = extract5W('QUI[EÉ]N');
+  const que = extract5W('QU[EÉ]');
+  const cuando = extract5W('CU[AÁ]NDO');
+  const donde = extract5W('D[OÓ]NDE');
+  const porque = extract5W('POR QU[EÉ]');
+
+  if (quien) payload.analysis_quien = quien;
+  if (que) payload.analysis_que = que;
+  if (cuando) payload.analysis_cuando = cuando;
+  if (donde) payload.analysis_donde = donde;
+  if (porque) payload.analysis_porque = porque;
+
+  // Extract summary — look for "Resumen" section
+  const resumenMatch = text.match(/(?:Resumen|RESUMEN)[^:]*:?\s*\n([\s\S]*?)(?=\n(?:\d+\.|Temas|TEMAS|Tono|TONO|Categor|CATEGOR|An[aá]lisis|ANÁLISIS|Palabras|PALABRAS|Puntuaci|PUNTUACI|Alertas|ALERTAS|\[TIPO))/i);
+  if (resumenMatch) {
+    const summary = resumenMatch[1].trim().substring(0, 2000);
+    payload.summary = summary;
+    payload.analysis_summary = summary;
+  }
+
+  // Extract category
+  const catMatch = text.match(/Categor[ií]a(?:s)?\s+(?:principal|aplicable)[^:]*:\s*([^\n]+)/i);
+  if (catMatch) {
+    payload.analysis_category = catMatch[1].trim().replace(/^\*\*|\*\*$/g, '');
+  }
+
+  // Extract keywords
+  const kwMatch = text.match(/Palabras\s+clave[^:]*:\s*([^\n]+)/i);
+  if (kwMatch) {
+    const kws = kwMatch[1].split(/[,;]/).map((k: string) => k.trim().replace(/^[-•]\s*/, '')).filter(Boolean);
+    if (kws.length > 0) {
+      payload.analysis_keywords = kws;
+      payload.keywords = kws;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Background processor for chunked videos (runs via EdgeRuntime.waitUntil)
 // ═══════════════════════════════════════════════════════════════════════
 
