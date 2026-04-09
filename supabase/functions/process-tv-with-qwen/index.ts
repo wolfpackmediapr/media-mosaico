@@ -353,9 +353,7 @@ async function transcribeWithAssemblyAI(
       audio_url: uploadUrl,
       language_code: 'es',
       speaker_labels: true,
-      auto_chapters: true,
       entity_detection: true,
-      auto_highlights: true,
     }),
   });
 
