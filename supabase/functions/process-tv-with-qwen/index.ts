@@ -70,65 +70,133 @@ function buildAnalysisPrompt(
   transcriptionText: string,
   contextText: string = ''
 ): string {
+  // Default 16 categories (same as radio) when none provided from DB
   const categoriesText = categories.length > 0
-    ? `Categorías disponibles: ${categories.join(', ')}`
-    : 'Sin categorías específicas';
+    ? categories.join(', ')
+    : 'ENTRETENIMIENTO, EDUCACION & CULTURA, COMUNIDAD, SALUD, CRIMEN, TRIBUNALES, AMBIENTE & EL TIEMPO, ECONOMIA & NEGOCIOS, GOBIERNO, POLITICA, EE.UU. & INTERNACIONALES, DEPORTES, RELIGION, OTRAS, ACCIDENTES, CIENCIA & TECNOLOGIA';
 
+  // Client names list
   const clientsText = clients.length > 0
-    ? `Clientes relevantes: ${clients.map(c => `${c.name} (keywords: ${c.keywords?.join(', ') || 'ninguna'})`).join('; ')}`
-    : 'Sin clientes específicos';
+    ? clients.map(c => c.name).join(', ')
+    : '';
 
-  return `Eres un experto analista de contenido de televisión especializado en noticias de Puerto Rico y el Caribe.
+  // Client-keyword correlation mapping (same format as radio)
+  const clientKeywordMap = clients.length > 0
+    ? clients.map(client => {
+        const keywords = client.keywords && client.keywords.length > 0
+          ? client.keywords.join(', ')
+          : '—';
+        return `- ${client.name}: ${keywords}`;
+      }).join('\n')
+    : '';
 
-Analiza la siguiente transcripción de un programa de TV y proporciona un análisis estructurado en formato JSON.
+  let prompt = `Eres un analista experto en contenido de televisión de Puerto Rico y el Caribe. Tu tarea es analizar la siguiente transcripción de un programa de TV en español e identificar y separar el contenido publicitario del contenido regular del programa.
 
-${categoriesText}
-${clientsText}
+IMPORTANTE - FORMATO DE RESPUESTA:
+Debes identificar y separar claramente cada sección de contenido, comenzando CADA SECCIÓN con uno de estos encabezados:
 
-TRANSCRIPCIÓN:
-${transcriptionText}
+[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
+o
+[TIPO DE CONTENIDO: PROGRAMA REGULAR]
 
-${contextText ? `Contexto adicional: ${contextText}` : ''}
+IDENTIFICACIÓN DE ANUNCIOS EN TV:
+Señales clave para identificar anuncios:
+- Menciones de precios, ofertas o descuentos
+- Llamadas a la acción ("llame ahora", "visite nuestra tienda", "disponible en", etc.)
+- Información de contacto (números de teléfono, direcciones, sitios web)
+- Menciones repetidas de marcas o productos específicos
+- Lenguaje persuasivo o promocional
+- Cambios abruptos de tema (cortes comerciales)
+- Jingles, eslóganes o frases promocionales repetitivas
 
-El análisis debe incluir:
-1. **Clasificación del contenido** según las categorías disponibles
-2. **Análisis de relevancia** para los clientes mencionados
-3. **Extracción de información clave** siguiendo el método periodístico de las 5W:
-   - Quién (personas, organizaciones mencionadas)
-   - Qué (eventos, acciones, decisiones)
-   - Cuándo (fechas, tiempos, cronología)
-   - Dónde (lugares, ubicaciones)
-   - Por qué (causas, motivos, razones)
-4. **Palabras clave y temas principales**
-5. **Resumen ejecutivo**
-6. **Alertas de relevancia** para clientes específicos
+PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
+1. Marca(s) o producto(s) anunciados
+2. Mensajes clave del anuncio
+3. Llamada a la acción (si existe)
+4. Tono del anuncio
+5. Duración aproximada
 
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{
-  "categoria": "categoría principal del contenido",
-  "relevancia_clientes": [
-    {
-      "cliente": "nombre del cliente",
-      "nivel_relevancia": "alto/medio/bajo",
-      "razon": "explicación de por qué es relevante"
-    }
-  ],
-  "analisis_5w": {
-    "quien": "personas y organizaciones mencionadas",
-    "que": "eventos y acciones principales",
-    "cuando": "información temporal relevante",
-    "donde": "ubicaciones y lugares mencionados",
-    "porque": "causas y motivos identificados"
-  },
-  "palabras_clave": ["palabra1", "palabra2", "palabra3"],
-  "resumen": "resumen ejecutivo del contenido",
-  "alertas": [
-    "alerta específica para cliente 1",
-    "alerta específica para cliente 2"
-  ],
-  "puntuacion_impacto": "1-10 según el impacto noticioso",
-  "recomendaciones": ["recomendación 1", "recomendación 2"]
-}`;
+PARA CADA SECCIÓN DE PROGRAMA REGULAR:
+1. Resumen del contenido (70-100 oraciones)
+   - Incluir desarrollo cronológico de los temas
+   - Destacar citas textuales relevantes con los nombres de quienes las dijeron
+   - Mencionar interacciones entre participantes
+   - Identificación de los participantes en la conversación (cuántos hablantes participan y sus roles o nombres)
+   - Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de "SPEAKER A" o "SPEAKER B"
+
+2. Temas principales tratados
+   - Listar temas por orden de importancia
+   - Incluir subtemas relacionados
+   - Señalar conexiones entre temas si existen
+
+3. Tono del contenido
+   - Estilo de la presentación (formal/informal)
+   - Tipo de lenguaje utilizado
+   - Enfoque del contenido (informativo/editorial/debate/entrevista/reportaje)
+
+4. Categorías aplicables de: ${categoriesText}
+   - Justificar la selección de cada categoría
+   - Indicar categoría principal y secundarias
+
+5. Análisis 5W (Método periodístico):
+   - QUIÉN: Personas, organizaciones, instituciones mencionadas (con nombres completos y cargos si están disponibles)
+   - QUÉ: Eventos, acciones, decisiones principales
+   - CUÁNDO: Fechas, tiempos, cronología de los eventos
+   - DÓNDE: Lugares, ubicaciones geográficas (municipios, barrios, países)
+   - POR QUÉ: Causas, motivos, razones identificadas
+
+6. Palabras clave: Las 10-15 palabras o frases más relevantes del contenido
+
+7. Puntuación de impacto noticioso: Del 1 al 10, con justificación
+
+8. Alertas y recomendaciones: Situaciones de alto impacto o urgencia que requieran atención inmediata`;
+
+  // Add clients section if available
+  if (clientsText) {
+    prompt += `
+
+9. Presencia de personas o entidades relevantes mencionadas
+10. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}`;
+  } else {
+    prompt += `
+
+9. Presencia de personas o entidades relevantes mencionadas`;
+  }
+
+  // Add keyword mapping if available
+  if (clientKeywordMap) {
+    prompt += `
+11. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
+${clientKeywordMap}
+
+Responde en español de manera concisa y profesional. Asegúrate de:
+1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
+2. Si es un anuncio, enfatizar las marcas, productos y llamadas a la acción
+3. Si es contenido regular, mantener el formato de análisis detallado con TODOS los puntos mencionados
+4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
+5. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas
+6. Proporcionar citas textuales exactas de la transcripción para respaldar el análisis`;
+  } else {
+    prompt += `
+
+Responde en español de manera concisa y profesional, comenzando SIEMPRE con el encabezado del tipo de contenido identificado en mayúsculas. Utiliza los nombres específicos de los hablantes cuando estén disponibles. Incluye citas textuales exactas de la transcripción.`;
+  }
+
+  // Add additional context
+  if (contextText) {
+    prompt += `\n\nContexto adicional: ${contextText}`;
+  }
+
+  // Append the transcription
+  prompt += `
+
+═══════════════════════════════════════════════════════════════
+TRANSCRIPCIÓN A ANALIZAR:
+═══════════════════════════════════════════════════════════════
+
+${transcriptionText}`;
+
+  return prompt;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
