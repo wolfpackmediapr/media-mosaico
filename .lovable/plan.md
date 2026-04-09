@@ -1,84 +1,129 @@
 
 
-## Fix: Make Qwen Actually Work + Handle Large Chunked Videos
+## Root Cause: Memory Limit Exceeded (OOM)
 
-### Why Gemini is not the answer
+The logs are definitive:
 
-You're right. Gemini has aggressive rate limits (Tier 1), the dual-key rotation is already complex, and in production with multiple users uploading simultaneously, you'll hit 429s constantly. We should not route more traffic to Gemini.
-
-### What's actually broken with Qwen right now
-
-Two issues — both fixable:
-
-1. **Missing `stream: true`**: Alibaba docs say explicitly: *"All requests to Qwen-Omni must set `stream=True`."* The current code sends non-streaming requests, which causes 403/400 errors. This is why Qwen never runs.
-
-2. **Model names are correct** (`qwen3.5-omni-plus` / `qwen3.5-omni-flash`) — confirmed from Alibaba's official docs. The previous plan to change them to `qwen3-omni-plus` was wrong.
-
-### The chunk problem
-
-Individual 15MB chunks are raw byte slices (not valid video containers). Qwen can't process them individually. But Qwen supports videos up to ~400 seconds (~6.7 min) per request via URL.
-
-### Solution: Qwen for everything, with smart chunking strategy
-
-**For small/medium files (single file, <400s):**
-- Fix `stream: true` in `callQwen()` and parse SSE response
-- Send the signed URL directly — this works today except for the streaming bug
-
-**For large chunked files (>400s, manifest-based):**
-- The edge function downloads the chunks from storage sequentially and concatenates them in memory
-- Instead of re-uploading to Supabase (which fails), upload directly to **AssemblyAI** (already configured, API key exists) for transcription
-- AssemblyAI handles files of any length, has speaker diarization built-in, and supports Spanish
-- Then send the transcription text to Qwen (text-only, no video) for the 5W analysis step
-- Text-only Qwen calls are cheap, fast, and don't hit video rate limits
-
-```text
-Small file path:
-  signed URL → Qwen (streaming, video+audio) → transcription + analysis
-
-Large file path:
-  chunks → download in edge function → upload to AssemblyAI → transcription with speaker labels
-  → transcription text → Qwen (text-only) → 5W analysis
+```
+Downloaded chunk 10/24 (150.0MB total)
+ERROR Memory limit exceeded
 ```
 
-### Why this works
+The `process-tv-with-qwen` edge function downloads all 24 chunks (350MB) into memory before uploading to AssemblyAI. Supabase Edge Functions have a ~150MB memory limit. It OOMs at chunk 10 every time. This is not an API key issue or a wrong function being called — the architecture itself cannot work inside an edge function's memory constraints.
 
-- **No Gemini at all** — zero dependency on Google for TV processing
-- **No Supabase storage re-upload** — the blocker is eliminated
-- **AssemblyAI handles any file size** — their upload endpoint accepts direct binary, no URL needed
-- **Speaker diarization free** — AssemblyAI identifies speakers automatically (perfect for TV news)
-- **Qwen text analysis is cheap** — text-only calls have no video token overhead
-- **Both services have separate rate limits** — no single bottleneck in production
+Additionally, the Qwen function's prompts are simplified compared to the Gemini function's rich master prompt (`constructTvPrompt` + `buildTranscriptionOnlyPrompt` with visual speaker identification, lower-third reading, etc.). Those need to be preserved.
 
-### Files to change
+## Fix Plan
 
+### 1. Replace in-memory buffering with `EdgeRuntime.waitUntil()` + streaming approach
+
+The edge function cannot hold 350MB in memory. Two changes:
+
+**a) Return immediately, process in background:**
+- Use `EdgeRuntime.waitUntil()` to start background processing
+- Return a `202 Accepted` with the transcription ID immediately
+- The frontend already handles `result?.status === 'processing'` and polls — this path exists but is never triggered
+
+**b) Stream chunks to AssemblyAI without buffering all at once:**
+- Instead of downloading all chunks then uploading, create a `ReadableStream` that fetches chunks one-by-one and yields their bytes
+- Pass this stream as the body to AssemblyAI's upload endpoint
+- Peak memory: ~15MB (one chunk) instead of ~350MB (all chunks)
+
+### 2. Preserve the master prompt from Gemini function
+
+The Gemini function has a comprehensive prompt system that the Qwen function lacks:
+
+- `buildTranscriptionOnlyPrompt()` — detailed speaker identification using visual cues (lower thirds, chyrons, recognizing PR news personalities), strict word-for-word transcription rules, `SPEAKER X (Name - Role):` format
+- `constructTvPrompt()` — full 5W analysis with Spanish-only JSON field names, client relevance scoring, impact scoring, alerts
+
+Copy these exact prompts into the Qwen function, replacing the current simplified versions. The analysis prompt structure matches (same JSON schema), but the transcription prompt is much weaker in Qwen — it lacks visual identification instructions, the PR-specific context, and the strict formatting rules.
+
+### 3. Fix the streaming upload to AssemblyAI
+
+Replace `transcribeViaAssemblyAI`:
+
+```text
+Current (broken):
+  for each chunk: download into array → OOM at chunk 10
+  concatenate all → upload blob
+
+New (streaming):
+  Create ReadableStream that:
+    for each chunk index 0..N:
+      download chunk (15MB)
+      enqueue bytes to stream
+      chunk gets GC'd before next download
+  POST stream body to AssemblyAI /v2/upload
+  Content-Length = total file size (known from session)
+```
+
+This keeps peak memory at ~15-30MB instead of 350MB.
+
+### 4. No radio/UI/site-wide changes
+
+Files to modify:
 | File | Change |
 |------|--------|
-| `supabase/functions/process-tv-with-qwen/index.ts` | Add `stream: true`, parse SSE response, add AssemblyAI path for chunked videos |
-| `src/hooks/tv/useTvVideoProcessor.ts` | No change needed — already passes `chunked:${sessionId}` correctly |
+| `supabase/functions/process-tv-with-qwen/index.ts` | Stream chunks to AssemblyAI instead of buffering; use `EdgeRuntime.waitUntil()` for background processing; copy master prompts from Gemini function |
 
-### What stays the same
-
-- No radio, press, or UI changes
-- No Gemini function changes
+Files NOT touched:
+- `src/hooks/tv/useTvVideoProcessor.ts` — already handles `status: 'processing'` + polling
+- All radio, press, UI, navigation code
+- `process-tv-with-gemini` — unchanged
 - No DB migration needed
-- Small files still use Qwen directly
-- Chunk upload and manifest playback unchanged
-- Frontend orchestration unchanged
 
-### Implementation details
+### 5. Implementation details
 
-1. **Fix `callQwen()`**: Add `stream: true` to request body, read SSE stream line-by-line, collect `delta.content` tokens, return concatenated text
-2. **Add `processViaAssemblyAI()`**: Download chunks sequentially from storage → concatenate into single buffer → POST to `api.assemblyai.com/v2/upload` → create transcription job with `speaker_labels: true`, `language_code: 'es'` → poll until complete
-3. **Update chunked path**: Replace chunk-by-chunk Qwen calls with AssemblyAI transcription → then Qwen text-only analysis
-4. **Memory management**: Stream chunks in 1MB reads to avoid OOM; AssemblyAI upload endpoint accepts streaming bodies
+**Streaming upload function:**
+```typescript
+async function streamChunksToAssemblyAI(supabaseClient, sessionId, totalChunks, totalBytes, assemblyAiKey) {
+  const stream = new ReadableStream({
+    async pull(controller) {
+      // download one chunk at a time, enqueue, move to next
+      // close when all chunks sent
+    }
+  });
+
+  const response = await fetch(ASSEMBLYAI_UPLOAD_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': assemblyAiKey,
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': totalBytes.toString(),
+    },
+    body: stream,
+  });
+  return (await response.json()).upload_url;
+}
+```
+
+**Background processing pattern:**
+```typescript
+serve(async (req) => {
+  // validate, auth, parse request
+  // create/update transcription record to 'processing'
+  
+  if (isChunked) {
+    // Return immediately, process in background
+    EdgeRuntime.waitUntil(processChunkedInBackground(/* params */));
+    return new Response(JSON.stringify({ status: 'processing', transcriptionId }), {
+      status: 202, headers: corsHeaders
+    });
+  }
+  
+  // Small files: process synchronously as before
+});
+```
 
 ### Validation
 
-1. Upload a 300MB+ TV file
-2. Confirm chunked playback works immediately
-3. Start processing — confirm AssemblyAI receives the file and transcribes with speaker labels
-4. Confirm Qwen runs text-only analysis on the transcription
-5. Confirm `tv_transcriptions` is populated with completed status
-6. Confirm small files still process via Qwen directly (with streaming fix)
-7. Confirm no Gemini calls are made for TV processing
+1. Upload 300MB+ TV file
+2. Confirm function returns 202 immediately (no timeout)
+3. Confirm chunks stream to AssemblyAI without OOM
+4. Confirm AssemblyAI transcription completes with speaker labels
+5. Confirm Qwen text analysis uses the full master prompt
+6. Confirm `tv_transcriptions` is populated with completed status
+7. Confirm frontend polling picks up the results
+8. Confirm small files still work synchronously
+9. Confirm radio and non-TV pages unchanged
 
