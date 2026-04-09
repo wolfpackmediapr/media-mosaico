@@ -209,6 +209,7 @@ async function callQwenStreaming(
   messages: any[],
   requestId: string,
   stage: string
+  maxTokens: number = 16384
 ): Promise<{ success: boolean; data?: string; error?: string; statusCode?: number }> {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`[qwen-tv][${requestId}] ${stage} attempt ${attempt}/${MAX_RETRIES} with model ${model}`);
