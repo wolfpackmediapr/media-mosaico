@@ -602,11 +602,53 @@ async function processChunkedInBackground(
     );
 
     // 3. Transcribe via AssemblyAI
-    const transcriptionText = await transcribeWithAssemblyAI(
+    let transcriptionText = await transcribeWithAssemblyAI(
       uploadUrl, assemblyAiKey, requestId, transcriptId, supabaseClient
     );
 
     console.log(`[qwen-tv][${requestId}] Background: Transcription complete, ${transcriptionText.length} chars`);
+
+    // 3b. Speaker name identification via Qwen (lightweight text call)
+    try {
+      console.log(`[qwen-tv][${requestId}] Background: Identifying speakers...`);
+      const speakerIdPrompt = `Analiza esta transcripción de televisión con etiquetas de hablantes (SPEAKER A, SPEAKER B, etc.) e identifica cada hablante por nombre y rol basándote en pistas del contexto del diálogo:
+- Auto-presentaciones ("Les saluda...", "Soy...")
+- Menciones por otros ("pasamos con Tom Bryant", "nuestra compañera Aixa Vázquez")
+- Indicadores de rol ("reportera", "doctor", "presentador")
+- Contenido contextual (quien hace preguntas = entrevistador, quien da noticias = presentador)
+
+Responde ÚNICAMENTE con un JSON mapping como este:
+{"A": "Nombre - Rol", "B": "Nombre - Rol"}
+Si NO puedes identificar a un hablante, usa su letra como valor: {"C": "C"}
+
+TRANSCRIPCIÓN:
+${transcriptionText.substring(0, 8000)}`;
+
+      const speakerIdMessages = [
+        { role: 'user', content: [{ type: 'text', text: speakerIdPrompt }] },
+      ];
+
+      const speakerIdResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, speakerIdMessages, requestId, 'speaker-id', 1024);
+
+      if (speakerIdResult.success && speakerIdResult.data) {
+        // Extract JSON from response
+        const jsonMatch = speakerIdResult.data.match(/\{[^}]+\}/);
+        if (jsonMatch) {
+          const speakerMap = JSON.parse(jsonMatch[0]);
+          console.log(`[qwen-tv][${requestId}] Speaker map:`, JSON.stringify(speakerMap));
+          
+          // Replace SPEAKER X with SPEAKER X (Name - Role) in transcription
+          for (const [letter, nameRole] of Object.entries(speakerMap)) {
+            if (nameRole && nameRole !== letter) {
+              const regex = new RegExp(`SPEAKER ${letter}(?!\\s*\\()`, 'g');
+              transcriptionText = transcriptionText.replace(regex, `SPEAKER ${letter} (${nameRole})`);
+            }
+          }
+        }
+      }
+    } catch (speakerErr) {
+      console.warn(`[qwen-tv][${requestId}] Speaker identification failed (non-fatal):`, speakerErr);
+    }
 
     // Save transcription immediately
     await supabaseClient
