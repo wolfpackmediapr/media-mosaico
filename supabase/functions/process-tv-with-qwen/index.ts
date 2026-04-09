@@ -869,7 +869,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         transcription: transcriptionText,
-        analysis: parsedAnalysis,
+        analysis: analysisText,
         provider_used: providerUsed,
         fallback_reason: fallbackReason,
       }),
