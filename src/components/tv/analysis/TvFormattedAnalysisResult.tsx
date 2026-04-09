@@ -1,64 +1,56 @@
 import { Card } from "@/components/ui/card";
 import { SpeakerIcon, ShoppingCart } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect } from "react";
 import { parseAnalysisContent } from "@/utils/tv/analysisParser";
+import DOMPurify from "dompurify";
 
 interface TvFormattedAnalysisResultProps {
   analysis: string;
 }
 
+/** Convert markdown bold/italic to HTML */
+const markdownToHtml = (text: string): string => {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br/>');
+};
+
 const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps) => {
-  if (!analysis) return null;
-
-  // Clean up markdown formatting for display
-  const cleanAnalysisText = (text: string) => {
-    return text
-      .replace(/\*\*/g, '') // Remove bold markers
-      .replace(/\*/g, '')   // Remove italic markers  
-      .trim();
-  };
-
   // Defensive: Convert object to string if needed
   const analysisString = typeof analysis === 'string' 
     ? analysis 
     : JSON.stringify(analysis, null, 2);
 
-  // Parse and format the analysis content (handles both JSON and formatted text)
-  const rawFormattedAnalysis = parseAnalysisContent(analysisString);
-  const formattedAnalysis = cleanAnalysisText(rawFormattedAnalysis);
-  const [editableContent, setEditableContent] = useState(formattedAnalysis);
+  const formattedAnalysis = parseAnalysisContent(analysisString);
+  const [displayContent, setDisplayContent] = useState(formattedAnalysis);
 
-  // Update editable content when analysis changes
   useEffect(() => {
-    const analysisString = typeof analysis === 'string' 
-      ? analysis 
-      : JSON.stringify(analysis, null, 2);
-    const newFormattedAnalysis = parseAnalysisContent(analysisString);
-    setEditableContent(newFormattedAnalysis);
+    const str = typeof analysis === 'string' ? analysis : JSON.stringify(analysis, null, 2);
+    setDisplayContent(parseAnalysisContent(str));
   }, [analysis]);
 
-  // Split content by content type markers and filter out empty strings
-  const contentParts = editableContent.split(/\[TIPO DE CONTENIDO:.*?\]/)
+  if (!analysis) return null;
+
+  // Split content by content type markers
+  const contentParts = displayContent.split(/\[TIPO DE CONTENIDO:.*?\]/)
     .filter(Boolean)
     .map(part => part.trim())
     .filter(part => part.length > 0);
     
-  // Extract content type headers
-  const contentTypes = editableContent.match(/\[TIPO DE CONTENIDO:.*?\]/g) || [];
+  const contentTypes = displayContent.match(/\[TIPO DE CONTENIDO:.*?\]/g) || [];
   
-  // If no content type markers found, treat as single program content
-  if (contentTypes.length === 0 && editableContent.trim()) {
+  if (contentTypes.length === 0 && displayContent.trim()) {
     return (
       <Card className="p-4 mb-4 bg-blue-50 dark:bg-blue-900/20">
         <div className="flex items-center gap-2 mb-4 text-lg font-medium">
           <SpeakerIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           <span className="text-blue-700 dark:text-blue-300">Programa Regular</span>
         </div>
-        <Textarea
-          value={editableContent}
-          onChange={(e) => setEditableContent(e.target.value)}
-          className="min-h-[200px] max-h-[600px] overflow-y-auto text-foreground whitespace-pre-wrap resize-y"
+        <div 
+          className="min-h-[200px] max-h-[600px] overflow-y-auto text-foreground whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none p-3 bg-background/50 rounded-md border"
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(markdownToHtml(displayContent)) }}
         />
       </Card>
     );
@@ -92,20 +84,9 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
             {isAdvertisement ? "Anuncio Publicitario" : "Programa Regular"}
           </span>
         </div>
-        <Textarea
-          value={content}
-          onChange={(e) => {
-            const newContent = [...contentParts];
-            newContent[index] = e.target.value;
-            
-            // Reconstruct the full content with content type markers
-            const updatedContent = newContent.map((part, i) => {
-              return `${contentTypes[i] || ''}${part}`;
-            }).join('\n\n');
-            
-            setEditableContent(updatedContent);
-          }}
-          className="min-h-[200px] max-h-[600px] overflow-y-auto text-foreground whitespace-pre-wrap resize-y"
+        <div 
+          className="min-h-[200px] max-h-[600px] overflow-y-auto text-foreground whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none p-3 bg-background/50 rounded-md border"
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(markdownToHtml(content)) }}
         />
       </Card>
     );
