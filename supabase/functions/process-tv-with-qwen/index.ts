@@ -156,27 +156,41 @@ PARA CADA SECCIÓN DE PROGRAMA REGULAR:
 
 9. Presencia de personas o entidades relevantes mencionadas`;
 
-  // Section 10-11: Client relevance (enhanced)
-  if (clientsText) {
+  // Section 10: Client relevance (only relevant clients)
+  if (clientsText && clientKeywordMap) {
     prompt += `
 
-10. **Relevancia para Clientes**: Para CADA cliente de la siguiente lista, evalúa si el contenido es relevante. Incluye TODOS los clientes aunque no sean relevantes:
+10. **Relevancia para Clientes**: Evalúa el contenido contra la siguiente lista de clientes. SOLO incluye los clientes para los cuales el contenido ES relevante (nivel ALTA o MEDIA). NO listes clientes que no tienen relevancia.
+
+Criterios de relevancia (incluir si cumple AL MENOS uno):
+- Mención directa del cliente, sus productos o servicios
+- Mención de competidores directos del cliente en su industria
+- Noticias del sector o industria del cliente que podrían afectarlo
+- Regulaciones, legislación o políticas públicas que impacten al cliente
+- Tendencias del mercado relevantes para el negocio del cliente
+- Coincidencia con las palabras clave asignadas al cliente
+
+Lista de clientes y sus palabras clave:
+${clientKeywordMap}
+
+Para cada cliente RELEVANTE indica:
+    - Nombre del cliente
+    - Nivel de relevancia: ALTA / MEDIA
+    - Razón de relevancia (mención directa, competidor, industria, regulación, etc.)
+    - Palabras clave o menciones encontradas
+    - Citas textuales de la transcripción que justifican la relevancia`;
+  } else if (clientsText) {
+    prompt += `
+
+10. **Relevancia para Clientes**: Evalúa el contenido contra la siguiente lista de clientes. SOLO incluye los clientes relevantes (ALTA o MEDIA). Omite los no relevantes.
 
 Lista de clientes: ${clientsText}
 
-Para cada cliente indica:
+Para cada cliente RELEVANTE indica:
     - Nombre del cliente
-    - Nivel de relevancia: ALTA / MEDIA / BAJA / NO RELEVANTE
-    - Palabras clave encontradas en la transcripción que coinciden
-    - Citas textuales exactas que justifican la relevancia
-    - Recomendación de acción (monitorear, alertar, ignorar)`;
-
-    if (clientKeywordMap) {
-      prompt += `
-
-11. Correlación clientes-palabras clave (usa esta referencia para identificar menciones relevantes):
-${clientKeywordMap}`;
-    }
+    - Nivel de relevancia: ALTA / MEDIA
+    - Razón de relevancia
+    - Citas textuales de la transcripción que justifican la relevancia`;
   }
 
   // Closing instructions
@@ -189,7 +203,7 @@ Responde en español de manera concisa y profesional. Asegúrate de:
 4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
 5. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas
 6. Proporcionar citas textuales exactas de la transcripción para respaldar el análisis
-7. Incluir la sección de Relevancia para Clientes con evaluación para CADA cliente de la lista`;
+7. Incluir la sección de Relevancia para Clientes SOLO con los clientes relevantes (omitir los no relevantes)`;
 
   // Add additional context
   if (contextText) {
