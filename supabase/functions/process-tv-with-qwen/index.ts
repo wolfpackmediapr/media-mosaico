@@ -12,6 +12,7 @@ const QWEN_API_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/cha
 const PRIMARY_MODEL = 'qwen3.5-omni-plus';
 const FALLBACK_MODEL = 'qwen3.5-omni-flash';
 const TEXT_MODEL = 'qwen-plus';        // For text-only analysis (Omni models require media input)
+const VISION_MODEL = 'qwen-vl-max';   // For vision tasks (video/image understanding)
 const TEXT_MODEL_FALLBACK = 'qwen-turbo'; // Fallback for text-only analysis
 const MAX_RETRIES = 3;
 
