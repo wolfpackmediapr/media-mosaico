@@ -1,7 +1,9 @@
 import { Card } from "@/components/ui/card";
-import { SpeakerIcon, ShoppingCart } from "lucide-react";
+import { SpeakerIcon, ShoppingCart, Copy, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { parseAnalysisContent } from "@/utils/tv/analysisParser";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import DOMPurify from "dompurify";
 
 interface TvFormattedAnalysisResultProps {
@@ -18,13 +20,13 @@ const markdownToHtml = (text: string): string => {
 };
 
 const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps) => {
-  // Defensive: Convert object to string if needed
   const analysisString = typeof analysis === 'string' 
     ? analysis 
     : JSON.stringify(analysis, null, 2);
 
   const formattedAnalysis = parseAnalysisContent(analysisString);
   const [displayContent, setDisplayContent] = useState(formattedAnalysis);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const str = typeof analysis === 'string' ? analysis : JSON.stringify(analysis, null, 2);
@@ -33,7 +35,16 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
 
   if (!analysis) return null;
 
-  // Split content by content type markers
+  const handleCopy = (text: string, index: number) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedIndex(index);
+      toast.success("Texto copiado al portapapeles");
+      setTimeout(() => setCopiedIndex(null), 2000);
+    }).catch(() => {
+      toast.error("Error al copiar texto");
+    });
+  };
+
   const contentParts = displayContent.split(/\[TIPO DE CONTENIDO:.*?\]/)
     .filter(Boolean)
     .map(part => part.trim())
@@ -52,6 +63,21 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
           className="min-h-[200px] max-h-[600px] overflow-y-auto text-foreground whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none p-3 bg-background/50 rounded-md border"
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(markdownToHtml(displayContent)) }}
         />
+        <div className="flex justify-end mt-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => handleCopy(displayContent, -1)}
+            title="Copiar texto"
+          >
+            {copiedIndex === -1 ? (
+              <Check className="h-4 w-4 text-green-600" />
+            ) : (
+              <Copy className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
+        </div>
       </Card>
     );
   }
@@ -88,6 +114,21 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
           className="min-h-[200px] max-h-[600px] overflow-y-auto text-foreground whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none p-3 bg-background/50 rounded-md border"
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(markdownToHtml(content)) }}
         />
+        <div className="flex justify-end mt-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => handleCopy(content, index)}
+            title="Copiar texto"
+          >
+            {copiedIndex === index ? (
+              <Check className="h-4 w-4 text-green-600" />
+            ) : (
+              <Copy className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
+        </div>
       </Card>
     );
   };
