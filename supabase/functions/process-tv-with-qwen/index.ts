@@ -211,34 +211,42 @@ serve(async (req) => {
       clientsCount: clients.length,
     });
 
-    // ── Detect manifest-based chunked uploads ──
+    // ── Resolve chunked references to assembled file paths ──
+    let resolvedVideoPath = videoPath;
     if (videoPath.startsWith('chunked:')) {
-      const sessionId = videoPath.replace('chunked:', '');
-      console.log(`[qwen-tv][${requestId}] Chunked session detected: ${sessionId}. Manifest-based videos cannot be processed directly.`);
+      const sessionId = videoPath.replace('chunked:', '').split('/')[0];
+      console.log(`[qwen-tv][${requestId}] Chunked session detected: ${sessionId}. Looking up assembled file path...`);
 
-      if (transcriptId) {
-        await supabaseClient.from('tv_transcriptions').update({
-          status: 'failed:manifest_not_supported',
-          progress: 0,
-          provider_fallback_reason: 'Video demasiado grande para procesamiento AI. La reproducción funciona correctamente.',
-          updated_at: new Date().toISOString(),
-        }).eq('id', transcriptId);
+      const { data: sessionData, error: sessionError } = await supabaseClient
+        .from('chunked_upload_sessions')
+        .select('assembled_file_path, file_name, session_id')
+        .eq('session_id', sessionId)
+        .single();
+
+      if (sessionError || !sessionData) {
+        throw new Error(`Chunked session ${sessionId} not found: ${sessionError?.message}`);
       }
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'MANIFEST_NOT_SUPPORTED',
-          message: 'Este video usa almacenamiento fragmentado. El análisis AI requiere un archivo único. La reproducción del video funciona correctamente.',
-        }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (!sessionData.assembled_file_path) {
+        // Frontend should have called reassembly first — return a structured error
+        console.error(`[qwen-tv][${requestId}] No assembled_file_path for session ${sessionId}`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'REASSEMBLY_NEEDED',
+            sessionId: sessionId,
+            message: 'El archivo necesita ser reensamblado antes del análisis AI.',
+          }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      resolvedVideoPath = sessionData.assembled_file_path;
+      console.log(`[qwen-tv][${requestId}] Resolved chunked path to assembled file: ${resolvedVideoPath}`);
     }
 
     // ── Generate signed URL ──
-    // The frontend is responsible for ensuring a single assembled file exists at this path.
-    // For manifest-based chunked uploads, the frontend reassembles the file before calling this function.
-    console.log(`[qwen-tv][${requestId}] Generating signed URL for path: ${videoPath}`);
+    console.log(`[qwen-tv][${requestId}] Generating signed URL for path: ${resolvedVideoPath}`);
     
     const { data: signedUrlData, error: signedUrlError } = await supabaseClient
       .storage
