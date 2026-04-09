@@ -862,7 +862,7 @@ serve(async (req) => {
       EdgeRuntime.waitUntil(
         processChunkedInBackground(
           supabaseClient, sessionId, transcriptId, qwenApiKey, assemblyAiKey,
-          categories, clients, requestId
+          resolvedCategories, resolvedClients, requestId
         )
       );
 
@@ -945,7 +945,7 @@ serve(async (req) => {
     console.log(`[qwen-tv][${requestId}] Starting Stage 2: Analysis`);
     await new Promise(r => setTimeout(r, 5000));
 
-    const analysisPrompt = buildAnalysisPrompt(categories, clients, transcriptionText);
+    const analysisPrompt = buildAnalysisPrompt(resolvedCategories, resolvedClients, transcriptionText);
     const analysisMessages = [
       { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
     ];
