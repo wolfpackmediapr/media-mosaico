@@ -15,33 +15,58 @@ const MAX_RETRIES = 3;
 
 const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
 
-// ─── Prompts ───────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// MASTER PROMPTS — Ported from process-tv-with-gemini for full parity
+// ═══════════════════════════════════════════════════════════════════════
 
-function buildTranscriptionPrompt(): string {
-  return `Eres un experto transcriptor de contenido televisivo de Puerto Rico y el Caribe.
+function buildTranscriptionOnlyPrompt(): string {
+  return `Eres un transcriptor experto de contenido audiovisual en español de Puerto Rico y el Caribe.
 
-Tu tarea es transcribir completamente el audio y video proporcionado, identificando a cada hablante.
+Tu ÚNICA tarea es transcribir PALABRA POR PALABRA todo el diálogo que escuchas en el video, separando por hablantes.
 
-INSTRUCCIONES:
-1. Transcribe TODO el diálogo completo, sin omitir nada
-2. Identifica cada hablante usando el formato: SPEAKER X (Nombre - Rol):
-3. Lee los "lower thirds", chyrons y gráficos en pantalla para identificar nombres
-4. Distingue roles: Presentador/Anchor, Reportero, Invitado, Analista, Voz en off
-5. Si no puedes identificar al hablante, usa: SPEAKER X:
-6. Mantén el orden cronológico
-7. Incluye marcas de tiempo aproximadas cada 30 segundos en formato [MM:SS]
+FORMATO REQUERIDO - Usa EXACTAMENTE este formato (es CRÍTICO usar "SPEAKER" en inglés):
+
+SPEAKER 1: [Transcripción textual exacta de todo lo que dice]
+SPEAKER 2: [Transcripción textual exacta de todo lo que dice]
+SPEAKER 1: [Si el primer hablante vuelve a hablar]
+SPEAKER 3: [Si aparece un tercer hablante]
+
+IMPORTANTE: Debes usar la palabra "SPEAKER" (en inglés) seguida del número. NO uses "HABLANTE" ni otras palabras en español.
+
+IDENTIFICACIÓN VISUAL DE HABLANTES:
+✓ USA TU CAPACIDAD DE VISIÓN para identificar a los hablantes
+✓ LEE los "lower thirds" (subtítulos con nombres en la parte inferior de la pantalla)
+✓ LEE las tarjetas gráficas con nombres que aparezcan en pantalla
+✓ IDENTIFICA logos de TV y canales para contexto
+✓ RECONOCE personalidades conocidas de noticias de Puerto Rico visualmente
+✓ DISTINGUE entre: Presentador/Anchor, Reportero en campo, Invitado/Entrevistado, Voz en off
+✓ FORMATO CON NOMBRE Y ROL: SPEAKER 1 (Aixa Vázquez - Presentadora):
+✓ Si NO puedes identificar visualmente, usa solo: SPEAKER 1:
+
+REGLAS DE TRANSCRIPCIÓN:
+✓ Transcribe TODO el diálogo palabra por palabra
+✓ Identifica correctamente cuando cambia el hablante
+✓ Mantén el orden cronológico estricto
+✓ Incluye pausas significativas con [pausa]
+✓ Incluye eventos importantes como [aplausos], [risas], [música]
+✓ NO resumas NI parafrasees - transcribe EXACTAMENTE lo que escuchas
+✓ NO incluyas análisis, opiniones ni interpretaciones
 
 FORMATO DE SALIDA:
-[00:00] SPEAKER 1 (Nombre - Rol): texto completo...
-[00:30] SPEAKER 2 (Nombre - Rol): texto completo...
+Responde ÚNICAMENTE con la transcripción en el formato SPEAKER X: texto
+NO incluyas títulos, encabezados, ni explicaciones adicionales.
 
-Responde SOLO con la transcripción, sin comentarios adicionales.`;
+Ejemplo de salida correcta:
+SPEAKER 1 (Periodista): Buenos días Puerto Rico, hoy tenemos noticias importantes sobre...
+SPEAKER 2 (Invitado): Gracias por la invitación. Quiero hablar sobre...
+SPEAKER 1 (Periodista): Muy interesante. ¿Nos puede explicar más sobre...?`;
 }
 
 function buildAnalysisPrompt(
   categories: string[],
   clients: { name: string; keywords?: string[] }[],
-  transcriptionText: string
+  transcriptionText: string,
+  contextText: string = ''
 ): string {
   const categoriesText = categories.length > 0
     ? `Categorías disponibles: ${categories.join(', ')}`
@@ -61,6 +86,21 @@ ${clientsText}
 TRANSCRIPCIÓN:
 ${transcriptionText}
 
+${contextText ? `Contexto adicional: ${contextText}` : ''}
+
+El análisis debe incluir:
+1. **Clasificación del contenido** según las categorías disponibles
+2. **Análisis de relevancia** para los clientes mencionados
+3. **Extracción de información clave** siguiendo el método periodístico de las 5W:
+   - Quién (personas, organizaciones mencionadas)
+   - Qué (eventos, acciones, decisiones)
+   - Cuándo (fechas, tiempos, cronología)
+   - Dónde (lugares, ubicaciones)
+   - Por qué (causas, motivos, razones)
+4. **Palabras clave y temas principales**
+5. **Resumen ejecutivo**
+6. **Alertas de relevancia** para clientes específicos
+
 Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 {
   "categoria": "categoría principal del contenido",
@@ -68,25 +108,30 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
     {
       "cliente": "nombre del cliente",
       "nivel_relevancia": "alto/medio/bajo",
-      "razon": "explicación"
+      "razon": "explicación de por qué es relevante"
     }
   ],
   "analisis_5w": {
     "quien": "personas y organizaciones mencionadas",
     "que": "eventos y acciones principales",
-    "cuando": "información temporal",
-    "donde": "ubicaciones mencionadas",
-    "porque": "causas y motivos"
+    "cuando": "información temporal relevante",
+    "donde": "ubicaciones y lugares mencionados",
+    "porque": "causas y motivos identificados"
   },
-  "palabras_clave": ["palabra1", "palabra2"],
+  "palabras_clave": ["palabra1", "palabra2", "palabra3"],
   "resumen": "resumen ejecutivo del contenido",
-  "alertas": ["alerta 1", "alerta 2"],
-  "puntuacion_impacto": "1-10",
-  "recomendaciones": ["recomendación 1"]
+  "alertas": [
+    "alerta específica para cliente 1",
+    "alerta específica para cliente 2"
+  ],
+  "puntuacion_impacto": "1-10 según el impacto noticioso",
+  "recomendaciones": ["recomendación 1", "recomendación 2"]
 }`;
 }
 
-// ─── Qwen Streaming API Call ───────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// Qwen Streaming API Call
+// ═══════════════════════════════════════════════════════════════════════
 
 async function callQwenStreaming(
   apiKey: string,
@@ -200,93 +245,76 @@ async function callQwenStreaming(
   return { success: false, error: 'Max retries exhausted' };
 }
 
-// ─── AssemblyAI: Upload chunks and transcribe ──────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// AssemblyAI: STREAMING upload (one chunk at a time, ~15MB peak memory)
+// ═══════════════════════════════════════════════════════════════════════
 
-async function transcribeViaAssemblyAI(
+async function streamChunksToAssemblyAI(
   supabaseClient: any,
   sessionId: string,
+  totalChunks: number,
+  totalBytes: number,
   assemblyAiKey: string,
   requestId: string,
   transcriptId: string | null
 ): Promise<string> {
-  console.log(`[qwen-tv][${requestId}] AssemblyAI path: resolving chunks for session ${sessionId}`);
+  console.log(`[qwen-tv][${requestId}] Streaming ${totalChunks} chunks (${(totalBytes / 1024 / 1024).toFixed(1)}MB) to AssemblyAI`);
 
-  // 1. Look up session
-  const { data: sessionData, error: sessionError } = await supabaseClient
-    .from('chunked_upload_sessions')
-    .select('session_id, file_name, total_chunks, status, uploaded_chunks')
-    .eq('session_id', sessionId)
-    .single();
+  let currentChunkIndex = 0;
 
-  if (sessionError || !sessionData) {
-    throw new Error(`Chunked session ${sessionId} not found: ${sessionError?.message}`);
-  }
-  if (sessionData.uploaded_chunks !== sessionData.total_chunks) {
-    throw new Error(`Incomplete upload: ${sessionData.uploaded_chunks}/${sessionData.total_chunks} chunks`);
-  }
+  const stream = new ReadableStream({
+    async pull(controller) {
+      if (currentChunkIndex >= totalChunks) {
+        controller.close();
+        return;
+      }
 
-  const totalChunks = sessionData.total_chunks;
-  console.log(`[qwen-tv][${requestId}] Downloading ${totalChunks} chunks for AssemblyAI upload...`);
+      const i = currentChunkIndex;
+      const chunkPath = `chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`;
 
-  // 2. Download all chunks and concatenate
-  const chunkBuffers: Uint8Array[] = [];
-  let totalBytes = 0;
+      try {
+        const { data: chunkData, error: chunkError } = await supabaseClient
+          .storage
+          .from('video')
+          .download(chunkPath);
 
-  for (let i = 0; i < totalChunks; i++) {
-    const chunkPath = `chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`;
-    const { data: chunkData, error: chunkError } = await supabaseClient
-      .storage
-      .from('video')
-      .download(chunkPath);
+        if (chunkError || !chunkData) {
+          controller.error(new Error(`Failed to download chunk ${i}: ${chunkError?.message}`));
+          return;
+        }
 
-    if (chunkError || !chunkData) {
-      throw new Error(`Failed to download chunk ${i}: ${chunkError?.message}`);
-    }
+        const arrayBuf = await chunkData.arrayBuffer();
+        controller.enqueue(new Uint8Array(arrayBuf));
 
-    const arrayBuf = await chunkData.arrayBuffer();
-    const uint8 = new Uint8Array(arrayBuf);
-    chunkBuffers.push(uint8);
-    totalBytes += uint8.length;
+        currentChunkIndex++;
 
-    if ((i + 1) % 5 === 0 || i === totalChunks - 1) {
-      console.log(`[qwen-tv][${requestId}] Downloaded chunk ${i + 1}/${totalChunks} (${(totalBytes / 1024 / 1024).toFixed(1)}MB total)`);
-    }
+        if (currentChunkIndex % 5 === 0 || currentChunkIndex === totalChunks) {
+          console.log(`[qwen-tv][${requestId}] Streamed chunk ${currentChunkIndex}/${totalChunks}`);
+        }
 
-    // Update progress: 10-30% range for download phase
-    if (transcriptId && (i % 3 === 0 || i === totalChunks - 1)) {
-      const dlProgress = Math.round(10 + (i + 1) / totalChunks * 20);
-      await supabaseClient
-        .from('tv_transcriptions')
-        .update({ progress: dlProgress })
-        .eq('id', transcriptId);
-    }
-  }
+        // Update progress in 10-30% range
+        if (transcriptId && (currentChunkIndex % 3 === 0 || currentChunkIndex === totalChunks)) {
+          const dlProgress = Math.round(10 + (currentChunkIndex / totalChunks) * 20);
+          await supabaseClient
+            .from('tv_transcriptions')
+            .update({ progress: dlProgress })
+            .eq('id', transcriptId);
+        }
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
 
-  // Concatenate all chunks into one buffer
-  const fullFile = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunkBuffers) {
-    fullFile.set(chunk, offset);
-    offset += chunk.length;
-  }
-  console.log(`[qwen-tv][${requestId}] Full file assembled in memory: ${(totalBytes / 1024 / 1024).toFixed(1)}MB`);
-
-  // 3. Upload to AssemblyAI
-  console.log(`[qwen-tv][${requestId}] Uploading to AssemblyAI...`);
-  if (transcriptId) {
-    await supabaseClient
-      .from('tv_transcriptions')
-      .update({ progress: 35 })
-      .eq('id', transcriptId);
-  }
-
+  // Upload stream to AssemblyAI
   const uploadResponse = await fetch(`${ASSEMBLYAI_API_URL}/upload`, {
     method: 'POST',
     headers: {
       'Authorization': assemblyAiKey,
       'Content-Type': 'application/octet-stream',
+      'Transfer-Encoding': 'chunked',
     },
-    body: fullFile,
+    body: stream,
   });
 
   if (!uploadResponse.ok) {
@@ -295,14 +323,23 @@ async function transcribeViaAssemblyAI(
   }
 
   const { upload_url } = await uploadResponse.json();
-  console.log(`[qwen-tv][${requestId}] AssemblyAI upload complete: ${upload_url}`);
+  console.log(`[qwen-tv][${requestId}] AssemblyAI streaming upload complete: ${upload_url}`);
+  return upload_url;
+}
 
-  // 4. Create transcription job
+async function transcribeWithAssemblyAI(
+  uploadUrl: string,
+  assemblyAiKey: string,
+  requestId: string,
+  transcriptId: string | null,
+  supabaseClient: any
+): Promise<string> {
   console.log(`[qwen-tv][${requestId}] Creating AssemblyAI transcription job...`);
+
   if (transcriptId) {
     await supabaseClient
       .from('tv_transcriptions')
-      .update({ progress: 40 })
+      .update({ progress: 35 })
       .eq('id', transcriptId);
   }
 
@@ -313,7 +350,7 @@ async function transcribeViaAssemblyAI(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      audio_url: upload_url,
+      audio_url: uploadUrl,
       language_code: 'es',
       speaker_labels: true,
       auto_chapters: true,
@@ -331,8 +368,8 @@ async function transcribeViaAssemblyAI(
   const jobId = transcriptJob.id;
   console.log(`[qwen-tv][${requestId}] AssemblyAI job created: ${jobId}`);
 
-  // 5. Poll for completion
-  const maxPollTime = 15 * 60 * 1000; // 15 min max
+  // Poll for completion
+  const maxPollTime = 15 * 60 * 1000;
   const pollInterval = 5000;
   const startTime = Date.now();
 
@@ -345,6 +382,7 @@ async function transcribeViaAssemblyAI(
 
     if (!pollResponse.ok) {
       console.warn(`[qwen-tv][${requestId}] AssemblyAI poll error: ${pollResponse.status}`);
+      await pollResponse.text(); // consume body
       continue;
     }
 
@@ -381,10 +419,10 @@ async function transcribeViaAssemblyAI(
       throw new Error(`AssemblyAI transcription error: ${pollData.error}`);
     }
 
-    // Update progress in 40-50% range during polling
+    // Update progress in 35-50% range during polling
     if (transcriptId) {
       const elapsed = Date.now() - startTime;
-      const pollProgress = Math.min(49, Math.round(40 + (elapsed / maxPollTime) * 10));
+      const pollProgress = Math.min(49, Math.round(35 + (elapsed / maxPollTime) * 15));
       await supabaseClient
         .from('tv_transcriptions')
         .update({ progress: pollProgress })
@@ -397,7 +435,193 @@ async function transcribeViaAssemblyAI(
   throw new Error('AssemblyAI transcription timed out after 15 minutes');
 }
 
-// ─── Main Handler ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// Background processor for chunked videos (runs via EdgeRuntime.waitUntil)
+// ═══════════════════════════════════════════════════════════════════════
+
+async function processChunkedInBackground(
+  supabaseClient: any,
+  sessionId: string,
+  transcriptId: string,
+  qwenApiKey: string,
+  assemblyAiKey: string,
+  categories: string[],
+  clients: any[],
+  requestId: string
+): Promise<void> {
+  let reachedTerminal = false;
+
+  try {
+    // 1. Look up session
+    const { data: sessionData, error: sessionError } = await supabaseClient
+      .from('chunked_upload_sessions')
+      .select('session_id, file_name, total_chunks, status, uploaded_chunks, file_size')
+      .eq('session_id', sessionId)
+      .single();
+
+    if (sessionError || !sessionData) {
+      throw new Error(`Chunked session ${sessionId} not found: ${sessionError?.message}`);
+    }
+    if (sessionData.uploaded_chunks !== sessionData.total_chunks) {
+      throw new Error(`Incomplete upload: ${sessionData.uploaded_chunks}/${sessionData.total_chunks} chunks`);
+    }
+
+    const totalChunks = sessionData.total_chunks;
+    const totalBytes = sessionData.file_size || totalChunks * 15 * 1024 * 1024;
+    console.log(`[qwen-tv][${requestId}] Background: ${totalChunks} chunks, ~${(totalBytes / 1024 / 1024).toFixed(0)}MB`);
+
+    // 2. Stream chunks to AssemblyAI (no in-memory buffering)
+    const uploadUrl = await streamChunksToAssemblyAI(
+      supabaseClient, sessionId, totalChunks, totalBytes, assemblyAiKey, requestId, transcriptId
+    );
+
+    // 3. Transcribe via AssemblyAI
+    const transcriptionText = await transcribeWithAssemblyAI(
+      uploadUrl, assemblyAiKey, requestId, transcriptId, supabaseClient
+    );
+
+    console.log(`[qwen-tv][${requestId}] Background: Transcription complete, ${transcriptionText.length} chars`);
+
+    // Save transcription immediately
+    await supabaseClient
+      .from('tv_transcriptions')
+      .update({
+        transcription_text: transcriptionText,
+        progress: 55,
+        provider_used: 'assemblyai+qwen-text',
+      })
+      .eq('id', transcriptId);
+
+    // 4. Analysis via Qwen (text-only)
+    console.log(`[qwen-tv][${requestId}] Background: Starting Qwen text analysis`);
+    await new Promise(r => setTimeout(r, 5000)); // rate limit spacing
+
+    const analysisPrompt = buildAnalysisPrompt(categories, clients, transcriptionText);
+    const analysisMessages = [
+      { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
+    ];
+
+    let analysisResult = await callQwenStreaming(qwenApiKey, PRIMARY_MODEL, analysisMessages, requestId, 'bg-analysis');
+
+    if (!analysisResult.success) {
+      console.warn(`[qwen-tv][${requestId}] Background: Primary model failed, falling back`);
+      analysisResult = await callQwenStreaming(qwenApiKey, FALLBACK_MODEL, analysisMessages, requestId, 'bg-analysis-fallback');
+    }
+
+    let parsedAnalysis: any = null;
+    let providerUsed = 'assemblyai+qwen-text';
+    let fallbackReason: string | null = null;
+
+    if (analysisResult.success) {
+      try {
+        const rawText = analysisResult.data!;
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsedAnalysis = JSON.parse(jsonMatch[0]);
+          console.log(`[qwen-tv][${requestId}] Background: Analysis JSON parsed successfully`);
+        } else {
+          parsedAnalysis = { raw_analysis: rawText, parsed: false };
+        }
+      } catch {
+        parsedAnalysis = { raw_analysis: analysisResult.data, parsed: false };
+      }
+    } else {
+      fallbackReason = `Analysis: ${analysisResult.error}`;
+      parsedAnalysis = { error: analysisResult.error, parsed: false };
+    }
+
+    // 5. Write final results
+    const updatePayload: any = {
+      status: 'completed',
+      progress: 100,
+      transcription_text: transcriptionText,
+      full_analysis: JSON.stringify(parsedAnalysis),
+      provider_used: providerUsed,
+      provider_fallback_reason: fallbackReason,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (parsedAnalysis?.analisis_5w) {
+      updatePayload.analysis_quien = parsedAnalysis.analisis_5w.quien;
+      updatePayload.analysis_que = parsedAnalysis.analisis_5w.que;
+      updatePayload.analysis_cuando = parsedAnalysis.analisis_5w.cuando;
+      updatePayload.analysis_donde = parsedAnalysis.analisis_5w.donde;
+      updatePayload.analysis_porque = parsedAnalysis.analisis_5w.porque;
+    }
+    if (parsedAnalysis?.resumen) {
+      updatePayload.summary = parsedAnalysis.resumen;
+      updatePayload.analysis_summary = parsedAnalysis.resumen;
+    }
+    if (parsedAnalysis?.categoria) {
+      updatePayload.analysis_category = parsedAnalysis.categoria;
+    }
+    if (parsedAnalysis?.palabras_clave) {
+      updatePayload.analysis_keywords = parsedAnalysis.palabras_clave;
+      updatePayload.keywords = parsedAnalysis.palabras_clave;
+    }
+    if (parsedAnalysis?.relevancia_clientes) {
+      updatePayload.analysis_client_relevance = parsedAnalysis.relevancia_clientes;
+      const clientNames = parsedAnalysis.relevancia_clientes
+        .filter((c: any) => c.nivel_relevancia === 'alto' || c.nivel_relevancia === 'medio')
+        .map((c: any) => c.cliente);
+      if (clientNames.length > 0) updatePayload.relevant_clients = clientNames;
+    }
+    if (parsedAnalysis?.alertas) {
+      updatePayload.analysis_alerts = parsedAnalysis.alertas;
+    }
+
+    const { error: updateError } = await supabaseClient
+      .from('tv_transcriptions')
+      .update(updatePayload)
+      .eq('id', transcriptId);
+
+    if (updateError) {
+      console.error(`[qwen-tv][${requestId}] Background: DB update error:`, updateError);
+    } else {
+      console.log(`[qwen-tv][${requestId}] Background: Completed successfully`);
+    }
+
+    reachedTerminal = true;
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[qwen-tv][${requestId}] Background fatal error:`, errorMessage);
+
+    let failureStatus = 'failed:runtime';
+    if (errorMessage.includes('429') || errorMessage.includes('rate limit')) failureStatus = 'failed:qwen_rate_limit';
+    else if (errorMessage.includes('AssemblyAI')) failureStatus = 'failed:assemblyai_error';
+    else if (errorMessage.includes('timed out')) failureStatus = 'failed:timeout';
+    else if (errorMessage.includes('not found') || errorMessage.includes('Incomplete')) failureStatus = 'failed:qwen_chunk_input';
+
+    try {
+      await supabaseClient
+        .from('tv_transcriptions')
+        .update({
+          status: failureStatus,
+          progress: 0,
+          provider_fallback_reason: errorMessage.substring(0, 500),
+        })
+        .eq('id', transcriptId);
+    } catch (dbErr) {
+      console.warn(`[qwen-tv][${requestId}] Background: Could not update failure status:`, dbErr);
+    }
+    reachedTerminal = true;
+  } finally {
+    // Safety net: if we somehow didn't reach a terminal status, force one
+    if (!reachedTerminal) {
+      try {
+        await supabaseClient
+          .from('tv_transcriptions')
+          .update({ status: 'failed:runtime', progress: 0, provider_fallback_reason: 'Background task terminated unexpectedly' })
+          .eq('id', transcriptId);
+      } catch { /* best effort */ }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Main Handler
+// ═══════════════════════════════════════════════════════════════════════
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -448,22 +672,13 @@ serve(async (req) => {
       clientsCount: clients.length,
     });
 
-    // ── Update status to processing ──
-    if (transcriptId) {
-      await supabaseClient
-        .from('tv_transcriptions')
-        .update({ status: 'processing', progress: 10, provider_used: 'qwen-primary' })
-        .eq('id', transcriptId);
-    }
-
     // ── Detect chunked vs single-file path ──
     const isChunked = videoPath.startsWith('chunked:');
-    let transcriptionText: string;
-    let providerUsed: string;
-    let fallbackReason: string | null = null;
 
     if (isChunked) {
-      // ── CHUNKED PATH: AssemblyAI for transcription, Qwen for analysis ──
+      // ══════════════════════════════════════════════════════════════
+      // CHUNKED PATH: Return 202 immediately, process in background
+      // ══════════════════════════════════════════════════════════════
       const sessionId = videoPath.replace('chunked:', '').split('/')[0];
       console.log(`[qwen-tv][${requestId}] Chunked video detected, session: ${sessionId}`);
 
@@ -471,58 +686,88 @@ serve(async (req) => {
         throw new Error('ASSEMBLYAI_API_KEY no configurada — requerida para videos grandes');
       }
 
-      // Transcribe via AssemblyAI (handles any file size)
-      transcriptionText = await transcribeViaAssemblyAI(
-        supabaseClient, sessionId, assemblyAiKey, requestId, transcriptId
+      // Update status to processing
+      if (transcriptId) {
+        await supabaseClient
+          .from('tv_transcriptions')
+          .update({ status: 'processing', progress: 5, provider_used: 'assemblyai+qwen-text' })
+          .eq('id', transcriptId);
+      }
+
+      // Launch background processing (non-blocking)
+      // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+      EdgeRuntime.waitUntil(
+        processChunkedInBackground(
+          supabaseClient, sessionId, transcriptId, qwenApiKey, assemblyAiKey,
+          categories, clients, requestId
+        )
       );
-      providerUsed = 'assemblyai+qwen-text';
 
-      console.log(`[qwen-tv][${requestId}] AssemblyAI transcription complete: ${transcriptionText.length} chars`);
-
-    } else {
-      // ── SINGLE-FILE PATH: Qwen streaming for transcription ──
-      console.log(`[qwen-tv][${requestId}] Single file path: ${videoPath}`);
-
-      const { data: signedUrlData, error: signedUrlError } = await supabaseClient
-        .storage
-        .from('video')
-        .createSignedUrl(videoPath, 3600);
-
-      if (signedUrlError || !signedUrlData?.signedUrl) {
-        throw new Error(`No se pudo generar URL firmada: ${signedUrlError?.message}`);
-      }
-
-      const videoUrl = signedUrlData.signedUrl;
-      console.log(`[qwen-tv][${requestId}] Signed URL generated`);
-
-      const transcriptionMessages = [
-        {
-          role: 'user',
-          content: [
-            { type: 'video_url', video_url: { url: videoUrl } },
-            { type: 'text', text: buildTranscriptionPrompt() },
-          ],
-        },
-      ];
-
-      providerUsed = 'qwen-primary';
-
-      let transcriptionResult = await callQwenStreaming(qwenApiKey, PRIMARY_MODEL, transcriptionMessages, requestId, 'transcription');
-
-      if (!transcriptionResult.success) {
-        console.warn(`[qwen-tv][${requestId}] Primary failed, falling back to ${FALLBACK_MODEL}`);
-        fallbackReason = `Transcription: ${transcriptionResult.error}`;
-        providerUsed = 'qwen-fallback';
-        transcriptionResult = await callQwenStreaming(qwenApiKey, FALLBACK_MODEL, transcriptionMessages, requestId, 'transcription-fallback');
-      }
-
-      if (!transcriptionResult.success) {
-        throw new Error(`Transcripción falló: ${transcriptionResult.error}`);
-      }
-
-      transcriptionText = transcriptionResult.data!;
+      // Return immediately — frontend polls tv_transcriptions for status
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: 'processing',
+          transcriptionId: transcriptId,
+          message: 'Video grande detectado. Procesamiento iniciado en segundo plano.',
+        }),
+        { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
+    // ══════════════════════════════════════════════════════════════════
+    // SINGLE-FILE PATH: Qwen streaming (synchronous)
+    // ══════════════════════════════════════════════════════════════════
+
+    // Update status to processing
+    if (transcriptId) {
+      await supabaseClient
+        .from('tv_transcriptions')
+        .update({ status: 'processing', progress: 10, provider_used: 'qwen-primary' })
+        .eq('id', transcriptId);
+    }
+
+    console.log(`[qwen-tv][${requestId}] Single file path: ${videoPath}`);
+
+    const { data: signedUrlData, error: signedUrlError } = await supabaseClient
+      .storage
+      .from('video')
+      .createSignedUrl(videoPath, 3600);
+
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      throw new Error(`No se pudo generar URL firmada: ${signedUrlError?.message}`);
+    }
+
+    const videoUrl = signedUrlData.signedUrl;
+    console.log(`[qwen-tv][${requestId}] Signed URL generated`);
+
+    const transcriptionMessages = [
+      {
+        role: 'user',
+        content: [
+          { type: 'video_url', video_url: { url: videoUrl } },
+          { type: 'text', text: buildTranscriptionOnlyPrompt() },
+        ],
+      },
+    ];
+
+    let providerUsed = 'qwen-primary';
+    let fallbackReason: string | null = null;
+
+    let transcriptionResult = await callQwenStreaming(qwenApiKey, PRIMARY_MODEL, transcriptionMessages, requestId, 'transcription');
+
+    if (!transcriptionResult.success) {
+      console.warn(`[qwen-tv][${requestId}] Primary failed, falling back to ${FALLBACK_MODEL}`);
+      fallbackReason = `Transcription: ${transcriptionResult.error}`;
+      providerUsed = 'qwen-fallback';
+      transcriptionResult = await callQwenStreaming(qwenApiKey, FALLBACK_MODEL, transcriptionMessages, requestId, 'transcription-fallback');
+    }
+
+    if (!transcriptionResult.success) {
+      throw new Error(`Transcripción falló: ${transcriptionResult.error}`);
+    }
+
+    const transcriptionText = transcriptionResult.data!;
     console.log(`[qwen-tv][${requestId}] Transcription complete, length: ${transcriptionText.length} chars`);
 
     // Update progress
@@ -533,30 +778,22 @@ serve(async (req) => {
         .eq('id', transcriptId);
     }
 
-    // ── Stage 2: Analysis via Qwen (text-only, works for both paths) ──
+    // ── Stage 2: Analysis via Qwen (text-only) ──
     console.log(`[qwen-tv][${requestId}] Starting Stage 2: Analysis`);
-
-    // 5s delay between stages to respect rate limits
     await new Promise(r => setTimeout(r, 5000));
 
     const analysisPrompt = buildAnalysisPrompt(categories, clients, transcriptionText);
     const analysisMessages = [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: analysisPrompt },
-        ],
-      },
+      { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
     ];
 
     const analysisModel = providerUsed === 'qwen-fallback' ? FALLBACK_MODEL : PRIMARY_MODEL;
     let analysisResult = await callQwenStreaming(qwenApiKey, analysisModel, analysisMessages, requestId, 'analysis');
 
-    // Fallback for analysis too
     if (!analysisResult.success && analysisModel === PRIMARY_MODEL) {
       console.warn(`[qwen-tv][${requestId}] Primary model failed for analysis, falling back`);
       if (!fallbackReason) fallbackReason = `Analysis: ${analysisResult.error}`;
-      providerUsed = isChunked ? 'assemblyai+qwen-fallback' : 'qwen-fallback';
+      providerUsed = 'qwen-fallback';
       analysisResult = await callQwenStreaming(qwenApiKey, FALLBACK_MODEL, analysisMessages, requestId, 'analysis-fallback');
     }
 
@@ -569,15 +806,12 @@ serve(async (req) => {
           parsedAnalysis = JSON.parse(jsonMatch[0]);
           console.log(`[qwen-tv][${requestId}] Analysis JSON parsed successfully`);
         } else {
-          console.warn(`[qwen-tv][${requestId}] No JSON found in analysis, storing raw text`);
           parsedAnalysis = { raw_analysis: rawText, parsed: false };
         }
-      } catch (parseErr) {
-        console.warn(`[qwen-tv][${requestId}] JSON parse error, storing raw:`, parseErr);
+      } catch {
         parsedAnalysis = { raw_analysis: analysisResult.data, parsed: false };
       }
     } else {
-      console.error(`[qwen-tv][${requestId}] Analysis failed:`, analysisResult.error);
       parsedAnalysis = { error: analysisResult.error, parsed: false };
     }
 
@@ -593,7 +827,7 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
 
-      if (parsedAnalysis && parsedAnalysis.analisis_5w) {
+      if (parsedAnalysis?.analisis_5w) {
         updatePayload.analysis_quien = parsedAnalysis.analisis_5w.quien;
         updatePayload.analysis_que = parsedAnalysis.analisis_5w.que;
         updatePayload.analysis_cuando = parsedAnalysis.analisis_5w.cuando;
@@ -651,19 +885,12 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[qwen-tv][${requestId}] Fatal error:`, errorMessage);
 
-    // Categorize failure for frontend
     let failureStatus = 'failed:runtime';
-    if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
-      failureStatus = 'failed:qwen_rate_limit';
-    } else if (errorMessage.includes('not found') || errorMessage.includes('Incomplete upload')) {
-      failureStatus = 'failed:qwen_chunk_input';
-    } else if (errorMessage.includes('exceeded the maximum')) {
-      failureStatus = 'failed:supabase_storage_limit';
-    } else if (errorMessage.includes('AssemblyAI')) {
-      failureStatus = 'failed:assemblyai_error';
-    } else if (errorMessage.includes('timed out')) {
-      failureStatus = 'failed:timeout';
-    }
+    if (errorMessage.includes('429') || errorMessage.includes('rate limit')) failureStatus = 'failed:qwen_rate_limit';
+    else if (errorMessage.includes('not found') || errorMessage.includes('Incomplete upload')) failureStatus = 'failed:qwen_chunk_input';
+    else if (errorMessage.includes('exceeded the maximum')) failureStatus = 'failed:supabase_storage_limit';
+    else if (errorMessage.includes('AssemblyAI')) failureStatus = 'failed:assemblyai_error';
+    else if (errorMessage.includes('timed out')) failureStatus = 'failed:timeout';
 
     // Update DB with specific failure status
     try {
