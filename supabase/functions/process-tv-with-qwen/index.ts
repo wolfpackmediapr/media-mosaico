@@ -37,6 +37,26 @@ FORMATO DE SALIDA:
 Responde SOLO con la transcripción, sin comentarios adicionales.`;
 }
 
+function buildChunkedTranscriptionPrompt(chunkIndex: number, totalChunks: number): string {
+  return `Eres un experto transcriptor de contenido televisivo de Puerto Rico y el Caribe.
+
+Este es el SEGMENTO ${chunkIndex + 1} de ${totalChunks} de un noticiero continuo. Transcribe completamente este segmento.
+
+INSTRUCCIONES:
+1. Transcribe TODO el diálogo completo de este segmento, sin omitir nada
+2. Identifica cada hablante usando el formato: SPEAKER X (Nombre - Rol):
+3. Lee los "lower thirds", chyrons y gráficos en pantalla para identificar nombres
+4. Distingue roles: Presentador/Anchor, Reportero, Invitado, Analista, Voz en off
+5. Si no puedes identificar al hablante, usa: SPEAKER X:
+6. Mantén el orden cronológico
+7. Incluye marcas de tiempo aproximadas cada 30 segundos en formato [MM:SS]
+
+FORMATO DE SALIDA:
+[MM:SS] SPEAKER X (Nombre - Rol): texto completo...
+
+Responde SOLO con la transcripción de este segmento, sin comentarios adicionales.`;
+}
+
 function buildAnalysisPrompt(
   categories: string[],
   clients: { name: string; keywords?: string[] }[],
@@ -161,6 +181,119 @@ async function callQwen(
   return { success: false, error: 'Max retries exhausted' };
 }
 
+// ─── Chunk-Aware Processing ────────────────────────────────────────────
+
+async function resolveChunkedVideo(
+  supabaseClient: any,
+  sessionId: string,
+  requestId: string
+): Promise<{ chunkUrls: string[]; totalChunks: number; fileName: string }> {
+  console.log(`[qwen-tv][${requestId}] Resolving chunked video for session: ${sessionId}`);
+
+  // Look up session and manifest
+  const { data: sessionData, error: sessionError } = await supabaseClient
+    .from('chunked_upload_sessions')
+    .select('session_id, file_name, total_chunks, status, uploaded_chunks')
+    .eq('session_id', sessionId)
+    .single();
+
+  if (sessionError || !sessionData) {
+    throw new Error(`Chunked session ${sessionId} not found: ${sessionError?.message}`);
+  }
+
+  if (sessionData.uploaded_chunks !== sessionData.total_chunks) {
+    throw new Error(`Incomplete upload: ${sessionData.uploaded_chunks}/${sessionData.total_chunks} chunks`);
+  }
+
+  const totalChunks = sessionData.total_chunks;
+  console.log(`[qwen-tv][${requestId}] Session found: ${totalChunks} chunks, file: ${sessionData.file_name}`);
+
+  // Generate signed URLs for each chunk in order
+  const chunkUrls: string[] = [];
+  for (let i = 0; i < totalChunks; i++) {
+    const chunkPath = `chunks/${sessionId}/chunk_${i.toString().padStart(4, '0')}`;
+    const { data: signedData, error: signError } = await supabaseClient
+      .storage
+      .from('video')
+      .createSignedUrl(chunkPath, 7200); // 2 hour expiry for large processing
+
+    if (signError || !signedData?.signedUrl) {
+      throw new Error(`Failed to sign chunk ${i}: ${signError?.message}`);
+    }
+    chunkUrls.push(signedData.signedUrl);
+  }
+
+  console.log(`[qwen-tv][${requestId}] Generated ${chunkUrls.length} signed chunk URLs`);
+  return { chunkUrls, totalChunks, fileName: sessionData.file_name };
+}
+
+async function processChunkedTranscription(
+  apiKey: string,
+  chunkUrls: string[],
+  requestId: string,
+  supabaseClient: any,
+  transcriptId: string | null
+): Promise<{ text: string; providerUsed: string; fallbackReason: string | null }> {
+  const totalChunks = chunkUrls.length;
+  const transcriptionParts: string[] = [];
+  let providerUsed = 'qwen-primary';
+  let fallbackReason: string | null = null;
+
+  // Process chunks in batches to stay within Qwen context limits
+  // Each chunk is ~15MB video, process individually and concatenate transcriptions
+  for (let i = 0; i < totalChunks; i++) {
+    const chunkUrl = chunkUrls[i];
+    console.log(`[qwen-tv][${requestId}] Processing chunk ${i + 1}/${totalChunks}`);
+
+    const messages = [
+      {
+        role: 'user',
+        content: [
+          { type: 'video_url', video_url: { url: chunkUrl } },
+          { type: 'text', text: buildChunkedTranscriptionPrompt(i, totalChunks) },
+        ],
+      },
+    ];
+
+    let result = await callQwen(apiKey, PRIMARY_MODEL, messages, requestId, `chunk-${i + 1}-transcription`);
+
+    if (!result.success) {
+      console.warn(`[qwen-tv][${requestId}] Primary failed for chunk ${i + 1}, trying fallback`);
+      if (!fallbackReason) fallbackReason = `Chunk ${i + 1}: ${result.error}`;
+      providerUsed = 'qwen-fallback';
+      result = await callQwen(apiKey, FALLBACK_MODEL, messages, requestId, `chunk-${i + 1}-transcription-fallback`);
+    }
+
+    if (!result.success) {
+      throw new Error(`Chunk ${i + 1}/${totalChunks} transcription failed: ${result.error}`);
+    }
+
+    transcriptionParts.push(result.data);
+    console.log(`[qwen-tv][${requestId}] Chunk ${i + 1} transcribed: ${result.data.length} chars`);
+
+    // Update progress
+    if (transcriptId) {
+      const chunkProgress = Math.round(10 + (i + 1) / totalChunks * 40); // 10-50%
+      await supabaseClient
+        .from('tv_transcriptions')
+        .update({ progress: chunkProgress })
+        .eq('id', transcriptId);
+    }
+
+    // Rate limit delay between chunks (skip after last)
+    if (i < totalChunks - 1) {
+      const delayMs = 3000;
+      console.log(`[qwen-tv][${requestId}] Rate limit delay ${delayMs}ms before next chunk`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+
+  const fullTranscription = transcriptionParts.join('\n\n--- Segmento siguiente ---\n\n');
+  console.log(`[qwen-tv][${requestId}] Full chunked transcription: ${fullTranscription.length} chars from ${totalChunks} chunks`);
+
+  return { text: fullTranscription, providerUsed, fallbackReason };
+}
+
 // ─── Main Handler ──────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -211,57 +344,6 @@ serve(async (req) => {
       clientsCount: clients.length,
     });
 
-    // ── Resolve chunked references to assembled file paths ──
-    let resolvedVideoPath = videoPath;
-    if (videoPath.startsWith('chunked:')) {
-      const sessionId = videoPath.replace('chunked:', '').split('/')[0];
-      console.log(`[qwen-tv][${requestId}] Chunked session detected: ${sessionId}. Looking up assembled file path...`);
-
-      const { data: sessionData, error: sessionError } = await supabaseClient
-        .from('chunked_upload_sessions')
-        .select('assembled_file_path, file_name, session_id')
-        .eq('session_id', sessionId)
-        .single();
-
-      if (sessionError || !sessionData) {
-        throw new Error(`Chunked session ${sessionId} not found: ${sessionError?.message}`);
-      }
-
-      if (!sessionData.assembled_file_path) {
-        // Frontend should have called reassembly first — return a structured error
-        console.error(`[qwen-tv][${requestId}] No assembled_file_path for session ${sessionId}`);
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'REASSEMBLY_NEEDED',
-            sessionId: sessionId,
-            message: 'El archivo necesita ser reensamblado antes del análisis AI.',
-          }),
-          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      resolvedVideoPath = sessionData.assembled_file_path;
-      console.log(`[qwen-tv][${requestId}] Resolved chunked path to assembled file: ${resolvedVideoPath}`);
-    }
-
-    // ── Generate signed URL ──
-    console.log(`[qwen-tv][${requestId}] Generating signed URL for path: ${resolvedVideoPath}`);
-    
-    const { data: signedUrlData, error: signedUrlError } = await supabaseClient
-      .storage
-      .from('video')
-      .createSignedUrl(resolvedVideoPath, 3600);
-
-    if (signedUrlError || !signedUrlData?.signedUrl) {
-      const errMsg = signedUrlError?.message || 'Unknown error';
-      console.error(`[qwen-tv][${requestId}] Signed URL failed for path "${resolvedVideoPath}":`, errMsg);
-      throw new Error(`No se pudo generar URL firmada para el video. Path: ${resolvedVideoPath}. Error: ${errMsg}`);
-    }
-
-    const videoUrl = signedUrlData.signedUrl;
-    console.log(`[qwen-tv][${requestId}] Signed URL generated successfully`);
-
     // ── Update status to processing ──
     if (transcriptId) {
       await supabaseClient
@@ -270,37 +352,76 @@ serve(async (req) => {
         .eq('id', transcriptId);
     }
 
-    // ── Stage 1: Transcription ──
-    console.log(`[qwen-tv][${requestId}] Starting Stage 1: Transcription`);
+    // ── Detect chunked vs single-file path ──
+    const isChunked = videoPath.startsWith('chunked:');
+    let transcriptionText: string;
+    let providerUsed: string;
+    let fallbackReason: string | null;
 
-    let providerUsed = 'qwen-primary';
-    let fallbackReason: string | null = null;
+    if (isChunked) {
+      // ── CHUNKED PATH: process chunks directly without reassembly ──
+      const sessionId = videoPath.replace('chunked:', '').split('/')[0];
+      console.log(`[qwen-tv][${requestId}] Chunked video detected, session: ${sessionId}`);
 
-    const transcriptionMessages = [
-      {
-        role: 'user',
-        content: [
-          { type: 'video_url', video_url: { url: videoUrl } },
-          { type: 'text', text: buildTranscriptionPrompt() },
-        ],
-      },
-    ];
+      const { chunkUrls, totalChunks, fileName } = await resolveChunkedVideo(
+        supabaseClient, sessionId, requestId
+      );
 
-    let transcriptionResult = await callQwen(qwenApiKey, PRIMARY_MODEL, transcriptionMessages, requestId, 'transcription');
+      console.log(`[qwen-tv][${requestId}] Processing ${totalChunks} chunks for: ${fileName}`);
 
-    // Fallback to flash model
-    if (!transcriptionResult.success) {
-      console.warn(`[qwen-tv][${requestId}] Primary model failed for transcription, falling back to ${FALLBACK_MODEL}`);
-      fallbackReason = `Transcription: ${transcriptionResult.error}`;
-      providerUsed = 'qwen-fallback';
-      transcriptionResult = await callQwen(qwenApiKey, FALLBACK_MODEL, transcriptionMessages, requestId, 'transcription-fallback');
+      const result = await processChunkedTranscription(
+        qwenApiKey, chunkUrls, requestId, supabaseClient, transcriptId
+      );
+
+      transcriptionText = result.text;
+      providerUsed = result.providerUsed;
+      fallbackReason = result.fallbackReason;
+
+    } else {
+      // ── SINGLE-FILE PATH: existing flow ──
+      console.log(`[qwen-tv][${requestId}] Single file path: ${videoPath}`);
+
+      const { data: signedUrlData, error: signedUrlError } = await supabaseClient
+        .storage
+        .from('video')
+        .createSignedUrl(videoPath, 3600);
+
+      if (signedUrlError || !signedUrlData?.signedUrl) {
+        throw new Error(`No se pudo generar URL firmada: ${signedUrlError?.message}`);
+      }
+
+      const videoUrl = signedUrlData.signedUrl;
+      console.log(`[qwen-tv][${requestId}] Signed URL generated`);
+
+      const transcriptionMessages = [
+        {
+          role: 'user',
+          content: [
+            { type: 'video_url', video_url: { url: videoUrl } },
+            { type: 'text', text: buildTranscriptionPrompt() },
+          ],
+        },
+      ];
+
+      providerUsed = 'qwen-primary';
+      fallbackReason = null;
+
+      let transcriptionResult = await callQwen(qwenApiKey, PRIMARY_MODEL, transcriptionMessages, requestId, 'transcription');
+
+      if (!transcriptionResult.success) {
+        console.warn(`[qwen-tv][${requestId}] Primary failed, falling back to ${FALLBACK_MODEL}`);
+        fallbackReason = `Transcription: ${transcriptionResult.error}`;
+        providerUsed = 'qwen-fallback';
+        transcriptionResult = await callQwen(qwenApiKey, FALLBACK_MODEL, transcriptionMessages, requestId, 'transcription-fallback');
+      }
+
+      if (!transcriptionResult.success) {
+        throw new Error(`Transcripción falló: ${transcriptionResult.error}`);
+      }
+
+      transcriptionText = transcriptionResult.data;
     }
 
-    if (!transcriptionResult.success) {
-      throw new Error(`Transcripción falló con ambos modelos: ${transcriptionResult.error}`);
-    }
-
-    const transcriptionText = transcriptionResult.data;
     console.log(`[qwen-tv][${requestId}] Transcription complete, length: ${transcriptionText.length} chars`);
 
     // Update progress
@@ -341,7 +462,6 @@ serve(async (req) => {
     let parsedAnalysis: any = null;
     if (analysisResult.success) {
       try {
-        // Try to extract JSON from response
         const rawText = analysisResult.data;
         const jsonMatch = rawText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -372,7 +492,6 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
 
-      // Map 5W analysis fields if parsed
       if (parsedAnalysis && parsedAnalysis.analisis_5w) {
         updatePayload.analysis_quien = parsedAnalysis.analisis_5w.quien;
         updatePayload.analysis_que = parsedAnalysis.analisis_5w.que;
@@ -431,10 +550,43 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[qwen-tv][${requestId}] Fatal error:`, errorMessage);
 
+    // Categorize failure for frontend
+    let failureStatus = 'failed:runtime';
+    if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+      failureStatus = 'failed:qwen_rate_limit';
+    } else if (errorMessage.includes('not found') || errorMessage.includes('Incomplete upload')) {
+      failureStatus = 'failed:qwen_chunk_input';
+    } else if (errorMessage.includes('exceeded the maximum')) {
+      failureStatus = 'failed:supabase_storage_limit';
+    }
+
+    // Update DB with specific failure status
+    try {
+      const body = await req.clone().json().catch(() => null);
+      const tid = body?.transcriptionId || body?.transcriptId;
+      if (tid) {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const sc = createClient(supabaseUrl, supabaseServiceKey);
+        await sc
+          .from('tv_transcriptions')
+          .update({
+            status: failureStatus,
+            progress: 0,
+            provider_fallback_reason: errorMessage.substring(0, 500),
+          })
+          .eq('id', tid);
+        console.log(`[qwen-tv][${requestId}] Updated transcription to ${failureStatus}`);
+      }
+    } catch (dbErr) {
+      console.warn(`[qwen-tv][${requestId}] Could not update failure status:`, dbErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: false,
         error: errorMessage,
+        failureStatus,
         timestamp: new Date().toISOString(),
       }),
       {
