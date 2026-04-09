@@ -388,63 +388,16 @@ export const useTvVideoProcessor = () => {
       // Save active processing ID for background persistence
       setActiveProcessingId(actualTranscriptionId);
       
-      // For manifest-based chunked videos, orchestrate reassembly before calling Qwen
+      // For chunked videos, pass the chunked: reference directly to Qwen backend
+      // The backend now handles chunk-aware processing without reassembly
       if (fileName.startsWith('chunked:')) {
-        const sessionId = fileName.replace('chunked:', '').split('/')[0];
-        console.log('[TvVideoProcessor] Manifest-based video detected, checking for assembled file...');
-        
-        // Check if already assembled
-        const { data: sessionCheck } = await supabase
-          .from('chunked_upload_sessions')
-          .select('assembled_file_path, file_name, total_chunks')
-          .eq('session_id', sessionId)
-          .single();
-        
-        let assembledPath = sessionCheck?.assembled_file_path;
-        
-        if (!assembledPath) {
-          // Need to reassemble — call the reassembly function
-          console.log('[TvVideoProcessor] No assembled file found, triggering reassembly...');
-          toast.info("Ensamblando video para análisis AI", {
-            description: "Esto puede tardar unos minutos para archivos grandes...",
-            duration: 10000
-          });
-          
-          setProgress(20);
-          
-          const { data: reassemblyResult, error: reassemblyError } = await supabase.functions
-            .invoke('reassemble-chunked-video', {
-              body: {
-                sessionId: sessionId,
-                fileName: sessionCheck?.file_name || 'video.mov',
-                totalChunks: sessionCheck?.total_chunks || 0
-              }
-            });
-          
-          if (reassemblyError) {
-            console.error('[TvVideoProcessor] Reassembly failed:', reassemblyError);
-            throw new Error(`Error al ensamblar el video: ${reassemblyError.message}`);
-          }
-          
-          if (!reassemblyResult?.success || !reassemblyResult?.assembledPath) {
-            throw new Error(`Reassembly did not return an assembled path: ${JSON.stringify(reassemblyResult)}`);
-          }
-          
-          assembledPath = reassemblyResult.assembledPath;
-          console.log('[TvVideoProcessor] Reassembly complete, assembled path:', assembledPath);
-        } else {
-          console.log('[TvVideoProcessor] Using cached assembled file:', assembledPath);
-        }
-        
-        // Switch fileName to the real assembled path for Qwen
-        fileName = assembledPath;
-        setProgress(30);
-        
-        toast.info("Video ensamblado", {
-          description: "Iniciando análisis con IA..."
+        console.log('[TvVideoProcessor] Chunked video — sending directly to Qwen backend (no reassembly needed)');
+        setProgress(20);
+        toast.info("Procesando video grande", {
+          description: "El backend procesará los segmentos directamente con IA...",
+          duration: 10000
         });
       }
-      
       
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-qwen', {
