@@ -820,30 +820,20 @@ serve(async (req) => {
       { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
     ];
 
-    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'analysis');
+    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'analysis', 32768);
 
     if (!analysisResult.success) {
       console.warn(`[qwen-tv][${requestId}] Primary text model failed for analysis, falling back`);
       if (!fallbackReason) fallbackReason = `Analysis: ${analysisResult.error}`;
-      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'analysis-fallback');
+      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'analysis-fallback', 32768);
     }
 
-    let parsedAnalysis: any = null;
+    let analysisText = '';
     if (analysisResult.success) {
-      try {
-        const rawText = analysisResult.data!;
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsedAnalysis = JSON.parse(jsonMatch[0]);
-          console.log(`[qwen-tv][${requestId}] Analysis JSON parsed successfully`);
-        } else {
-          parsedAnalysis = { raw_analysis: rawText, parsed: false };
-        }
-      } catch {
-        parsedAnalysis = { raw_analysis: analysisResult.data, parsed: false };
-      }
+      analysisText = analysisResult.data!;
+      console.log(`[qwen-tv][${requestId}] Analysis complete, ${analysisText.length} chars`);
     } else {
-      parsedAnalysis = { error: analysisResult.error, parsed: false };
+      analysisText = `Error en análisis: ${analysisResult.error}`;
     }
 
     // ── Write results to DB ──
@@ -852,40 +842,14 @@ serve(async (req) => {
         status: 'completed',
         progress: 100,
         transcription_text: transcriptionText,
-        full_analysis: JSON.stringify(parsedAnalysis),
+        full_analysis: analysisText,
         provider_used: providerUsed,
         provider_fallback_reason: fallbackReason,
         updated_at: new Date().toISOString(),
       };
 
-      if (parsedAnalysis?.analisis_5w) {
-        updatePayload.analysis_quien = parsedAnalysis.analisis_5w.quien;
-        updatePayload.analysis_que = parsedAnalysis.analisis_5w.que;
-        updatePayload.analysis_cuando = parsedAnalysis.analisis_5w.cuando;
-        updatePayload.analysis_donde = parsedAnalysis.analisis_5w.donde;
-        updatePayload.analysis_porque = parsedAnalysis.analisis_5w.porque;
-      }
-      if (parsedAnalysis?.resumen) {
-        updatePayload.summary = parsedAnalysis.resumen;
-        updatePayload.analysis_summary = parsedAnalysis.resumen;
-      }
-      if (parsedAnalysis?.categoria) {
-        updatePayload.analysis_category = parsedAnalysis.categoria;
-      }
-      if (parsedAnalysis?.palabras_clave) {
-        updatePayload.analysis_keywords = parsedAnalysis.palabras_clave;
-        updatePayload.keywords = parsedAnalysis.palabras_clave;
-      }
-      if (parsedAnalysis?.relevancia_clientes) {
-        updatePayload.analysis_client_relevance = parsedAnalysis.relevancia_clientes;
-        const clientNames = parsedAnalysis.relevancia_clientes
-          .filter((c: any) => c.nivel_relevancia === 'alto' || c.nivel_relevancia === 'medio')
-          .map((c: any) => c.cliente);
-        if (clientNames.length > 0) updatePayload.relevant_clients = clientNames;
-      }
-      if (parsedAnalysis?.alertas) {
-        updatePayload.analysis_alerts = parsedAnalysis.alertas;
-      }
+      // Extract structured fields from text using regex
+      extractAnalysisFieldsFromText(analysisText, updatePayload);
 
       const { error: updateError } = await supabaseClient
         .from('tv_transcriptions')
