@@ -36,12 +36,21 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
   if (!analysis) return null;
 
   const handleCopy = (text: string, index: number) => {
-    navigator.clipboard.writeText(text).then(() => {
+    const html = DOMPurify.sanitize(markdownToHtml(text));
+    const blob = new Blob([html], { type: 'text/html' });
+    const textBlob = new Blob([text], { type: 'text/plain' });
+    navigator.clipboard.write([
+      new ClipboardItem({ 'text/html': blob, 'text/plain': textBlob })
+    ]).then(() => {
       setCopiedIndex(index);
       toast.success("Texto copiado al portapapeles");
       setTimeout(() => setCopiedIndex(null), 2000);
     }).catch(() => {
-      toast.error("Error al copiar texto");
+      navigator.clipboard.writeText(text).then(() => {
+        setCopiedIndex(index);
+        toast.success("Texto copiado al portapapeles");
+        setTimeout(() => setCopiedIndex(null), 2000);
+      });
     });
   };
 
