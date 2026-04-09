@@ -55,6 +55,17 @@ REGLAS DE TRANSCRIPCIÓN:
 ✓ NO resumas NI parafrasees - transcribe EXACTAMENTE lo que escuchas
 ✓ NO incluyas análisis, opiniones ni interpretaciones
 
+NORMALIZACIÓN DE CANALES DE TV DE PUERTO RICO:
+Al transcribir, usa SIEMPRE los nombres oficiales de los canales de televisión puertorriqueños aunque la pronunciación sea fonética o coloquial:
+- "Guapa TV" o "Guapa" → "WAPA TV" (Canal 4). La W en Puerto Rico puede sonar como "doble u", no "doble b".
+- "Tele mundo" o "Te lo mundo" → "Telemundo" (Canal 2)
+- "Uipr" o "Wi PR" o "W I P R" → "WIPR" (Canal 6)
+- "Tele once" o "Tele Onse" → "TeleOnce" (Canal 11)
+- "Tele oro" o "Teleoro" → "Tele Oro" (Canal 13)
+- "ABC PR" o "ABC Puerto Rico" o "A B C PR" → "ABCPR" (ABC5)
+- "Canal treinta y dos" → "Canal 32"
+Si una frase suena muy parecida a uno de estos canales, usa la forma oficial.
+
 FORMATO DE SALIDA:
 Responde ÚNICAMENTE con la transcripción en el formato SPEAKER X: texto
 NO incluyas títulos, encabezados, ni explicaciones adicionales.
@@ -631,6 +642,32 @@ async function processChunkedInBackground(
     );
 
     console.log(`[qwen-tv][${requestId}] Background: Transcription complete, ${transcriptionText.length} chars`);
+
+    // 3a. Normalize Puerto Rican TV channel names in AssemblyAI output
+    const prChannelNormalizations: [RegExp, string][] = [
+      [/\bGuapa TV\b/gi, 'WAPA TV'],
+      [/\bGuapa\b/gi, 'WAPA'],
+      [/\bWapa TV\b/gi, 'WAPA TV'],
+      [/\bWapa\b/g, 'WAPA'],
+      [/\bTele mundo\b/gi, 'Telemundo'],
+      [/\bTe lo mundo\b/gi, 'Telemundo'],
+      [/\bUipr\b/gi, 'WIPR'],
+      [/\bWi PR\b/gi, 'WIPR'],
+      [/\bW I P R\b/gi, 'WIPR'],
+      [/\bWipr\b/g, 'WIPR'],
+      [/\bTele once\b/gi, 'TeleOnce'],
+      [/\bTele Onse\b/gi, 'TeleOnce'],
+      [/\bTele oro\b/gi, 'Tele Oro'],
+      [/\bTeleoro\b/gi, 'Tele Oro'],
+      [/\bABC PR\b/gi, 'ABCPR'],
+      [/\bABC Puerto Rico\b/gi, 'ABCPR'],
+      [/\bA B C PR\b/gi, 'ABCPR'],
+      [/\bA B C Puerto Rico\b/gi, 'ABCPR'],
+    ];
+    for (const [pattern, replacement] of prChannelNormalizations) {
+      transcriptionText = transcriptionText.replace(pattern, replacement);
+    }
+    console.log(`[qwen-tv][${requestId}] Background: PR channel names normalized`);
 
     // 3b. Speaker name identification via Qwen (vision-enabled with first chunk)
     try {
