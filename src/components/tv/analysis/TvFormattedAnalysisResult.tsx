@@ -18,33 +18,29 @@ const markdownToHtml = (text: string): string => {
 };
 
 const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps) => {
-  if (!analysis) return null;
-
   // Defensive: Convert object to string if needed
   const analysisString = typeof analysis === 'string' 
     ? analysis 
     : JSON.stringify(analysis, null, 2);
 
-  // Parse and format the analysis content (handles both JSON and formatted text)
   const formattedAnalysis = parseAnalysisContent(analysisString);
   const [displayContent, setDisplayContent] = useState(formattedAnalysis);
 
-  // Update content when analysis changes
   useEffect(() => {
     const str = typeof analysis === 'string' ? analysis : JSON.stringify(analysis, null, 2);
     setDisplayContent(parseAnalysisContent(str));
   }, [analysis]);
 
-  // Split content by content type markers and filter out empty strings
+  if (!analysis) return null;
+
+  // Split content by content type markers
   const contentParts = displayContent.split(/\[TIPO DE CONTENIDO:.*?\]/)
     .filter(Boolean)
     .map(part => part.trim())
     .filter(part => part.length > 0);
     
-  // Extract content type headers
   const contentTypes = displayContent.match(/\[TIPO DE CONTENIDO:.*?\]/g) || [];
   
-  // If no content type markers found, treat as single program content
   if (contentTypes.length === 0 && displayContent.trim()) {
     return (
       <Card className="p-4 mb-4 bg-blue-50 dark:bg-blue-900/20">
