@@ -31,34 +31,6 @@ const TvTranscriptionMetadata: React.FC<TvTranscriptionMetadataProps> = ({
           Transcripción TV
         </CardTitle>
         
-        <div className="flex flex-wrap gap-2">
-          {metadata?.channel && (
-            <Badge variant="outline" className="flex items-center gap-1">
-              <Radio className="h-3 w-3" />
-              {metadata.channel}
-            </Badge>
-          )}
-          
-          {metadata?.program && (
-            <Badge variant="outline" className="flex items-center gap-1">
-              <Monitor className="h-3 w-3" />
-              {metadata.program}
-            </Badge>
-          )}
-          
-          {metadata?.category && (
-            <Badge variant="secondary">
-              {metadata.category}
-            </Badge>
-          )}
-          
-          {metadata?.broadcastTime && (
-            <Badge variant="outline" className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {new Date(metadata.broadcastTime).toLocaleString()}
-            </Badge>
-          )}
-        </div>
       </div>
 
       {metadata?.keywords && metadata.keywords.length > 0 && (
