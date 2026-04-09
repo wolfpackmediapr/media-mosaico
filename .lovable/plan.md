@@ -1,20 +1,35 @@
 
 
-## Add Copy Button to Analysis Cards (Bottom-Right Position)
+## Copy as Rich Text from Analysis Cards
 
 ### Change
 **One file**: `src/components/tv/analysis/TvFormattedAnalysisResult.tsx`
 
-Add a small copy-to-clipboard button at the bottom-right corner of each card (both "Programa Regular" and "Anuncio Publicitario").
+Update `handleCopy` (line 38-46) to use the Clipboard API's `write()` method with a `ClipboardItem` containing both `text/html` (formatted) and `text/plain` (fallback). The HTML version uses the already-existing `markdownToHtml()` function to convert the content. When pasted into Google Docs, Word, email, etc., the formatting (bold, italic, line breaks) will be preserved.
 
-### Implementation
-- Import `Copy` and `Check` from `lucide-react`, `toast` from `sonner`, and `useState` for tracking copied state per card index
-- Add a `handleCopy(text, index)` function using `navigator.clipboard.writeText()` with a 2-second checkmark confirmation
-- After the scrollable content `<div>`, add a footer row with `flex justify-end` containing a small ghost `Button` (`h-7 w-7`) with the Copy/Check icon
-- Apply to both the fallback single-card render and the `renderContentSection` function
-- Copied text is the raw `content` string (plain text, no HTML)
+```ts
+const handleCopy = (text: string, index: number) => {
+  const html = DOMPurify.sanitize(markdownToHtml(text));
+  const blob = new Blob([html], { type: 'text/html' });
+  const textBlob = new Blob([text], { type: 'text/plain' });
+  navigator.clipboard.write([
+    new ClipboardItem({ 'text/html': blob, 'text/plain': textBlob })
+  ]).then(() => {
+    setCopiedIndex(index);
+    toast.success("Texto copiado al portapapeles");
+    setTimeout(() => setCopiedIndex(null), 2000);
+  }).catch(() => {
+    // Fallback for older browsers
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedIndex(index);
+      toast.success("Texto copiado al portapapeles");
+      setTimeout(() => setCopiedIndex(null), 2000);
+    });
+  });
+};
+```
 
 ### Scope
-- One frontend file only
-- No edge function, radio, DB, or other changes
+- One function replacement (~15 lines)
+- No other files, edge functions, or DB changes
 
