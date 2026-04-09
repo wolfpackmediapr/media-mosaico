@@ -1,78 +1,55 @@
 
 
-## Add Client Identification to TV Analysis
+## Fix Client Relevance Section in TV Analysis Prompt
 
 ### Problem
-The edge function `process-tv-with-qwen` already has full client support in the prompt (sections 10-11 with client names and keyword correlation mapping). However, **neither frontend caller sends `clients` or `categories` to the edge function**, so both arrays are always empty and the prompt never includes client identification.
+The current prompt (lines 163-192) instructs Qwen to evaluate **every** client including irrelevant ones ("Incluye TODOS los clientes aunque no sean relevantes"), producing long lists of "NO RELEVANTE / ignorar" entries that clutter the output. The user wants:
 
-### Root Cause
-- `src/hooks/tv/useTvVideoProcessor.ts` (line 404-407): sends only `videoPath` and `transcriptionId`
-- `src/hooks/tv/useTvAnalysis.ts` (line 107-111): sends only `videoPath`, `transcriptionId`, `transcriptionText`
-- Neither fetches clients from the `clients` table or categories from the `categories` table before invoking
+1. Only show clients that **are** relevant (skip irrelevant ones entirely)
+2. Broaden matching criteria to include **industry competitors** and **sector-related news**, not just direct client mentions or keyword matches
+3. Keep the segment-like structure that was working before (integrated into each Programa Regular section, not a separate exhaustive list)
 
-### Fix
-
-**Option A (preferred): Fetch clients/categories server-side in the edge function**
-
-This is more robust — the edge function already has a Supabase service-role client. Instead of relying on the frontend to pass clients, the edge function fetches them directly from the DB.
+### Changes
 
 **File**: `supabase/functions/process-tv-with-qwen/index.ts`
 
-After line 795 (where `categories` and `clients` are parsed from the body), add a fallback that fetches from DB when the arrays are empty:
-
-```typescript
-// If no clients/categories passed from frontend, fetch from DB
-let resolvedClients = clients;
-let resolvedCategories = categories;
-
-if (resolvedClients.length === 0) {
-  const { data: dbClients } = await supabaseClient
-    .from('clients')
-    .select('name, keywords');
-  resolvedClients = dbClients || [];
-}
-
-if (resolvedCategories.length === 0) {
-  const { data: dbCategories } = await supabaseClient
-    .from('categories')
-    .select('name_es');
-  resolvedCategories = (dbCategories || []).map(c => c.name_es);
-}
-```
-
-Then use `resolvedClients` and `resolvedCategories` in all downstream calls to `buildAnalysisPrompt()` and `processChunkedInBackground()`.
-
-### Also improve the prompt's client section
-
-The current client section (lines 154-163) is minimal — just a list of names and a keyword correlation. Enhance it to instruct Qwen to produce a dedicated **"Relevancia para Clientes"** subsection in the analysis output:
+**Lines 159-192** — Replace the client relevance sections with:
 
 ```
-10. **Relevancia para Clientes**: Para CADA cliente de la lista, evalúa si el contenido es relevante:
-    - Nombre del cliente
-    - Nivel de relevancia: ALTA / MEDIA / BAJA / NO RELEVANTE
-    - Palabras clave encontradas en la transcripción que coinciden
-    - Citas textuales que justifican la relevancia
-    - Recomendación de acción (monitorear, alertar, ignorar)
+9. Presencia de personas o entidades relevantes mencionadas
 
-Lista de clientes: ${clientsText}
+10. **Relevancia para Clientes**: Evalúa el contenido contra la siguiente lista de clientes. SOLO incluye los clientes para los cuales el contenido ES relevante (nivel ALTA o MEDIA). NO listes clientes que no tienen relevancia.
 
-Correlación clientes-palabras clave:
+Criterios de relevancia (incluir si cumple AL MENOS uno):
+- Mención directa del cliente, sus productos o servicios
+- Mención de competidores directos del cliente en su industria
+- Noticias del sector o industria del cliente que podrían afectarlo
+- Regulaciones, legislación o políticas públicas que impacten al cliente
+- Tendencias del mercado relevantes para el negocio del cliente
+- Coincidencia con las palabras clave asignadas al cliente
+
+Lista de clientes y sus palabras clave:
 ${clientKeywordMap}
+
+Para cada cliente RELEVANTE indica:
+    - Nombre del cliente
+    - Nivel de relevancia: ALTA / MEDIA
+    - Razón de relevancia (mención directa, competidor, industria, regulación, etc.)
+    - Palabras clave o menciones encontradas
+    - Citas textuales de la transcripción que justifican la relevancia
 ```
 
-### Files changed
+Also update line 192 (closing instruction #7) from:
+```
+7. Incluir la sección de Relevancia para Clientes con evaluación para CADA cliente de la lista
+```
+to:
+```
+7. Incluir la sección de Relevancia para Clientes SOLO con los clientes relevantes (omitir los no relevantes)
+```
 
-| File | Change |
-|------|--------|
-| `supabase/functions/process-tv-with-qwen/index.ts` | Fetch clients/categories from DB when not provided; enhance client relevance section in prompt; use resolved arrays in all `buildAnalysisPrompt` calls |
-
-### What stays the same
-- No frontend changes needed (edge function self-resolves)
-- No DB migration
-- No radio, press, or UI changes
-- Transcription prompts unchanged
-- Ad/program separation unchanged
-
-### Expected result
-After this fix, every TV analysis will automatically include a "Relevancia para Clientes" section listing each client from the Clientes settings tab, their relevance level, matched keywords, and supporting quotes from the transcription.
+### Scope
+- One file, ~30 lines changed in the prompt text
+- Redeploy edge function
+- No frontend, DB, or radio changes
 
