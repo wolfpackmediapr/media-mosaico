@@ -1,38 +1,65 @@
 
 
-## Fix: AssemblyAI 400 Error — Unsupported Features for Spanish
+## Fix: Qwen Analysis 403 + [object Object] Display
 
-### Root Cause
-AssemblyAI returns HTTP 400: `"The following models are not available in this language: auto_chapters, auto_highlights"`. These features are English-only in AssemblyAI but the code requests them with `language_code: 'es'`.
+### What you described vs what the plan does
 
-### Fix
-In `supabase/functions/process-tv-with-qwen/index.ts`, lines 352-359, remove `auto_chapters` and `auto_highlights` from the AssemblyAI transcription request. Keep `speaker_labels` and `entity_detection` which are supported for Spanish.
+Yes — this is exactly inline with your vision:
 
-```typescript
-// Before
-body: JSON.stringify({
-  audio_url: uploadUrl,
-  language_code: 'es',
-  speaker_labels: true,
-  auto_chapters: true,       // ← NOT available for Spanish
-  entity_detection: true,
-  auto_highlights: true,     // ← NOT available for Spanish
-}),
+1. **Qwen vision** identifies speakers visually (lower thirds, clothing, chyrons, PR personalities) — this already works for **small/single files** via `video_url` + `buildTranscriptionOnlyPrompt()` (lines 742-750)
+2. **AssemblyAI** does the audio transcription for **large chunked files** (since Qwen can't receive 350MB video in one call)
+3. **Qwen text analysis** runs the full 5W analysis on the transcription — same master prompt structure as Gemini
 
-// After
-body: JSON.stringify({
-  audio_url: uploadUrl,
-  language_code: 'es',
-  speaker_labels: true,
-  entity_detection: true,
-}),
+The speaker naming (`SPEAKER 1 (Name - Role):`) is already in the prompt for single files. For large files, AssemblyAI returns `SPEAKER A/B/C` labels but not names — so we should add a Qwen step that takes AssemblyAI's raw speaker-labeled text and enriches it with visual context from a few key frames (if available), or at minimum keeps the `SPEAKER X:` format consistent.
+
+### Two bugs to fix now
+
+**Bug 1: Qwen 403 on text-only analysis calls**
+
+The `callQwenStreaming` function uses `qwen3.5-omni-plus` (a multimodal model) for the text-only analysis step. Omni models require audio/video input — text-only calls return 403. The fix: use a text-compatible model (`qwen-plus`) for analysis calls.
+
+- **File**: `supabase/functions/process-tv-with-qwen/index.ts`
+- Add constant: `const TEXT_MODEL = 'qwen-plus';`
+- Line 502: Change `callQwenStreaming(qwenApiKey, PRIMARY_MODEL, ...)` → `callQwenStreaming(qwenApiKey, TEXT_MODEL, ...)`
+- Line 506: Change fallback to `TEXT_MODEL` as well (or `qwen-turbo`)
+- Line 788-795: Same change for the single-file analysis path — use `TEXT_MODEL` instead of `analysisModel`
+
+**Bug 2: `[object Object]` in analysis display**
+
+When analysis fails (403), the function stores `{"error":"HTTP 403:...","parsed":false}` in `full_analysis`. The parser hits line 165: `parsed.toString()` → `[object Object]`.
+
+- **File**: `src/utils/tv/analysisParser.ts`
+- In `convertJsonToReadableFormat` (line 163-166), before falling through to `parsed.toString()`, check for error objects:
+```
+if (parsed.error) {
+  return `Error en análisis: ${parsed.error}`;
+}
+if (parsed.raw_analysis && typeof parsed.raw_analysis === 'string') {
+  return parsed.raw_analysis;
+}
+if (!isAnalysisJson) {
+  return JSON.stringify(parsed, null, 2);
+}
 ```
 
 ### Scope
-- **One file**: `supabase/functions/process-tv-with-qwen/index.ts` (2 lines removed)
-- **Redeploy** the edge function
-- No radio, UI, or other changes
 
-### Why this is safe
-The chapters and highlights features were never actually used downstream — the Qwen text-analysis step handles all summarization and keyword extraction via the master prompt. These were redundant AssemblyAI features that happen to not support Spanish.
+| File | Change |
+|------|--------|
+| `supabase/functions/process-tv-with-qwen/index.ts` | Add `TEXT_MODEL = 'qwen-plus'`, use it for all text-only analysis calls (4 lines) |
+| `src/utils/tv/analysisParser.ts` | Handle error/unparseable objects gracefully instead of `.toString()` |
+
+### What stays the same
+- No radio, press, navigation, or UI layout changes
+- No DB migration
+- Qwen vision still used for transcription on single files
+- AssemblyAI still used for large file audio transcription
+- Master prompts (`buildTranscriptionOnlyPrompt`, `buildAnalysisPrompt`) unchanged
+- Speaker identification prompt with lower thirds, chyrons, PR personalities unchanged
+
+### Expected result after fix
+- AssemblyAI transcription works (already confirmed)
+- Qwen `qwen-plus` runs 5W analysis successfully on the transcription text
+- Analysis displays formatted sections (5W, resumen, palabras clave, relevancia clientes, alertas) instead of `[object Object]`
+- Speaker labels show `SPEAKER 1 (Name - Role):` for small files (Qwen vision) and `SPEAKER A/B/C:` for large files (AssemblyAI)
 
