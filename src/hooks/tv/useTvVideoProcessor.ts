@@ -388,6 +388,28 @@ export const useTvVideoProcessor = () => {
       // Save active processing ID for background persistence
       setActiveProcessingId(actualTranscriptionId);
       
+      // Detect manifest-based chunked video BEFORE calling edge function
+      // These cannot be processed by AI — fail fast with clear user feedback
+      if (fileName.startsWith('chunked:')) {
+        console.warn('[TvVideoProcessor] Manifest-based video detected, skipping AI processing');
+        setIsProcessing(false);
+        setProgress(0);
+        setActiveProcessingId(null);
+        toast.error("Video demasiado grande para análisis AI", {
+          description: "La reproducción del video funciona correctamente, pero el análisis AI requiere un archivo único menor de 50MB.",
+          duration: 8000
+        });
+        
+        // Update transcription status if we have one
+        if (actualTranscriptionId) {
+          await TvTranscriptionService.updateTranscription(actualTranscriptionId, {
+            status: 'failed:manifest_not_supported',
+            progress: 0
+          });
+        }
+        return;
+      }
+      
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-qwen', {
           body: { 
