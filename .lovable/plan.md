@@ -1,74 +1,54 @@
 
 
-## Fix: Add Visual Speaker Identification for Large Files
+## Why Speaker Names Appear in Analysis but Not in Transcription
 
-### Problem
-For **small files**, Qwen receives the actual video (`video_url`) and the prompt explicitly instructs it to read lower thirds, chyrons, on-screen names, and visual cues (lines 38-46). This works perfectly.
+### The explanation
 
-For **large/chunked files**, the speaker ID step (lines 634-674) sends **only text** to Qwen — no video frames at all. So it can only guess from dialogue context, missing all the visual identifiers (lower thirds, name banners, chyrons, logos) that are critical for accurate speaker naming.
+The **analysis** and **transcription** take two completely different paths:
+
+**Analysis** (where names DO appear): The analysis prompt (line 126) explicitly tells Qwen: *"Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de SPEAKER A o SPEAKER B"*. Since Qwen receives the full transcription text and is a smart language model, it **infers** speaker identities from dialogue context clues (self-introductions, third-party mentions) and writes names in its analysis output. The analysis is generated fresh — Qwen writes it from scratch.
+
+**Transcription** (where names DON'T appear): The speaker identification step (lines 635-716) tries to send the first video chunk (`chunk_0000`) to `qwen-vl-max` for visual identification. But **raw chunks are byte slices of the original file, not valid standalone video files**. The vision model returns a 400 error ("Invalid video file"), the step fails silently (caught by the try/catch at line 717), and the transcription keeps the generic `SPEAKER A`, `SPEAKER B` labels from AssemblyAI.
+
+In short: the analysis works because Qwen **writes new text** and can infer names. The transcription fails because the vision call crashes on invalid chunk files, and the fallback doesn't run.
 
 ### Fix
 
-**File**: `supabase/functions/process-tv-with-qwen/index.ts` (lines 634-674)
+**File**: `supabase/functions/process-tv-with-qwen/index.ts` (lines 689-699)
 
-Replace the text-only speaker ID call with a **vision-enabled** call that sends the first video chunk alongside the transcription text:
+When the vision call fails (which it always will for chunks), the code should fall back to **text-only** speaker identification using `qwen-plus` instead of silently giving up. The current code uses `firstChunkUrl ? VISION_MODEL : TEXT_MODEL` (line 699), which means it tries vision when a URL exists — but the URL is always obtainable, it's just not a valid video file.
 
-1. Generate a signed URL for the first chunk: `chunks/${sessionId}/chunk_0000` (this is the first ~15MB of video, containing the opening where lower thirds and introductions appear)
-2. Send it to Qwen as a `video_url` content part alongside the text prompt
-3. Enhance the speaker ID prompt to include the same visual identification instructions from the small-file prompt (lower thirds, chyrons, name cards, known PR personalities, clothing descriptors)
+**Change**: Remove the vision attempt for chunked files entirely. Use `TEXT_MODEL` (`qwen-plus`) directly with the enhanced prompt. The text model can still identify speakers from dialogue clues (same way the analysis does), and will apply descriptive fallbacks ("Presentador principal", "Reportera en campo") for speakers it can't name.
 
-```typescript
-// Generate signed URL for first chunk (contains intros & lower thirds)
-const firstChunkPath = `chunks/${sessionId}/chunk_0000`;
-const { data: chunkUrlData } = await supabaseClient
-  .storage.from('video')
-  .createSignedUrl(firstChunkPath, 600);
+```
+Lines 689-699 — replace with:
 
-const speakerIdPrompt = `Analiza este video y la transcripción para identificar cada hablante.
+// For chunked files, skip vision (chunks are raw byte slices, not valid video files)
+// Use text-only model which can still identify speakers from dialogue context
+const speakerIdMessages = [
+  { role: 'user', content: speakerIdPrompt }
+];
 
-IDENTIFICACIÓN VISUAL (PRIORIDAD):
-✓ LEE los "lower thirds" (subtítulos con nombres en la parte inferior de la pantalla)
-✓ LEE las tarjetas gráficas con nombres que aparezcan en pantalla
-✓ IDENTIFICA logos de TV y canales para contexto
-✓ RECONOCE personalidades conocidas de noticias de Puerto Rico
-✓ DISTINGUE por vestimenta, ubicación (estudio vs campo), rol visible
-
-IDENTIFICACIÓN POR DIÁLOGO:
-- Auto-presentaciones ("Les saluda...", "Soy...")
-- Menciones por otros ("pasamos con Tom Bryant")
-- Indicadores de rol ("reportera", "doctor", "presentador")
-
-Si NO puedes identificar por nombre, usa descriptor visual:
-"Presentador principal", "Mujer con traje rojo", "Reportero en campo", etc.
-NUNCA devuelvas solo la letra.
-
-Responde ÚNICAMENTE con JSON: {"A": "Nombre - Rol", "B": "Descriptor - Rol"}
-
-TRANSCRIPCIÓN:
-${transcriptionText.substring(0, 15000)}`;
-
-const speakerIdMessages = [{
-  role: 'user',
-  content: [
-    ...(chunkUrlData?.signedUrl
-      ? [{ type: 'video_url', video_url: { url: chunkUrlData.signedUrl } }]
-      : []),
-    { type: 'text', text: speakerIdPrompt },
-  ],
-}];
+const speakerIdResult = await callQwenStreaming(
+  qwenApiKey, TEXT_MODEL, speakerIdMessages, requestId, 'speaker-id', 2048
+);
 ```
 
-If the signed URL fails (unlikely), it falls back gracefully to text-only identification — same as current behavior.
+Also simplify the prompt (line 656) to remove the conditional video reference since we won't be sending video:
 
-Also increase `max_tokens` from 1024 to 2048 for the speaker ID call to handle more speakers.
+```
+Line 656: change to just text-based prompt (remove ${firstChunkUrl ? 'este video y ' : ''})
+```
+
+And keep lines 639-654 (the chunk URL fetching block) — remove it entirely since it's unused now for chunked files.
 
 ### Scope
-- One file, ~40 lines in the speaker ID section (lines 634-674)
+- One file, ~15 lines changed
 - Redeploy edge function
 - No frontend, radio, UI, or DB changes
-- Small file path unchanged (already has full vision)
+- Small file path (valid video URL → vision model) stays unchanged
 - Analysis prompt unchanged
 
 ### Expected result
-Large file transcriptions will show named speakers like `SPEAKER A (Silverio Pérez - Presentador):` instead of just `SPEAKER A:`, identified from lower thirds, chyrons, and visual cues in the opening segment of the video.
+After this fix, the transcription text stored in the DB will have speakers labeled as `SPEAKER A (Silverio Pérez - Presentador):` instead of bare `SPEAKER A:`, matching what the analysis already does. The frontend parser already supports this format.
 
