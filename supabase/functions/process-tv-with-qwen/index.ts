@@ -208,7 +208,7 @@ async function callQwenStreaming(
   model: string,
   messages: any[],
   requestId: string,
-  stage: string
+  stage: string,
   maxTokens: number = 16384
 ): Promise<{ success: boolean; data?: string; error?: string; statusCode?: number }> {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -228,7 +228,7 @@ async function callQwenStreaming(
           stream: true,
           stream_options: { include_usage: true },
           temperature: 0.1,
-          max_tokens: 16384,
+          max_tokens: maxTokens,
         }),
       });
 
