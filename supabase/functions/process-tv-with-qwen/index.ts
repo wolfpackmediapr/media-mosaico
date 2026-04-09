@@ -251,12 +251,12 @@ serve(async (req) => {
     const { data: signedUrlData, error: signedUrlError } = await supabaseClient
       .storage
       .from('video')
-      .createSignedUrl(videoPath, 3600);
+      .createSignedUrl(resolvedVideoPath, 3600);
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
       const errMsg = signedUrlError?.message || 'Unknown error';
-      console.error(`[qwen-tv][${requestId}] Signed URL failed for path "${videoPath}":`, errMsg);
-      throw new Error(`No se pudo generar URL firmada para el video. Path: ${videoPath}. Error: ${errMsg}`);
+      console.error(`[qwen-tv][${requestId}] Signed URL failed for path "${resolvedVideoPath}":`, errMsg);
+      throw new Error(`No se pudo generar URL firmada para el video. Path: ${resolvedVideoPath}. Error: ${errMsg}`);
     }
 
     const videoUrl = signedUrlData.signedUrl;
