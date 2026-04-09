@@ -17,7 +17,7 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   
   // Match each SPEAKER X: occurrence with its content until the next SPEAKER or end
   const speakerMatches = Array.from(
-    cleanedText.matchAll(/SPEAKER\s+(\d+)(?:\s*\(([^)]+)\))?:\s*([^]*?)(?=SPEAKER\s+\d+|$)/gi)
+    cleanedText.matchAll(/SPEAKER\s+(\w+)(?:\s*\(([^)]+)\))?:\s*([^]*?)(?=SPEAKER\s+\w+|$)/gi)
   );
   
   // Extract segments preserving order - preserve names for UI display
@@ -53,16 +53,16 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
     
     // Try different TV speaker patterns
     const patterns = [
-      // Pattern 0: "SPEAKER 1 (Name): text" - Gemini's format with names in parentheses
-      /^SPEAKER\s+(\d+)\s*\(([^)]+)\):\s*(.*)/s,
-      // Pattern 1: "SPEAKER 1: ROLE: text"
-      /^SPEAKER\s+(\d+):\s*([^:]+):\s*(.*)/s,
-      // Pattern 2: "SPEAKER 1: text"
-      /^SPEAKER\s+(\d+):\s*(.*)/s,
+      // Pattern 0: "SPEAKER 1 (Name): text" or "SPEAKER A (Name): text"
+      /^SPEAKER\s+(\w+)\s*\(([^)]+)\):\s*(.*)/s,
+      // Pattern 1: "SPEAKER 1: ROLE: text" or "SPEAKER A: ROLE: text"
+      /^SPEAKER\s+(\w+):\s*([^:]+):\s*(.*)/s,
+      // Pattern 2: "SPEAKER 1: text" or "SPEAKER A: text"
+      /^SPEAKER\s+(\w+):\s*(.*)/s,
       // Pattern 3: "PRESENTER: text" or "HOST: text"
       /^(PRESENTER|HOST|GUEST|LOCUTOR|ENTREVISTADO|CONDUCTOR|REPORTERO|REPORTERA|INVITADO|INVITADA|COMENTARISTA|ANALISTA|PERIODISTA):\s*(.*)/s,
-      // Pattern 4: "[SPEAKER 1]: text"
-      /^\[SPEAKER\s+(\d+)\]:\s*(.*)/s,
+      // Pattern 4: "[SPEAKER 1]: text" or "[SPEAKER A]: text"
+      /^\[SPEAKER\s+(\w+)\]:\s*(.*)/s,
       // Pattern 5: "- SPEAKER: text"
       /^\s*-\s*(\w+):\s*(.*)/s,
       // Pattern 6: "NAME: text" (generic caps)
@@ -313,14 +313,14 @@ export function hasTvSpeakerPatterns(text: string): boolean {
   if (!text || !text.trim()) return false;
   
   const patterns = [
-    // Standard speaker patterns
-    /SPEAKER\s+\d+:/i,
+    // Standard speaker patterns (numbers and letters)
+    /SPEAKER\s+\w+:/i,
     /PRESENTER:/i,
     /HOST:/i,
     /GUEST:/i,
     /LOCUTOR:/i,
     /ENTREVISTADO:/i,
-    /\[SPEAKER\s+\d+\]/i,
+    /\[SPEAKER\s+\w+\]/i,
     /^\s*-\s*\w+:/m,
     
     // Enhanced patterns for better detection
@@ -333,7 +333,7 @@ export function hasTvSpeakerPatterns(text: string): boolean {
     /PERIODISTA:/i,
     
     // Role-based patterns
-    /SPEAKER\s+\d+:\s*[A-ZÁÉÍÓÚÑÜ\s]+:/i,  // "SPEAKER 1: NAME:"
+    /SPEAKER\s+\w+:\s*[A-ZÁÉÍÓÚÑÜ\s]+:/i,  // "SPEAKER 1: NAME:" or "SPEAKER A: NAME:"
     /^\d+\.\s*[A-ZÁÉÍÓÚÑÜ\s]+:/m,  // "1. NAME:"
     
     // Mixed format patterns
