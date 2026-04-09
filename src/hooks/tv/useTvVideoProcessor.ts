@@ -264,7 +264,7 @@ export const useTvVideoProcessor = () => {
             .from('tv_transcriptions')
             .insert({
               user_id: user.id,
-              original_file_path: `chunked:${matchingChunkSession.session_id}/${file.name}`,
+              original_file_path: `chunked:${matchingChunkSession.session_id}`,
               status: 'processing',
               progress: 15,
               provider_used: 'qwen-primary'
@@ -388,27 +388,63 @@ export const useTvVideoProcessor = () => {
       // Save active processing ID for background persistence
       setActiveProcessingId(actualTranscriptionId);
       
-      // Detect manifest-based chunked video BEFORE calling edge function
-      // These cannot be processed by AI — fail fast with clear user feedback
+      // For manifest-based chunked videos, orchestrate reassembly before calling Qwen
       if (fileName.startsWith('chunked:')) {
-        console.warn('[TvVideoProcessor] Manifest-based video detected, skipping AI processing');
-        setIsProcessing(false);
-        setProgress(0);
-        setActiveProcessingId(null);
-        toast.error("Video demasiado grande para análisis AI", {
-          description: "La reproducción del video funciona correctamente, pero el análisis AI requiere un archivo único menor de 50MB.",
-          duration: 8000
-        });
+        const sessionId = fileName.replace('chunked:', '').split('/')[0];
+        console.log('[TvVideoProcessor] Manifest-based video detected, checking for assembled file...');
         
-        // Update transcription status if we have one
-        if (actualTranscriptionId) {
-          await TvTranscriptionService.updateTranscription(actualTranscriptionId, {
-            status: 'failed:manifest_not_supported',
-            progress: 0
+        // Check if already assembled
+        const { data: sessionCheck } = await supabase
+          .from('chunked_upload_sessions')
+          .select('assembled_file_path, file_name, total_chunks')
+          .eq('session_id', sessionId)
+          .single();
+        
+        let assembledPath = sessionCheck?.assembled_file_path;
+        
+        if (!assembledPath) {
+          // Need to reassemble — call the reassembly function
+          console.log('[TvVideoProcessor] No assembled file found, triggering reassembly...');
+          toast.info("Ensamblando video para análisis AI", {
+            description: "Esto puede tardar unos minutos para archivos grandes...",
+            duration: 10000
           });
+          
+          setProgress(20);
+          
+          const { data: reassemblyResult, error: reassemblyError } = await supabase.functions
+            .invoke('reassemble-chunked-video', {
+              body: {
+                sessionId: sessionId,
+                fileName: sessionCheck?.file_name || 'video.mov',
+                totalChunks: sessionCheck?.total_chunks || 0
+              }
+            });
+          
+          if (reassemblyError) {
+            console.error('[TvVideoProcessor] Reassembly failed:', reassemblyError);
+            throw new Error(`Error al ensamblar el video: ${reassemblyError.message}`);
+          }
+          
+          if (!reassemblyResult?.success || !reassemblyResult?.assembledPath) {
+            throw new Error(`Reassembly did not return an assembled path: ${JSON.stringify(reassemblyResult)}`);
+          }
+          
+          assembledPath = reassemblyResult.assembledPath;
+          console.log('[TvVideoProcessor] Reassembly complete, assembled path:', assembledPath);
+        } else {
+          console.log('[TvVideoProcessor] Using cached assembled file:', assembledPath);
         }
-        return;
+        
+        // Switch fileName to the real assembled path for Qwen
+        fileName = assembledPath;
+        setProgress(30);
+        
+        toast.info("Video ensamblado", {
+          description: "Iniciando análisis con IA..."
+        });
       }
+      
       
       const { data: result, error: processError } = await supabase.functions
         .invoke('process-tv-with-qwen', {
@@ -418,25 +454,7 @@ export const useTvVideoProcessor = () => {
           }
         });
 
-      // Handle MANIFEST_NOT_SUPPORTED (422) — video too large for AI processing
-      // supabase.functions.invoke treats non-2xx as an error, so check both error and result
       if (processError) {
-        // Check if this is a MANIFEST_NOT_SUPPORTED error (422 from Qwen)
-        const isManifestError = processError.message?.includes('non-2xx') || 
-                                result?.error === 'MANIFEST_NOT_SUPPORTED';
-        
-        if (isManifestError || result?.error === 'MANIFEST_NOT_SUPPORTED') {
-          console.warn('[TvVideoProcessor] Manifest-based video not supported for AI analysis');
-          setIsProcessing(false);
-          setProgress(0);
-          setActiveProcessingId(null);
-          toast.error("Video demasiado grande para análisis AI", {
-            description: "La reproducción del video funciona correctamente, pero el análisis AI requiere un archivo único menor.",
-            duration: 8000
-          });
-          return;
-        }
-        
         console.error('[TvVideoProcessor] Processing error:', processError);
         throw new Error(`Processing failed: ${processError.message}`);
       }
