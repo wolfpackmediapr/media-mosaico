@@ -151,23 +151,36 @@ PARA CADA SECCIÓN DE PROGRAMA REGULAR:
 
 8. Alertas y recomendaciones: Situaciones de alto impacto o urgencia que requieran atención inmediata`;
 
-  // Add clients section if available
+  // Section 9: Presencia de personas o entidades
+  prompt += `
+
+9. Presencia de personas o entidades relevantes mencionadas`;
+
+  // Section 10-11: Client relevance (enhanced)
   if (clientsText) {
     prompt += `
 
-9. Presencia de personas o entidades relevantes mencionadas
-10. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}`;
-  } else {
-    prompt += `
+10. **Relevancia para Clientes**: Para CADA cliente de la siguiente lista, evalúa si el contenido es relevante. Incluye TODOS los clientes aunque no sean relevantes:
 
-9. Presencia de personas o entidades relevantes mencionadas`;
+Lista de clientes: ${clientsText}
+
+Para cada cliente indica:
+    - Nombre del cliente
+    - Nivel de relevancia: ALTA / MEDIA / BAJA / NO RELEVANTE
+    - Palabras clave encontradas en la transcripción que coinciden
+    - Citas textuales exactas que justifican la relevancia
+    - Recomendación de acción (monitorear, alertar, ignorar)`;
+
+    if (clientKeywordMap) {
+      prompt += `
+
+11. Correlación clientes-palabras clave (usa esta referencia para identificar menciones relevantes):
+${clientKeywordMap}`;
+    }
   }
 
-  // Add keyword mapping if available
-  if (clientKeywordMap) {
-    prompt += `
-11. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
-${clientKeywordMap}
+  // Closing instructions
+  prompt += `
 
 Responde en español de manera concisa y profesional. Asegúrate de:
 1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
@@ -175,12 +188,8 @@ Responde en español de manera concisa y profesional. Asegúrate de:
 3. Si es contenido regular, mantener el formato de análisis detallado con TODOS los puntos mencionados
 4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
 5. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas
-6. Proporcionar citas textuales exactas de la transcripción para respaldar el análisis`;
-  } else {
-    prompt += `
-
-Responde en español de manera concisa y profesional, comenzando SIEMPRE con el encabezado del tipo de contenido identificado en mayúsculas. Utiliza los nombres específicos de los hablantes cuando estén disponibles. Incluye citas textuales exactas de la transcripción.`;
-  }
+6. Proporcionar citas textuales exactas de la transcripción para respaldar el análisis
+7. Incluir la sección de Relevancia para Clientes con evaluación para CADA cliente de la lista`;
 
   // Add additional context
   if (contextText) {
@@ -797,11 +806,33 @@ serve(async (req) => {
 
     if (!videoPath) throw new Error('videoPath es requerido');
 
+    // ── Fetch clients/categories from DB when not provided by frontend ──
+    let resolvedClients = clients;
+    let resolvedCategories = categories;
+
+    if (resolvedClients.length === 0) {
+      console.log(`[qwen-tv][${requestId}] No clients from frontend, fetching from DB...`);
+      const { data: dbClients } = await supabaseClient
+        .from('clients')
+        .select('name, keywords');
+      resolvedClients = dbClients || [];
+      console.log(`[qwen-tv][${requestId}] Fetched ${resolvedClients.length} clients from DB`);
+    }
+
+    if (resolvedCategories.length === 0) {
+      console.log(`[qwen-tv][${requestId}] No categories from frontend, fetching from DB...`);
+      const { data: dbCategories } = await supabaseClient
+        .from('categories')
+        .select('name_es');
+      resolvedCategories = (dbCategories || []).map((c: any) => c.name_es);
+      console.log(`[qwen-tv][${requestId}] Fetched ${resolvedCategories.length} categories from DB`);
+    }
+
     console.log(`[qwen-tv][${requestId}] Processing:`, {
       videoPath,
       transcriptId,
-      categoriesCount: categories.length,
-      clientsCount: clients.length,
+      categoriesCount: resolvedCategories.length,
+      clientsCount: resolvedClients.length,
     });
 
     // ── Detect chunked vs single-file path ──
