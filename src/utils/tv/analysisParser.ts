@@ -160,9 +160,21 @@ function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
                          parsed.keywords || parsed.palabras_clave || parsed.visual_analysis ||
                          parsed.segments || parsed.who || parsed.what;
   
+  // Handle error objects stored from failed analysis
+  if (parsed.error) {
+    const errorMsg = typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error);
+    console.log('[convertJsonToReadableFormat] Detected error object in analysis');
+    return `Error en análisis: ${errorMsg}`;
+  }
+  
+  // Handle raw_analysis string passthrough
+  if (parsed.raw_analysis && typeof parsed.raw_analysis === 'string') {
+    return parsed.raw_analysis;
+  }
+
   if (!isAnalysisJson) {
     console.log('[convertJsonToReadableFormat] Not analysis JSON, treating as plain text');
-    return parsed.toString();
+    return JSON.stringify(parsed, null, 2);
   }
   
   let sections: string[] = [];
