@@ -11,6 +11,8 @@ const corsHeaders = {
 const QWEN_API_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
 const PRIMARY_MODEL = 'qwen3.5-omni-plus';
 const FALLBACK_MODEL = 'qwen3.5-omni-flash';
+const TEXT_MODEL = 'qwen-plus';        // For text-only analysis (Omni models require media input)
+const TEXT_MODEL_FALLBACK = 'qwen-turbo'; // Fallback for text-only analysis
 const MAX_RETRIES = 3;
 
 const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
@@ -499,11 +501,11 @@ async function processChunkedInBackground(
       { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
     ];
 
-    let analysisResult = await callQwenStreaming(qwenApiKey, PRIMARY_MODEL, analysisMessages, requestId, 'bg-analysis');
+    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'bg-analysis');
 
     if (!analysisResult.success) {
       console.warn(`[qwen-tv][${requestId}] Background: Primary model failed, falling back`);
-      analysisResult = await callQwenStreaming(qwenApiKey, FALLBACK_MODEL, analysisMessages, requestId, 'bg-analysis-fallback');
+      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'bg-analysis-fallback');
     }
 
     let parsedAnalysis: any = null;
@@ -785,14 +787,12 @@ serve(async (req) => {
       { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
     ];
 
-    const analysisModel = providerUsed === 'qwen-fallback' ? FALLBACK_MODEL : PRIMARY_MODEL;
-    let analysisResult = await callQwenStreaming(qwenApiKey, analysisModel, analysisMessages, requestId, 'analysis');
+    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'analysis');
 
-    if (!analysisResult.success && analysisModel === PRIMARY_MODEL) {
-      console.warn(`[qwen-tv][${requestId}] Primary model failed for analysis, falling back`);
+    if (!analysisResult.success) {
+      console.warn(`[qwen-tv][${requestId}] Primary text model failed for analysis, falling back`);
       if (!fallbackReason) fallbackReason = `Analysis: ${analysisResult.error}`;
-      providerUsed = 'qwen-fallback';
-      analysisResult = await callQwenStreaming(qwenApiKey, FALLBACK_MODEL, analysisMessages, requestId, 'analysis-fallback');
+      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'analysis-fallback');
     }
 
     let parsedAnalysis: any = null;
