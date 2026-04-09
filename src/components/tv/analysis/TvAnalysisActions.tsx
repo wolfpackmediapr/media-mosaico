@@ -49,28 +49,6 @@ const TvAnalysisActions = ({
         </Button>
       )}
 
-      {/* Segment generation button */}
-      {showSegmentGeneration && canGenerateSegments && onGenerateSegments && (
-        <Button
-          onClick={onGenerateSegments}
-          disabled={isGeneratingSegments}
-          variant="outline"
-          className="flex-1 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-          size="lg"
-        >
-          {isGeneratingSegments ? (
-            <>
-              <Loader className="mr-2 h-4 w-4 animate-spin" />
-              Generando...
-            </>
-          ) : (
-            <>
-              <Sparkles className="mr-2 h-4 w-4" />
-              Generar Segmentos
-            </>
-          )}
-        </Button>
-      )}
     </div>
   );
 };
