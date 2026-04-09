@@ -632,53 +632,33 @@ async function processChunkedInBackground(
 
     console.log(`[qwen-tv][${requestId}] Background: Transcription complete, ${transcriptionText.length} chars`);
 
-    // 3b. Speaker name identification via Qwen (vision-enabled with first chunk)
+    // 3b. Speaker name identification via Qwen (text-only for chunked files)
+    // Chunks are raw byte slices, NOT valid video files — vision model returns 400.
+    // Use text model (qwen-plus) which infers names from dialogue context clues.
     try {
-      console.log(`[qwen-tv][${requestId}] Background: Identifying speakers with visual context...`);
-      
-      // Get signed URL for first chunk (contains opening, lower thirds, introductions)
-      const firstChunkPath = `chunks/${sessionId}/chunk_0000`;
-      let firstChunkUrl: string | null = null;
-      try {
-        const { data: chunkUrlData, error: chunkUrlError } = await supabaseClient
-          .storage.from('video')
-          .createSignedUrl(firstChunkPath, 600);
-        if (!chunkUrlError && chunkUrlData?.signedUrl) {
-          firstChunkUrl = chunkUrlData.signedUrl;
-          console.log(`[qwen-tv][${requestId}] Got signed URL for first chunk visual analysis`);
-        } else {
-          console.warn(`[qwen-tv][${requestId}] Could not get first chunk URL, falling back to text-only speaker ID`);
-        }
-      } catch (urlErr) {
-        console.warn(`[qwen-tv][${requestId}] First chunk URL error (non-fatal):`, urlErr);
-      }
+      console.log(`[qwen-tv][${requestId}] Background: Identifying speakers from dialogue context...`);
 
-      const speakerIdPrompt = `Analiza ${firstChunkUrl ? 'este video y ' : ''}la transcripción para identificar cada hablante (SPEAKER A, SPEAKER B, etc.) por nombre y rol.
+      const speakerIdPrompt = `Analiza la transcripción para identificar cada hablante (SPEAKER A, SPEAKER B, etc.) por nombre y rol.
 
-IDENTIFICACIÓN VISUAL (PRIORIDAD):
-✓ LEE los "lower thirds" (subtítulos con nombres en la parte inferior de la pantalla)
-✓ LEE las tarjetas gráficas, chyrons y banners con nombres que aparezcan en pantalla
-✓ IDENTIFICA logos de TV y canales para contexto
-✓ RECONOCE personalidades conocidas de noticias de Puerto Rico (Silverio Pérez, Ada Monzón, Normando Valentín, Celimar Adames, Jorge Seijo, Aixa Vázquez, etc.)
-✓ DISTINGUE por vestimenta, ubicación (estudio vs campo), y rol visible
-
-IDENTIFICACIÓN POR DIÁLOGO:
+IDENTIFICACIÓN POR DIÁLOGO (busca estas pistas):
 - Auto-presentaciones ("Les saluda...", "Soy...", "Mi nombre es...")
 - Menciones por otros ("pasamos con Tom Bryant", "nuestra compañera Aixa Vázquez", "Doctor García")
 - Indicadores de rol ("reportera", "doctor", "presentador", "senador")
 - Contenido contextual (quien introduce segmentos = presentador/ancla, quien reporta desde campo = reportero, quien responde preguntas = invitado/entrevistado)
 - Marcas o productos (quien habla de un producto específico en tono comercial = narrador de anuncio)
 
-REGLA IMPORTANTE: Si NO puedes identificar el nombre de un hablante, usa un descriptor visual o de rol en español:
+PERSONALIDADES CONOCIDAS DE NOTICIAS DE PUERTO RICO:
+Silverio Pérez, Ada Monzón, Normando Valentín, Celimar Adames, Jorge Seijo, Aixa Vázquez, Tom Bryant, Julio Rivera Saniel, etc.
+
+REGLA IMPORTANTE: Si NO puedes identificar el nombre de un hablante, usa un descriptor de rol en español:
 - "Presentador principal" / "Hombre ancla" / "Mujer ancla"
 - "Co-presentador/a"
 - "Reportero/a en campo"
-- "Mujer con traje rojo" / "Hombre de camisa azul" (descriptores de vestimenta)
 - "Invitado/a - Entrevistado/a"
 - "Narrador de anuncio"
 - "Voz en off masculina/femenina"
 - "Comentarista"
-NUNCA devuelvas solo la letra. Siempre devuelve nombre o descriptor de rol/apariencia.
+NUNCA devuelvas solo la letra. Siempre devuelve nombre o descriptor de rol.
 
 Responde ÚNICAMENTE con un JSON mapping:
 {"A": "Nombre - Rol", "B": "Descriptor - Rol"}
@@ -686,17 +666,11 @@ Responde ÚNICAMENTE con un JSON mapping:
 TRANSCRIPCIÓN:
 ${transcriptionText.substring(0, 15000)}`;
 
-      const speakerIdContent: any[] = [];
-      if (firstChunkUrl) {
-        speakerIdContent.push({ type: 'video_url', video_url: { url: firstChunkUrl } });
-      }
-      speakerIdContent.push({ type: 'text', text: speakerIdPrompt });
-
       const speakerIdMessages = [
-        { role: 'user', content: speakerIdContent },
+        { role: 'user', content: speakerIdPrompt },
       ];
 
-      const speakerIdResult = await callQwenStreaming(qwenApiKey, firstChunkUrl ? VISION_MODEL : TEXT_MODEL, speakerIdMessages, requestId, 'speaker-id', 2048);
+      const speakerIdResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, speakerIdMessages, requestId, 'speaker-id', 2048);
 
       if (speakerIdResult.success && speakerIdResult.data) {
         // Extract JSON from response
