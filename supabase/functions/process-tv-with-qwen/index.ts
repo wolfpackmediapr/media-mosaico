@@ -70,65 +70,133 @@ function buildAnalysisPrompt(
   transcriptionText: string,
   contextText: string = ''
 ): string {
+  // Default 16 categories (same as radio) when none provided from DB
   const categoriesText = categories.length > 0
-    ? `Categorías disponibles: ${categories.join(', ')}`
-    : 'Sin categorías específicas';
+    ? categories.join(', ')
+    : 'ENTRETENIMIENTO, EDUCACION & CULTURA, COMUNIDAD, SALUD, CRIMEN, TRIBUNALES, AMBIENTE & EL TIEMPO, ECONOMIA & NEGOCIOS, GOBIERNO, POLITICA, EE.UU. & INTERNACIONALES, DEPORTES, RELIGION, OTRAS, ACCIDENTES, CIENCIA & TECNOLOGIA';
 
+  // Client names list
   const clientsText = clients.length > 0
-    ? `Clientes relevantes: ${clients.map(c => `${c.name} (keywords: ${c.keywords?.join(', ') || 'ninguna'})`).join('; ')}`
-    : 'Sin clientes específicos';
+    ? clients.map(c => c.name).join(', ')
+    : '';
 
-  return `Eres un experto analista de contenido de televisión especializado en noticias de Puerto Rico y el Caribe.
+  // Client-keyword correlation mapping (same format as radio)
+  const clientKeywordMap = clients.length > 0
+    ? clients.map(client => {
+        const keywords = client.keywords && client.keywords.length > 0
+          ? client.keywords.join(', ')
+          : '—';
+        return `- ${client.name}: ${keywords}`;
+      }).join('\n')
+    : '';
 
-Analiza la siguiente transcripción de un programa de TV y proporciona un análisis estructurado en formato JSON.
+  let prompt = `Eres un analista experto en contenido de televisión de Puerto Rico y el Caribe. Tu tarea es analizar la siguiente transcripción de un programa de TV en español e identificar y separar el contenido publicitario del contenido regular del programa.
 
-${categoriesText}
-${clientsText}
+IMPORTANTE - FORMATO DE RESPUESTA:
+Debes identificar y separar claramente cada sección de contenido, comenzando CADA SECCIÓN con uno de estos encabezados:
 
-TRANSCRIPCIÓN:
-${transcriptionText}
+[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
+o
+[TIPO DE CONTENIDO: PROGRAMA REGULAR]
 
-${contextText ? `Contexto adicional: ${contextText}` : ''}
+IDENTIFICACIÓN DE ANUNCIOS EN TV:
+Señales clave para identificar anuncios:
+- Menciones de precios, ofertas o descuentos
+- Llamadas a la acción ("llame ahora", "visite nuestra tienda", "disponible en", etc.)
+- Información de contacto (números de teléfono, direcciones, sitios web)
+- Menciones repetidas de marcas o productos específicos
+- Lenguaje persuasivo o promocional
+- Cambios abruptos de tema (cortes comerciales)
+- Jingles, eslóganes o frases promocionales repetitivas
 
-El análisis debe incluir:
-1. **Clasificación del contenido** según las categorías disponibles
-2. **Análisis de relevancia** para los clientes mencionados
-3. **Extracción de información clave** siguiendo el método periodístico de las 5W:
-   - Quién (personas, organizaciones mencionadas)
-   - Qué (eventos, acciones, decisiones)
-   - Cuándo (fechas, tiempos, cronología)
-   - Dónde (lugares, ubicaciones)
-   - Por qué (causas, motivos, razones)
-4. **Palabras clave y temas principales**
-5. **Resumen ejecutivo**
-6. **Alertas de relevancia** para clientes específicos
+PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
+1. Marca(s) o producto(s) anunciados
+2. Mensajes clave del anuncio
+3. Llamada a la acción (si existe)
+4. Tono del anuncio
+5. Duración aproximada
 
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{
-  "categoria": "categoría principal del contenido",
-  "relevancia_clientes": [
-    {
-      "cliente": "nombre del cliente",
-      "nivel_relevancia": "alto/medio/bajo",
-      "razon": "explicación de por qué es relevante"
-    }
-  ],
-  "analisis_5w": {
-    "quien": "personas y organizaciones mencionadas",
-    "que": "eventos y acciones principales",
-    "cuando": "información temporal relevante",
-    "donde": "ubicaciones y lugares mencionados",
-    "porque": "causas y motivos identificados"
-  },
-  "palabras_clave": ["palabra1", "palabra2", "palabra3"],
-  "resumen": "resumen ejecutivo del contenido",
-  "alertas": [
-    "alerta específica para cliente 1",
-    "alerta específica para cliente 2"
-  ],
-  "puntuacion_impacto": "1-10 según el impacto noticioso",
-  "recomendaciones": ["recomendación 1", "recomendación 2"]
-}`;
+PARA CADA SECCIÓN DE PROGRAMA REGULAR:
+1. Resumen del contenido (70-100 oraciones)
+   - Incluir desarrollo cronológico de los temas
+   - Destacar citas textuales relevantes con los nombres de quienes las dijeron
+   - Mencionar interacciones entre participantes
+   - Identificación de los participantes en la conversación (cuántos hablantes participan y sus roles o nombres)
+   - Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de "SPEAKER A" o "SPEAKER B"
+
+2. Temas principales tratados
+   - Listar temas por orden de importancia
+   - Incluir subtemas relacionados
+   - Señalar conexiones entre temas si existen
+
+3. Tono del contenido
+   - Estilo de la presentación (formal/informal)
+   - Tipo de lenguaje utilizado
+   - Enfoque del contenido (informativo/editorial/debate/entrevista/reportaje)
+
+4. Categorías aplicables de: ${categoriesText}
+   - Justificar la selección de cada categoría
+   - Indicar categoría principal y secundarias
+
+5. Análisis 5W (Método periodístico):
+   - QUIÉN: Personas, organizaciones, instituciones mencionadas (con nombres completos y cargos si están disponibles)
+   - QUÉ: Eventos, acciones, decisiones principales
+   - CUÁNDO: Fechas, tiempos, cronología de los eventos
+   - DÓNDE: Lugares, ubicaciones geográficas (municipios, barrios, países)
+   - POR QUÉ: Causas, motivos, razones identificadas
+
+6. Palabras clave: Las 10-15 palabras o frases más relevantes del contenido
+
+7. Puntuación de impacto noticioso: Del 1 al 10, con justificación
+
+8. Alertas y recomendaciones: Situaciones de alto impacto o urgencia que requieran atención inmediata`;
+
+  // Add clients section if available
+  if (clientsText) {
+    prompt += `
+
+9. Presencia de personas o entidades relevantes mencionadas
+10. Clientes relevantes que podrían estar interesados en este contenido. Lista de clientes disponibles: ${clientsText}`;
+  } else {
+    prompt += `
+
+9. Presencia de personas o entidades relevantes mencionadas`;
+  }
+
+  // Add keyword mapping if available
+  if (clientKeywordMap) {
+    prompt += `
+11. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
+${clientKeywordMap}
+
+Responde en español de manera concisa y profesional. Asegúrate de:
+1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
+2. Si es un anuncio, enfatizar las marcas, productos y llamadas a la acción
+3. Si es contenido regular, mantener el formato de análisis detallado con TODOS los puntos mencionados
+4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
+5. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas
+6. Proporcionar citas textuales exactas de la transcripción para respaldar el análisis`;
+  } else {
+    prompt += `
+
+Responde en español de manera concisa y profesional, comenzando SIEMPRE con el encabezado del tipo de contenido identificado en mayúsculas. Utiliza los nombres específicos de los hablantes cuando estén disponibles. Incluye citas textuales exactas de la transcripción.`;
+  }
+
+  // Add additional context
+  if (contextText) {
+    prompt += `\n\nContexto adicional: ${contextText}`;
+  }
+
+  // Append the transcription
+  prompt += `
+
+═══════════════════════════════════════════════════════════════
+TRANSCRIPCIÓN A ANALIZAR:
+═══════════════════════════════════════════════════════════════
+
+${transcriptionText}`;
+
+  return prompt;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -140,7 +208,8 @@ async function callQwenStreaming(
   model: string,
   messages: any[],
   requestId: string,
-  stage: string
+  stage: string,
+  maxTokens: number = 16384
 ): Promise<{ success: boolean; data?: string; error?: string; statusCode?: number }> {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`[qwen-tv][${requestId}] ${stage} attempt ${attempt}/${MAX_RETRIES} with model ${model}`);
@@ -159,7 +228,7 @@ async function callQwenStreaming(
           stream: true,
           stream_options: { include_usage: true },
           temperature: 0.1,
-          max_tokens: 16384,
+          max_tokens: maxTokens,
         }),
       });
 
@@ -436,6 +505,63 @@ async function transcribeWithAssemblyAI(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Extract structured DB fields from free-text analysis output
+// ═══════════════════════════════════════════════════════════════════════
+
+function extractAnalysisFieldsFromText(text: string, payload: any): void {
+  if (!text || text.startsWith('Error en análisis')) return;
+
+  // Extract 5W fields using common patterns
+  const extract5W = (label: string): string | undefined => {
+    const patterns = [
+      new RegExp(`${label}[:\\s]*([^\\n]+(?:\\n(?![A-ZÁÉÍÓÚÑÜ]{3,})[^\\n]+)*)`, 'i'),
+      new RegExp(`\\*\\*${label}\\*\\*[:\\s]*([^\\n]+)`, 'i'),
+    ];
+    for (const p of patterns) {
+      const m = text.match(p);
+      if (m) return m[1].trim().replace(/^\*\*|\*\*$/g, '');
+    }
+    return undefined;
+  };
+
+  const quien = extract5W('QUI[EÉ]N');
+  const que = extract5W('QU[EÉ]');
+  const cuando = extract5W('CU[AÁ]NDO');
+  const donde = extract5W('D[OÓ]NDE');
+  const porque = extract5W('POR QU[EÉ]');
+
+  if (quien) payload.analysis_quien = quien;
+  if (que) payload.analysis_que = que;
+  if (cuando) payload.analysis_cuando = cuando;
+  if (donde) payload.analysis_donde = donde;
+  if (porque) payload.analysis_porque = porque;
+
+  // Extract summary — look for "Resumen" section
+  const resumenMatch = text.match(/(?:Resumen|RESUMEN)[^:]*:?\s*\n([\s\S]*?)(?=\n(?:\d+\.|Temas|TEMAS|Tono|TONO|Categor|CATEGOR|An[aá]lisis|ANÁLISIS|Palabras|PALABRAS|Puntuaci|PUNTUACI|Alertas|ALERTAS|\[TIPO))/i);
+  if (resumenMatch) {
+    const summary = resumenMatch[1].trim().substring(0, 2000);
+    payload.summary = summary;
+    payload.analysis_summary = summary;
+  }
+
+  // Extract category
+  const catMatch = text.match(/Categor[ií]a(?:s)?\s+(?:principal|aplicable)[^:]*:\s*([^\n]+)/i);
+  if (catMatch) {
+    payload.analysis_category = catMatch[1].trim().replace(/^\*\*|\*\*$/g, '');
+  }
+
+  // Extract keywords
+  const kwMatch = text.match(/Palabras\s+clave[^:]*:\s*([^\n]+)/i);
+  if (kwMatch) {
+    const kws = kwMatch[1].split(/[,;]/).map((k: string) => k.trim().replace(/^[-•]\s*/, '')).filter(Boolean);
+    if (kws.length > 0) {
+      payload.analysis_keywords = kws;
+      payload.keywords = kws;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Background processor for chunked videos (runs via EdgeRuntime.waitUntil)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -501,74 +627,38 @@ async function processChunkedInBackground(
       { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
     ];
 
-    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'bg-analysis');
+    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'bg-analysis', 32768);
 
     if (!analysisResult.success) {
       console.warn(`[qwen-tv][${requestId}] Background: Primary model failed, falling back`);
-      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'bg-analysis-fallback');
+      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'bg-analysis-fallback', 32768);
     }
 
-    let parsedAnalysis: any = null;
+    let analysisText = '';
     let providerUsed = 'assemblyai+qwen-text';
     let fallbackReason: string | null = null;
 
     if (analysisResult.success) {
-      try {
-        const rawText = analysisResult.data!;
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsedAnalysis = JSON.parse(jsonMatch[0]);
-          console.log(`[qwen-tv][${requestId}] Background: Analysis JSON parsed successfully`);
-        } else {
-          parsedAnalysis = { raw_analysis: rawText, parsed: false };
-        }
-      } catch {
-        parsedAnalysis = { raw_analysis: analysisResult.data, parsed: false };
-      }
+      analysisText = analysisResult.data!;
+      console.log(`[qwen-tv][${requestId}] Background: Analysis complete, ${analysisText.length} chars`);
     } else {
       fallbackReason = `Analysis: ${analysisResult.error}`;
-      parsedAnalysis = { error: analysisResult.error, parsed: false };
+      analysisText = `Error en análisis: ${analysisResult.error}`;
     }
 
-    // 5. Write final results
+    // 5. Write final results — store analysis as raw text (not JSON)
     const updatePayload: any = {
       status: 'completed',
       progress: 100,
       transcription_text: transcriptionText,
-      full_analysis: JSON.stringify(parsedAnalysis),
+      full_analysis: analysisText,
       provider_used: providerUsed,
       provider_fallback_reason: fallbackReason,
       updated_at: new Date().toISOString(),
     };
 
-    if (parsedAnalysis?.analisis_5w) {
-      updatePayload.analysis_quien = parsedAnalysis.analisis_5w.quien;
-      updatePayload.analysis_que = parsedAnalysis.analisis_5w.que;
-      updatePayload.analysis_cuando = parsedAnalysis.analisis_5w.cuando;
-      updatePayload.analysis_donde = parsedAnalysis.analisis_5w.donde;
-      updatePayload.analysis_porque = parsedAnalysis.analisis_5w.porque;
-    }
-    if (parsedAnalysis?.resumen) {
-      updatePayload.summary = parsedAnalysis.resumen;
-      updatePayload.analysis_summary = parsedAnalysis.resumen;
-    }
-    if (parsedAnalysis?.categoria) {
-      updatePayload.analysis_category = parsedAnalysis.categoria;
-    }
-    if (parsedAnalysis?.palabras_clave) {
-      updatePayload.analysis_keywords = parsedAnalysis.palabras_clave;
-      updatePayload.keywords = parsedAnalysis.palabras_clave;
-    }
-    if (parsedAnalysis?.relevancia_clientes) {
-      updatePayload.analysis_client_relevance = parsedAnalysis.relevancia_clientes;
-      const clientNames = parsedAnalysis.relevancia_clientes
-        .filter((c: any) => c.nivel_relevancia === 'alto' || c.nivel_relevancia === 'medio')
-        .map((c: any) => c.cliente);
-      if (clientNames.length > 0) updatePayload.relevant_clients = clientNames;
-    }
-    if (parsedAnalysis?.alertas) {
-      updatePayload.analysis_alerts = parsedAnalysis.alertas;
-    }
+    // Extract structured fields from text using regex
+    extractAnalysisFieldsFromText(analysisText, updatePayload);
 
     const { error: updateError } = await supabaseClient
       .from('tv_transcriptions')
@@ -787,30 +877,20 @@ serve(async (req) => {
       { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
     ];
 
-    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'analysis');
+    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'analysis', 32768);
 
     if (!analysisResult.success) {
       console.warn(`[qwen-tv][${requestId}] Primary text model failed for analysis, falling back`);
       if (!fallbackReason) fallbackReason = `Analysis: ${analysisResult.error}`;
-      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'analysis-fallback');
+      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'analysis-fallback', 32768);
     }
 
-    let parsedAnalysis: any = null;
+    let analysisText = '';
     if (analysisResult.success) {
-      try {
-        const rawText = analysisResult.data!;
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsedAnalysis = JSON.parse(jsonMatch[0]);
-          console.log(`[qwen-tv][${requestId}] Analysis JSON parsed successfully`);
-        } else {
-          parsedAnalysis = { raw_analysis: rawText, parsed: false };
-        }
-      } catch {
-        parsedAnalysis = { raw_analysis: analysisResult.data, parsed: false };
-      }
+      analysisText = analysisResult.data!;
+      console.log(`[qwen-tv][${requestId}] Analysis complete, ${analysisText.length} chars`);
     } else {
-      parsedAnalysis = { error: analysisResult.error, parsed: false };
+      analysisText = `Error en análisis: ${analysisResult.error}`;
     }
 
     // ── Write results to DB ──
@@ -819,40 +899,14 @@ serve(async (req) => {
         status: 'completed',
         progress: 100,
         transcription_text: transcriptionText,
-        full_analysis: JSON.stringify(parsedAnalysis),
+        full_analysis: analysisText,
         provider_used: providerUsed,
         provider_fallback_reason: fallbackReason,
         updated_at: new Date().toISOString(),
       };
 
-      if (parsedAnalysis?.analisis_5w) {
-        updatePayload.analysis_quien = parsedAnalysis.analisis_5w.quien;
-        updatePayload.analysis_que = parsedAnalysis.analisis_5w.que;
-        updatePayload.analysis_cuando = parsedAnalysis.analisis_5w.cuando;
-        updatePayload.analysis_donde = parsedAnalysis.analisis_5w.donde;
-        updatePayload.analysis_porque = parsedAnalysis.analisis_5w.porque;
-      }
-      if (parsedAnalysis?.resumen) {
-        updatePayload.summary = parsedAnalysis.resumen;
-        updatePayload.analysis_summary = parsedAnalysis.resumen;
-      }
-      if (parsedAnalysis?.categoria) {
-        updatePayload.analysis_category = parsedAnalysis.categoria;
-      }
-      if (parsedAnalysis?.palabras_clave) {
-        updatePayload.analysis_keywords = parsedAnalysis.palabras_clave;
-        updatePayload.keywords = parsedAnalysis.palabras_clave;
-      }
-      if (parsedAnalysis?.relevancia_clientes) {
-        updatePayload.analysis_client_relevance = parsedAnalysis.relevancia_clientes;
-        const clientNames = parsedAnalysis.relevancia_clientes
-          .filter((c: any) => c.nivel_relevancia === 'alto' || c.nivel_relevancia === 'medio')
-          .map((c: any) => c.cliente);
-        if (clientNames.length > 0) updatePayload.relevant_clients = clientNames;
-      }
-      if (parsedAnalysis?.alertas) {
-        updatePayload.analysis_alerts = parsedAnalysis.alertas;
-      }
+      // Extract structured fields from text using regex
+      extractAnalysisFieldsFromText(analysisText, updatePayload);
 
       const { error: updateError } = await supabaseClient
         .from('tv_transcriptions')
@@ -872,7 +926,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         transcription: transcriptionText,
-        analysis: parsedAnalysis,
+        analysis: analysisText,
         provider_used: providerUsed,
         fallback_reason: fallbackReason,
       }),
