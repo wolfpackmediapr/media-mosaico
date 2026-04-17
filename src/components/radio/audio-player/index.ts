@@ -1,4 +1,4 @@
 
-// Don't export from './index.tsx' as this causes a circular import
-export { AudioPlayer } from './AudioPlayer';
+// Re-export from index.tsx (the implementation file)
+export { AudioPlayer } from './index.tsx';
 export type { AudioPlayerProps } from './types';
