@@ -1,27 +1,36 @@
 
-User wants to revert `analyze-radio-content` back to using OpenAI directly (as it was before the recent migration to Lovable AI Gateway).
+## Issue
 
-## Plan: Revert Radio Analysis to OpenAI Only
+I edited the wrong component. The player visible on the Radio page (the green card with "Radio Transcription" subtitle and tracklist below) is `MusicCard` rendered by `MediaControls.tsx`. The `AudioPlayer` I added sticky mode to is a different, secondary component used inside `AudioFileItem`.
 
-**File**: `supabase/functions/analyze-radio-content/index.ts`
+## Plan: Add floating/PiP mode to MusicCard (the actual visible player)
 
-Remove the Lovable AI Gateway logic and fallback wrapper. Restore direct OpenAI call as the sole provider.
+### File: `src/components/radio/MediaControls.tsx`
 
-### Changes
-- Remove `callLovableAI` function and the provider-selection block
-- Keep only `callOpenAI` logic, called directly
-- Keep the `max_tokens: 1500` improvement (helpful regardless of provider)
-- Keep `model: 'gpt-4o-mini'`, `temperature: 0.3`
-- Throw clear error if `OPENAI_API_KEY` is missing
-- Remove `lovableKey` references
+Wrap the `<MusicCard>` in a div that uses `useStickyState`, and pass a toggle button into MusicCard (or render the button as an overlay on the wrapper).
 
-### Resulting flow
+Cleanest approach: handle sticky entirely in `MediaControls.tsx` — wrapper div + floating toggle button in the corner — without modifying `MusicCard` internals.
+
 ```text
-request → build prompt → call OpenAI (gpt-4o-mini) → return analysis
+<div ref={stickyRef} className={cn(
+  "relative transition-all",
+  isSticky && "fixed bottom-4 right-4 w-[26rem] max-w-[calc(100vw-2rem)] z-50 shadow-2xl"
+)}>
+  <Button onClick={toggleSticky} className="absolute top-2 right-2 z-10" />
+  <MusicCard ... />
+</div>
 ```
 
+- Persist key: `radio-musiccard-sticky`, sessionStorage
+- Icons: `PictureInPicture2` (expand) / `Minimize2` (restore)
+- When sticky: fixed bottom-right, ~26rem wide, drop shadow, backdrop blur, z-50
+- Tracklist (`TrackList.tsx`) stays in normal flow so user can keep scrolling and click tracks; clicked track loads into the floating player
+
+### Cleanup
+
+Revert the sticky changes in `src/components/radio/audio-player/index.tsx` since that component isn't the main player. Keep the file functional but remove the toggle/wrapper — back to original layout.
+
 ### Scope
-- One file, ~40 lines removed
-- Redeploy `analyze-radio-content`
-- No frontend, DB, or other function changes
-- TV pipeline untouched
+- 2 files modified (`MediaControls.tsx` add sticky; `audio-player/index.tsx` revert)
+- No backend, no MusicCard internal changes
+- Reuses existing `useStickyState` hook
