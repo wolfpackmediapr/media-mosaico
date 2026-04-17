@@ -38,17 +38,17 @@ const MediaControls = ({
     storage: 'sessionStorage'
   });
 
-  if (!currentFile) return null;
-
-  // Using the Publimedia green color (#66cc00)
-  const publimediaGreen = "#66cc00";
-
   // Create a memoized wrapper for playback rate change to handle cycling through rates
   const handlePlaybackRateChange = useCallback(() => {
     // Calculate next rate (0.5 -> 1.0 -> 1.5 -> 2.0 -> 0.5)
     const nextRate = playbackRate >= 2 ? 0.5 : playbackRate + 0.5;
     onPlaybackRateChange(nextRate);
   }, [playbackRate, onPlaybackRateChange]);
+
+  if (!currentFile) return null;
+
+  // Using the Publimedia green color (#66cc00)
+  const publimediaGreen = "#66cc00";
 
   return (
     <div
