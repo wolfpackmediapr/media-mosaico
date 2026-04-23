@@ -55,6 +55,12 @@ REGLAS DE TRANSCRIPCIÓN:
 ✓ NO resumas NI parafrasees - transcribe EXACTAMENTE lo que escuchas
 ✓ NO incluyas análisis, opiniones ni interpretaciones
 
+REGLA CRÍTICA DE CONTINUIDAD DE HABLANTES:
+✓ Si un hablante que YA identificaste (ej: SPEAKER 1) vuelve a hablar DESPUÉS de otro hablante (SPEAKER 2), DEBES seguir usando SPEAKER 1
+✓ NUNCA incrementes el número para el mismo hablante
+✓ Si no estás seguro si es el mismo hablante o uno nuevo, usa el número anterior (mejor reutilizar que crear incorrecto)
+✓ Verifica visualmente: ¿es la misma persona en pantalla? ¿mismo rol? ¿mismo nombre en lower-third?
+
 NORMALIZACIÓN DE CANALES DE TV DE PUERTO RICO:
 Al transcribir, usa SIEMPRE los nombres oficiales de los canales de televisión puertorriqueños aunque la pronunciación sea fonética o coloquial:
 - "Guapa TV" o "Guapa" → "WAPA TV" (Canal 4). La W en Puerto Rico puede sonar como "doble u", no "doble b".
@@ -128,13 +134,32 @@ PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
 4. Tono del anuncio
 5. Duración aproximada
 
-PARA CADA SECCIÓN DE PROGRAMA REGULAR:
-1. Resumen del contenido (70-100 oraciones)
-   - Incluir desarrollo cronológico de los temas
-   - Destacar citas textuales relevantes con los nombres de quienes las dijeron
-   - Mencionar interacciones entre participantes
-   - Identificación de los participantes en la conversación (cuántos hablantes participan y sus roles o nombres)
-   - Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de "SPEAKER A" o "SPEAKER B"
+IDENTIFICACIÓN DE NOTICIAS INDIVIDUALES:
+Primero, identifica cada NOTICIA INDIVIDUAL dentro del programa. Un noticiero típico contiene 8-15 noticias separadas por transiciones visuales (cambios de escena, gráficos, cortes comerciales breves).
+
+Para CADA NOTICIA INDIVIDUAL, crea una sección separada con este formato:
+
+[NOTICIA 1]
+Título: [Título conciso de la noticia]
+Resumen: [10-15 oraciones con los puntos clave]
+Participantes: [Nombres de hablantes en esta noticia específica]
+
+[NOTICIA 2]
+Título: [Título conciso de la noticia]
+Resumen: [10-15 oraciones con los puntos clave]
+Participantes: [Nombres de hablantes en esta noticia específica]
+
+[NOTICIA N]...
+
+PARA CADA NOTICIA INDIVIDUAL incluye también:
+1. Temas principales tratados en ESA noticia
+2. Tono del contenido de ESA noticia
+3. Categorías aplicables de: ${categoriesText}
+4. Análisis 5W específico de ESA noticia
+5. Palabras clave de ESA noticia
+6. Puntuación de impacto noticioso (1-10) de ESA noticia
+
+NOTA: NO repitas citas textuales completas de la transcripción en el análisis. Resume los puntos clave.
 
 2. Temas principales tratados
    - Listar temas por orden de importancia

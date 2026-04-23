@@ -1,0 +1,22 @@
+
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, x-content-type',
+};
+
+const QWEN_API_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
+const PRIMARY_MODEL = 'qwen3.5-omni-plus';
+const FALLBACK_MODEL = 'qwen3.5-omni-flash';
+const TEXT_MODEL = 'qwen-plus';        // For text-only analysis (Omni models require media input)
+const VISION_MODEL = 'qwen-vl-max';   // For vision tasks (video/image understanding)
+const TEXT_MODEL_FALLBACK = 'qwen-turbo'; // Fallback for text-only analysis
+const MAX_RETRIES = 3;
+
+const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
+
+// NOTE: This is a partial reconstruction from the live deployed code
+// Retrieved from Supabase on 2026-04-22

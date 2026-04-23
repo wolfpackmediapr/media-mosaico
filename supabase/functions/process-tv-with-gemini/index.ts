@@ -87,19 +87,26 @@ Tu tarea es analizar ${hasTranscription ? 'la transcripción de un programa de T
 ${categoriesText}
 ${clientsText}
 
+IDENTIFICACIÓN DE NOTICIAS INDIVIDUALES:
+Primero, identifica cada NOTICIA INDIVIDUAL dentro del programa. Un noticiero típico contiene 8-15 noticias separadas por transiciones visuales (cambios de escena, gráficos, cortes comerciales breves).
+
+Para CADA NOTICIA INDIVIDUAL, proporciona:
+- titulo_noticia: "Título conciso de la noticia"
+- resumen_noticia: "10-15 oraciones con puntos clave"
+- participantes: ["nombre1", "nombre2"]
+- analisis_5w_noticia: { quien, que, cuando, donde, porque }
+- palabras_clave_noticia: ["palabra1", "palabra2"]
+- puntuacion_impacto: "1-10"
+
+NOTA: NO repitas citas textuales completas de la transcripción en el análisis. Resume los puntos clave en tus propias palabras.
+
 Genera un análisis completo que incluya:
 
-1. **Clasificación del contenido** según las categorías disponibles
-2. **Análisis de relevancia** para los clientes mencionados
-3. **Extracción de información clave** siguiendo el método periodístico de las 5W:
-   - Quién (personas, organizaciones mencionadas)
-   - Qué (eventos, acciones, decisiones)
-   - Cuándo (fechas, tiempos, cronología)
-   - Dónde (lugares, ubicaciones)
-   - Por qué (causas, motivos, razones)
-
-4. **Palabras clave y temas principales**
-5. **Resumen ejecutivo**
+1. **Noticias individuales** — Array de noticias identificadas (ver estructura arriba)
+2. **Clasificación del contenido** según las categorías disponibles
+3. **Análisis de relevancia** para los clientes mencionados
+4. **Palabras clave y temas principales** (globales del programa)
+5. **Resumen ejecutivo** (resumen de TODAS las noticias, no una sola)
 6. **Alertas de relevancia** para clientes específicos
 
 RESPONDE ÚNICAMENTE EN ESPAÑOL CON ESTA ESTRUCTURA JSON EXACTA (usa estos nombres de campo exactamente):
@@ -120,7 +127,23 @@ RESPONDE ÚNICAMENTE EN ESPAÑOL CON ESTA ESTRUCTURA JSON EXACTA (usa estos nomb
     "porque": "causas y motivos identificados"
   },
   "palabras_clave": ["palabra1", "palabra2", "palabra3"],
-  "resumen": "resumen ejecutivo del contenido",
+  "noticias": [
+    {
+      "titulo_noticia": "Título de la noticia 1",
+      "resumen_noticia": "10-15 oraciones con puntos clave de esta noticia",
+      "participantes": ["nombre1", "nombre2"],
+      "analisis_5w_noticia": {
+        "quien": "personas y organizaciones mencionadas en esta noticia",
+        "que": "eventos y acciones principales de esta noticia",
+        "cuando": "información temporal relevante de esta noticia",
+        "donde": "ubicaciones y lugares mencionados en esta noticia",
+        "porque": "causas, motivos, razones de esta noticia"
+      },
+      "palabras_clave_noticia": ["palabra1", "palabra2"],
+      "puntuacion_impacto_noticia": "1-10"
+    }
+  ],
+  "resumen": "resumen ejecutivo de TODAS las noticias",
   "alertas": [
     "alerta específica para cliente 1",
     "alerta específica para cliente 2"
@@ -168,6 +191,12 @@ REGLAS DE TRANSCRIPCIÓN:
 ✓ Incluye eventos importantes como [aplausos], [risas], [música]
 ✓ NO resumas NI parafrasees - transcribe EXACTAMENTE lo que escuchas
 ✓ NO incluyas análisis, opiniones ni interpretaciones
+
+REGLA CRÍTICA DE CONTINUIDAD DE HABLANTES:
+✓ Si un hablante que YA identificaste (ej: SPEAKER 1) vuelve a hablar DESPUÉS de otro hablante (SPEAKER 2), DEBES seguir usando SPEAKER 1
+✓ NUNCA incrementes el número para el mismo hablante
+✓ Si no estás seguro si es el mismo hablante o uno nuevo, usa el número anterior (mejor reutilizar que crear incorrecto)
+✓ Verifica visualmente: ¿es la misma persona en pantalla? ¿mismo rol? ¿mismo nombre en lower-third?
 
 FORMATO DE SALIDA:
 Responde ÚNICAMENTE con la transcripción en el formato SPEAKER X: texto
