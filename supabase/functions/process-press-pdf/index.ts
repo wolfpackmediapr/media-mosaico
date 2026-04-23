@@ -876,22 +876,23 @@ function identifyClientRelevance(clipping: any): string[] {
   
   // Check if the clipping category matches any client category
   for (const [category, clients] of Object.entries(cachedClientsData?.clientsByCategory || {})) {
+    const clientList = clients as ClientData[];
     // Direct category match
     if (clipping.category.includes(category)) {
-      relevantClients.push(...clients as string[]);
+      relevantClients.push(...clientList.map(c => c.name));
       continue;
     }
     
     // Keyword matches
     if (clipping.keywords && Array.isArray(clipping.keywords)) {
       const keywordMatches = clipping.keywords.some((keyword: string) => 
-        (clients as string[]).some(client => 
-          keyword.toLowerCase().includes(client.toLowerCase())
+        clientList.some(client => 
+          keyword.toLowerCase().includes(client.name.toLowerCase())
         )
       );
       
       if (keywordMatches) {
-        relevantClients.push(...clients as string[]);
+        relevantClients.push(...clientList.map(c => c.name));
       }
     }
   }
