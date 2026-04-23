@@ -98,7 +98,7 @@ Para CADA NOTICIA INDIVIDUAL, proporciona:
 - palabras_clave_noticia: ["palabra1", "palabra2"]
 - puntuacion_impacto: "1-10"
 
-NOTA: NO repitas citas textuales completas de la transcripción en el análisis. Resume los puntos clave en tus propias palabras.
+NOTA SOBRE CITAS: En los campos de resumen ("resumen", "resumen_noticia"), parafrasea — no copies texto literal de la transcripción. Las citas textuales BREVES (máx. 1-2 oraciones) son aceptables solo dentro de "relevancia_clientes[].razon" cuando justifiquen la relevancia.
 
 Genera un análisis completo que incluya:
 
