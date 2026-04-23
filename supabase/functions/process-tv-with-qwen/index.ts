@@ -159,9 +159,9 @@ PARA CADA NOTICIA INDIVIDUAL incluye también:
 5. Palabras clave de ESA noticia
 6. Puntuación de impacto noticioso (1-10) de ESA noticia
 
-NOTA: NO repitas citas textuales completas de la transcripción en el análisis. Resume los puntos clave.
+NOTA SOBRE CITAS: Usa citas textuales BREVES (máx. 1-2 oraciones) SOLO donde se requieran explícitamente (sección de Relevancia para Clientes). En el resumen y análisis general, parafrasea en tus propias palabras — NO copies párrafos completos de la transcripción.
 
-2. Temas principales tratados
+2. Temas principales tratados (globales del programa)
    - Listar temas por orden de importancia
    - Incluir subtemas relacionados
    - Señalar conexiones entre temas si existen
@@ -239,7 +239,7 @@ Responde en español de manera concisa y profesional. Asegúrate de:
 3. Si es contenido regular, mantener el formato de análisis detallado con TODOS los puntos mencionados
 4. Incluir las palabras textuales que justifiquen las asociaciones con clientes o palabras clave
 5. Utilizar los nombres específicos de los hablantes cuando estén disponibles en lugar de referencias genéricas
-6. Proporcionar citas textuales exactas de la transcripción para respaldar el análisis
+6. Usar citas textuales BREVES (1-2 oraciones máx.) únicamente donde se requieran (relevancia de clientes); en otras secciones, parafrasear
 7. Incluir la sección de Relevancia para Clientes SOLO con los clientes relevantes (omitir los no relevantes)`;
 
   // Add additional context
