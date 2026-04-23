@@ -1,36 +1,49 @@
 
-## Issue
 
-I edited the wrong component. The player visible on the Radio page (the green card with "Radio Transcription" subtitle and tracklist below) is `MusicCard` rendered by `MediaControls.tsx`. The `AudioPlayer` I added sticky mode to is a different, secondary component used inside `AudioFileItem`.
+## Fix: Build error in `process-press-pdf/index.ts`
 
-## Plan: Add floating/PiP mode to MusicCard (the actual visible player)
+The function `identifyClientRelevance` casts `clients` to `string[]`, but `cachedClientsData.clientsByCategory` actually stores `ClientData[]` (objects with `name`, `category`, `keywords`). TypeScript correctly rejects the cast.
 
-### File: `src/components/radio/MediaControls.tsx`
+### File: `supabase/functions/process-press-pdf/index.ts` (lines 874–901)
 
-Wrap the `<MusicCard>` in a div that uses `useStickyState`, and pass a toggle button into MusicCard (or render the button as an overlay on the wrapper).
+Replace the three `as string[]` casts with proper handling of `ClientData[]`:
 
-Cleanest approach: handle sticky entirely in `MediaControls.tsx` — wrapper div + floating toggle button in the corner — without modifying `MusicCard` internals.
+- Map clients to their `.name` when pushing into `relevantClients` (a `string[]`).
+- Iterate `ClientData` objects directly when keyword-matching, comparing `keyword` against `client.name`.
 
-```text
-<div ref={stickyRef} className={cn(
-  "relative transition-all",
-  isSticky && "fixed bottom-4 right-4 w-[26rem] max-w-[calc(100vw-2rem)] z-50 shadow-2xl"
-)}>
-  <Button onClick={toggleSticky} className="absolute top-2 right-2 z-10" />
-  <MusicCard ... />
-</div>
+### Resulting logic
+```ts
+function identifyClientRelevance(clipping: any): string[] {
+  const relevantClients: string[] = [];
+
+  for (const [category, clients] of Object.entries(cachedClientsData?.clientsByCategory || {})) {
+    const clientList = clients as ClientData[];
+
+    if (clipping.category.includes(category)) {
+      relevantClients.push(...clientList.map(c => c.name));
+      continue;
+    }
+
+    if (clipping.keywords && Array.isArray(clipping.keywords)) {
+      const keywordMatches = clipping.keywords.some((keyword: string) =>
+        clientList.some(client =>
+          keyword.toLowerCase().includes(client.name.toLowerCase())
+        )
+      );
+
+      if (keywordMatches) {
+        relevantClients.push(...clientList.map(c => c.name));
+      }
+    }
+  }
+
+  return [...new Set(relevantClients)];
+}
 ```
 
-- Persist key: `radio-musiccard-sticky`, sessionStorage
-- Icons: `PictureInPicture2` (expand) / `Minimize2` (restore)
-- When sticky: fixed bottom-right, ~26rem wide, drop shadow, backdrop blur, z-50
-- Tracklist (`TrackList.tsx`) stays in normal flow so user can keep scrolling and click tracks; clicked track loads into the floating player
-
-### Cleanup
-
-Revert the sticky changes in `src/components/radio/audio-player/index.tsx` since that component isn't the main player. Keep the file functional but remove the toggle/wrapper — back to original layout.
-
 ### Scope
-- 2 files modified (`MediaControls.tsx` add sticky; `audio-player/index.tsx` revert)
-- No backend, no MusicCard internal changes
-- Reuses existing `useStickyState` hook
+- 1 file, ~10 lines changed inside one function
+- No behavior change beyond fixing the type and correctly comparing against client `name`
+- Resolves all 3 TS2352 errors blocking edge function type-checking
+- No DB, frontend, or other function changes
+
