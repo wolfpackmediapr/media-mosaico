@@ -302,7 +302,7 @@ const RadioAnalysis = ({
           isAnalyzing={isAnalyzing}
           hasTranscriptionText={hasTranscriptionText && !isDataLoading && !speakerLabelsLoading}
           onAnalyzeContent={analyzeContent}
-          showSegmentGeneration={true}
+          showSegmentGeneration={false}
           canGenerateSegments={!!(transcriptionText || transcriptionResult)}
           onGenerateSegments={generateImprovedSegments}
         />

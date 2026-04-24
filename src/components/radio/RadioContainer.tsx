@@ -7,7 +7,6 @@ import {
   RightSection, 
   TranscriptionSection,
   AnalysisSection,
-  NewsSegmentsSection,
   NotePadSection 
 } from "./containers";
 import { useRadioClearState } from "@/hooks/radio/useRadioClearState";
@@ -196,15 +195,6 @@ const RadioContainer = ({
             transcriptionResult={state.transcriptionResult}
             handleSegmentsReceived={state.handleSegmentsReceived}
             onClearAnalysis={setClearAnalysis}
-            lastAction={state.lastAction} // Pass lastAction to help components detect clears
-          />
-        }
-        newsSegmentsSection={
-          <NewsSegmentsSection
-            newsSegments={state.newsSegments}
-            setNewsSegments={state.setNewsSegments}
-            handleSeekToSegment={state.handleSeekToSegment}
-            isProcessing={state.isProcessing}
             lastAction={state.lastAction} // Pass lastAction to help components detect clears
           />
         }
