@@ -815,97 +815,11 @@ async function processChunkedInBackground(
     //   2) chunk_0000 is a 15MB byte slice without valid MP4 headers
     // We now use text-only dialogue analysis (self-introductions, mentions by name,
     // role indicators) which is reliable and 0-extra-cost (qwen-plus is cheap).
-    let speakerIdStatus: 'success' | 'failed' | 'skipped' = 'skipped';
-    let speakerIdMethod: string = 'text-only';
-    let speakerIdError: string | null = null;
-    let speakersIdentified = 0;
-
-    try {
-      console.log(`[qwen-tv][${requestId}] Background: Identifying speakers from dialogue (text-only)...`);
-
-      const speakerIdPrompt = `Analiza esta transcripción de noticias de Puerto Rico e identifica cada hablante (SPEAKER A, SPEAKER B, etc.) por NOMBRE y ROL usando SOLO pistas del diálogo.
-
-PISTAS A BUSCAR:
-1. AUTO-PRESENTACIONES: "Les saluda...", "Soy...", "Mi nombre es...", "Aquí [Nombre] reportando desde..."
-2. MENCIONES POR OTROS: "pasamos con [Nombre]", "nuestra compañera [Nombre]", "Doctor [Apellido]", "Senador [Apellido]"
-3. INDICADORES DE ROL: "reportera", "doctor", "presentador", "senador", "alcalde", "comentarista", "analista"
-4. CONTEXTO CONVERSACIONAL:
-   - Quien introduce segmentos / da la bienvenida = Presentador/Ancla
-   - Quien reporta desde el lugar de los hechos = Reportero en campo
-   - Quien responde preguntas / es entrevistado = Invitado/Entrevistado
-   - Quien narra promociones de productos = Narrador de anuncio
-5. PERSONALIDADES CONOCIDAS DE NOTICIAS DE PUERTO RICO (si los nombres mencionados coinciden):
-   Silverio Pérez, Ada Monzón, Normando Valentín, Celimar Adames, Jorge Seijo,
-   Aixa Vázquez, Rafael Lenín López, Keylla Hernández, Deborah Martorell,
-   Wilson Carrasquillo, Jay Fonseca, Luis Penchi, Jorge Rivera Nieves.
-
-REGLA CRÍTICA: Si NO puedes identificar un nombre concreto, usa un descriptor de rol en español:
-- "Presentador principal" / "Mujer ancla" / "Hombre ancla"
-- "Co-presentador/a"
-- "Reportero/a en campo"
-- "Invitado/a - Entrevistado/a"
-- "Narrador de anuncio"
-- "Voz en off"
-- "Comentarista"
-NUNCA devuelvas solo la letra original. Siempre devuelve nombre real O descriptor de rol.
-
-Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdown), con este formato:
-{"A": "Nombre Apellido - Rol", "B": "Descriptor - Rol", "C": "..."}
-
-TRANSCRIPCIÓN:
-${transcriptionText.substring(0, 15000)}`;
-
-      const speakerIdMessages = [
-        { role: 'user', content: [{ type: 'text', text: speakerIdPrompt }] },
-      ];
-
-      const speakerIdResult = await callQwenStreaming(
-        qwenApiKey, TEXT_MODEL, speakerIdMessages, requestId, 'speaker-id', 2048
-      );
-
-      if (speakerIdResult.success && speakerIdResult.data) {
-        // Extract JSON from response (allow nested-free or single-level object)
-        const jsonMatch = speakerIdResult.data.match(/\{[\s\S]*?\}/);
-        if (jsonMatch) {
-          try {
-            const speakerMap = JSON.parse(jsonMatch[0]);
-            console.log(`[qwen-tv][${requestId}] Speaker map:`, JSON.stringify(speakerMap));
-
-            // Replace SPEAKER X with SPEAKER X (Name - Role) in transcription
-            for (const [letter, nameRole] of Object.entries(speakerMap)) {
-              if (nameRole && typeof nameRole === 'string' && nameRole !== letter && nameRole.trim().length > 0) {
-                const regex = new RegExp(`SPEAKER ${letter}(?!\\s*\\()`, 'g');
-                const before = transcriptionText;
-                transcriptionText = transcriptionText.replace(regex, `SPEAKER ${letter} (${nameRole})`);
-                if (before !== transcriptionText) speakersIdentified++;
-              }
-            }
-
-            if (speakersIdentified > 0) {
-              speakerIdStatus = 'success';
-              console.log(`[qwen-tv][${requestId}] Identified ${speakersIdentified} speakers`);
-            } else {
-              speakerIdStatus = 'failed';
-              speakerIdError = 'No speakers matched in transcription';
-            }
-          } catch (parseErr) {
-            speakerIdStatus = 'failed';
-            speakerIdError = `JSON parse error: ${(parseErr as Error).message}`;
-            console.warn(`[qwen-tv][${requestId}] Speaker map JSON parse failed:`, parseErr);
-          }
-        } else {
-          speakerIdStatus = 'failed';
-          speakerIdError = 'No JSON object found in model response';
-        }
-      } else {
-        speakerIdStatus = 'failed';
-        speakerIdError = speakerIdResult.error || 'Qwen call failed';
-      }
-    } catch (speakerErr) {
-      speakerIdStatus = 'failed';
-      speakerIdError = (speakerErr as Error).message;
-      console.warn(`[qwen-tv][${requestId}] Speaker identification failed (non-fatal):`, speakerErr);
-    }
+    const speakerIdOutcome = await identifySpeakersFromText(transcriptionText, qwenApiKey, requestId);
+    transcriptionText = speakerIdOutcome.text;
+    const speakerIdStatus = speakerIdOutcome.status;
+    const speakerIdMethod = speakerIdOutcome.method;
+    const speakerIdError = speakerIdOutcome.error;
 
     // Save transcription immediately
     await supabaseClient
