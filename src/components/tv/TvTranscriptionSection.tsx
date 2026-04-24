@@ -82,7 +82,7 @@ const TvTranscriptionSection = ({
       return (
         <Badge
           variant="outline"
-          className="gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400"
+          className="gap-1 border-destructive/40 text-destructive"
           title={speakerIdError || undefined}
         >
           <AlertTriangle className="h-3 w-3" />
