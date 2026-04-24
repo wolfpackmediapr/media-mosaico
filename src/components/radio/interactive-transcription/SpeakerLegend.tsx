@@ -1,7 +1,7 @@
 
 import React, { useMemo } from "react";
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
-import { getSpeakerColor } from "./utils";
+import { getSpeakerColor, formatSpeakerName } from "./utils";
 import {
   Popover,
   PopoverContent,
@@ -30,16 +30,6 @@ const SpeakerLegend: React.FC<SpeakerLegendProps> = ({ utterances, transcription
   const { getDisplayName, getCustomName, saveLabel, isSaving } = useSpeakerLabels({
     transcriptionId
   });
-
-  // Format speaker name for display (fallback)
-  const formatSpeakerName = (speaker: string | number) => {
-    if (typeof speaker === 'string') {
-      return speaker.includes('_') ? 
-        `Speaker ${speaker.split('_')[1]}` : 
-        `Speaker ${speaker}`;
-    }
-    return `Speaker ${speaker}`;
-  };
 
   if (!uniqueSpeakers.length) {
     return null;
