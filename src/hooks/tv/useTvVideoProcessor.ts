@@ -62,6 +62,23 @@ export const useTvVideoProcessor = () => {
   const markTranscriptionAsStale = async (targetTranscriptionId: string) => {
     const staleReason = 'Stale job detected after 5 minutes without status or progress changes.';
 
+    // Guard: never mark a job as stale if it already produced transcription_text.
+    // The background task may still be finalizing analysis even after polling sees no
+    // progress changes — clobbering the row with failed:stale loses real work.
+    const { data: current } = await supabase
+      .from('tv_transcriptions')
+      .select('transcription_text, status')
+      .eq('id', targetTranscriptionId)
+      .maybeSingle();
+
+    if (current?.transcription_text && current.transcription_text.length > 0) {
+      console.warn('[TvVideoProcessor] Skipping stale-mark — transcription_text already present:', targetTranscriptionId);
+      return;
+    }
+    if (current?.status === 'completed') {
+      return;
+    }
+
     const { error } = await supabase
       .from('tv_transcriptions')
       .update({
