@@ -5,12 +5,20 @@ import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
  * Generate a consistent color for a speaker based on their ID
  */
 export const getSpeakerColor = (speakerId: string | number): string => {
-  // Convert speaker ID to a number for hue calculation
+  // Use the canonical speaker letter / token as the hue seed for stable colors.
   let numericId: number;
-  
+
   if (typeof speakerId === 'string') {
-    const parts = speakerId.split('_');
-    numericId = parts.length > 1 ? parseInt(parts[1], 10) : speakerId.charCodeAt(0);
+    // New format: "A|Name|Role" → use "A"
+    const head = speakerId.split('|')[0];
+    // Legacy format: "speaker_1_(Name)" → use the number after the underscore
+    if (head.toLowerCase().startsWith('speaker_')) {
+      const token = head.split('_')[1] || '';
+      const num = parseInt(token, 10);
+      numericId = Number.isNaN(num) ? token.charCodeAt(0) : num;
+    } else {
+      numericId = head.charCodeAt(0);
+    }
   } else {
     numericId = speakerId;
   }
@@ -49,11 +57,25 @@ export const getUniqueSpeakers = (utterances: UtteranceTimestamp[]): (string | n
  */
 export const formatSpeakerName = (speakerId: string | number): string => {
   if (typeof speakerId === 'string') {
-    return speakerId.includes('_') ? 
-      `Speaker ${speakerId.split('_')[1]}` : 
-      `Speaker ${speakerId}`;
+    // New TV format: "A|Name|Role"
+    if (speakerId.includes('|')) {
+      const [, name] = speakerId.split('|');
+      if (name) return name.trim();
+    }
+    // Legacy TV format with embedded name
+    const nameMatch = speakerId.match(/speaker_\w+_\(([^)]+)\)/i);
+    if (nameMatch) return nameMatch[1].split(' - ')[0].trim();
+
+    // Letter-only id → "Hablante A"
+    if (/^[A-Z]$/i.test(speakerId)) return `Hablante ${speakerId.toUpperCase()}`;
+
+    if (speakerId.toLowerCase().startsWith('speaker_')) {
+      const token = speakerId.split('_')[1] || '';
+      return `Hablante ${token.toUpperCase()}`;
+    }
+    return `Hablante ${speakerId}`;
   }
-  return `Speaker ${speakerId}`;
+  return `Hablante ${speakerId}`;
 };
 
 /**
