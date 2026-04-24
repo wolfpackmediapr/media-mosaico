@@ -149,24 +149,34 @@ export const useSpeakerLabels = ({ transcriptionId }: UseSpeakerLabelsProps) => 
   const getDisplayName = useCallback((originalSpeaker: string) => {
     const customName = getCustomName(originalSpeaker);
     if (customName) return customName;
-    
-    // Format original speaker name
+
     if (typeof originalSpeaker === 'string') {
-      // Check if speaker has embedded name in format: speaker_X_(Name - Role)
-      const nameMatch = originalSpeaker.match(/speaker_(\d+)_\(([^)]+)\)/i);
-      if (nameMatch) {
-        // Extract just the name without role for cleaner display
-        const fullName = nameMatch[2]; // "Aixa Vázquez - Presentadora"
-        const nameOnly = fullName.split(' - ')[0].trim(); // "Aixa Vázquez"
-        return nameOnly;
+      // New TV format: "A|Name|Role" or "A|Name"
+      if (originalSpeaker.includes('|')) {
+        const [, name] = originalSpeaker.split('|');
+        if (name) return name.trim();
       }
-      
-      // Fallback: original format without embedded names
-      return originalSpeaker.includes('_') ? 
-        `Speaker ${originalSpeaker.split('_')[1]}` : 
-        `Speaker ${originalSpeaker}`;
+
+      // Legacy TV format: speaker_X_(Name - Role)
+      const nameMatch = originalSpeaker.match(/speaker_\w+_\(([^)]+)\)/i);
+      if (nameMatch) {
+        return nameMatch[1].split(' - ')[0].trim();
+      }
+
+      // Single letter A-Z → "Hablante A"
+      if (/^[A-Z]$/i.test(originalSpeaker)) {
+        return `Hablante ${originalSpeaker.toUpperCase()}`;
+      }
+
+      // speaker_1, speaker_A → "Hablante 1" / "Hablante A"
+      if (originalSpeaker.toLowerCase().startsWith('speaker_')) {
+        const token = originalSpeaker.split('_')[1] || '';
+        return `Hablante ${token.toUpperCase()}`;
+      }
+
+      return `Hablante ${originalSpeaker}`;
     }
-    return `Speaker ${originalSpeaker}`;
+    return `Hablante ${originalSpeaker}`;
   }, [getCustomName]);
 
   return {

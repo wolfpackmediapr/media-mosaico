@@ -1,8 +1,31 @@
 import { UtteranceTimestamp } from "@/services/audio/transcriptionService";
 
+// Letters used to label unidentified speakers (A, B, C, ...)
+const SPEAKER_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+/**
+ * Convert any raw speaker token (number "1", letter "A", etc.) to a canonical letter.
+ * 1 -> A, 2 -> B, A -> A, B -> B
+ */
+function toLetter(raw: string, fallbackIndex: number): string {
+  const trimmed = (raw || "").trim().toUpperCase();
+  if (/^[A-Z]$/.test(trimmed)) return trimmed;
+  const num = parseInt(trimmed, 10);
+  if (!Number.isNaN(num) && num >= 1 && num <= SPEAKER_LETTERS.length) {
+    return SPEAKER_LETTERS[num - 1];
+  }
+  return SPEAKER_LETTERS[Math.min(fallbackIndex, SPEAKER_LETTERS.length - 1)];
+}
+
 /**
  * Parse TV-specific speaker-formatted text into structured utterances
- * Enhanced to handle mixed content and clean speaker separation
+ *
+ * Speaker ID convention emitted to UI:
+ *   - "A", "B", "C", ...  when no name is available
+ *   - "A|María Rivera|Conductora"  when a name (and optional role) was identified
+ *
+ * The display layer (formatSpeakerName) renders these as
+ *   "Hablante A" or "María Rivera (Conductora)".
  */
 export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   if (!text || !text.trim()) return [];
@@ -12,190 +35,97 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   // First, clean the text from any analysis artifacts
   const cleanedText = cleanInputText(text);
   
-  // Use matchAll to capture each SPEAKER segment individually in chronological order
-  const segments: string[] = [];
-  
   // Match each SPEAKER X: occurrence with its content until the next SPEAKER or end
   const speakerMatches = Array.from(
     cleanedText.matchAll(/SPEAKER\s+(\w+)(?:\s*\(([^)]+)\))?:\s*([^]*?)(?=SPEAKER\s+\w+|$)/gi)
   );
-  
-  // Extract segments preserving order - preserve names for UI display
-  speakerMatches.forEach(match => {
-    const speakerNum = match[1]; // Just the number: "2"
-    const speakerName = match[2] || ''; // The name if present: "María Rivera"
-    const content = match[3].trim(); // The dialogue content
-    
-    if (content) {
-      // Preserve the name in the segment for UI display
-      const speakerLabel = speakerName 
-        ? `SPEAKER ${speakerNum} (${speakerName})`
-        : `SPEAKER ${speakerNum}`;
-      segments.push(`${speakerLabel}: ${content}`);
-    }
-  });
-  
-  // Fallback to original method if no speaker patterns found
-  if (segments.length === 0) {
-    segments.push(...cleanedText.split(/\n\s*\n/).filter(segment => segment.trim()));
-  }
-  
+
   let currentTime = 0;
-  const averageSegmentDuration = 5000; // 5 seconds per segment as placeholder
-  
-  // Track unique speakers for dynamic assignment
-  const speakerMap = new Map<string, string>();
-  let speakerCounter = 1;
-  
-  segments.forEach((segment, index) => {
-    const trimmedSegment = segment.trim();
-    if (!trimmedSegment || isAnalysisContent(trimmedSegment)) return;
-    
-    // Try different TV speaker patterns
-    const patterns = [
-      // Pattern 0: "SPEAKER 1 (Name): text" or "SPEAKER A (Name): text"
-      /^SPEAKER\s+(\w+)\s*\(([^)]+)\):\s*(.*)/s,
-      // Pattern 1: "SPEAKER 1: ROLE: text" or "SPEAKER A: ROLE: text"
-      /^SPEAKER\s+(\w+):\s*([^:]+):\s*(.*)/s,
-      // Pattern 2: "SPEAKER 1: text" or "SPEAKER A: text"
-      /^SPEAKER\s+(\w+):\s*(.*)/s,
-      // Pattern 3: "PRESENTER: text" or "HOST: text"
-      /^(PRESENTER|HOST|GUEST|LOCUTOR|ENTREVISTADO|CONDUCTOR|REPORTERO|REPORTERA|INVITADO|INVITADA|COMENTARISTA|ANALISTA|PERIODISTA):\s*(.*)/s,
-      // Pattern 4: "[SPEAKER 1]: text" or "[SPEAKER A]: text"
-      /^\[SPEAKER\s+(\w+)\]:\s*(.*)/s,
-      // Pattern 5: "- SPEAKER: text"
-      /^\s*-\s*(\w+):\s*(.*)/s,
-      // Pattern 6: "NAME: text" (generic caps)
-      /^([A-ZÁÉÍÓÚÑÜ\s]{2,15}):\s*(.*)/s
-    ];
-    
-    let matched = false;
-    
-    for (let i = 0; i < patterns.length; i++) {
-      const match = trimmedSegment.match(patterns[i]);
-      if (match) {
-        matched = true;
-        let speaker: string;
-        let textContent: string;
-        
-        if (i === 0) {
-          // Pattern 0: "SPEAKER 1 (Name): text" - Preserve name in speaker field
-          const rawSpeaker = match[1]; // Just the number: "2"
-          const speakerName = match[2]; // "María Rivera"
-          
-          // Create speaker ID with name embedded: "speaker_2_(María Rivera)"
-          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
-          if (!speakerMap.has(rawSpeaker)) {
-            speakerMap.set(rawSpeaker, speaker);
-            speakerCounter++;
-          }
-          
-          // Store the name in the speaker field for UI to extract
-          if (speakerName) {
-            speaker = `${speaker}_(${speakerName})`;
-          }
-          
-          textContent = match[3].trim();
-        } else if (i === 1) {
-          // Pattern 1: "SPEAKER 1: ROLE: text"
-          const rawSpeaker = `${match[1]}_${match[2].trim()}`;
-          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
-          if (!speakerMap.has(rawSpeaker)) {
-            speakerMap.set(rawSpeaker, speaker);
-            speakerCounter++;
-          }
-          const role = match[2].trim();
-          textContent = match[3].trim();
-          textContent = `${role}: ${textContent}`;
-        } else if (i === 2) {
-          // Pattern 2: "SPEAKER 1: text"
-          const rawSpeaker = match[1];
-          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
-          if (!speakerMap.has(rawSpeaker)) {
-            speakerMap.set(rawSpeaker, speaker);
-            speakerCounter++;
-          }
-          textContent = match[2].trim();
-        } else if (i === 3) {
-          // Pattern 3: "PRESENTER: text" etc.
-          const rawSpeaker = match[1];
-          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
-          if (!speakerMap.has(rawSpeaker)) {
-            speakerMap.set(rawSpeaker, speaker);
-            speakerCounter++;
-          }
-          textContent = match[2].trim();
-        } else if (i === 4) {
-          // Pattern 4: "[SPEAKER 1]: text"
-          const rawSpeaker = match[1];
-          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
-          if (!speakerMap.has(rawSpeaker)) {
-            speakerMap.set(rawSpeaker, speaker);
-            speakerCounter++;
-          }
-          textContent = match[2].trim();
-        } else if (i === 5) {
-          // Pattern 5: "- SPEAKER: text"
-          const rawSpeaker = match[1];
-          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
-          if (!speakerMap.has(rawSpeaker)) {
-            speakerMap.set(rawSpeaker, speaker);
-            speakerCounter++;
-          }
-          textContent = match[2].trim();
-        } else {
-          // Pattern 6: "NAME: text"
-          const rawSpeaker = match[1].trim();
-          speaker = getOrAssignSpeaker(rawSpeaker, speakerMap, speakerCounter);
-          if (!speakerMap.has(rawSpeaker)) {
-            speakerMap.set(rawSpeaker, speaker);
-            speakerCounter++;
-          }
-          textContent = match[2].trim();
-        }
-        
-        // Validate text content is not empty and not analysis
-        if (textContent && textContent.length > 5 && !isAnalysisContent(textContent)) {
-          const startTime = currentTime;
-          const endTime = currentTime + averageSegmentDuration;
-          
-          utterances.push({
-            speaker: speaker,
-            text: textContent,
-            start: startTime,
-            end: endTime,
-          });
-          
-          currentTime = endTime;
-        }
-        break;
-      }
+  const averageSegmentDuration = 5000; // 5s placeholder per segment
+
+  // Map raw token (e.g. "1", "A", "Maria") -> canonical letter ("A", "B", ...)
+  const letterByRaw = new Map<string, string>();
+  // Cache name/role per letter (first non-empty wins)
+  const nameByLetter = new Map<string, { name: string; role: string }>();
+
+  const assignLetter = (raw: string): string => {
+    const key = raw.trim().toUpperCase();
+    if (letterByRaw.has(key)) return letterByRaw.get(key)!;
+    const letter = toLetter(key, letterByRaw.size);
+    // Avoid collisions if two raw tokens map to the same letter
+    let finalLetter = letter;
+    const used = new Set(letterByRaw.values());
+    let idx = letterByRaw.size;
+    while (used.has(finalLetter)) {
+      finalLetter = SPEAKER_LETTERS[Math.min(++idx, SPEAKER_LETTERS.length - 1)];
     }
-    
-    // If no pattern matched but looks like valid dialogue, treat as unknown speaker
-    if (!matched && trimmedSegment && trimmedSegment.length > 10 && 
-        !isAnalysisContent(trimmedSegment) && !trimmedSegment.includes('{')) {
+    letterByRaw.set(key, finalLetter);
+    return finalLetter;
+  };
+
+  const buildSpeakerId = (letter: string): string => {
+    const meta = nameByLetter.get(letter);
+    if (meta && meta.name) {
+      return `${letter}|${meta.name}${meta.role ? `|${meta.role}` : ""}`;
+    }
+    return letter;
+  };
+
+  if (speakerMatches.length > 0) {
+    speakerMatches.forEach((match) => {
+      const rawSpeaker = match[1];
+      const inParens = (match[2] || "").trim();
+      const content = (match[3] || "").trim();
+
+      if (!content || isAnalysisContent(content)) return;
+
+      const letter = assignLetter(rawSpeaker);
+
+      // Parse "Name - Role" or just "Name"
+      if (inParens && !nameByLetter.has(letter)) {
+        const dashIdx = inParens.indexOf(" - ");
+        if (dashIdx > -1) {
+          nameByLetter.set(letter, {
+            name: inParens.slice(0, dashIdx).trim(),
+            role: inParens.slice(dashIdx + 3).trim(),
+          });
+        } else {
+          nameByLetter.set(letter, { name: inParens, role: "" });
+        }
+      }
+
       utterances.push({
-        speaker: "speaker_1",
-        text: trimmedSegment,
+        speaker: buildSpeakerId(letter),
+        text: content,
         start: currentTime,
         end: currentTime + averageSegmentDuration,
       });
       currentTime += averageSegmentDuration;
-    }
-  });
-  
-  return utterances;
-}
+    });
 
-/**
- * Get or assign a speaker ID in the format "speaker_X"
- */
-function getOrAssignSpeaker(rawSpeaker: string, speakerMap: Map<string, string>, speakerCounter: number): string {
-  if (speakerMap.has(rawSpeaker)) {
-    return speakerMap.get(rawSpeaker)!;
+    // Second pass: backfill speaker IDs that were created before their name was known
+    return utterances.map((u) => {
+      const head = String(u.speaker).split("|")[0];
+      return { ...u, speaker: buildSpeakerId(head) };
+    });
   }
-  return `speaker_${speakerCounter}`;
+
+  // Fallback: no SPEAKER X: pattern — split paragraphs as a single unknown speaker
+  cleanedText
+    .split(/\n\s*\n/)
+    .map((s) => s.trim())
+    .filter((s) => s && !isAnalysisContent(s))
+    .forEach((segment) => {
+      utterances.push({
+        speaker: "A",
+        text: segment,
+        start: currentTime,
+        end: currentTime + averageSegmentDuration,
+      });
+      currentTime += averageSegmentDuration;
+    });
+
+  return utterances;
 }
 
 /**
