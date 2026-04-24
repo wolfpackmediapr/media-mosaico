@@ -1,11 +1,12 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import TvTranscriptionSlot from "./TvTranscriptionSlot";
 import { NewsSegment } from "@/hooks/use-video-processor";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Users } from "lucide-react";
+import { parseTvSpeakerText, hasTvSpeakerPatterns } from "@/utils/tv/speakerTextParser";
 
 interface TvTranscriptionSectionProps {
   textContent: string;
@@ -47,6 +48,31 @@ const TvTranscriptionSection = ({
 }: TvTranscriptionSectionProps) => {
   const [speakerIdStatus, setSpeakerIdStatus] = useState<string | null>(null);
   const [speakerIdError, setSpeakerIdError] = useState<string | null>(null);
+
+  // Compute speaker counts from utterances or parsed text
+  const speakerCounts = useMemo(() => {
+    const utterances =
+      transcriptionResult?.utterances && transcriptionResult.utterances.length > 0
+        ? transcriptionResult.utterances
+        : hasTvSpeakerPatterns(textContent)
+          ? parseTvSpeakerText(textContent)
+          : [];
+
+    if (!utterances.length) return null;
+
+    const unique = new Set<string>();
+    let identified = 0;
+    utterances.forEach((u) => {
+      const id = String(u.speaker);
+      const head = id.split('|')[0];
+      if (!unique.has(head)) {
+        unique.add(head);
+        if (id.includes('|') || /speaker_\w+_\(/i.test(id)) identified += 1;
+      }
+    });
+
+    return { total: unique.size, identified };
+  }, [transcriptionResult?.utterances, textContent]);
 
   useEffect(() => {
     if (!transcriptionId) {
@@ -93,10 +119,21 @@ const TvTranscriptionSection = ({
     return null;
   };
 
+  const renderSpeakerCountBadge = () => {
+    if (!speakerCounts) return null;
+    return (
+      <Badge variant="outline" className="gap-1">
+        <Users className="h-3 w-3" />
+        {speakerCounts.total} hablantes
+        {speakerCounts.identified > 0 && ` · ${speakerCounts.identified} identificados`}
+      </Badge>
+    );
+  };
+
   // Always render the transcription slot, regardless of text content
   return (
     <div className="space-y-2">
-      {(isProcessing || renderSpeakerBadge()) && (
+      {(isProcessing || renderSpeakerBadge() || speakerCounts) && (
         <div className="flex items-center gap-2">
           {isProcessing && (
             <Badge variant="secondary" className="gap-1">
@@ -105,6 +142,7 @@ const TvTranscriptionSection = ({
             </Badge>
           )}
           {renderSpeakerBadge()}
+          {renderSpeakerCountBadge()}
         </div>
       )}
       <TvTranscriptionSlot
