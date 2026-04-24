@@ -1,7 +1,11 @@
 
+import { useEffect, useState } from "react";
 import TvTranscriptionSlot from "./TvTranscriptionSlot";
 import { NewsSegment } from "@/hooks/use-video-processor";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 
 interface TvTranscriptionSectionProps {
   textContent: string;
@@ -41,10 +45,69 @@ const TvTranscriptionSection = ({
   currentTime = 0,
   onPlayPause = () => {}
 }: TvTranscriptionSectionProps) => {
-  
+  const [speakerIdStatus, setSpeakerIdStatus] = useState<string | null>(null);
+  const [speakerIdError, setSpeakerIdError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!transcriptionId) {
+      setSpeakerIdStatus(null);
+      setSpeakerIdError(null);
+      return;
+    }
+    let cancelled = false;
+    (supabase as any)
+      .from("tv_transcriptions")
+      .select("speaker_id_status, speaker_id_error")
+      .eq("id", transcriptionId)
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (cancelled || !data) return;
+        setSpeakerIdStatus(data.speaker_id_status ?? null);
+        setSpeakerIdError(data.speaker_id_error ?? null);
+      });
+    return () => { cancelled = true; };
+  }, [transcriptionId, textContent]);
+
+  const renderSpeakerBadge = () => {
+    if (!transcriptionId || !speakerIdStatus || speakerIdStatus === "pending") return null;
+    if (speakerIdStatus === "success") {
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <CheckCircle2 className="h-3 w-3" />
+          Hablantes identificados
+        </Badge>
+      );
+    }
+    if (speakerIdStatus === "failed" || speakerIdStatus === "skipped") {
+      return (
+        <Badge
+          variant="outline"
+          className="gap-1 border-destructive/40 text-destructive"
+          title={speakerIdError || undefined}
+        >
+          <AlertTriangle className="h-3 w-3" />
+          Identificación de hablantes no disponible
+        </Badge>
+      );
+    }
+    return null;
+  };
+
   // Always render the transcription slot, regardless of text content
   return (
-    <TvTranscriptionSlot
+    <div className="space-y-2">
+      {(isProcessing || renderSpeakerBadge()) && (
+        <div className="flex items-center gap-2">
+          {isProcessing && (
+            <Badge variant="secondary" className="gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Procesando
+            </Badge>
+          )}
+          {renderSpeakerBadge()}
+        </div>
+      )}
+      <TvTranscriptionSlot
       isProcessing={isProcessing}
       transcriptionText={textContent}
       transcriptionResult={transcriptionResult}
@@ -64,7 +127,8 @@ const TvTranscriptionSection = ({
       isPlaying={isPlaying}
       currentTime={currentTime}
       onPlayPause={onPlayPause}
-    />
+      />
+    </div>
   );
 };
 
