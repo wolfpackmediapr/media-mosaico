@@ -1847,6 +1847,9 @@ export type Database = {
           provider_fallback_reason: string | null
           provider_used: string | null
           relevant_clients: string[] | null
+          speaker_id_error: string | null
+          speaker_id_method: string | null
+          speaker_id_status: string | null
           status: string
           summary: string | null
           transcription_text: string | null
@@ -1890,6 +1893,9 @@ export type Database = {
           provider_fallback_reason?: string | null
           provider_used?: string | null
           relevant_clients?: string[] | null
+          speaker_id_error?: string | null
+          speaker_id_method?: string | null
+          speaker_id_status?: string | null
           status?: string
           summary?: string | null
           transcription_text?: string | null
@@ -1933,6 +1939,9 @@ export type Database = {
           provider_fallback_reason?: string | null
           provider_used?: string | null
           relevant_clients?: string[] | null
+          speaker_id_error?: string | null
+          speaker_id_method?: string | null
+          speaker_id_status?: string | null
           status?: string
           summary?: string | null
           transcription_text?: string | null
