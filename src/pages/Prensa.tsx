@@ -100,8 +100,6 @@ const Prensa = () => {
         selectedDate={selectedDate}
         onDateChange={handleDateChange}
       />
-      
-      <FeedStatus feedSources={feedSources} />
 
       <PrensaSearch 
         searchTerm={searchTerm}
@@ -120,6 +118,8 @@ const Prensa = () => {
         onClearSearch={handleClearFilters}
         onPageChange={handlePageChange}
       />
+
+      <FeedStatus feedSources={feedSources} />
     </div>
     </ErrorBoundary>
   );
