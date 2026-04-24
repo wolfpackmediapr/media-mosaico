@@ -1095,7 +1095,7 @@ serve(async (req) => {
       throw new Error(`Transcripción falló: ${transcriptionResult.error}`);
     }
 
-    const transcriptionText = transcriptionResult.data!;
+    let transcriptionText = transcriptionResult.data!;
     console.log(`[qwen-tv][${requestId}] Transcription complete, length: ${transcriptionText.length} chars`);
 
     // Update progress
@@ -1103,6 +1103,22 @@ serve(async (req) => {
       await supabaseClient
         .from('tv_transcriptions')
         .update({ progress: 50, transcription_text: transcriptionText })
+        .eq('id', transcriptId);
+    }
+
+    // ── Stage 3 (single-file): Speaker name identification via Qwen text-only ──
+    const sfSpeakerOutcome = await identifySpeakersFromText(transcriptionText, qwenApiKey, requestId);
+    transcriptionText = sfSpeakerOutcome.text;
+    if (transcriptId) {
+      await supabaseClient
+        .from('tv_transcriptions')
+        .update({
+          transcription_text: transcriptionText,
+          progress: 55,
+          speaker_id_status: sfSpeakerOutcome.status,
+          speaker_id_method: sfSpeakerOutcome.method,
+          speaker_id_error: sfSpeakerOutcome.error,
+        })
         .eq('id', transcriptId);
     }
 
