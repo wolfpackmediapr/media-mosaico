@@ -168,13 +168,14 @@ PISTAS PERMITIDAS (solo si están en el texto):
 
 FORMATO DE SALIDA — OBLIGATORIO:
 Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdown, sin comentarios).
-El campo "evidence" DEBE ser una PARÁFRASIS BREVE en tus propias palabras (máximo 6 palabras, SIN comillas, SIN signos de puntuación especiales, SIN saltos de línea). NUNCA copies texto literal del transcript en este campo.
+El campo "evidence_keyword" DEBE ser UNA SOLA PALABRA (máximo 30 caracteres, solo letras y números, SIN espacios, SIN comillas, SIN apóstrofes, SIN signos de puntuación). Esa palabra DEBE aparecer textualmente en la transcripción para validar tu identificación.
+Los campos "name" y "role" tampoco deben contener comillas ni apóstrofes.
 
 Ejemplo EXACTO del formato esperado:
 {
-  "A": {"name": "", "role": "Presentadora", "evidence": "da la bienvenida al programa"},
-  "B": {"name": "", "role": "Reportero en campo", "evidence": "reporta desde la escena"},
-  "C": {"name": "Garcia", "role": "Invitado", "evidence": "se presenta como Garcia"}
+  "A": {"name": "", "role": "Presentadora", "evidence_keyword": "bienvenidos"},
+  "B": {"name": "", "role": "Reportero en campo", "evidence_keyword": "reportando"},
+  "C": {"name": "Garcia", "role": "Invitado", "evidence_keyword": "Garcia"}
 }
 
 TRANSCRIPCIÓN:
