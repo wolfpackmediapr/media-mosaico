@@ -19,6 +19,49 @@ const MAX_RETRIES = 3;
 const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
 
 // ═══════════════════════════════════════════════════════════════════════
+// JSON helpers — robust extraction & repair for model-emitted JSON
+// ═══════════════════════════════════════════════════════════════════════
+function extractBalancedJsonObject(raw: string): string | null {
+  if (!raw) return null;
+  // Strip common markdown code fences
+  const cleaned = raw.replace(/```(?:json)?/gi, '').trim();
+  const start = cleaned.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return cleaned.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+function safeJsonParse(jsonStr: string): Record<string, any> {
+  try {
+    return JSON.parse(jsonStr);
+  } catch (firstErr) {
+    // Repair pass: strip trailing commas before } or ]
+    let repaired = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+    // Replace control characters inside strings with spaces
+    repaired = repaired.replace(/[\u0000-\u001F]+/g, ' ');
+    try {
+      return JSON.parse(repaired);
+    } catch {
+      throw firstErr;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // SHARED: Speaker identification via Qwen TEXT model (text-only dialogue)
 // Used by both chunked and single-file paths. Returns the (possibly enriched)
 // transcription text plus status metadata to persist on tv_transcriptions.
@@ -53,18 +96,21 @@ REGLAS ANTI-ALUCINACIÓN (CRÍTICAS):
 - SOLO devuelve un NOMBRE PROPIO si aparece EXPLÍCITAMENTE en el diálogo de ese hablante (auto-presentación) o si OTRO hablante se dirige a él/ella por nombre en la misma conversación.
 - Si NO hay evidencia textual directa del nombre, devuelve únicamente un ROL descriptivo en español ("Presentador/a", "Co-presentador/a", "Reportero/a en campo", "Invitado/a", "Entrevistado/a", "Comentarista", "Analista", "Narrador/a de anuncio", "Voz en off").
 - PROHIBIDO: inventar, suponer o adivinar nombres. PROHIBIDO usar nombres de personalidades famosas si no aparecen en el texto.
-- Cada nombre devuelto DEBE ir acompañado de una cita textual exacta (campo "evidence") tomada literalmente de la transcripción que justifique la identificación. Si no puedes proveer una cita literal, NO devuelvas el nombre — devuelve solo el rol y deja "evidence" como cadena vacía.
 
 PISTAS PERMITIDAS (solo si están en el texto):
 1. Auto-presentación: "Les saluda [Nombre]", "Soy [Nombre]", "Aquí [Nombre] reportando..."
-2. Mención directa por otro hablante en la conversación: "Gracias, [Nombre]", "pasamos con [Nombre]", "[Título] [Apellido], ¿qué nos dice?"
-3. Indicadores de rol: contexto conversacional (quien da la bienvenida = presentador, quien responde preguntas = invitado, etc.)
+2. Mención directa por otro hablante: "Gracias, [Nombre]", "pasamos con [Nombre]", "[Título] [Apellido], ¿qué nos dice?"
+3. Indicadores de rol contextuales (quien da la bienvenida = presentador, quien responde preguntas = invitado, etc.)
 
-Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdown), con este formato EXACTO:
+FORMATO DE SALIDA — OBLIGATORIO:
+Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdown, sin comentarios).
+El campo "evidence" DEBE ser una PARÁFRASIS BREVE en tus propias palabras (máximo 6 palabras, SIN comillas, SIN signos de puntuación especiales, SIN saltos de línea). NUNCA copies texto literal del transcript en este campo.
+
+Ejemplo EXACTO del formato esperado:
 {
-  "A": {"name": "Nombre Apellido o cadena vacía", "role": "Rol descriptivo", "evidence": "cita literal del transcript o cadena vacía"},
-  "B": {"name": "", "role": "Reportero en campo", "evidence": ""},
-  "C": {"name": "Dr. García", "role": "Invitado", "evidence": "Doctor García, gracias por estar con nosotros"}
+  "A": {"name": "", "role": "Presentadora", "evidence": "da la bienvenida al programa"},
+  "B": {"name": "", "role": "Reportero en campo", "evidence": "reporta desde la escena"},
+  "C": {"name": "Garcia", "role": "Invitado", "evidence": "se presenta como Garcia"}
 }
 
 TRANSCRIPCIÓN:
@@ -75,20 +121,29 @@ ${transcriptionText.substring(0, 15000)}`;
     ];
 
     const speakerIdResult = await callQwenStreaming(
-      qwenApiKey, TEXT_MODEL, speakerIdMessages, requestId, 'speaker-id', 2048
+      qwenApiKey, TEXT_MODEL, speakerIdMessages, requestId, 'speaker-id', 2048,
+      { jsonMode: true }
     );
 
     if (!speakerIdResult.success || !speakerIdResult.data) {
       return { text: outText, status: 'failed', method, error: speakerIdResult.error || 'Qwen call failed', identifiedCount };
     }
 
-    const jsonMatch = speakerIdResult.data.match(/\{[\s\S]*?\}/);
-    if (!jsonMatch) {
+    const jsonStr = extractBalancedJsonObject(speakerIdResult.data);
+    if (!jsonStr) {
+      console.warn(`[qwen-tv][${requestId}] [speaker-id-result] no JSON object found, raw=${speakerIdResult.data.slice(0, 300)}`);
       return { text: outText, status: 'failed', method, error: 'No JSON object found in model response', identifiedCount };
     }
 
+    let speakerMap: Record<string, any>;
     try {
-      const speakerMap = JSON.parse(jsonMatch[0]);
+      speakerMap = safeJsonParse(jsonStr);
+    } catch (parseErr) {
+      console.warn(`[qwen-tv][${requestId}] [speaker-id-result] parseOk=false err=${(parseErr as Error).message} json=${jsonStr.slice(0, 300)}`);
+      return { text: outText, status: 'failed', method, error: `JSON parse error: ${(parseErr as Error).message}`, identifiedCount };
+    }
+
+    try {
       console.log(`[qwen-tv][${requestId}] Speaker map:`, JSON.stringify(speakerMap));
 
       // Normalize transcript once for case-insensitive evidence matching
@@ -148,10 +203,11 @@ ${transcriptionText.substring(0, 15000)}`;
 
       if (identifiedCount > 0) {
         status = 'success';
-        console.log(`[qwen-tv][${requestId}] Identified ${identifiedCount} speakers (with evidence verification)`);
+        console.log(`[qwen-tv][${requestId}] [speaker-id-result] parseOk=true identifiedCount=${identifiedCount} mapKeys=${Object.keys(speakerMap).join(',')}`);
       } else {
         status = 'failed';
         error = 'No speakers matched in transcription';
+        console.warn(`[qwen-tv][${requestId}] [speaker-id-result] parseOk=true identifiedCount=0 mapKeys=${Object.keys(speakerMap).join(',')}`);
       }
     } catch (parseErr) {
       status = 'failed';
@@ -418,27 +474,32 @@ async function callQwenStreaming(
   messages: any[],
   requestId: string,
   stage: string,
-  maxTokens: number = 16384
+  maxTokens: number = 16384,
+  options: { jsonMode?: boolean } = {}
 ): Promise<{ success: boolean; data?: string; error?: string; statusCode?: number }> {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`[qwen-tv][${requestId}] ${stage} attempt ${attempt}/${MAX_RETRIES} with model ${model}`);
 
     try {
+      const requestBody: any = {
+        model,
+        messages,
+        modalities: ['text'],
+        stream: true,
+        stream_options: { include_usage: true },
+        temperature: 0.1,
+        max_tokens: maxTokens,
+      };
+      if (options.jsonMode) {
+        requestBody.response_format = { type: 'json_object' };
+      }
       const response = await fetch(QWEN_API_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model,
-          messages,
-          modalities: ['text'],
-          stream: true,
-          stream_options: { include_usage: true },
-          temperature: 0.1,
-          max_tokens: maxTokens,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (response.status === 429) {
@@ -634,7 +695,6 @@ async function transcribeWithAssemblyAI(
       language_code: 'es',
       speaker_labels: true,
       speech_model: 'best',
-      speakers_expected: 4,
       entity_detection: true,
     }),
   });
