@@ -220,9 +220,11 @@ ${transcriptionText.substring(0, 15000)}`;
         let evidence = '';
 
         if (value && typeof value === 'object') {
-          name = String((value as any).name || '').trim();
-          role = String((value as any).role || '').trim();
-          evidence = String((value as any).evidence || '').trim();
+          name = String((value as any).name || '').replace(/["']/g, '').trim();
+          role = String((value as any).role || '').replace(/["']/g, '').trim();
+          evidence = String(
+            (value as any).evidence_keyword || (value as any).evidence || ''
+          ).replace(/["']/g, '').trim();
         } else if (typeof value === 'string') {
           // Backward-compat: legacy "Name - Role" string
           const dashIdx = value.indexOf(' - ');
