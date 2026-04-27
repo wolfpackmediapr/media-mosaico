@@ -19,6 +19,49 @@ const MAX_RETRIES = 3;
 const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
 
 // ═══════════════════════════════════════════════════════════════════════
+// JSON helpers — robust extraction & repair for model-emitted JSON
+// ═══════════════════════════════════════════════════════════════════════
+function extractBalancedJsonObject(raw: string): string | null {
+  if (!raw) return null;
+  // Strip common markdown code fences
+  const cleaned = raw.replace(/```(?:json)?/gi, '').trim();
+  const start = cleaned.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return cleaned.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+function safeJsonParse(jsonStr: string): Record<string, any> {
+  try {
+    return JSON.parse(jsonStr);
+  } catch (firstErr) {
+    // Repair pass: strip trailing commas before } or ]
+    let repaired = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+    // Replace control characters inside strings with spaces
+    repaired = repaired.replace(/[\u0000-\u001F]+/g, ' ');
+    try {
+      return JSON.parse(repaired);
+    } catch {
+      throw firstErr;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // SHARED: Speaker identification via Qwen TEXT model (text-only dialogue)
 // Used by both chunked and single-file paths. Returns the (possibly enriched)
 // transcription text plus status metadata to persist on tv_transcriptions.
