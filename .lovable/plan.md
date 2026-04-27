@@ -1,94 +1,87 @@
-# TV Speaker ID + Segmentation — Root Cause Fix
+# TV Transcription Fix — UI Doubling + JSON Hardening
 
-## Confirmed from production data
+## What's actually broken (confirmed in DB)
 
-I queried `tv_transcriptions` for the last 3 jobs:
-
-| Job | speaker_id_status | Names visible in UI? | Notes |
+| Job | Stage 3 status | What's in DB | What UI shows |
 |---|---|---|---|
-| `c2f3de3f` (latest) | **failed** | ❌ raw `SPEAKER A/B/C/D` | `JSON parse error: Expected ',' or '}' after property value at position 62` |
-| `7d494eb6` | **failed** | ❌ raw `SPEAKER A/B/C/D` | Same JSON parse error + **one reporter sentence got split across SPEAKER B, C, D** |
-| `30b36325` (older) | **success** | ✅ `SPEAKER A (Dr. Luis Xavier Mayol - Médico…)` | Worked fine before the latest changes |
+| `4cfb17d3` (latest) | ✅ success | `[00:00] SPEAKER A (Bexaida - Invitada): Nosotros…` | ❌ `SPEAKER A: SPEAKER A\|Bexaida\|Invitada: Nosotros…` |
+| `c2f3de3f` | ❌ failed (JSON pos 62) | raw `SPEAKER A/B/C/D` | raw letters |
+| `7d494eb6` | ❌ failed (JSON pos 113) | raw `SPEAKER A/B/C/D` | raw letters |
 
-## Root cause #1 — Stage 3 JSON regex is too greedy/too narrow
+**So there are TWO independent bugs**, and the latest job proves the backend pipeline *can* identify names correctly when JSON parses — the UI is just mangling perfectly good output.
 
-In `identifySpeakersFromText` (line 85):
-```ts
-const jsonMatch = speakerIdResult.data.match(/\{[\s\S]*?\}/);
-```
-The lazy `*?` stops at the FIRST `}` it sees. Our new prompt asks Qwen for **nested objects** like:
-```json
-{ "A": {"name": "...", "evidence": "..."}, "B": {...} }
-```
-So the regex captures only `{ "A": {"name": "...", "evidence": "..."}` — invalid JSON → parse fails → **no names ever applied** → UI shows raw letters. This explains 100% of the missing-names regression.
+## Answer to your direct question
 
-Additionally, when Qwen embeds a literal quote from the transcript inside `evidence`, that quote often contains unescaped `"` characters — Qwen sometimes emits them raw, also breaking JSON.parse.
-
-## Root cause #2 — `speakers_expected: 4` is forcing over-segmentation
-
-We hard-coded `speakers_expected: 4` in the AssemblyAI request. AssemblyAI docs: this is a **strong hint** — when the actual recording has 1–2 speakers (e.g., one reporter doing a long monologue), the diarizer will *invent* additional speaker boundaries to hit the requested count. That's exactly what we see in `7d494eb6`: a single continuous reporter sentence ("Ante esas circunstancias… reuniéndose en horas… viernes frente a Plaza… Para las noticias les reportó…") got artificially chopped into SPEAKER B, C, D.
-
-The previous pipeline (job `30b36325`) didn't have this hint and segmentation was correct.
+**Yes**, AssemblyAI and Qwen work in concert:
+- **AssemblyAI** = diarization (when does speaker A stop, B start). Working.
+- **Qwen-plus (text-only)** = identification (A → "Bexaida", B → "Presentadora") from dialogue cues like "Licenciada Bexaida…". Working *when* JSON parses.
+- **Computer vision** (reading on-screen lower-thirds) is **NOT** wired in — Edge runtime has no ffmpeg to extract keyframes. Names come from textual cues only.
 
 ---
 
-## Fix Plan (backend-only, ~30 lines, scoped to `process-tv-with-qwen`)
+## Fix Plan — 2 surgical edits, TV-only
 
-### Phase 1 — Fix Stage 3 JSON extraction (the real "missing names" bug)
+### Phase 1 — Fix the UI double-prefix (the visible bug in your screenshot)
 
-In `supabase/functions/process-tv-with-qwen/index.ts` `identifySpeakersFromText`:
+**File:** `src/utils/tv/speakerTextParser.ts`
 
-**a)** Replace the lazy regex with a balanced-brace extractor that walks the string and counts `{`/`}` (respecting strings/escapes) so it captures the full top-level object even with nested children.
+Replace the single-regex parser with a two-step tokenizer that handles the real wire format:
 
-**b)** Wrap `JSON.parse` in a fallback that, on failure:
-   - Strips trailing commas
-   - Re-escapes obviously-unescaped inner quotes inside `"evidence"` values (heuristic)
-   - Retries parsing once
-
-**c)** Switch the prompt to ask for `evidence` as a **short paraphrase (max 6 words, no quotes)** rather than a literal quote. Anti-hallucination still works because we already verify `nameTokenOk` (surname appears in transcript) — the evidence string was always a soft check. This eliminates the unescaped-quote class of JSON errors entirely.
-
-**d)** Use Qwen's structured-output / tool-calling mode (`response_format: { type: "json_object" }`) so the model is forced to emit valid JSON. Qwen-plus supports this on the DashScope compatible endpoint.
-
-### Phase 2 — Fix segmentation (revert the over-eager hint)
-
-In the AssemblyAI request body (line 632):
-
-- **Remove** `speakers_expected: 4`. Let AssemblyAI auto-detect.
-- **Keep** `speech_model: 'best'` and `speaker_labels: true` (those genuinely improve quality and were not the regression).
-- Optionally add `language_detection: false` (we already pass `language_code: 'es'`) to prevent any auto-detection drift.
-
-This restores the exact diarization behavior that produced the working `30b36325` job.
-
-### Phase 3 — Defensive logging only (no behavior change)
-
-Add one structured log line right after JSON parsing succeeds/fails so future regressions are diagnosable in 1 query:
 ```
-console.log('[qwen-tv][speaker-id-result]', { requestId, parseOk, identifiedCount, mapKeys })
+[00:00] SPEAKER A (Bexaida - Invitada): text…
+[00:26] SPEAKER B (Presentador/a): text…
 ```
 
-### Out of scope (explicitly NOT touched)
+- **Step 1:** Strip optional `[mm:ss]` timestamp prefix and capture it as `start` ms (instead of fake 5 s increments — bonus: real timestamps for click-to-seek).
+- **Step 2:** Match `^SPEAKER\s+(\w+)(?:\s*\(([^)]+)\))?:\s*` once per line/block. Use `\(([^)]+)\)` (already correct) but anchor matching to **line starts** so the lookahead doesn't bleed.
+- **Step 3:** Build `speaker` field as `LETTER|Name|Role` exactly once. Renderer (`SpeakerSegment.tsx`) already handles that format correctly — no UI changes needed.
 
-- `src/components/radio/enhanced-editor/SpeakerSegment.tsx` — already correct from last pass, format-aware
-- `src/utils/tv/speakerTextParser.ts` — already correct
-- `useSpeakerLabels`, `formatSpeakerName` — already correct
-- Anything under `src/components/radio/**` outside the shared SpeakerSegment file (Radio tab unaffected)
-- Anything under Prensa Escrita / Prensa Digital (separate edge functions and UI)
+**Why this is safe:** the file is only imported by TV components (`useTvTranscriptionEditor`, `TvTranscriptionSection`). Confirmed via grep — Radio uses a separate `parseTimestampedText` util.
 
-### Files changed
+### Phase 2 — Harden Stage 3 JSON parsing (the intermittent backend bug)
 
-1. `supabase/functions/process-tv-with-qwen/index.ts` — three localized edits inside `identifySpeakersFromText` + remove one line in AssemblyAI body. No changes to chunked path, analysis path, prompts elsewhere, or DB schema.
-2. Redeploy `process-tv-with-qwen` (automatic).
+**File:** `supabase/functions/process-tv-with-qwen/index.ts`, function `identifySpeakersFromText`
 
-### Verification after deploy
+The current `safeJsonParse` strips trailing commas but doesn't fix the real cause: **unescaped apostrophes/quotes inside string values** ("McDonald's", `el "evento"`).
 
-1. Upload a fresh short TV clip (single-file path).
-2. Query: `SELECT speaker_id_status, speaker_id_error, LEFT(transcription_text, 600) FROM tv_transcriptions ORDER BY created_at DESC LIMIT 1;`
-3. Expected: `speaker_id_status = success`, names appended like `SPEAKER A (Name - Role)`, and continuous reporter speech stays under one speaker label.
-4. Check edge logs for the new `[speaker-id-result]` line to confirm `parseOk: true`.
+Three layered defenses:
 
-### Why this won't break Radio / Prensa
+1. **Move evidence out of free text into a controlled field.** Change the prompt schema to ask for `evidence_keyword` (single word, max 30 chars, no quotes/apostrophes) instead of a paraphrase. The validation logic in lines 175–190 only needs the keyword to appear in the transcript — it never used the full paraphrase semantically.
+2. **Add a JSON repair fallback** that detects unescaped inner quotes (heuristic: a `"` inside a value position not followed by `,`/`}`/`:`) and escapes them, then retries `JSON.parse`.
+3. **If parsing still fails after both repairs**, fall back to a regex extractor that pulls `"A": {"name": "X", "role": "Y"}` pairs one-by-one — partial recovery > total failure.
 
-- `process-tv-with-qwen` is invoked **only** from the TV tab (`useTvVideoProcessor`).
-- The AssemblyAI body change lives inside this function — Radio uses a separate `transcribe-audio` flow with its own AssemblyAI call.
-- No shared util, hook, or component is modified.
-- No DB migration.
+Also: add `temperature: 0.1` and `top_p: 0.8` to the Qwen call to reduce stylistic variation in the JSON output (currently temperature defaults to ~0.7).
+
+### Phase 3 — Verification
+
+After deploy, upload one short TV clip and run:
+
+```sql
+SELECT speaker_id_status, speaker_id_error,
+       LEFT(transcription_text, 400)
+FROM tv_transcriptions
+ORDER BY created_at DESC LIMIT 1;
+```
+
+Expected:
+- `speaker_id_status = success`
+- DB text starts with `[00:00] SPEAKER A (Name - Role): …`
+- UI Edit tab shows **`Name (Role)`** with colored dot — no doubled prefix, no `|` pipes visible.
+
+---
+
+## Out of scope (explicitly NOT touched)
+
+- ❌ `src/components/radio/**` — Radio uses its own `parseTimestampedText`
+- ❌ `src/components/radio/enhanced-editor/SpeakerSegment.tsx` — already format-aware from last pass, works fine once parser emits clean IDs
+- ❌ Prensa Escrita / Prensa Digital — separate edge functions and UI
+- ❌ AssemblyAI parameters — diarization is currently correct (the latest job split Bexaida vs Presentador correctly)
+- ❌ DB schema — no migration
+- ❌ Vision/keyframe extraction — Edge runtime can't run ffmpeg; deferred
+
+## Files changed
+
+1. `src/utils/tv/speakerTextParser.ts` — rewrite parser (TV only)
+2. `supabase/functions/process-tv-with-qwen/index.ts` — prompt schema + JSON repair in `identifySpeakersFromText`
+
+Both deployed in one pass.
