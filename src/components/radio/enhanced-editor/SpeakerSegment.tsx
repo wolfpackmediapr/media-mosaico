@@ -2,6 +2,7 @@
 import React from 'react';
 import { formatTime } from "../timestamped/timeUtils";
 import { useSpeakerLabels } from "@/hooks/radio/useSpeakerLabels";
+import { getSpeakerColor, formatSpeakerName } from "@/components/radio/interactive-transcription/utils";
 
 interface SpeakerSegmentProps {
   speaker: string;
@@ -20,28 +21,33 @@ export const SpeakerSegment = ({
   onTimestampClick,
   transcriptionId
 }: SpeakerSegmentProps) => {
-  // Extract just the number for color calculation
-  const speakerNum = typeof speaker === 'string' && speaker.includes('_') 
-    ? speaker.split('_')[1] 
-    : speaker;
-  const speakerColor = `hsl(${parseInt(String(speakerNum)) * 60}, 70%, 50%)`;
-  
-  // Get custom speaker name if transcriptionId is available
+  // Use the same color algorithm as the interactive view so the dot/border
+  // colors match across edit and interactive modes — and so they work for
+  // BOTH the radio "speaker_1" format and the new TV "A|Name|Role" format.
+  const speakerColor = getSpeakerColor(speaker);
+
+  // Get custom user-set speaker label (if any)
   const { getDisplayName } = useSpeakerLabels({ transcriptionId });
-  
-  // For display: Use custom name if set, otherwise just "SPEAKER X"
-  // Gemini names are now in the text content as prefixes
+
+  // Resolve display name in this order:
+  //   1. User-set custom label (overrides everything)
+  //   2. TV piped format "A|Name|Role" → "Name (Role)"
+  //   3. Single uppercase letter "A" → "Hablante A"
+  //   4. Legacy "speaker_1" → "Hablante 1"
   let displayName: string;
-  if (transcriptionId) {
-    const customName = getDisplayName(speaker);
-    // If user has set a custom name (not default), use it
-    if (customName && !customName.startsWith('SPEAKER ')) {
-      displayName = customName;
-    } else {
-      displayName = `SPEAKER ${speakerNum}`;
-    }
+  const customName = transcriptionId ? getDisplayName(speaker) : '';
+  const isCustom =
+    customName &&
+    !customName.startsWith('SPEAKER ') &&
+    !customName.startsWith('Hablante ');
+
+  if (isCustom) {
+    displayName = customName;
+  } else if (typeof speaker === 'string' && speaker.includes('|')) {
+    const [, name, role] = speaker.split('|');
+    displayName = role ? `${name.trim()} (${role.trim()})` : (name?.trim() || formatSpeakerName(speaker));
   } else {
-    displayName = `SPEAKER ${speakerNum}`;
+    displayName = formatSpeakerName(speaker);
   }
   
   return (
