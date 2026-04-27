@@ -56,9 +56,73 @@ function safeJsonParse(jsonStr: string): Record<string, any> {
     try {
       return JSON.parse(repaired);
     } catch {
-      throw firstErr;
+      // Second repair: escape unescaped inner double-quotes inside string values.
+      // Heuristic: a `"` inside a string literal that is NOT followed by
+      // a JSON structural character (`,` `}` `]` `:`) is treated as content.
+      try {
+        const escaped = escapeUnescapedInnerQuotes(repaired);
+        return JSON.parse(escaped);
+      } catch {
+        // Last resort: regex extraction of `"X": { ... }` pairs
+        const partial = extractSpeakerPairsFallback(jsonStr);
+        if (partial && Object.keys(partial).length > 0) return partial;
+        throw firstErr;
+      }
     }
   }
+}
+
+// Walk a JSON-ish string and escape `"` characters that appear inside string
+// values where they should have been escaped. We track depth and string state;
+// a closing quote is "real" only when the next non-space char is one of `,}]:`.
+function escapeUnescapedInnerQuotes(input: string): string {
+  let out = '';
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (escape) { out += ch; escape = false; continue; }
+    if (ch === '\\') { out += ch; escape = true; continue; }
+    if (ch === '"') {
+      if (!inString) { inString = true; out += ch; continue; }
+      // Look ahead: real closing quote?
+      let j = i + 1;
+      while (j < input.length && (input[j] === ' ' || input[j] === '\t' || input[j] === '\n' || input[j] === '\r')) j++;
+      const nxt = input[j];
+      if (nxt === ',' || nxt === '}' || nxt === ']' || nxt === ':' || nxt === undefined) {
+        inString = false;
+        out += ch;
+      } else {
+        // Inner quote — escape it
+        out += '\\"';
+      }
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+// Last-resort regex fallback: pull `"A": { "name": "...", "role": "...", ... }`
+function extractSpeakerPairsFallback(input: string): Record<string, any> | null {
+  const result: Record<string, any> = {};
+  const pairRegex = /"([A-Z])"\s*:\s*\{([^}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = pairRegex.exec(input)) !== null) {
+    const letter = m[1];
+    const body = m[2];
+    const pickField = (field: string): string => {
+      const r = new RegExp(`"${field}"\\s*:\\s*"([^"]*)"`, 'i');
+      const mm = body.match(r);
+      return mm ? mm[1] : '';
+    };
+    result[letter] = {
+      name: pickField('name'),
+      role: pickField('role'),
+      evidence: pickField('evidence_keyword') || pickField('evidence'),
+    };
+  }
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -104,13 +168,14 @@ PISTAS PERMITIDAS (solo si están en el texto):
 
 FORMATO DE SALIDA — OBLIGATORIO:
 Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdown, sin comentarios).
-El campo "evidence" DEBE ser una PARÁFRASIS BREVE en tus propias palabras (máximo 6 palabras, SIN comillas, SIN signos de puntuación especiales, SIN saltos de línea). NUNCA copies texto literal del transcript en este campo.
+El campo "evidence_keyword" DEBE ser UNA SOLA PALABRA (máximo 30 caracteres, solo letras y números, SIN espacios, SIN comillas, SIN apóstrofes, SIN signos de puntuación). Esa palabra DEBE aparecer textualmente en la transcripción para validar tu identificación.
+Los campos "name" y "role" tampoco deben contener comillas ni apóstrofes.
 
 Ejemplo EXACTO del formato esperado:
 {
-  "A": {"name": "", "role": "Presentadora", "evidence": "da la bienvenida al programa"},
-  "B": {"name": "", "role": "Reportero en campo", "evidence": "reporta desde la escena"},
-  "C": {"name": "Garcia", "role": "Invitado", "evidence": "se presenta como Garcia"}
+  "A": {"name": "", "role": "Presentadora", "evidence_keyword": "bienvenidos"},
+  "B": {"name": "", "role": "Reportero en campo", "evidence_keyword": "reportando"},
+  "C": {"name": "Garcia", "role": "Invitado", "evidence_keyword": "Garcia"}
 }
 
 TRANSCRIPCIÓN:
@@ -155,9 +220,11 @@ ${transcriptionText.substring(0, 15000)}`;
         let evidence = '';
 
         if (value && typeof value === 'object') {
-          name = String((value as any).name || '').trim();
-          role = String((value as any).role || '').trim();
-          evidence = String((value as any).evidence || '').trim();
+          name = String((value as any).name || '').replace(/["']/g, '').trim();
+          role = String((value as any).role || '').replace(/["']/g, '').trim();
+          evidence = String(
+            (value as any).evidence_keyword || (value as any).evidence || ''
+          ).replace(/["']/g, '').trim();
         } else if (typeof value === 'string') {
           // Backward-compat: legacy "Name - Role" string
           const dashIdx = value.indexOf(' - ');
