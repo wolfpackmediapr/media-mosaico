@@ -418,27 +418,32 @@ async function callQwenStreaming(
   messages: any[],
   requestId: string,
   stage: string,
-  maxTokens: number = 16384
+  maxTokens: number = 16384,
+  options: { jsonMode?: boolean } = {}
 ): Promise<{ success: boolean; data?: string; error?: string; statusCode?: number }> {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`[qwen-tv][${requestId}] ${stage} attempt ${attempt}/${MAX_RETRIES} with model ${model}`);
 
     try {
+      const requestBody: any = {
+        model,
+        messages,
+        modalities: ['text'],
+        stream: true,
+        stream_options: { include_usage: true },
+        temperature: 0.1,
+        max_tokens: maxTokens,
+      };
+      if (options.jsonMode) {
+        requestBody.response_format = { type: 'json_object' };
+      }
       const response = await fetch(QWEN_API_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model,
-          messages,
-          modalities: ['text'],
-          stream: true,
-          stream_options: { include_usage: true },
-          temperature: 0.1,
-          max_tokens: maxTokens,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (response.status === 429) {
