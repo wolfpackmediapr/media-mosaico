@@ -34,14 +34,46 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   
   // First, clean the text from any analysis artifacts
   const cleanedText = cleanInputText(text);
-  
-  // Match each SPEAKER X: occurrence with its content until the next SPEAKER or end
-  const speakerMatches = Array.from(
-    cleanedText.matchAll(/SPEAKER\s+(\w+)(?:\s*\(([^)]+)\))?:\s*([^]*?)(?=SPEAKER\s+\w+|$)/gi)
-  );
+
+  // Wire format from backend (process-tv-with-qwen):
+  //   [00:00] SPEAKER A (Bexaida - Invitada): text...
+  //   [00:26] SPEAKER B (Presentador/a): text...
+  // Optional leading timestamp, optional "(Name - Role)" annotation.
+  // The previous single-regex matcher allowed the lookahead to bleed across
+  // utterances, producing doubled "SPEAKER A: SPEAKER A|Name|Role:" output.
+  // We now match each SPEAKER header explicitly and slice content between
+  // consecutive headers.
+  const headerRegex =
+    /(?:\[(\d{1,2}):(\d{2})\]\s*)?SPEAKER\s+(\w+)(?:\s*\(([^)]+)\))?\s*:\s*/gi;
+
+  type HeaderMatch = {
+    rawSpeaker: string;
+    inParens: string;
+    startMs: number | null;
+    contentStart: number;
+    headerStart: number;
+  };
+
+  const headers: HeaderMatch[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = headerRegex.exec(cleanedText)) !== null) {
+    const minutes = m[1] ? parseInt(m[1], 10) : null;
+    const seconds = m[2] ? parseInt(m[2], 10) : null;
+    const startMs =
+      minutes !== null && seconds !== null
+        ? (minutes * 60 + seconds) * 1000
+        : null;
+    headers.push({
+      rawSpeaker: m[3] || "",
+      inParens: (m[4] || "").trim(),
+      startMs,
+      contentStart: m.index + m[0].length,
+      headerStart: m.index,
+    });
+  }
 
   let currentTime = 0;
-  const averageSegmentDuration = 5000; // 5s placeholder per segment
+  const averageSegmentDuration = 5000; // fallback when no [mm:ss] markers
 
   // Map raw token (e.g. "1", "A", "Maria") -> canonical letter ("A", "B", ...)
   const letterByRaw = new Map<string, string>();
@@ -71,36 +103,52 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
     return letter;
   };
 
-  if (speakerMatches.length > 0) {
-    speakerMatches.forEach((match) => {
-      const rawSpeaker = match[1];
-      const inParens = (match[2] || "").trim();
-      const content = (match[3] || "").trim();
+  if (headers.length > 0) {
+    headers.forEach((h, i) => {
+      const next = headers[i + 1];
+      const contentEnd = next ? next.headerStart : cleanedText.length;
+      const content = cleanedText.slice(h.contentStart, contentEnd).trim();
 
       if (!content || isAnalysisContent(content)) return;
 
-      const letter = assignLetter(rawSpeaker);
+      const letter = assignLetter(h.rawSpeaker);
 
-      // Parse "Name - Role" or just "Name"
-      if (inParens && !nameByLetter.has(letter)) {
-        const dashIdx = inParens.indexOf(" - ");
+      // Parse "Name - Role" or just "Name/Role"
+      if (h.inParens && !nameByLetter.has(letter)) {
+        const dashIdx = h.inParens.indexOf(" - ");
         if (dashIdx > -1) {
           nameByLetter.set(letter, {
-            name: inParens.slice(0, dashIdx).trim(),
-            role: inParens.slice(dashIdx + 3).trim(),
+            name: h.inParens.slice(0, dashIdx).trim(),
+            role: h.inParens.slice(dashIdx + 3).trim(),
           });
         } else {
-          nameByLetter.set(letter, { name: inParens, role: "" });
+          // Heuristic: if it looks like a role (contains "/" or common role words),
+          // treat as role only; otherwise as name.
+          const looksLikeRole =
+            /presentador|reporter|invitad|narrador|comentarista|analista|periodista|conductor|locutor|voz/i.test(
+              h.inParens,
+            ) || h.inParens.includes("/");
+          if (looksLikeRole) {
+            nameByLetter.set(letter, { name: "", role: h.inParens });
+          } else {
+            nameByLetter.set(letter, { name: h.inParens, role: "" });
+          }
         }
       }
+
+      const startMs = h.startMs !== null ? h.startMs : currentTime;
+      const endMs =
+        next && next.startMs !== null
+          ? next.startMs
+          : startMs + averageSegmentDuration;
 
       utterances.push({
         speaker: buildSpeakerId(letter),
         text: content,
-        start: currentTime,
-        end: currentTime + averageSegmentDuration,
+        start: startMs,
+        end: endMs,
       });
-      currentTime += averageSegmentDuration;
+      currentTime = endMs;
     });
 
     // Second pass: backfill speaker IDs that were created before their name was known
