@@ -1,87 +1,83 @@
-# TV Transcription Fix — UI Doubling + JSON Hardening
+I checked the current TV pipeline, recent Edge Function logs, and the latest `tv_transcriptions` rows. The loop is real, and the root cause is not only Qwen or AssemblyAI alone.
 
-## What's actually broken (confirmed in DB)
+Findings:
+- AssemblyAI is producing diarized utterances, but its speaker boundaries are imperfect in some clips, especially TV shows with commercials, fast interruptions, and overlapping host/guest dialogue.
+- Qwen speaker identification is currently text-only. Logs show `speaker_id_status=success`, but that only means Qwen returned a map; it is not true vision-grounded name identification.
+- The stored backend transcript is currently being modified into display text like `SPEAKER A (Bexaida - Invitada): ...`.
+- The frontend editor then re-formats parsed utterances using shared Radio utilities. That creates the UI discrepancy/doubling pattern like `SPEAKER A: SPEAKER A|Bexaida|Invitada: ...` and can degrade the transcript display even when the DB row is cleaner.
+- The old project memory says TV speaker identification should use vision/lower-thirds. Current Qwen Stage 3 does not do that for chunked videos; it only infers from transcript text.
 
-| Job | Stage 3 status | What's in DB | What UI shows |
-|---|---|---|---|
-| `4cfb17d3` (latest) | ✅ success | `[00:00] SPEAKER A (Bexaida - Invitada): Nosotros…` | ❌ `SPEAKER A: SPEAKER A\|Bexaida\|Invitada: Nosotros…` |
-| `c2f3de3f` | ❌ failed (JSON pos 62) | raw `SPEAKER A/B/C/D` | raw letters |
-| `7d494eb6` | ❌ failed (JSON pos 113) | raw `SPEAKER A/B/C/D` | raw letters |
+Plan to fix without touching Prensa Escrita, Radio behavior, or site-wide behavior:
 
-**So there are TWO independent bugs**, and the latest job proves the backend pipeline *can* identify names correctly when JSON parses — the UI is just mangling perfectly good output.
+1. Backend: stop mutating the canonical transcript into UI/display markup
+   - In `supabase/functions/process-tv-with-qwen/index.ts`, keep AssemblyAI’s diarized transcript as the canonical text format:
+     - `[00:00] SPEAKER A: dialogue`
+     - `[00:26] SPEAKER B: dialogue`
+   - Do not inject names/roles directly into every `SPEAKER X` header as the primary stored transcript.
+   - Instead, compute a separate speaker identity map internally and use it only to create a clean annotated transcript format or metadata for the UI.
+   - Preserve `speaker_id_status`, `speaker_id_method`, and `speaker_id_error` for debugging.
 
-## Answer to your direct question
+2. Backend: make AssemblyAI and Qwen work in concert with clear responsibilities
+   - AssemblyAI remains responsible for `who spoke when` using `utterances` and timestamps.
+   - Qwen is responsible for `who is that speaker` using the diarized transcript and, where possible, vision context.
+   - Add a guard so Qwen never changes AssemblyAI’s speaker boundaries or merges/splits utterances. Qwen can only assign identity to existing speaker letters.
+   - Add validation that every Qwen key maps to an existing AssemblyAI speaker letter only.
 
-**Yes**, AssemblyAI and Qwen work in concert:
-- **AssemblyAI** = diarization (when does speaker A stop, B start). Working.
-- **Qwen-plus (text-only)** = identification (A → "Bexaida", B → "Presentadora") from dialogue cues like "Licenciada Bexaida…". Working *when* JSON parses.
-- **Computer vision** (reading on-screen lower-thirds) is **NOT** wired in — Edge runtime has no ffmpeg to extract keyframes. Names come from textual cues only.
+3. Backend: restore vision-grounded speaker identification instead of text-only guessing
+   - For single-file video path: use the signed video URL / existing video-capable path to ask the visual model to read lower-thirds/chyrons and identify speaker names/roles.
+   - For chunked video path: do not send raw chunk byte slices to `qwen-vl-max` as video. That was broken. Use the available assembled/streamed-video approach where feasible, or fall back explicitly to `text-only` with a clear status/log when vision is not available.
+   - The speaker ID method should report one of:
+     - `vision-video` when lower-third/visual evidence was used
+     - `text-only` when only dialogue evidence was available
+     - `failed`/`skipped` with a real reason when no trustworthy identity can be assigned
+   - Names are accepted only when there is visual lower-third evidence or direct textual evidence. Otherwise fallback remains `Hablante A`, `Hablante B`, etc.
 
----
+4. Frontend: make TV use a TV-specific formatting path, not Radio’s speaker text formatter
+   - In `src/hooks/tv/useTvTranscriptionEditor.ts` / TV editor flow, avoid using Radio’s `formatSpeakerText()` for TV parsed utterances.
+   - Keep Radio’s current behavior unchanged.
+   - TV should pass parsed `utterances` to the enhanced editor for colored cards, but it should not rewrite the raw transcript into `SPEAKER A: SPEAKER A|Name|Role:`.
+   - This fixes the doubled prefix and restores the expected colored UI without affecting Radio.
 
-## Fix Plan — 2 surgical edits, TV-only
+5. Frontend parser: accept both clean backend and annotated backend formats safely
+   - Harden `src/utils/tv/speakerTextParser.ts` so it supports:
+     - `[00:00] SPEAKER A: text`
+     - `[00:00] SPEAKER A (Name - Role): text`
+     - legacy malformed `SPEAKER A: SPEAKER A|Name|Role: text` only as a repair input, not as an output format.
+   - The parser should produce speaker IDs as:
+     - `A` when unidentified
+     - `A|Name|Role` when identified
+   - The display layer renders those as `Hablante A` or `Name (Role)`.
 
-### Phase 1 — Fix the UI double-prefix (the visible bug in your screenshot)
+6. Add diagnostics to stop the loop
+   - Add structured Edge logs showing:
+     - AssemblyAI utterance count
+     - detected speaker letters
+     - Qwen identity map
+     - vision/text method used
+     - how many identities were accepted vs rejected
+   - Add a frontend console log only in TV parser when it repairs legacy malformed text, so we can distinguish DB issues from UI transformation issues.
 
-**File:** `src/utils/tv/speakerTextParser.ts`
+7. Verification
+   - Check latest `tv_transcriptions` rows after implementation for:
+     - `speaker_id_status`
+     - `speaker_id_method`
+     - `speaker_id_error`
+     - transcript preview without doubled prefixes
+   - Confirm TV transcript cards show colors and correct labels.
+   - Confirm Radio and Prensa Escrita files/components were not changed.
 
-Replace the single-regex parser with a two-step tokenizer that handles the real wire format:
+Technical scope:
+- Expected files to edit:
+  - `supabase/functions/process-tv-with-qwen/index.ts`
+  - `src/utils/tv/speakerTextParser.ts`
+  - TV-specific editor hook/component wiring only if needed, likely `src/hooks/tv/useTvTranscriptionEditor.ts` and/or `src/components/tv/TvTranscriptionEditor.tsx`
+- Files to avoid changing:
+  - Prensa Escrita modules
+  - Radio processing/transcription behavior, except only reading shared utilities if needed
+  - Site-wide layout/routing/auth
 
-```
-[00:00] SPEAKER A (Bexaida - Invitada): text…
-[00:26] SPEAKER B (Presentador/a): text…
-```
-
-- **Step 1:** Strip optional `[mm:ss]` timestamp prefix and capture it as `start` ms (instead of fake 5 s increments — bonus: real timestamps for click-to-seek).
-- **Step 2:** Match `^SPEAKER\s+(\w+)(?:\s*\(([^)]+)\))?:\s*` once per line/block. Use `\(([^)]+)\)` (already correct) but anchor matching to **line starts** so the lookahead doesn't bleed.
-- **Step 3:** Build `speaker` field as `LETTER|Name|Role` exactly once. Renderer (`SpeakerSegment.tsx`) already handles that format correctly — no UI changes needed.
-
-**Why this is safe:** the file is only imported by TV components (`useTvTranscriptionEditor`, `TvTranscriptionSection`). Confirmed via grep — Radio uses a separate `parseTimestampedText` util.
-
-### Phase 2 — Harden Stage 3 JSON parsing (the intermittent backend bug)
-
-**File:** `supabase/functions/process-tv-with-qwen/index.ts`, function `identifySpeakersFromText`
-
-The current `safeJsonParse` strips trailing commas but doesn't fix the real cause: **unescaped apostrophes/quotes inside string values** ("McDonald's", `el "evento"`).
-
-Three layered defenses:
-
-1. **Move evidence out of free text into a controlled field.** Change the prompt schema to ask for `evidence_keyword` (single word, max 30 chars, no quotes/apostrophes) instead of a paraphrase. The validation logic in lines 175–190 only needs the keyword to appear in the transcript — it never used the full paraphrase semantically.
-2. **Add a JSON repair fallback** that detects unescaped inner quotes (heuristic: a `"` inside a value position not followed by `,`/`}`/`:`) and escapes them, then retries `JSON.parse`.
-3. **If parsing still fails after both repairs**, fall back to a regex extractor that pulls `"A": {"name": "X", "role": "Y"}` pairs one-by-one — partial recovery > total failure.
-
-Also: add `temperature: 0.1` and `top_p: 0.8` to the Qwen call to reduce stylistic variation in the JSON output (currently temperature defaults to ~0.7).
-
-### Phase 3 — Verification
-
-After deploy, upload one short TV clip and run:
-
-```sql
-SELECT speaker_id_status, speaker_id_error,
-       LEFT(transcription_text, 400)
-FROM tv_transcriptions
-ORDER BY created_at DESC LIMIT 1;
-```
-
-Expected:
-- `speaker_id_status = success`
-- DB text starts with `[00:00] SPEAKER A (Name - Role): …`
-- UI Edit tab shows **`Name (Role)`** with colored dot — no doubled prefix, no `|` pipes visible.
-
----
-
-## Out of scope (explicitly NOT touched)
-
-- ❌ `src/components/radio/**` — Radio uses its own `parseTimestampedText`
-- ❌ `src/components/radio/enhanced-editor/SpeakerSegment.tsx` — already format-aware from last pass, works fine once parser emits clean IDs
-- ❌ Prensa Escrita / Prensa Digital — separate edge functions and UI
-- ❌ AssemblyAI parameters — diarization is currently correct (the latest job split Bexaida vs Presentador correctly)
-- ❌ DB schema — no migration
-- ❌ Vision/keyframe extraction — Edge runtime can't run ffmpeg; deferred
-
-## Files changed
-
-1. `src/utils/tv/speakerTextParser.ts` — rewrite parser (TV only)
-2. `supabase/functions/process-tv-with-qwen/index.ts` — prompt schema + JSON repair in `identifySpeakersFromText`
-
-Both deployed in one pass.
+Important behavior after the fix:
+- If the system cannot identify a name, it shows `Hablante A/B/C`, not guessed names.
+- If lower-third or direct textual evidence identifies the speaker, it shows the real name and role.
+- AssemblyAI controls timing/speaker turns; Qwen only labels those speakers.
+- No more `SPEAKER A: SPEAKER A|Name|Role:` UI output.

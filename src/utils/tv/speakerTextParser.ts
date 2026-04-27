@@ -33,7 +33,22 @@ export function parseTvSpeakerText(text: string): UtteranceTimestamp[] {
   const utterances: UtteranceTimestamp[] = [];
   
   // First, clean the text from any analysis artifacts
-  const cleanedText = cleanInputText(text);
+  let cleanedText = cleanInputText(text);
+
+  // Self-heal legacy doubled prefix: "SPEAKER A: SPEAKER A|Name|Role: dialogue"
+  // and "SPEAKER A: SPEAKER A (Name - Role): dialogue".
+  // These came from a previous formatter that re-emitted parsed utterances.
+  cleanedText = cleanedText.replace(
+    /SPEAKER\s+(\w+)\s*:\s*SPEAKER\s+\1\s*\|([^|\n]+)(?:\|([^\n:]+))?\s*:\s*/gi,
+    (_m, letter, name, role) =>
+      role
+        ? `SPEAKER ${letter} (${name.trim()} - ${role.trim()}): `
+        : `SPEAKER ${letter} (${name.trim()}): `,
+  );
+  cleanedText = cleanedText.replace(
+    /SPEAKER\s+(\w+)\s*:\s*SPEAKER\s+\1\s*(\([^)]+\))\s*:\s*/gi,
+    (_m, letter, paren) => `SPEAKER ${letter} ${paren}: `,
+  );
 
   // Wire format from backend (process-tv-with-qwen):
   //   [00:00] SPEAKER A (Bexaida - Invitada): text...
