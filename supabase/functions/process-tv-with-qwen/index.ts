@@ -56,9 +56,73 @@ function safeJsonParse(jsonStr: string): Record<string, any> {
     try {
       return JSON.parse(repaired);
     } catch {
-      throw firstErr;
+      // Second repair: escape unescaped inner double-quotes inside string values.
+      // Heuristic: a `"` inside a string literal that is NOT followed by
+      // a JSON structural character (`,` `}` `]` `:`) is treated as content.
+      try {
+        const escaped = escapeUnescapedInnerQuotes(repaired);
+        return JSON.parse(escaped);
+      } catch {
+        // Last resort: regex extraction of `"X": { ... }` pairs
+        const partial = extractSpeakerPairsFallback(jsonStr);
+        if (partial && Object.keys(partial).length > 0) return partial;
+        throw firstErr;
+      }
     }
   }
+}
+
+// Walk a JSON-ish string and escape `"` characters that appear inside string
+// values where they should have been escaped. We track depth and string state;
+// a closing quote is "real" only when the next non-space char is one of `,}]:`.
+function escapeUnescapedInnerQuotes(input: string): string {
+  let out = '';
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (escape) { out += ch; escape = false; continue; }
+    if (ch === '\\') { out += ch; escape = true; continue; }
+    if (ch === '"') {
+      if (!inString) { inString = true; out += ch; continue; }
+      // Look ahead: real closing quote?
+      let j = i + 1;
+      while (j < input.length && (input[j] === ' ' || input[j] === '\t' || input[j] === '\n' || input[j] === '\r')) j++;
+      const nxt = input[j];
+      if (nxt === ',' || nxt === '}' || nxt === ']' || nxt === ':' || nxt === undefined) {
+        inString = false;
+        out += ch;
+      } else {
+        // Inner quote — escape it
+        out += '\\"';
+      }
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+// Last-resort regex fallback: pull `"A": { "name": "...", "role": "...", ... }`
+function extractSpeakerPairsFallback(input: string): Record<string, any> | null {
+  const result: Record<string, any> = {};
+  const pairRegex = /"([A-Z])"\s*:\s*\{([^}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = pairRegex.exec(input)) !== null) {
+    const letter = m[1];
+    const body = m[2];
+    const pickField = (field: string): string => {
+      const r = new RegExp(`"${field}"\\s*:\\s*"([^"]*)"`, 'i');
+      const mm = body.match(r);
+      return mm ? mm[1] : '';
+    };
+    result[letter] = {
+      name: pickField('name'),
+      role: pickField('role'),
+      evidence: pickField('evidence_keyword') || pickField('evidence'),
+    };
+  }
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
