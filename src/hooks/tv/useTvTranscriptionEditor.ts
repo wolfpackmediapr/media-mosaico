@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
-import { useSpeakerTextState } from "../radio/editor/useSpeakerTextState";
+import { useTvSpeakerTextState } from "./editor/useTvSpeakerTextState";
 import { supabase } from "@/integrations/supabase/client";
 import { useAutosave } from "@/hooks/use-autosave";
 import { toast } from "sonner";
@@ -22,7 +22,8 @@ export const useTvTranscriptionEditor = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const lastSavedContentRef = useRef<string>(transcriptionText);
 
-  // Handle speaker text state (TV-specific - no utterance fetching)
+  // TV-specific speaker text state (does NOT rewrite text from utterances —
+  // prevents the "SPEAKER A: SPEAKER A|Name|Role:" doubled-prefix bug).
   const {
     localText,
     isEditing,
@@ -32,7 +33,7 @@ export const useTvTranscriptionEditor = ({
     resetLocalSpeakerText,
     enhancedTranscriptionResult,
     setEnhancedTranscriptionResult
-  } = useSpeakerTextState({
+  } = useTvSpeakerTextState({
     transcriptionText,
     transcriptionId,
     transcriptionResult,
