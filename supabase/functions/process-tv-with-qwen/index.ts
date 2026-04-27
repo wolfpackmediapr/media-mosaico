@@ -203,10 +203,11 @@ ${transcriptionText.substring(0, 15000)}`;
 
       if (identifiedCount > 0) {
         status = 'success';
-        console.log(`[qwen-tv][${requestId}] Identified ${identifiedCount} speakers (with evidence verification)`);
+        console.log(`[qwen-tv][${requestId}] [speaker-id-result] parseOk=true identifiedCount=${identifiedCount} mapKeys=${Object.keys(speakerMap).join(',')}`);
       } else {
         status = 'failed';
         error = 'No speakers matched in transcription';
+        console.warn(`[qwen-tv][${requestId}] [speaker-id-result] parseOk=true identifiedCount=0 mapKeys=${Object.keys(speakerMap).join(',')}`);
       }
     } catch (parseErr) {
       status = 'failed';
