@@ -694,7 +694,6 @@ async function transcribeWithAssemblyAI(
       language_code: 'es',
       speaker_labels: true,
       speech_model: 'best',
-      speakers_expected: 4,
       entity_detection: true,
     }),
   });
