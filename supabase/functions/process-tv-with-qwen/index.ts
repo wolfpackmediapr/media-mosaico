@@ -47,34 +47,25 @@ async function identifySpeakersFromText(
 
     console.log(`[qwen-tv][${requestId}] Identifying speakers from dialogue (text-only)...`);
 
-    const speakerIdPrompt = `Analiza esta transcripción de noticias de Puerto Rico e identifica cada hablante (SPEAKER A, SPEAKER B, etc.) por NOMBRE y ROL usando SOLO pistas del diálogo.
+    const speakerIdPrompt = `Analiza esta transcripción de noticias de Puerto Rico e identifica cada hablante (SPEAKER A, SPEAKER B, etc.).
 
-PISTAS A BUSCAR:
-1. AUTO-PRESENTACIONES: "Les saluda...", "Soy...", "Mi nombre es...", "Aquí [Nombre] reportando desde..."
-2. MENCIONES POR OTROS: "pasamos con [Nombre]", "nuestra compañera [Nombre]", "Doctor [Apellido]", "Senador [Apellido]"
-3. INDICADORES DE ROL: "reportera", "doctor", "presentador", "senador", "alcalde", "comentarista", "analista"
-4. CONTEXTO CONVERSACIONAL:
-   - Quien introduce segmentos / da la bienvenida = Presentador/Ancla
-   - Quien reporta desde el lugar de los hechos = Reportero en campo
-   - Quien responde preguntas / es entrevistado = Invitado/Entrevistado
-   - Quien narra promociones de productos = Narrador de anuncio
-5. PERSONALIDADES CONOCIDAS DE NOTICIAS DE PUERTO RICO (si los nombres mencionados coinciden):
-   Silverio Pérez, Ada Monzón, Normando Valentín, Celimar Adames, Jorge Seijo,
-   Aixa Vázquez, Rafael Lenín López, Keylla Hernández, Deborah Martorell,
-   Wilson Carrasquillo, Jay Fonseca, Luis Penchi, Jorge Rivera Nieves.
+REGLAS ANTI-ALUCINACIÓN (CRÍTICAS):
+- SOLO devuelve un NOMBRE PROPIO si aparece EXPLÍCITAMENTE en el diálogo de ese hablante (auto-presentación) o si OTRO hablante se dirige a él/ella por nombre en la misma conversación.
+- Si NO hay evidencia textual directa del nombre, devuelve únicamente un ROL descriptivo en español ("Presentador/a", "Co-presentador/a", "Reportero/a en campo", "Invitado/a", "Entrevistado/a", "Comentarista", "Analista", "Narrador/a de anuncio", "Voz en off").
+- PROHIBIDO: inventar, suponer o adivinar nombres. PROHIBIDO usar nombres de personalidades famosas si no aparecen en el texto.
+- Cada nombre devuelto DEBE ir acompañado de una cita textual exacta (campo "evidence") tomada literalmente de la transcripción que justifique la identificación. Si no puedes proveer una cita literal, NO devuelvas el nombre — devuelve solo el rol y deja "evidence" como cadena vacía.
 
-REGLA CRÍTICA: Si NO puedes identificar un nombre concreto, usa un descriptor de rol en español:
-- "Presentador principal" / "Mujer ancla" / "Hombre ancla"
-- "Co-presentador/a"
-- "Reportero/a en campo"
-- "Invitado/a - Entrevistado/a"
-- "Narrador de anuncio"
-- "Voz en off"
-- "Comentarista"
-NUNCA devuelvas solo la letra original. Siempre devuelve nombre real O descriptor de rol.
+PISTAS PERMITIDAS (solo si están en el texto):
+1. Auto-presentación: "Les saluda [Nombre]", "Soy [Nombre]", "Aquí [Nombre] reportando..."
+2. Mención directa por otro hablante en la conversación: "Gracias, [Nombre]", "pasamos con [Nombre]", "[Título] [Apellido], ¿qué nos dice?"
+3. Indicadores de rol: contexto conversacional (quien da la bienvenida = presentador, quien responde preguntas = invitado, etc.)
 
-Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdown), con este formato:
-{"A": "Nombre Apellido - Rol", "B": "Descriptor - Rol", "C": "..."}
+Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdown), con este formato EXACTO:
+{
+  "A": {"name": "Nombre Apellido o cadena vacía", "role": "Rol descriptivo", "evidence": "cita literal del transcript o cadena vacía"},
+  "B": {"name": "", "role": "Reportero en campo", "evidence": ""},
+  "C": {"name": "Dr. García", "role": "Invitado", "evidence": "Doctor García, gracias por estar con nosotros"}
+}
 
 TRANSCRIPCIÓN:
 ${transcriptionText.substring(0, 15000)}`;
@@ -100,18 +91,64 @@ ${transcriptionText.substring(0, 15000)}`;
       const speakerMap = JSON.parse(jsonMatch[0]);
       console.log(`[qwen-tv][${requestId}] Speaker map:`, JSON.stringify(speakerMap));
 
-      for (const [letter, nameRole] of Object.entries(speakerMap)) {
-        if (nameRole && typeof nameRole === 'string' && nameRole !== letter && nameRole.trim().length > 0) {
-          const regex = new RegExp(`SPEAKER ${letter}(?!\\s*\\()`, 'g');
-          const before = outText;
-          outText = outText.replace(regex, `SPEAKER ${letter} (${nameRole})`);
-          if (before !== outText) identifiedCount++;
+      // Normalize transcript once for case-insensitive evidence matching
+      const transcriptLower = transcriptionText.toLowerCase();
+
+      for (const [letter, value] of Object.entries(speakerMap)) {
+        let name = '';
+        let role = '';
+        let evidence = '';
+
+        if (value && typeof value === 'object') {
+          name = String((value as any).name || '').trim();
+          role = String((value as any).role || '').trim();
+          evidence = String((value as any).evidence || '').trim();
+        } else if (typeof value === 'string') {
+          // Backward-compat: legacy "Name - Role" string
+          const dashIdx = value.indexOf(' - ');
+          if (dashIdx > -1) {
+            name = value.slice(0, dashIdx).trim();
+            role = value.slice(dashIdx + 3).trim();
+          } else {
+            role = value.trim();
+          }
         }
+
+        // ANTI-HALLUCINATION GUARD: if a name was returned, require its evidence
+        // quote to actually exist in the transcript text. Otherwise drop the name
+        // and keep only the role.
+        if (name) {
+          const evidenceOk =
+            evidence.length >= 3 &&
+            transcriptLower.includes(evidence.toLowerCase());
+          // Also accept if the name itself (last word, e.g. surname) appears in transcript
+          const nameTokenOk = name
+            .split(/\s+/)
+            .some((t) => t.length >= 4 && transcriptLower.includes(t.toLowerCase()));
+
+          if (!evidenceOk && !nameTokenOk) {
+            console.warn(
+              `[qwen-tv][${requestId}] Dropping unverifiable name "${name}" for SPEAKER ${letter} (no evidence match)`
+            );
+            name = '';
+          }
+        }
+
+        // Build the annotation; skip entirely if we have neither name nor role
+        const annotation = name && role
+          ? `${name} - ${role}`
+          : name || role;
+        if (!annotation) continue;
+
+        const regex = new RegExp(`SPEAKER ${letter}(?!\\s*\\()`, 'g');
+        const before = outText;
+        outText = outText.replace(regex, `SPEAKER ${letter} (${annotation})`);
+        if (before !== outText) identifiedCount++;
       }
 
       if (identifiedCount > 0) {
         status = 'success';
-        console.log(`[qwen-tv][${requestId}] Identified ${identifiedCount} speakers`);
+        console.log(`[qwen-tv][${requestId}] Identified ${identifiedCount} speakers (with evidence verification)`);
       } else {
         status = 'failed';
         error = 'No speakers matched in transcription';

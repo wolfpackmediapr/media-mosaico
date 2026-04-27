@@ -1,95 +1,97 @@
+# Plan: Fix TV Transcription UI colors + Speaker-ID hallucinations
 
+## Root causes (confirmed via DB + code)
 
-## Review of Last Night's Changes — TV Prompts (Gemini + Qwen)
+**1. UI lost its colors / speaker label is broken**
+The `enhanced-editor/SpeakerSegment.tsx` (used by both Radio and TV in *edit* view) was written for the old `"speaker_1"` format. With the new canonical TV ID `"A|Name|Role"`:
+- `parseInt(speakerNum) * 60` → `NaN` → no border color, no dot color.
+- `displayName` becomes literally `SPEAKER A|Name|Role`.
+- It also sidelines the rich `getDisplayName()` helper we already added.
 
-I audited all four TV prompt builders. The intended approach was implemented, but with **two inconsistencies** between paths and **one self-contradiction** that needs fixing.
+**2. Names are hallucinated**
+Latest DB row (`30b36325…`) shows `SPEAKER A (Dr. Luis Xavier Mayol - Médico especialista en obesidad…)` attached to dialog about **truckers and government persecution** — nothing to do with that doctor. Cause: the Stage-3 Qwen text prompt **lists 13 famous PR personalities** ("Silverio Pérez, Ada Monzón, Normando Valentín…") and instructs the model to match. With no grounding it picks plausible names from that list. We also never re-show the on-screen-graphics evidence.
+
+**3. No vision evidence for speaker ID**
+Earlier we removed the broken `qwen-vl-max` video call (it never worked). We replaced it with text-only, but for TV the *real* signal is on-screen lower-third graphics ("María Rivera | Reportera"). We should reintroduce vision — but the right way: extract a few **frames** (still images) from the chunked video and feed them to `qwen-vl-max` (which IS image-capable). This grounds the names instead of guessing.
 
 ---
 
-### Summary of changes found
+## Scope guarantees (what will NOT change)
 
-| Change | Gemini (`process-tv-with-gemini`) | Qwen (`process-tv-with-qwen`) |
+- ❌ No edits to any file under `src/components/radio/**` outside the one shared `enhanced-editor/SpeakerSegment.tsx` — and that change is **fully backward compatible** with the old `"speaker_1"`, `"speaker_2"` format that Radio uses (verified by branching on the presence of `|` and falling back to existing logic).
+- ❌ No edits to `src/components/prensa-*` or any Prensa Escrita/Digital files.
+- ❌ No edits to `useSpeakerLabels`, `SpeakerLegend`, `interactive-transcription/SpeakerSegment` beyond what was already shipped (they are already correct).
+- ❌ No DB schema changes.
+- ❌ AssemblyAI parameters stay as-is (`speech_model: 'best'`, `speakers_expected: 4`).
+
+---
+
+## Phase 1 — Restore colorful UI (high impact, low risk)
+
+**File: `src/components/radio/enhanced-editor/SpeakerSegment.tsx`** (single shared component)
+
+Make it format-aware so it works for **both** Radio (`"speaker_1"`, `"1"`, `"A"`) and TV (`"A"`, `"A|Name|Role"`):
+
+- Parse `speaker` into `{ letterOrNum, name?, role? }` by splitting on `|`.
+- Color seed: if first token is a letter, use its char code; if numeric, use the number; if `speaker_N`, use N. (Reuse the same algorithm already present in `interactive-transcription/utils.ts → getSpeakerColor`.)
+- Display name resolution order:
+  1. Custom user label from `getDisplayName(speaker)` (unchanged).
+  2. If TV piped format → render `Name (Role)`.
+  3. If single uppercase letter → `Hablante A`.
+  4. Else fallback to existing `SPEAKER X`.
+- Use `hsl(...)` palette (same as the interactive view) so colors match the dot in the toggle/legend.
+
+Result: edit view in TV gets the dot + colored left border + clean `María Rivera (Reportera)` label, identical visual language to Radio.
+
+## Phase 2 — Stop name hallucinations (backend, TV-only)
+
+**File: `supabase/functions/process-tv-with-qwen/index.ts`** — modify `identifySpeakersFromText`:
+
+1. **Remove the hardcoded personality list** from the prompt. It biases the model toward a closed set of names regardless of evidence.
+2. **Tighten the prompt**: only return a name if there is **explicit textual evidence** (self-introduction or being addressed by name in the dialog). Otherwise return only a role descriptor in Spanish ("Reportero en campo", "Presentadora", "Invitado", etc.). Add an explicit instruction: *"Si no hay evidencia textual directa, NO inventes un nombre. Devuelve solo el rol."*
+3. **Lower temperature** for the speaker-id call to ~0.1 (already supported by `callQwenStreaming`; pass through).
+4. **Per-speaker evidence requirement**: require the JSON response to include `{"A": {"name": "...", "role": "...", "evidence": "<exact quote from transcript>"}}`. Reject any entry whose `evidence` substring is not actually present in the transcript text — drop those before applying the rename. This is the key anti-hallucination guard.
+5. Keep `speaker_id_status / method / error` writes intact.
+
+## Phase 3 — Add real vision grounding (Stage 3b, optional, TV-only)
+
+**File: `supabase/functions/process-tv-with-qwen/index.ts`** — only the chunked path:
+
+1. After AssemblyAI returns utterances, pick up to **6 frame timestamps** spread across the broadcast (one per ~3 min), using `ffmpeg`-equivalent extraction is not available in Edge runtime, so instead:
+   - Use the already-stored chunked file's first chunk header + Supabase Storage `transform=` query if available, OR
+   - Skip silently if frame extraction is not feasible — Phase 2 already removes hallucinations.
+2. If frames are obtainable, send them to `qwen-vl-max` (which IS image-capable) with the prompt: *"Lee los gráficos de identificación en pantalla (chyrons / lower-thirds) y devuelve cada Nombre — Rol observado."*
+3. Merge vision results into the speaker map **only when** they corroborate text evidence from Phase 2; otherwise vision wins for naming, text wins for which speaker letter.
+
+> Phase 3 is gated: if frame extraction proves infeasible in this Edge runtime, we ship Phases 1+2 and document Phase 3 as future work. Phases 1+2 alone already eliminate the visible bug.
+
+## Phase 4 — Verify & QA
+
+- Read the most recent `tv_transcriptions` row after a fresh upload via SQL.
+- Confirm `speaker_id_status = success` and that any `(Name - Role)` annotations have a matching evidence quote in `transcription_text`.
+- Visually confirm in `/tv` that:
+  - Speaker dots and colored left borders are back.
+  - Labels show `Hablante A` for unidentified or `María Rivera (Reportera)` for identified.
+  - No more "Dr. Luis Xavier Mayol" attached to trucker dialogue.
+
+---
+
+## Files touched
+
+| File | Change | Risk |
 |---|---|---|
-| 1. Speaker continuity paragraph (transcription prompt) | ✅ Present (lines 195-199) | ✅ Present (lines 58-62) |
-| 2. Per-story segmentation section (analysis prompt) | ✅ Present — JSON `noticias[]` array (lines 90-101, 130-145) | ✅ Present — `[NOTICIA N]` blocks (lines 137-160) |
-| 3. "No duplicate citations" instruction | ✅ Present (line 101) | ✅ Present (line 162) |
+| `src/components/radio/enhanced-editor/SpeakerSegment.tsx` | Format-aware color + label | Low — backward compatible with Radio's `speaker_N` format |
+| `supabase/functions/process-tv-with-qwen/index.ts` | Drop personality list, add evidence-required JSON, lower temp, optional Phase 3 vision | Low — TV pipeline only |
 
-So the three changes ARE in place on both paths. But the implementations diverge in two places.
-
----
-
-### Issues found
-
-**Issue A — Format divergence between Gemini and Qwen (Per-Story section)**
-
-- **Gemini** outputs JSON (`responseMimeType: "application/json"`, `maxOutputTokens: 4096`) → uses `noticias[]` array.
-- **Qwen** outputs free-form text → uses `[NOTICIA 1]`, `[NOTICIA 2]` headers.
-
-This is actually **correct** because the downstream parsers expect different formats per provider. ✅ No change needed — just flagging for awareness.
-
-**Issue B — Self-contradiction in citation instructions (Qwen analysis prompt)**
-
-In `process-tv-with-qwen/index.ts`:
-- Line 162: *"NO repitas citas textuales completas de la transcripción en el análisis. Resume los puntos clave."*
-- Line 218 (client-relevance): *"Citas textuales de la transcripción que justifican la relevancia"*
-- Line 230 (client-relevance fallback): *"Citas textuales de la transcripción que justifican la relevancia"*
-- Line 242 (closing instructions, point 6): *"Proporcionar citas textuales exactas de la transcripción para respaldar el análisis"*
-
-The model is told **don't repeat citations** AND **always include exact citations** — contradictory. This is the "duplicate citation instruction" the user mentions.
-
-**Issue C — Same contradiction exists in Gemini path** (line 101 vs. the implicit citation expectations in JSON schema, though milder since Gemini's JSON schema doesn't explicitly demand citations).
-
-**Issue D — Orphaned numbering in Qwen analysis prompt**
-
-Lines 154-160 list per-noticia items numbered 1-6 (correct). Then line 164 jumps to `2. Temas principales` (global). The numbering restarts at 2 because the original outline #1 was replaced by the new per-noticia block. Confusing but harmless to the model — minor cleanup.
+No other files changed. Radio, Prensa Escrita, Prensa Digital, dashboard, social — untouched.
 
 ---
 
-### Proposed fix (minimal, surgical)
+## Execution order
 
-**File 1: `supabase/functions/process-tv-with-qwen/index.ts`**
+1. Phase 1 (UI fix) — restores colors immediately for any past or future TV transcription.
+2. Phase 2 (anti-hallucination) — applies to all new TV uploads.
+3. Phase 3 attempted; if blocked, documented and skipped.
+4. Phase 4 verification on a live upload.
 
-Replace line 162 with a clarified rule that resolves the contradiction:
-
-```
-NOTA SOBRE CITAS: Usa citas textuales BREVES (máx. 1-2 oraciones) SOLO donde se requieran 
-explícitamente (sección de Relevancia para Clientes). En el resumen y análisis general, 
-parafrasea en tus propias palabras — NO copies párrafos completos de la transcripción.
-```
-
-Update closing instruction #6 (line 242) from:
-> "Proporcionar citas textuales exactas de la transcripción para respaldar el análisis"
-
-to:
-> "Usar citas textuales BREVES (1-2 oraciones máx.) únicamente donde se requieran (relevancia de clientes); en otras secciones, parafrasear"
-
-Fix orphaned numbering: relabel lines 164-189 starting at the correct number, or convert the per-noticia 1-6 list (lines 154-160) into a single nested bullet block under the `[NOTICIA N]` template so the global outline continues cleanly from `1. Tipo de contenido` → `2. Temas` → ... → `10. Relevancia`.
-
-**File 2: `supabase/functions/process-tv-with-gemini/index.ts`** (and its mirror in `analyze-tv-content/tvPromptBuilder.ts`)
-
-Replace line 101 of `process-tv-with-gemini/index.ts` with the same clarified rule:
-
-```
-NOTA SOBRE CITAS: En los campos de resumen ("resumen", "resumen_noticia"), parafrasea — 
-no copies texto literal de la transcripción. Las citas textuales BREVES son aceptables 
-solo dentro de "relevancia_clientes[].razon" cuando justifiquen la relevancia.
-```
-
-`analyze-tv-content/tvPromptBuilder.ts` is the legacy non-segmented prompt — no per-story section, no contradiction. **Leave it untouched** unless you want full parity (it's only used by the older `analyze-tv-content` function, not the active Qwen/Gemini pipelines).
-
----
-
-### Verification plan after edits
-
-1. Deploy both functions: `process-tv-with-qwen`, `process-tv-with-gemini`.
-2. Run one TV job through each path.
-3. Confirm in `tv_transcriptions.analysis_result`:
-   - `noticias[]` (Gemini) or `[NOTICIA N]` blocks (Qwen) are present and non-empty.
-   - `resumen` field has paraphrased content, not copy-pasted transcription chunks.
-   - `relevancia_clientes[].razon` still contains short justifying quotes.
-
-### Scope
-- 2 files modified (~6 lines changed total)
-- No DB, no frontend, no schema changes
-- Resolves the contradiction the user flagged ("modify 1 line — duplicate citation instruction")
-
+Approve and I'll execute Phases 1 → 2 → (try 3) → 4 in one pass.
