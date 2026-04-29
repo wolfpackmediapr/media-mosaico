@@ -1,80 +1,126 @@
-# Fix TV Transcription Hanging + Disappearing Video
+# TV pipeline fix: per-story analysis + real Qwen-VL speaker ID + stop video disappearing
 
-## Root Cause
+## The three problems (all observed today)
 
-`process-tv-with-qwen` runs transcription, speaker-id, AND a heavy Qwen analysis call (32k tokens) inside one background invocation. Edge Functions have a hard ~2s **CPU time** budget (separate from 150s wall clock). The streaming JSON parsing of the 32k-token analysis push the worker over the CPU cap → `ERROR: CPU Time exceeded`.
+### A. Video disappears mid-processing (NOT a real reload)
+Session-replay timeline:
+```
+T+0     "¡Procesamiento completado!" toast + transcription textarea appears
+T+3s    "Guardando..." → "Guardado exitoso"
+T+43s   "No hay videos subidos"   ← video card GONE
+```
+Console log right before it disappears: `[usePersistentVideoState] Serialized 0 files`.
 
-When the runtime kills the worker mid-execution, **the `finally` block never runs**, so jobs get frozen at `status: processing, progress: 55` instead of `failed`. The frontend treats them as "live" but no updates ever come, and the UI eventually drops the card → "video disappears."
+This is **not** a page reload — the React tree stays mounted. What's happening: a side-effect downstream of the autosave + transcription success is calling `setUploadedFiles([])`, which the persistent-state hook then serializes to sessionStorage as `[]`. The video element unmounts. Meanwhile the background Edge Function (`process-tv-with-qwen`) keeps running on the server because analysis was already decoupled via `EdgeRuntime.waitUntil` last turn — that's why transcription text still arrives, but the user sees the video card vanish, and analysis sometimes fails silently because the UI no longer has a card to surface the error on.
 
-Evidence in DB:
-- Stuck jobs: `4f3ff24e` (55%), `fa98999e` (35%) → status still `processing`
-- Even "completed" recent jobs have `analysis_summary = NULL` → analysis silently failed
+### B. Analysis lost the rich per-story format
+`Analisis_Example.docx.md` shows what we need: per-story `[NOTICIA N]` blocks (Título / Resumen / Participantes / Temas / Tono / Categorías / 5W / Palabras clave / Puntuación de impacto) INSIDE the existing two-color structure (`[TIPO DE CONTENIDO: PROGRAMA REGULAR]` blue card + `[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]` yellow card). The renderer already produces colored cards correctly; the prompts in `analyze-tv-stored` and `analyze-tv-content` were stripped and no longer emit either marker.
 
-## Strategy (Surgical — TV ONLY)
+### C. Visual speaker ID is fake
+`process-tv-with-qwen` lines 761–767 admit it: the previous vision attempt sent raw 15MB byte chunks to `qwen-vl-max` and always failed because that model takes images, not raw video. Current implementation is **text-only dialogue inference** — real names from on-screen lower-thirds (e.g., "José Torres Ruiz - Inspector CIC Guayama") are NEVER extracted. The prompt still claims to read chyrons, but the code doesn't.
 
-1. **Decouple analysis from transcription.** Once transcription text is saved, mark the job complete for the transcription portion, then **fire-and-forget invoke** the existing `analyze-tv-content` edge function (Gemini-based, different code path, fresh CPU budget).
-2. **Strengthen terminal-state guarantees** so jobs never get stuck even if the worker dies.
-3. **One-time recovery** for the 5 stuck/incomplete jobs.
+## Fix — all Qwen, no Gemini expansion
 
-**Zero changes to:** Prensa Escrita, Radio, Social, Dashboard, Auth, any shared component, `analyze-tv-content`, or any frontend code outside the TV processor hook.
+### Section 1: Stop the video card from disappearing during processing
 
-## Changes
+`src/hooks/tv/usePersistentVideoState.ts`:
 
-### 1. `supabase/functions/process-tv-with-qwen/index.ts` (TV only)
+1. Guard `setUploadedFiles` so it refuses to serialize an empty array while `isProcessing === true` OR while a `transcriptionId` exists without a terminal `failed:*` status. Concretely: when the wrapper (line 133) receives `[]`, check for an in-flight job (read from a small ref shared via context or the existing `useTvVideoProcessor` state) and short-circuit the write. The blob URL + filePath stay intact.
+2. The deserialize path (line 84–128) already prefers cached blob URL → filePath (Supabase URL) → stored preview — keep that. Just make sure we never *write* `[]` mid-job in the first place.
+3. Add a `clearUploadedFiles({ force: boolean })` helper that explicit user actions (e.g., the "Clear" button via `useTvClearState`) call with `force: true`. All other code paths use the guarded setter.
+4. Track which side-effect is currently zeroing the array — based on the timing (~40s after autosave finishes, before analysis completes) it's most likely a stale closure inside the autosave/onSuccess chain or a `forceReset` toggle. Add a one-line `console.warn` in the guarded setter when a write is rejected so future regressions are obvious.
 
-In `processChunkedInBackground`:
+This single fix solves the "video disappears" symptom AND the downstream "analysis sometimes fails silently" symptom (because the UI keeps the file card, and the existing failure-state UI from last turn's plan can render properly).
 
-- After saving the transcription (line ~868), **stop doing analysis inline**. Replace the inline Qwen analysis block (lines ~880-931) with:
-  - Save final transcription state (`status: 'completed'`, `progress: 100`, transcription text, speaker map) immediately.
-  - Fire `supabaseClient.functions.invoke('analyze-tv-content', { body: { transcriptionId, transcriptionText, categories, clients } })` wrapped in `EdgeRuntime.waitUntil(...)` so it doesn't block return. Failures here only update `provider_fallback_reason` — the user already has the transcription.
-- Add a **5-minute watchdog** at function start: any `processing` job for the same user older than 5 min is force-marked `failed:timeout` (catches previously-killed jobs).
-- Keep existing `try/catch/finally` exactly as-is.
+### Section 2: Real visual speaker ID via Qwen-VL frame list
 
-### 2. `src/hooks/tv/useTvVideoProcessor.ts` (TV only)
+Qwen-VL natively accepts an "image list" of up to 256 pre-extracted frames per request with an `fps` parameter — exactly what Alibaba documents for video understanding. CloudConvert is already integrated (`CLOUDCONVERT_API_KEY` set, used by `compress-tv-video` / `convert-video` / `convert-to-audio`) and supports ffmpeg-based JPG keyframe extraction natively.
 
-- After invoking `process-tv-with-qwen`, polling already exists. No change to polling logic.
-- Treat `status === 'completed'` as success even if `analysis_summary` is still null (analysis arrives shortly after via the separate function and realtime subscription updates the UI).
-- When `status` starts with `failed:`, surface the localized error and **do not remove the video card** — keep it visible with a "Retry analysis" affordance.
+#### NEW edge function: `extract-tv-frames`
+- Input: `{ videoPath, transcriptionId }`
+- CloudConvert ffmpeg job: extract 1 JPG every 5 seconds (covers 3–8s lower-third display windows) for the first 30 minutes, capped at **120 frames** (well under Qwen's 256 cap).
+- Each frame downscaled to 720x480 (sufficient for chyron OCR, keeps tokens low).
+- Frames written to existing `videos` bucket under `tv-frames/<transcriptionId>/frame_0001.jpg ... frame_0120.jpg`.
+- Returns `{ frames: [{ url, ts_seconds }], fps_extracted: 0.2 }`.
+- Auto-cleanup: delete frames after analysis finishes (or 24h via lifecycle).
 
-### 3. `src/components/tv/TvVideoUploader.tsx` / file-list display (TV only)
+#### NEW stage in `process-tv-with-qwen`: `visualSpeakerId`
+After AssemblyAI transcription gives us SPEAKER A/B/C/... letters with timestamps, BEFORE the existing text-only fallback:
+1. Call `extract-tv-frames`.
+2. POST to Qwen-VL via DashScope `/compatible-mode/v1/chat/completions` with `model: qwen-vl-max-latest`, content array = all frame URLs as `image_url` items + a system prompt asking it to OCR every chyron / lower-third / banner / network logo and return JSON:
+   ```json
+   {"graphics":[
+     {"ts_seconds":42.5,"name":"José Torres Ruiz","role":"Inspector CIC Guayama","outlet":"Telemundo PR"},
+     {"ts_seconds":187.0,"name":"Walter Soto León","role":"Presentador","outlet":"Telenoticias 11"}
+   ]}
+   ```
+3. Use AssemblyAI utterance timestamps to map each `ts_seconds` to whichever SPEAKER letter was talking at that moment (±10s window).
+4. Build `speakerMap = { A: "Walter Soto León - Presentador", B: "José Torres Ruiz - Inspector CIC Guayama", ... }`.
+5. **Merge with text-only Qwen-Plus fallback** for letters vision missed (off-screen voices, callers, voice-over).
+6. Apply existing `sanitizeSpeakerMap()` — only commit a name if it came from OCR'd graphic OR explicit dialogue mention.
+7. Replace `SPEAKER A` → `SPEAKER A (José Torres Ruiz - Inspector CIC Guayama)` in transcription text.
+8. Persist evidence trail in DB column `speaker_id_evidence jsonb` (which letter, what frame, what OCR text) for QA.
 
-- When a job moves to `failed:*`, keep the file card visible (currently it disappears because the success/error branch removes it). Add a small inline error state with a retry button that re-invokes only the analysis step.
+#### DB migration (additive)
+```sql
+ALTER TABLE tv_transcriptions ADD COLUMN IF NOT EXISTS speaker_id_evidence jsonb;
+```
+Existing `speaker_id_method` column gets new values: `vision+text` | `vision-only` | `text-only` | `none`.
 
-### 4. New helper: `analyze-tv-stored` edge function (small)
+#### Cost
+~120 frames × 720×480 ≈ ~18k visual tokens to qwen-vl-max-latest, well within per-request limits, roughly equivalent to one extra `qwen-plus` analysis call per video.
 
-A thin wrapper that takes a `transcriptionId`, fetches the stored `transcription_text` + categories/clients from DB, then invokes `analyze-tv-content` with that payload. Used by:
-- The retry button in the UI
-- The one-time recovery script for stuck jobs
+### Section 3: Restore per-story `[NOTICIA N]` analysis format
 
-This avoids duplicating the analysis logic and keeps `analyze-tv-content` untouched.
+#### NEW shared module: `supabase/functions/_shared/tvAnalysisPrompt.ts`
+Move the existing `buildAnalysisPrompt` body from `process-tv-with-qwen` (lines 148–290) into a shared file. It already has both `[TIPO DE CONTENIDO:]` markers AND per-story `[NOTICIA N]` blocks with all 9 fields, plus anti-blending / anti-hallucination / client-relevance rules.
 
-### 5. One-time recovery (SQL + function calls)
+#### Update `analyze-tv-stored/index.ts`
+Replace its stripped inline prompt with `import { buildTvAnalysisPrompt } from '../_shared/tvAnalysisPrompt.ts'`. Keep streaming + fallback + extractor.
 
-For the 5 affected rows:
-- `fa98999e`, `4f3ff24e` → reset to `transcribed`, then call `analyze-tv-stored` to backfill analysis (and finalize text if missing).
-- `e674eb8c`, `90e55a41`, `65511dcb`, `983a9cb3`, `2a5d43d3`, `0e1d5422` (completed but no analysis) → call `analyze-tv-stored` to backfill analysis only.
+#### Update `process-tv-with-qwen/index.ts`
+Same import. Removes duplication.
 
-Done via a one-shot edge function call per ID — no DB schema change.
+#### Update `analyze-tv-content/tvPromptBuilder.ts` (Gemini fallback path)
+Rewrite to emit the same `[TIPO DE CONTENIDO:]` + `[NOTICIA N]` text format (drop the JSON schema). Drop `responseMimeType: "application/json"` from the Gemini call. Used only when Qwen fully fails — small but safety net stays consistent.
 
-## Technical Notes
+### Section 4: Backfill historical jobs
+After deploy, invoke `analyze-tv-stored` once per affected ID:
+`fa98999e`, `4f3ff24e`, `e674eb8c`, `90e55a41`, `65511dcb`, `983a9cb3`, `2a5d43d3`, `0e1d5422`.
+Vision frames may not exist for old videos → these get text-only speaker ID + per-story analysis. New uploads get full vision.
 
-- **Why not Gemini directly inline?** The CPU cap is hit in the streaming JSON loop, not the API call. Switching providers in the same invocation wouldn't fix it. Splitting invocations gives each stage its own 2s CPU budget.
-- **Why fire-and-forget invoke vs. background queue?** `analyze-tv-content` already exists, takes <30s, and runs in its own isolate with a fresh CPU budget. No new table, no cron, minimal change.
-- **Realtime updates**: `tv_transcriptions` row updates from `analyze-tv-content` propagate via the existing realtime channel — no frontend wiring needed.
-- **No migrations required.** No new tables, no new columns (uses existing `analysis_*` columns).
+## Files changed
 
-## What Will NOT Change
+```text
+NEW   supabase/functions/_shared/tvAnalysisPrompt.ts
+NEW   supabase/functions/extract-tv-frames/index.ts
+EDIT  supabase/functions/process-tv-with-qwen/index.ts
+        - import shared prompt
+        - new visualSpeakerId stage between transcription and text-only fallback
+EDIT  supabase/functions/analyze-tv-stored/index.ts          (import shared prompt)
+EDIT  supabase/functions/analyze-tv-content/tvPromptBuilder.ts (per-story text format)
+EDIT  supabase/functions/analyze-tv-content/index.ts          (drop responseMimeType)
+EDIT  src/hooks/tv/usePersistentVideoState.ts                 (guard against [] writes mid-job)
+NEW   migration: ALTER TABLE tv_transcriptions ADD COLUMN speaker_id_evidence jsonb
+```
 
-- Prensa Escrita pipeline, hooks, UI — untouched
-- Radio pipeline, hooks, UI — untouched
-- Dashboard, Social, Auth, shared components — untouched
-- `analyze-tv-content` edge function — untouched (just called from a new place)
-- Database schema — untouched
-- `useChunkedVideoUpload` hook — untouched (already fixed last turn)
+## What will NOT change
 
-## Acceptance Criteria
+- `TvFormattedAnalysisResult.tsx` (renderer is already correct: blue/yellow split with icons)
+- `analysisParser.ts` (already handles `[NOTICIA N]` text inside content-type sections)
+- `useChunkedVideoUpload`, AssemblyAI transcription stage, speaker LETTER assignment by AssemblyAI
+- Radio analysis pipeline + prompts
+- Prensa Escrita, Social, Dashboard, Auth, shared components
+- The CPU-timeout fix from last turn (decoupled background analysis stays in place)
+- DB schema for any other table; only one additive jsonb column on `tv_transcriptions`
+- Frontend hooks, polling, realtime subscriptions, video upload flow
 
-- New TV upload completes: transcription appears within ~3 min, analysis (5W, summary, keywords) appears within ~30s after.
-- If analysis fails, transcription is still visible and a "Reintentar análisis" button appears on the card.
-- No job ever stays in `processing` state for more than 5 min — watchdog forces a terminal status.
-- The 5 stuck/incomplete historical jobs are recovered with full analysis.
+## Acceptance criteria
+
+- During and after processing, the **video file card stays visible** with playback intact. No more "No hay videos subidos" mid-job.
+- Speaker labels in transcription show **real names from on-screen lower-thirds**: e.g., `SPEAKER A (José Torres Ruiz - Inspector CIC Guayama):`, with `speaker_id_evidence` listing the source frame.
+- Analysis card shows a **blue card per PROGRAMA REGULAR** containing multiple `[NOTICIA N]` blocks (Título, Resumen, Participantes, Temas, Tono, Categorías, 5W, Palabras clave, Puntuación de impacto) AND **separate yellow cards per ANUNCIO PUBLICITARIO** with marca / CTA / tono. Matches `Analisis_Example.docx.md`.
+- "Reintentar análisis" produces the same per-story format with proper color separation.
+- Backfilled historical jobs display the per-story format (text-only speaker labels, since their video frames are gone).
+- Radio and Prensa Escrita analysis are unchanged.
+
