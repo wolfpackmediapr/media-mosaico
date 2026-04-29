@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { buildTvAnalysisPrompt } from '../_shared/tvAnalysisPrompt.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,63 +13,10 @@ const TEXT_MODEL = 'qwen-plus';
 const TEXT_MODEL_FALLBACK = 'qwen-turbo';
 const MAX_RETRIES = 3;
 
-// ── Prompt builder (mirror of process-tv-with-qwen.buildAnalysisPrompt) ────────
-function buildAnalysisPrompt(
-  categories: string[],
-  clients: { name: string; keywords?: string[] }[],
-  transcriptionText: string,
-): string {
-  const categoriesText = categories.length > 0
-    ? categories.join(', ')
-    : 'ENTRETENIMIENTO, EDUCACION & CULTURA, COMUNIDAD, SALUD, CRIMEN, TRIBUNALES, AMBIENTE & EL TIEMPO, ECONOMIA & NEGOCIOS, GOBIERNO, POLITICA, EE.UU. & INTERNACIONALES, DEPORTES, RELIGION, OTRAS, ACCIDENTES, CIENCIA & TECNOLOGIA';
-
-  const clientsText = clients.length > 0 ? clients.map(c => c.name).join(', ') : '';
-  const clientKeywordMap = clients.length > 0
-    ? clients.map(c => `- ${c.name}: ${(c.keywords && c.keywords.length > 0) ? c.keywords.join(', ') : '—'}`).join('\n')
-    : '';
-
-  let prompt = `Eres un analista experto en contenido de televisión de Puerto Rico y el Caribe. Tu tarea es analizar la siguiente transcripción de un programa de TV en español e identificar y separar el contenido publicitario del contenido regular del programa.
-
-IMPORTANTE - FORMATO DE RESPUESTA:
-Debes identificar y separar claramente cada sección de contenido, comenzando CADA SECCIÓN con uno de estos encabezados:
-
-[TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO]
-o
-[TIPO DE CONTENIDO: PROGRAMA REGULAR]
-
-PARA CADA SECCIÓN incluye también, cuando aplique:
-1. Marca/producto (anuncios) o Tema principal (programa regular)
-2. Resumen del contenido
-3. Tono
-4. Categoría aplicable de: ${categoriesText}
-5. Análisis 5W (QUIÉN, QUÉ, CUÁNDO, DÓNDE, POR QUÉ)
-6. Palabras clave (10-15)
-7. Puntuación de impacto noticioso (1-10)
-8. Alertas y recomendaciones`;
-
-  if (clientsText && clientKeywordMap) {
-    prompt += `
-
-9. **Relevancia para Clientes**: Evalúa el contenido contra la siguiente lista. SOLO incluye clientes con relevancia ALTA o MEDIA.
-
-Lista de clientes y palabras clave:
-${clientKeywordMap}
-
-Para cada cliente RELEVANTE indica nombre, nivel, razón, palabras clave encontradas y citas textuales BREVES.`;
-  }
-
-  prompt += `
-
-Responde en español, conciso y profesional. Usa citas textuales BREVES (1-2 oraciones máx.) solo donde se requieran.
-
-═══════════════════════════════════════════════════════════════
-TRANSCRIPCIÓN A ANALIZAR:
-═══════════════════════════════════════════════════════════════
-
-${transcriptionText}`;
-
-  return prompt;
-}
+// Canonical TV prompt is centralized in _shared/tvAnalysisPrompt.ts so that
+// process-tv-with-qwen, analyze-tv-stored and Gemini fallback all emit the
+// same [TIPO DE CONTENIDO: ...] + [NOTICIA N] structure the UI renders as
+// blue/yellow color-coded cards.
 
 // ── Qwen streaming call (mirror) ──────────────────────────────────────────────
 async function callQwenStreaming(
@@ -239,7 +187,7 @@ serve(async (req) => {
 
     console.log(`[analyze-tv-stored][${requestId}] Analyzing transcript ${transcriptionId} chars=${transcriptionText.length} cats=${categories.length} clients=${clients.length}`);
 
-    const prompt = buildAnalysisPrompt(categories, clients, transcriptionText);
+    const prompt = buildTvAnalysisPrompt(categories, clients, transcriptionText);
     const messages = [{ role: 'user', content: [{ type: 'text', text: prompt }] }];
 
     let result = await callQwenStreaming(qwenApiKey, TEXT_MODEL, messages, requestId, 'analysis', 16384);

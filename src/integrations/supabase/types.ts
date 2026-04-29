@@ -1848,6 +1848,7 @@ export type Database = {
           provider_used: string | null
           relevant_clients: string[] | null
           speaker_id_error: string | null
+          speaker_id_evidence: Json | null
           speaker_id_method: string | null
           speaker_id_status: string | null
           status: string
@@ -1894,6 +1895,7 @@ export type Database = {
           provider_used?: string | null
           relevant_clients?: string[] | null
           speaker_id_error?: string | null
+          speaker_id_evidence?: Json | null
           speaker_id_method?: string | null
           speaker_id_status?: string | null
           status?: string
@@ -1940,6 +1942,7 @@ export type Database = {
           provider_used?: string | null
           relevant_clients?: string[] | null
           speaker_id_error?: string | null
+          speaker_id_evidence?: Json | null
           speaker_id_method?: string | null
           speaker_id_status?: string | null
           status?: string
