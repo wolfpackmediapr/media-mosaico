@@ -67,6 +67,30 @@ export const useTvAnalysisDisplay = ({
     }
   }, [transcriptionId]);
 
+  // Subscribe to realtime updates so analysis populated by analyze-tv-stored
+  // (which runs in a separate edge function invocation after transcription)
+  // is reflected immediately without a manual refresh.
+  useEffect(() => {
+    if (!transcriptionId) return;
+    const channel = supabase
+      .channel(`tv_analysis_${transcriptionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'tv_transcriptions', filter: `id=eq.${transcriptionId}` },
+        (payload: any) => {
+          const newRow = payload?.new || {};
+          if (newRow.full_analysis || newRow.analysis_content_summary || newRow.summary) {
+            console.log('[useTvAnalysisDisplay] Realtime analysis update detected, refetching');
+            fetchExistingAnalysis();
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [transcriptionId]);
+
   return {
     existingAnalysis,
     hasAnalysis,
