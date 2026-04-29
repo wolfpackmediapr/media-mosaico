@@ -1,53 +1,80 @@
-## What's happening
+# Fix TV Transcription Hanging + Disappearing Video
 
-Per memory (`mem://features/tv/video-processing-architecture`), the TV upload pipeline is correct and unchanged: 15MB chunks, 3 parallel, manifest path for >50MB. Recent DB sessions confirm uploads ARE completing (15/15, 17/17, 19/19 today).
+## Root Cause
 
-The real issue is **UX feedback**, not the pipeline:
+`process-tv-with-qwen` runs transcription, speaker-id, AND a heavy Qwen analysis call (32k tokens) inside one background invocation. Edge Functions have a hard ~2s **CPU time** budget (separate from 150s wall clock). The streaming JSON parsing of the 32k-token analysis push the worker over the CPU cap → `ERROR: CPU Time exceeded`.
 
-1. **Progress feels frozen** — `chunkProgress` updates only once per batch of 3 chunks (line 221), and `uploadProgress` only updates after the batch finishes (line 235). With 15MB × 3 = 45MB per batch on slow uplinks, the bar can sit still for 30–90 seconds per tick.
-2. **No byte-level counter** — UI shows only a percentage and "fragmento N/M". No MB uploaded / MB total, no speed, no ETA.
-3. **No heartbeat after 100%** — once chunks finish, manifest creation / edge assembly runs silently and the bar stays at 100% with static text.
-4. **Stale `in_progress` sessions** — when the user picks a new file mid-upload, old sessions are abandoned in `chunked_upload_sessions` (visible in DB: 0/15, 3/24, 12/19). They don't break anything but clutter and may confuse future resume attempts.
+When the runtime kills the worker mid-execution, **the `finally` block never runs**, so jobs get frozen at `status: processing, progress: 55` instead of `failed`. The frontend treats them as "live" but no updates ever come, and the UI eventually drops the card → "video disappears."
 
-No backend, no edge function, no Qwen/AssemblyAI/analysis code is touched. Radio and Prensa Escrita are not touched.
+Evidence in DB:
+- Stuck jobs: `4f3ff24e` (55%), `fa98999e` (35%) → status still `processing`
+- Even "completed" recent jobs have `analysis_summary = NULL` → analysis silently failed
 
-## Plan
+## Strategy (Surgical — TV ONLY)
 
-### 1. Per-chunk progress (the main fix)
-In `src/hooks/use-chunked-video-upload.ts`:
-- Replace the batch-level `setChunkProgress` with per-chunk increments. Track a `completedChunks` counter that each `uploadSingleChunk` increments on success, and update `chunkProgress` + `uploadProgress` from it inside the success path.
-- Add `bytesUploaded` state, incremented by chunk size on each chunk completion.
-- Add `uploadSpeed` (bytes/sec, rolling 5s window) and `etaSeconds` derived from speed.
+1. **Decouple analysis from transcription.** Once transcription text is saved, mark the job complete for the transcription portion, then **fire-and-forget invoke** the existing `analyze-tv-content` edge function (Gemini-based, different code path, fresh CPU budget).
+2. **Strengthen terminal-state guarantees** so jobs never get stuck even if the worker dies.
+3. **One-time recovery** for the 5 stuck/incomplete jobs.
 
-### 2. Richer counter UI
-In `src/components/tv/TvVideoUploader.tsx`, expand `getProgressText()` to show:
-```
-Subiendo fragmento 7/19 · 102 MB / 285 MB · 4.2 MB/s · ETA 0:43
-```
-Keep the existing Pause/Resume/Cancel buttons and Progress bar untouched.
+**Zero changes to:** Prensa Escrita, Radio, Social, Dashboard, Auth, any shared component, `analyze-tv-content`, or any frontend code outside the TV processor hook.
 
-### 3. Post-100% heartbeat
-After all chunks upload, switch to an indeterminate state with rotating status messages so the user knows work continues:
-- "Creando manifiesto…" (large file path) — already logged but not surfaced
-- "Ensamblando en el servidor…" (small file path)
-- A pulsing dot or animated bar (use existing `Progress` with `value={undefined}` styling or a simple spinner already in the codebase).
+## Changes
 
-### 4. Cleanup of stale sessions (low risk)
-When `uploadFileChunked` starts a new upload while an old session ref exists and is not paused, mark the old session row `status = 'cancelled'` in `chunked_upload_sessions`. Pure DB hygiene, no behavior change for working uploads.
+### 1. `supabase/functions/process-tv-with-qwen/index.ts` (TV only)
 
-### 5. Safety
-- All changes are additive to existing state; no rename of existing exports.
-- No edge function changes, no DB schema changes, no migrations.
-- Radio (`useFileUpload`) untouched. Prensa Escrita untouched.
-- Speaker ID / transcription / analysis pipeline untouched.
+In `processChunkedInBackground`:
 
-## Files changed
+- After saving the transcription (line ~868), **stop doing analysis inline**. Replace the inline Qwen analysis block (lines ~880-931) with:
+  - Save final transcription state (`status: 'completed'`, `progress: 100`, transcription text, speaker map) immediately.
+  - Fire `supabaseClient.functions.invoke('analyze-tv-content', { body: { transcriptionId, transcriptionText, categories, clients } })` wrapped in `EdgeRuntime.waitUntil(...)` so it doesn't block return. Failures here only update `provider_fallback_reason` — the user already has the transcription.
+- Add a **5-minute watchdog** at function start: any `processing` job for the same user older than 5 min is force-marked `failed:timeout` (catches previously-killed jobs).
+- Keep existing `try/catch/finally` exactly as-is.
 
-- `src/hooks/use-chunked-video-upload.ts` — per-chunk progress, speed/ETA state, stale-session cancel
-- `src/components/tv/TvVideoUploader.tsx` — extended progress text + post-100% heartbeat UI
+### 2. `src/hooks/tv/useTvVideoProcessor.ts` (TV only)
 
-## Out of scope
+- After invoking `process-tv-with-qwen`, polling already exists. No change to polling logic.
+- Treat `status === 'completed'` as success even if `analysis_summary` is still null (analysis arrives shortly after via the separate function and realtime subscription updates the UI).
+- When `status` starts with `failed:`, surface the localized error and **do not remove the video card** — keep it visible with a "Retry analysis" affordance.
 
-- Speaker diarization / Qwen / AssemblyAI prompts (separate work, not regressed)
-- Manifest vs assembled playback logic
-- Any UI changes outside the TV upload card
+### 3. `src/components/tv/TvVideoUploader.tsx` / file-list display (TV only)
+
+- When a job moves to `failed:*`, keep the file card visible (currently it disappears because the success/error branch removes it). Add a small inline error state with a retry button that re-invokes only the analysis step.
+
+### 4. New helper: `analyze-tv-stored` edge function (small)
+
+A thin wrapper that takes a `transcriptionId`, fetches the stored `transcription_text` + categories/clients from DB, then invokes `analyze-tv-content` with that payload. Used by:
+- The retry button in the UI
+- The one-time recovery script for stuck jobs
+
+This avoids duplicating the analysis logic and keeps `analyze-tv-content` untouched.
+
+### 5. One-time recovery (SQL + function calls)
+
+For the 5 affected rows:
+- `fa98999e`, `4f3ff24e` → reset to `transcribed`, then call `analyze-tv-stored` to backfill analysis (and finalize text if missing).
+- `e674eb8c`, `90e55a41`, `65511dcb`, `983a9cb3`, `2a5d43d3`, `0e1d5422` (completed but no analysis) → call `analyze-tv-stored` to backfill analysis only.
+
+Done via a one-shot edge function call per ID — no DB schema change.
+
+## Technical Notes
+
+- **Why not Gemini directly inline?** The CPU cap is hit in the streaming JSON loop, not the API call. Switching providers in the same invocation wouldn't fix it. Splitting invocations gives each stage its own 2s CPU budget.
+- **Why fire-and-forget invoke vs. background queue?** `analyze-tv-content` already exists, takes <30s, and runs in its own isolate with a fresh CPU budget. No new table, no cron, minimal change.
+- **Realtime updates**: `tv_transcriptions` row updates from `analyze-tv-content` propagate via the existing realtime channel — no frontend wiring needed.
+- **No migrations required.** No new tables, no new columns (uses existing `analysis_*` columns).
+
+## What Will NOT Change
+
+- Prensa Escrita pipeline, hooks, UI — untouched
+- Radio pipeline, hooks, UI — untouched
+- Dashboard, Social, Auth, shared components — untouched
+- `analyze-tv-content` edge function — untouched (just called from a new place)
+- Database schema — untouched
+- `useChunkedVideoUpload` hook — untouched (already fixed last turn)
+
+## Acceptance Criteria
+
+- New TV upload completes: transcription appears within ~3 min, analysis (5W, summary, keywords) appears within ~30s after.
+- If analysis fails, transcription is still visible and a "Reintentar análisis" button appears on the card.
+- No job ever stays in `processing` state for more than 5 min — watchdog forces a terminal status.
+- The 5 stuck/incomplete historical jobs are recovered with full analysis.
