@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.analyze-tv-stored]
 verify_jwt = false
+
+[functions.extract-tv-frames]
+verify_jwt = false
