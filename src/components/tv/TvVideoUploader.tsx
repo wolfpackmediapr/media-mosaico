@@ -30,6 +30,11 @@ const TvVideoUploader = ({
     totalChunks,
     isPaused,
     useClientAssembly,
+    bytesUploaded,
+    totalBytes,
+    uploadSpeed,
+    etaSeconds,
+    isFinalizing,
     uploadFileChunked,
     pauseUpload,
     resumeUpload
@@ -92,7 +97,7 @@ const TvVideoUploader = ({
 
   const getProgressText = () => {
     if (isChunkedUploading && totalChunks > 0) {
-      if (uploadProgress >= 100 && chunkProgress >= 100) {
+      if (isFinalizing || (uploadProgress >= 100 && chunkProgress >= 100)) {
         // Determine file size to show appropriate message
         const fileSizeMB = selectedFiles.length > 0 ? selectedFiles[0].size / (1024 * 1024) : 0;
         
@@ -105,7 +110,18 @@ const TvVideoUploader = ({
         }
       }
       const currentChunk = Math.ceil((chunkProgress / 100) * totalChunks);
-      return `Subiendo fragmento ${currentChunk}/${totalChunks} - ${uploadProgress.toFixed(0)}% completado`;
+      const mb = (b: number) => (b / (1024 * 1024)).toFixed(1);
+      const speedMBs = uploadSpeed / (1024 * 1024);
+      const speedStr = speedMBs >= 0.1 ? `${speedMBs.toFixed(1)} MB/s` : "calculando…";
+      const etaStr =
+        etaSeconds > 0 && uploadSpeed > 0
+          ? ` · ETA ${Math.floor(etaSeconds / 60)}:${(etaSeconds % 60).toString().padStart(2, "0")}`
+          : "";
+      const bytesStr =
+        totalBytes > 0
+          ? ` · ${mb(bytesUploaded)} / ${mb(totalBytes)} MB`
+          : "";
+      return `Subiendo fragmento ${Math.min(currentChunk, totalChunks)}/${totalChunks} · ${uploadProgress.toFixed(0)}%${bytesStr} · ${speedStr}${etaStr}`;
     }
     return `${uploadProgress.toFixed(0)}% completado`;
   };
@@ -142,6 +158,12 @@ const TvVideoUploader = ({
               </p>
               <Progress value={uploadProgress} className="w-full h-2" />
               <p className="text-xs text-gray-500">{getProgressText()}</p>
+              {isFinalizing && (
+                <div className="flex items-center justify-center gap-2 text-xs text-primary">
+                  <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  Finalizando…
+                </div>
+              )}
               
               {isChunkedUploading && (
                 <div className="flex gap-2 justify-center">

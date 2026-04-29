@@ -2078,7 +2078,16 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      storage_cleanup_candidates: {
+        Row: {
+          bucket_id: string | null
+          bytes: number | null
+          category: string | null
+          name: string | null
+          object_created_at: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       create_processing_errors_if_not_exists: {
