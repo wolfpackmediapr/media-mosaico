@@ -38,9 +38,17 @@ export const useChunkedVideoUpload = () => {
   const [totalChunks, setTotalChunks] = useState<number>(0);
   const [isPaused, setIsPaused] = useState(false);
   const [useClientAssembly, setUseClientAssembly] = useState(false);
+  const [bytesUploaded, setBytesUploaded] = useState<number>(0);
+  const [totalBytes, setTotalBytes] = useState<number>(0);
+  const [uploadSpeed, setUploadSpeed] = useState<number>(0); // bytes/sec
+  const [etaSeconds, setEtaSeconds] = useState<number>(0);
+  const [isFinalizing, setIsFinalizing] = useState(false);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentSessionRef = useRef<UploadSession | null>(null);
+  const speedSamplesRef = useRef<{ t: number; bytes: number }[]>([]);
+  const completedChunksRef = useRef<number>(0);
+  const bytesUploadedRef = useRef<number>(0);
 
   const pauseUpload = () => {
     setIsPaused(true);
