@@ -36,3 +36,6 @@ verify_jwt = false
 
 [functions.update-user-password]
 verify_jwt = false
+
+[functions.analyze-tv-stored]
+verify_jwt = false
