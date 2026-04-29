@@ -85,6 +85,29 @@ export const useChunkedVideoUpload = () => {
       setIsUploading(true);
       setUploadProgress(0);
       setIsPaused(false);
+      setIsFinalizing(false);
+      setBytesUploaded(0);
+      setTotalBytes(file.size);
+      setUploadSpeed(0);
+      setEtaSeconds(0);
+      speedSamplesRef.current = [{ t: Date.now(), bytes: 0 }];
+      bytesUploadedRef.current = 0;
+      completedChunksRef.current = 0;
+
+      // Cancel any stale in-progress session left behind by previous upload
+      const prev = currentSessionRef.current;
+      if (prev && prev.uploadedChunks < prev.totalChunks) {
+        try {
+          await supabase
+            .from('chunked_upload_sessions')
+            .update({ status: 'cancelled' })
+            .eq('session_id', prev.sessionId)
+            .neq('status', 'completed');
+          removeSession(prev.sessionId);
+        } catch (e) {
+          console.warn('Could not cancel previous session', e);
+        }
+      }
 
       // Determine upload strategy based on file size
       const isLargeFile = file.size > LARGE_FILE_THRESHOLD;
