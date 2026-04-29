@@ -18,277 +18,68 @@ const MAX_RETRIES = 3;
 
 const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
 
-// ═══════════════════════════════════════════════════════════════════════
-// JSON helpers — robust extraction & repair for model-emitted JSON
-// ═══════════════════════════════════════════════════════════════════════
-function extractBalancedJsonObject(raw: string): string | null {
-  if (!raw) return null;
-  // Strip common markdown code fences
-  const cleaned = raw.replace(/```(?:json)?/gi, '').trim();
-  const start = cleaned.indexOf('{');
-  if (start === -1) return null;
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  for (let i = start; i < cleaned.length; i++) {
-    const ch = cleaned[i];
-    if (escape) { escape = false; continue; }
-    if (ch === '\\') { escape = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) return cleaned.slice(start, i + 1);
-    }
-  }
-  return null;
+function extractJsonObject(raw: string): string | null {
+  const fenced = raw.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
+  if (fenced?.[1]) return fenced[1];
+  const objectMatch = raw.match(/(\{[\s\S]*\})/);
+  return objectMatch?.[1] ?? null;
 }
 
-function safeJsonParse(jsonStr: string): Record<string, any> {
-  try {
-    return JSON.parse(jsonStr);
-  } catch (firstErr) {
-    // Repair pass: strip trailing commas before } or ]
-    let repaired = jsonStr.replace(/,(\s*[}\]])/g, '$1');
-    // Replace control characters inside strings with spaces
-    repaired = repaired.replace(/[\u0000-\u001F]+/g, ' ');
-    try {
-      return JSON.parse(repaired);
-    } catch {
-      // Second repair: escape unescaped inner double-quotes inside string values.
-      // Heuristic: a `"` inside a string literal that is NOT followed by
-      // a JSON structural character (`,` `}` `]` `:`) is treated as content.
-      try {
-        const escaped = escapeUnescapedInnerQuotes(repaired);
-        return JSON.parse(escaped);
-      } catch {
-        // Last resort: regex extraction of `"X": { ... }` pairs
-        const partial = extractSpeakerPairsFallback(jsonStr);
-        if (partial && Object.keys(partial).length > 0) return partial;
-        throw firstErr;
+function normalizeSpeakerIdentity(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+-\s+.*$/, '')
+    .replace(/[^a-z0-9ñ ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+
+function formatAssemblySpeakerLabel(rawSpeaker: unknown): string {
+  const raw = String(rawSpeaker ?? '').trim();
+  if (/^[A-Z]$/i.test(raw)) return raw.toUpperCase();
+  if (/^\d+$/.test(raw)) return String.fromCharCode(65 + Number(raw));
+  return raw || 'A';
+}
+
+function sanitizeSpeakerMap(rawMap: Record<string, unknown>, transcript: string): Record<string, string> {
+  const sanitized: Record<string, string> = {};
+  const used = new Map<string, string>();
+  const transcriptLower = transcript.toLowerCase();
+
+  for (const [rawLetter, rawValue] of Object.entries(rawMap)) {
+    const letter = rawLetter.trim().toUpperCase();
+    if (!/^[A-Z]$/.test(letter) || typeof rawValue !== 'string') continue;
+
+    let value = rawValue.trim();
+    if (!value || value.toUpperCase() === letter) continue;
+
+    // Guardrail from Johanna's Apr 28 test: text-only speaker ID must not invent public
+    // figures or names from context. Keep real names only when the exact name appears
+    // in the transcript (self-introduction / direct mention). Otherwise use role labels.
+    const likelyRealName = /^([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+){1,3}[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+/.test(value);
+    if (likelyRealName) {
+      const candidateName = value.split(' - ')[0].trim().toLowerCase();
+      if (!transcriptLower.includes(candidateName)) {
+        value = value.replace(/^.*?\s+-\s+/, '').trim();
+        if (!value || value === rawValue.trim()) value = `Hablante ${letter} - No identificado`;
       }
     }
-  }
-}
 
-// Walk a JSON-ish string and escape `"` characters that appear inside string
-// values where they should have been escaped. We track depth and string state;
-// a closing quote is "real" only when the next non-space char is one of `,}]:`.
-function escapeUnescapedInnerQuotes(input: string): string {
-  let out = '';
-  let inString = false;
-  let escape = false;
-  for (let i = 0; i < input.length; i++) {
-    const ch = input[i];
-    if (escape) { out += ch; escape = false; continue; }
-    if (ch === '\\') { out += ch; escape = true; continue; }
-    if (ch === '"') {
-      if (!inString) { inString = true; out += ch; continue; }
-      // Look ahead: real closing quote?
-      let j = i + 1;
-      while (j < input.length && (input[j] === ' ' || input[j] === '\t' || input[j] === '\n' || input[j] === '\r')) j++;
-      const nxt = input[j];
-      if (nxt === ',' || nxt === '}' || nxt === ']' || nxt === ':' || nxt === undefined) {
-        inString = false;
-        out += ch;
-      } else {
-        // Inner quote — escape it
-        out += '\\"';
-      }
-      continue;
-    }
-    out += ch;
-  }
-  return out;
-}
-
-// Last-resort regex fallback: pull `"A": { "name": "...", "role": "...", ... }`
-function extractSpeakerPairsFallback(input: string): Record<string, any> | null {
-  const result: Record<string, any> = {};
-  const pairRegex = /"([A-Z])"\s*:\s*\{([^}]*)\}/g;
-  let m: RegExpExecArray | null;
-  while ((m = pairRegex.exec(input)) !== null) {
-    const letter = m[1];
-    const body = m[2];
-    const pickField = (field: string): string => {
-      const r = new RegExp(`"${field}"\\s*:\\s*"([^"]*)"`, 'i');
-      const mm = body.match(r);
-      return mm ? mm[1] : '';
-    };
-    result[letter] = {
-      name: pickField('name'),
-      role: pickField('role'),
-      evidence: pickField('evidence_keyword') || pickField('evidence'),
-    };
-  }
-  return Object.keys(result).length > 0 ? result : null;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// SHARED: Speaker identification via Qwen TEXT model (text-only dialogue)
-// Used by both chunked and single-file paths. Returns the (possibly enriched)
-// transcription text plus status metadata to persist on tv_transcriptions.
-// ═══════════════════════════════════════════════════════════════════════
-async function identifySpeakersFromText(
-  transcriptionText: string,
-  qwenApiKey: string,
-  requestId: string,
-): Promise<{
-  text: string;
-  status: 'success' | 'failed' | 'skipped';
-  method: string;
-  error: string | null;
-  identifiedCount: number;
-}> {
-  let status: 'success' | 'failed' | 'skipped' = 'skipped';
-  const method = 'text-only';
-  let error: string | null = null;
-  let identifiedCount = 0;
-  let outText = transcriptionText;
-
-  try {
-    if (!transcriptionText || transcriptionText.trim().length < 50) {
-      return { text: outText, status: 'skipped', method, error: 'Transcription too short', identifiedCount };
+    const identity = normalizeSpeakerIdentity(value);
+    if (identity && used.has(identity) && used.get(identity) !== letter) {
+      value = `${value} (${letter})`;
     }
 
-    console.log(`[qwen-tv][${requestId}] Identifying speakers from dialogue (text-only)...`);
-
-    const speakerIdPrompt = `Analiza esta transcripción de noticias de Puerto Rico e identifica cada hablante (SPEAKER A, SPEAKER B, etc.).
-
-REGLAS ANTI-ALUCINACIÓN (CRÍTICAS):
-- SOLO devuelve un NOMBRE PROPIO si aparece EXPLÍCITAMENTE en el diálogo de ese hablante (auto-presentación) o si OTRO hablante se dirige a él/ella por nombre en la misma conversación.
-- Si NO hay evidencia textual directa del nombre, devuelve únicamente un ROL descriptivo en español ("Presentador/a", "Co-presentador/a", "Reportero/a en campo", "Invitado/a", "Entrevistado/a", "Comentarista", "Analista", "Narrador/a de anuncio", "Voz en off").
-- PROHIBIDO: inventar, suponer o adivinar nombres. PROHIBIDO usar nombres de personalidades famosas si no aparecen en el texto.
-
-PISTAS PERMITIDAS (solo si están en el texto):
-1. Auto-presentación: "Les saluda [Nombre]", "Soy [Nombre]", "Aquí [Nombre] reportando..."
-2. Mención directa por otro hablante: "Gracias, [Nombre]", "pasamos con [Nombre]", "[Título] [Apellido], ¿qué nos dice?"
-3. Indicadores de rol contextuales (quien da la bienvenida = presentador, quien responde preguntas = invitado, etc.)
-
-FORMATO DE SALIDA — OBLIGATORIO:
-Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdown, sin comentarios).
-El campo "evidence_keyword" DEBE ser UNA SOLA PALABRA (máximo 30 caracteres, solo letras y números, SIN espacios, SIN comillas, SIN apóstrofes, SIN signos de puntuación). Esa palabra DEBE aparecer textualmente en la transcripción para validar tu identificación.
-Los campos "name" y "role" tampoco deben contener comillas ni apóstrofes.
-
-Ejemplo EXACTO del formato esperado:
-{
-  "A": {"name": "", "role": "Presentadora", "evidence_keyword": "bienvenidos"},
-  "B": {"name": "", "role": "Reportero en campo", "evidence_keyword": "reportando"},
-  "C": {"name": "Garcia", "role": "Invitado", "evidence_keyword": "Garcia"}
-}
-
-TRANSCRIPCIÓN:
-${transcriptionText.substring(0, 15000)}`;
-
-    const speakerIdMessages = [
-      { role: 'user', content: [{ type: 'text', text: speakerIdPrompt }] },
-    ];
-
-    const speakerIdResult = await callQwenStreaming(
-      qwenApiKey, TEXT_MODEL, speakerIdMessages, requestId, 'speaker-id', 2048,
-      { jsonMode: true }
-    );
-
-    if (!speakerIdResult.success || !speakerIdResult.data) {
-      return { text: outText, status: 'failed', method, error: speakerIdResult.error || 'Qwen call failed', identifiedCount };
-    }
-
-    const jsonStr = extractBalancedJsonObject(speakerIdResult.data);
-    if (!jsonStr) {
-      console.warn(`[qwen-tv][${requestId}] [speaker-id-result] no JSON object found, raw=${speakerIdResult.data.slice(0, 300)}`);
-      return { text: outText, status: 'failed', method, error: 'No JSON object found in model response', identifiedCount };
-    }
-
-    let speakerMap: Record<string, any>;
-    try {
-      speakerMap = safeJsonParse(jsonStr);
-    } catch (parseErr) {
-      console.warn(`[qwen-tv][${requestId}] [speaker-id-result] parseOk=false err=${(parseErr as Error).message} json=${jsonStr.slice(0, 300)}`);
-      return { text: outText, status: 'failed', method, error: `JSON parse error: ${(parseErr as Error).message}`, identifiedCount };
-    }
-
-    try {
-      console.log(`[qwen-tv][${requestId}] Speaker map:`, JSON.stringify(speakerMap));
-
-      // Normalize transcript once for case-insensitive evidence matching
-      const transcriptLower = transcriptionText.toLowerCase();
-
-      for (const [letter, value] of Object.entries(speakerMap)) {
-        let name = '';
-        let role = '';
-        let evidence = '';
-
-        if (value && typeof value === 'object') {
-          name = String((value as any).name || '').replace(/["']/g, '').trim();
-          role = String((value as any).role || '').replace(/["']/g, '').trim();
-          evidence = String(
-            (value as any).evidence_keyword || (value as any).evidence || ''
-          ).replace(/["']/g, '').trim();
-        } else if (typeof value === 'string') {
-          // Backward-compat: legacy "Name - Role" string
-          const dashIdx = value.indexOf(' - ');
-          if (dashIdx > -1) {
-            name = value.slice(0, dashIdx).trim();
-            role = value.slice(dashIdx + 3).trim();
-          } else {
-            role = value.trim();
-          }
-        }
-
-        // ANTI-HALLUCINATION GUARD: if a name was returned, require its evidence
-        // quote to actually exist in the transcript text. Otherwise drop the name
-        // and keep only the role.
-        if (name) {
-          const evidenceOk =
-            evidence.length >= 3 &&
-            transcriptLower.includes(evidence.toLowerCase());
-          // Also accept if the name itself (last word, e.g. surname) appears in transcript
-          const nameTokenOk = name
-            .split(/\s+/)
-            .some((t) => t.length >= 4 && transcriptLower.includes(t.toLowerCase()));
-
-          if (!evidenceOk && !nameTokenOk) {
-            console.warn(
-              `[qwen-tv][${requestId}] Dropping unverifiable name "${name}" for SPEAKER ${letter} (no evidence match)`
-            );
-            name = '';
-          }
-        }
-
-        // Build the annotation; skip entirely if we have neither name nor role
-        const annotation = name && role
-          ? `${name} - ${role}`
-          : name || role;
-        if (!annotation) continue;
-
-        const regex = new RegExp(`SPEAKER ${letter}(?!\\s*\\()`, 'g');
-        const before = outText;
-        outText = outText.replace(regex, `SPEAKER ${letter} (${annotation})`);
-        if (before !== outText) identifiedCount++;
-      }
-
-      if (identifiedCount > 0) {
-        status = 'success';
-        console.log(`[qwen-tv][${requestId}] [speaker-id-result] parseOk=true identifiedCount=${identifiedCount} mapKeys=${Object.keys(speakerMap).join(',')}`);
-      } else {
-        status = 'failed';
-        error = 'No speakers matched in transcription';
-        console.warn(`[qwen-tv][${requestId}] [speaker-id-result] parseOk=true identifiedCount=0 mapKeys=${Object.keys(speakerMap).join(',')}`);
-      }
-    } catch (parseErr) {
-      status = 'failed';
-      error = `JSON parse error: ${(parseErr as Error).message}`;
-      console.warn(`[qwen-tv][${requestId}] Speaker map JSON parse failed:`, parseErr);
-    }
-  } catch (speakerErr) {
-    status = 'failed';
-    error = (speakerErr as Error).message;
-    console.warn(`[qwen-tv][${requestId}] Speaker identification failed (non-fatal):`, speakerErr);
+    sanitized[letter] = value;
+    if (identity) used.set(identity, letter);
   }
 
-  return { text: outText, status, method, error, identifiedCount };
+  return sanitized;
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════
 // MASTER PROMPTS — Ported from process-tv-with-gemini for full parity
@@ -541,32 +332,27 @@ async function callQwenStreaming(
   messages: any[],
   requestId: string,
   stage: string,
-  maxTokens: number = 16384,
-  options: { jsonMode?: boolean } = {}
+  maxTokens: number = 16384
 ): Promise<{ success: boolean; data?: string; error?: string; statusCode?: number }> {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`[qwen-tv][${requestId}] ${stage} attempt ${attempt}/${MAX_RETRIES} with model ${model}`);
 
     try {
-      const requestBody: any = {
-        model,
-        messages,
-        modalities: ['text'],
-        stream: true,
-        stream_options: { include_usage: true },
-        temperature: 0.1,
-        max_tokens: maxTokens,
-      };
-      if (options.jsonMode) {
-        requestBody.response_format = { type: 'json_object' };
-      }
       const response = await fetch(QWEN_API_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          model,
+          messages,
+          modalities: ['text'],
+          stream: true,
+          stream_options: { include_usage: true },
+          temperature: 0.1,
+          max_tokens: maxTokens,
+        }),
       });
 
       if (response.status === 429) {
@@ -761,7 +547,6 @@ async function transcribeWithAssemblyAI(
       audio_url: uploadUrl,
       language_code: 'es',
       speaker_labels: true,
-      speech_model: 'best',
       entity_detection: true,
     }),
   });
@@ -806,7 +591,8 @@ async function transcribeWithAssemblyAI(
           const minutes = Math.floor(startMs / 60000);
           const seconds = Math.floor((startMs % 60000) / 1000);
           const timestamp = `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}]`;
-          formattedText += `${timestamp} SPEAKER ${utt.speaker}: ${utt.text}\n\n`;
+          const speakerLabel = formatAssemblySpeakerLabel(utt.speaker);
+          formattedText += `${timestamp} SPEAKER ${speakerLabel}: ${utt.text}\n\n`;
         }
       } else {
         formattedText = pollData.text || '';
@@ -979,11 +765,104 @@ async function processChunkedInBackground(
     //   2) chunk_0000 is a 15MB byte slice without valid MP4 headers
     // We now use text-only dialogue analysis (self-introductions, mentions by name,
     // role indicators) which is reliable and 0-extra-cost (qwen-plus is cheap).
-    const speakerIdOutcome = await identifySpeakersFromText(transcriptionText, qwenApiKey, requestId);
-    transcriptionText = speakerIdOutcome.text;
-    const speakerIdStatus = speakerIdOutcome.status;
-    const speakerIdMethod = speakerIdOutcome.method;
-    const speakerIdError = speakerIdOutcome.error;
+    let speakerIdStatus: 'success' | 'failed' | 'skipped' = 'skipped';
+    let speakerIdMethod: string = 'text-only';
+    let speakerIdError: string | null = null;
+    let speakersIdentified = 0;
+
+    try {
+      console.log(`[qwen-tv][${requestId}] Background: Identifying speakers from dialogue (text-only)...`);
+
+      const speakerIdPrompt = `Analiza esta transcripción de noticias de Puerto Rico e identifica cada hablante (SPEAKER A, SPEAKER B, etc.) usando SOLO evidencia explícita de la transcripción.
+
+OBJETIVO PRINCIPAL:
+Evitar nombres inventados. Es mejor decir "Hablante A - No identificado" que asignar incorrectamente un nombre real.
+
+EVIDENCIA PERMITIDA PARA USAR NOMBRES REALES:
+1. AUTO-PRESENTACIONES explícitas: "Les saluda...", "Soy...", "Mi nombre es...", "Aquí [Nombre] reportando desde..."
+2. MENCIONES explícitas por otros: "pasamos con [Nombre]", "nuestra compañera [Nombre]", "Doctor [Apellido]", "Senador [Apellido]"
+3. Cargos o roles explícitos en el diálogo: "reportera", "doctor", "presentador", "senador", "alcalde", "comentarista", "analista"
+
+REGLAS ANTI-HALLUCINACIÓN (CRÍTICAS):
+- NO adivines nombres de figuras públicas por tema, voz, estilo, canal o memoria externa.
+- NO uses listas de personalidades conocidas para inferir identidad.
+- NO conviertas diálogo de novela, dramatización, anuncio o escena ficticia en nombres de presentadores reales.
+- Si el nombre exacto NO aparece en la transcripción, usa un descriptor de rol.
+- Si hay diálogo dramatizado/novela, usa descriptores como "Personaje masculino - Diálogo dramatizado" o "Personaje femenino - Diálogo dramatizado".
+
+REGLA DE UNICIDAD Y CONTINUIDAD:
+- Cada letra (A, B, C...) representa un canal de voz diferente según AssemblyAI.
+- No repitas el mismo nombre/descriptor para letras distintas salvo que sea claramente la misma persona; si no puedes distinguir, usa descriptores únicos por letra.
+- Mantén la letra original. No cambies el contenido transcrito.
+
+DESCRIPTORES SEGUROS SI NO HAY EVIDENCIA DE NOMBRE:
+- "Presentador/a - No identificado/a"
+- "Reportero/a - No identificado/a"
+- "Invitado/a - No identificado/a"
+- "Voz en off - No identificada"
+- "Narrador de anuncio - No identificado"
+- "Personaje masculino - Diálogo dramatizado"
+- "Personaje femenino - Diálogo dramatizado"
+- "Hablante [LETRA] - No identificado/a"
+
+Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdown), con este formato:
+{"A": "Descriptor seguro", "B": "Nombre Apellido - Rol solo si aparece explícitamente", "C": "..."}
+
+TRANSCRIPCIÓN:
+${transcriptionText.substring(0, 15000)}`;
+
+      const speakerIdMessages = [
+        { role: 'user', content: [{ type: 'text', text: speakerIdPrompt }] },
+      ];
+
+      const speakerIdResult = await callQwenStreaming(
+        qwenApiKey, TEXT_MODEL, speakerIdMessages, requestId, 'speaker-id', 2048
+      );
+
+      if (speakerIdResult.success && speakerIdResult.data) {
+        // Extract JSON from response and sanitize against hallucinated identities
+        const jsonStr = extractJsonObject(speakerIdResult.data);
+        if (jsonStr) {
+          try {
+            const rawSpeakerMap = JSON.parse(jsonStr);
+            const speakerMap = sanitizeSpeakerMap(rawSpeakerMap, transcriptionText);
+            console.log(`[qwen-tv][${requestId}] Speaker map:`, JSON.stringify(speakerMap));
+
+            // Replace SPEAKER X with SPEAKER X (Name - Role) in transcription
+            for (const [letter, nameRole] of Object.entries(speakerMap)) {
+              if (nameRole && typeof nameRole === 'string' && nameRole !== letter && nameRole.trim().length > 0) {
+                const regex = new RegExp(`SPEAKER ${letter}(?!\\s*\\()`, 'g');
+                const before = transcriptionText;
+                transcriptionText = transcriptionText.replace(regex, `SPEAKER ${letter} (${nameRole})`);
+                if (before !== transcriptionText) speakersIdentified++;
+              }
+            }
+
+            if (speakersIdentified > 0) {
+              speakerIdStatus = 'success';
+              console.log(`[qwen-tv][${requestId}] Identified ${speakersIdentified} speakers`);
+            } else {
+              speakerIdStatus = 'failed';
+              speakerIdError = 'No speakers matched in transcription';
+            }
+          } catch (parseErr) {
+            speakerIdStatus = 'failed';
+            speakerIdError = `JSON parse error: ${(parseErr as Error).message}`;
+            console.warn(`[qwen-tv][${requestId}] Speaker map JSON parse failed:`, parseErr);
+          }
+        } else {
+          speakerIdStatus = 'failed';
+          speakerIdError = 'No JSON object found in model response';
+        }
+      } else {
+        speakerIdStatus = 'failed';
+        speakerIdError = speakerIdResult.error || 'Qwen call failed';
+      }
+    } catch (speakerErr) {
+      speakerIdStatus = 'failed';
+      speakerIdError = (speakerErr as Error).message;
+      console.warn(`[qwen-tv][${requestId}] Speaker identification failed (non-fatal):`, speakerErr);
+    }
 
     // Save transcription immediately
     await supabaseClient
@@ -1259,7 +1138,7 @@ serve(async (req) => {
       throw new Error(`Transcripción falló: ${transcriptionResult.error}`);
     }
 
-    let transcriptionText = transcriptionResult.data!;
+    const transcriptionText = transcriptionResult.data!;
     console.log(`[qwen-tv][${requestId}] Transcription complete, length: ${transcriptionText.length} chars`);
 
     // Update progress
@@ -1267,22 +1146,6 @@ serve(async (req) => {
       await supabaseClient
         .from('tv_transcriptions')
         .update({ progress: 50, transcription_text: transcriptionText })
-        .eq('id', transcriptId);
-    }
-
-    // ── Stage 3 (single-file): Speaker name identification via Qwen text-only ──
-    const sfSpeakerOutcome = await identifySpeakersFromText(transcriptionText, qwenApiKey, requestId);
-    transcriptionText = sfSpeakerOutcome.text;
-    if (transcriptId) {
-      await supabaseClient
-        .from('tv_transcriptions')
-        .update({
-          transcription_text: transcriptionText,
-          progress: 55,
-          speaker_id_status: sfSpeakerOutcome.status,
-          speaker_id_method: sfSpeakerOutcome.method,
-          speaker_id_error: sfSpeakerOutcome.error,
-        })
         .eq('id', transcriptId);
     }
 
