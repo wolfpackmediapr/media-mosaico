@@ -349,6 +349,11 @@ export const useChunkedVideoUpload = () => {
       setUploadProgress(0);
       setChunkProgress(0);
       setTotalChunks(0);
+      setIsFinalizing(false);
+      setBytesUploaded(0);
+      setTotalBytes(0);
+      setUploadSpeed(0);
+      setEtaSeconds(0);
     }
   };
 
@@ -669,6 +674,11 @@ export const useChunkedVideoUpload = () => {
     totalChunks,
     isPaused,
     useClientAssembly,
+    bytesUploaded,
+    totalBytes,
+    uploadSpeed,
+    etaSeconds,
+    isFinalizing,
     uploadFileChunked,
     pauseUpload,
     resumeUpload,
