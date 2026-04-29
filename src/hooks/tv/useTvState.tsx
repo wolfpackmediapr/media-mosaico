@@ -99,6 +99,14 @@ export const useTvState = () => {
 
   const handleRemoveFile = (index: number) => {
     const newFiles = uploadedFiles.filter((_, i) => i !== index);
+    // If this removal results in an empty list, mark it as an explicit user
+    // action so usePersistentVideoState's mid-job [] guard lets it through.
+    if (newFiles.length === 0) {
+      try { sessionStorage.setItem('tv-clear-in-progress', 'true'); } catch {}
+      setUploadedFiles(newFiles);
+      try { sessionStorage.removeItem('tv-clear-in-progress'); } catch {}
+      return;
+    }
     setUploadedFiles(newFiles);
   };
 

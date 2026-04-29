@@ -131,6 +131,38 @@ export const usePersistentVideoState = (): PersistentVideoStateReturn => {
 
   // Wrapper for setUploadedFiles that caches new files
   const setUploadedFiles = (files: UploadedFile[]) => {
+    // ───────────────────────────────────────────────────────────────────
+    // GUARD: prevent accidental "video card disappears" mid-processing.
+    // Symptom (session-replay): ~40s after the success toast, some side
+    // effect calls setUploadedFiles([]), the persistent serializer writes
+    // "[]" to sessionStorage, and the file card unmounts even though the
+    // backend job (and downstream analysis) keeps running.
+    //
+    // Rule: refuse a [] write that would replace a non-empty list when:
+    //   - a transcription job id is present in sessionStorage, AND
+    //   - the explicit clear path (useTvClearState) hasn't set the bypass flag.
+    // The legit clear button sets sessionStorage['tv-clear-in-progress']='true'
+    // around its sequence so it can pass through.
+    // ───────────────────────────────────────────────────────────────────
+    try {
+      if (files.length === 0 && uploadedFiles.length > 0) {
+        const clearInProgress = sessionStorage.getItem('tv-clear-in-progress') === 'true';
+        const activeJobId = sessionStorage.getItem('tv-transcription-id');
+        const activeProcessingId = sessionStorage.getItem('tv-active-processing-id');
+        const hasActiveJob = !!(activeJobId || activeProcessingId);
+        if (hasActiveJob && !clearInProgress) {
+          console.warn(
+            '[usePersistentVideoState] BLOCKED setUploadedFiles([]) — active job ' +
+            `${activeJobId || activeProcessingId} present and no explicit clear in progress. ` +
+            'Keeping existing video card mounted.'
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      // sessionStorage unavailable (SSR / iframe sandbox) — fall through to default behavior
+    }
+
     const processedFiles = files.map(f => {
       // If this is a real File with content (size > 0), cache it
       if (f.size > 0 && f instanceof File) {

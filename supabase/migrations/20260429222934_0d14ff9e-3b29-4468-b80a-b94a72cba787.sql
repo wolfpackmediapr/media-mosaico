@@ -1,0 +1,1 @@
+ALTER TABLE public.tv_transcriptions ADD COLUMN IF NOT EXISTS speaker_id_evidence jsonb;

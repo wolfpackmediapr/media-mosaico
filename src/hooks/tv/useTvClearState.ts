@@ -101,6 +101,11 @@ export const useTvClearState = ({
     setClearProgress(0);
     setClearingStage('Iniciando limpieza...');
     cancelTokenRef.current = false;
+
+    // Bypass flag for usePersistentVideoState — allow [] writes during this sequence.
+    // Without this, the guard added to prevent accidental empty-array writes
+    // mid-processing would also block the legitimate clear button.
+    try { sessionStorage.setItem('tv-clear-in-progress', 'true'); } catch {}
     
     try {
       // Step 1: CRITICAL - Call removeItem functions FIRST (sets skipNextWriteRef flag)
@@ -248,6 +253,7 @@ export const useTvClearState = ({
       console.error('[useTvClearState] Critical error during clear operation:', error);
       return false;
     } finally {
+      try { sessionStorage.removeItem('tv-clear-in-progress'); } catch {}
       setTimeout(() => {
         if (mountedRef.current) {
           setIsClearing(false);
