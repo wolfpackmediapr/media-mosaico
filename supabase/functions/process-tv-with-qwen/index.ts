@@ -1138,7 +1138,9 @@ serve(async (req) => {
     console.log(`[qwen-tv][${requestId}] Starting Stage 2: Analysis`);
     await new Promise(r => setTimeout(r, 5000));
 
-    const analysisPrompt = buildAnalysisPrompt(resolvedCategories, resolvedClients, transcriptionText);
+    // Use the shared canonical prompt to guarantee identical [TIPO DE CONTENIDO:]
+    // + [NOTICIA N] structure across qwen + analyze-tv-stored + Gemini fallback.
+    const analysisPrompt = buildTvAnalysisPrompt(resolvedCategories, resolvedClients, transcriptionText);
     const analysisMessages = [
       { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
     ];
