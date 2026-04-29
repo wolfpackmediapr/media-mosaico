@@ -158,6 +158,12 @@ const TvVideoUploader = ({
               </p>
               <Progress value={uploadProgress} className="w-full h-2" />
               <p className="text-xs text-gray-500">{getProgressText()}</p>
+              {isFinalizing && (
+                <div className="flex items-center justify-center gap-2 text-xs text-primary">
+                  <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  Finalizando…
+                </div>
+              )}
               
               {isChunkedUploading && (
                 <div className="flex gap-2 justify-center">
