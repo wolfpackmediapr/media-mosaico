@@ -18,13 +18,14 @@ export const useTvAnalysisDisplay = ({
   const [existingAnalysis, setExistingAnalysis, removeExistingAnalysis] =
     usePersistentState<string>(persistKey, "", { storage: "sessionStorage" });
   const [isLoading, setIsLoading] = useState(false);
+  const [hasStoredFullAnalysis, setHasStoredFullAnalysis] = useState(false);
   const pollStartedAtRef = useRef<number | null>(null);
 
   const hasAnalysis = !!existingAnalysis;
   // Treat any persisted, non-empty analysis as "full" — once we land it we
   // stop polling. This is OK because every successful write below comes from
   // full_analysis or an authoritative summary fallback.
-  const hasFullAnalysis = !!existingAnalysis;
+  const hasFullAnalysis = hasStoredFullAnalysis;
   const hasFullAnalysisRef = useRef(hasFullAnalysis);
   hasFullAnalysisRef.current = hasFullAnalysis;
 
@@ -45,6 +46,7 @@ export const useTvAnalysisDisplay = ({
       }
 
       if (data) {
+        setHasStoredFullAnalysis(!!data.full_analysis);
         // Prioritize full_analysis (has complete structured data), then analysis_content_summary, then summary
         const analysisContent = data.full_analysis || 
                                data.analysis_content_summary || 
@@ -80,12 +82,6 @@ export const useTvAnalysisDisplay = ({
   // every time hasFullAnalysis flips — that re-creation was resetting
   // pollStartedAtRef and breaking the 10-minute hard timeout.
   useEffect(() => {
-    console.log('[useTvAnalysisDisplay] Polling effect evaluated:', {
-      transcriptionId,
-      hasExistingAnalysis: !!existingAnalysis,
-      existingAnalysisLength: existingAnalysis?.length || 0
-    });
-
     if (!transcriptionId) return;
     if (hasFullAnalysisRef.current) return;
 
@@ -125,6 +121,7 @@ export const useTvAnalysisDisplay = ({
       console.log('[useTvAnalysisDisplay] tv-analysis-ready received for', transcriptionId);
       if (detail.full_analysis && detail.full_analysis.length > 0) {
         // Skip the round-trip: hydrate directly from the event payload.
+        setHasStoredFullAnalysis(true);
         setExistingAnalysis(detail.full_analysis);
       } else {
         // Defensive: fall back to a re-fetch.
@@ -141,6 +138,7 @@ export const useTvAnalysisDisplay = ({
     if (!transcriptionId) {
       console.log('[useTvAnalysisDisplay] transcriptionId cleared, resetting internal state');
       removeExistingAnalysis();
+      setHasStoredFullAnalysis(false);
       pollStartedAtRef.current = null;
     }
   }, [transcriptionId, removeExistingAnalysis]);
