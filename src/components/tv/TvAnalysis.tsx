@@ -125,7 +125,7 @@ const TvAnalysis = ({
         )}
         
         {/* Show analysis results */}
-        {(hasAnalysisToShow || isLoadingExisting) && (
+        {(hasCompletedFullAnalysis || isLoadingExisting) && (
           <TvAnalysisResult 
             analysis={displayAnalysis} 
             isLoading={isLoadingExisting}
