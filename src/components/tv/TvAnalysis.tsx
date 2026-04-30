@@ -38,6 +38,7 @@ const TvAnalysis = ({
   const {
     existingAnalysis,
     hasAnalysis: hasExistingAnalysis,
+    hasFullAnalysis: hasExistingFullAnalysis,
     isLoading: isLoadingExisting,
     refetchAnalysis
   } = useTvAnalysisDisplay({
@@ -48,8 +49,9 @@ const TvAnalysis = ({
   // Determine which analysis to show (priority: analysisResults > existing > empty)
   const displayAnalysis = analysisResults || existingAnalysis;
   const hasAnalysisToShow = !!(analysisResults || hasExistingAnalysis);
+  const hasCompletedFullAnalysis = !!analysisResults || hasExistingFullAnalysis || !!transcriptionStatus?.full_analysis;
   const hasTranscriptionReady = !!transcriptionText || !!transcriptionStatus?.transcription_text;
-  const isWaitingForAnalysis = !!transcriptionId && !hasAnalysisToShow && (hasTranscriptionReady || isAnalysisPending || isLoadingExisting);
+  const isWaitingForAnalysis = !!transcriptionId && !hasCompletedFullAnalysis && (hasTranscriptionReady || isAnalysisPending || isLoadingExisting);
 
   // Clear function for parent
   const clearAnalysisState = () => {
@@ -86,7 +88,7 @@ const TvAnalysis = ({
           Análisis de Contenido TV
         </CardTitle>
         <div className="text-sm text-muted-foreground">
-          {hasAnalysisToShow 
+          {hasCompletedFullAnalysis 
             ? "Análisis completado - Resultados disponibles"
             : isWaitingForAnalysis
               ? "Transcripción completada - Generando análisis"
@@ -96,7 +98,7 @@ const TvAnalysis = ({
       </CardHeader>
       <CardContent className="space-y-4 p-4">
         {/* Show analysis actions only if no analysis exists */}
-        {!hasAnalysisToShow && (
+        {!hasCompletedFullAnalysis && (
           <div className="flex items-center justify-center gap-3 rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
             {isWaitingForAnalysis && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
             <p>
