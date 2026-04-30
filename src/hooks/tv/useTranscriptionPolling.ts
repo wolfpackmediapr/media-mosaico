@@ -125,6 +125,15 @@ export const useTranscriptionPolling = (transcriptionId: string | null, enabled:
     data.status === 'completed' &&
     !data.full_analysis &&
     elapsedMs >= HARD_TIMEOUT_MS;
+  const isAnalysisPending =
+    !!data &&
+    data.status === 'completed' &&
+    !!data.transcription_text &&
+    !data.full_analysis &&
+    !analysisTimedOut;
+  const isAnalysisReady =
+    !!data?.full_analysis &&
+    data.full_analysis.length > 0;
 
   const retryAnalysis = useCallback(async (idOverride?: string) => {
     const id = idOverride || transcriptionId;
@@ -156,6 +165,8 @@ export const useTranscriptionPolling = (transcriptionId: string | null, enabled:
 
   return Object.assign(query, {
     analysisTimedOut,
+    isAnalysisPending,
+    isAnalysisReady,
     retryAnalysis,
     isRetryingAnalysis: retrying,
     retryAnalysisError: retryError,
