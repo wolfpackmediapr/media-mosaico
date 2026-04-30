@@ -766,10 +766,33 @@ export const useTvVideoProcessor = () => {
       
       (async () => {
         try {
+          const { data: existingRow } = await supabase
+            .from('tv_transcriptions')
+            .select('status, transcription_text, full_analysis')
+            .eq('id', activeProcessingId)
+            .maybeSingle();
+
+          if (existingRow?.status === 'completed' && existingRow.transcription_text) {
+            console.log('[TvVideoProcessor] Active job already completed, hydrating without resume reset:', {
+              length: existingRow.transcription_text.length,
+              hasAnalysis: !!existingRow.full_analysis
+            });
+            setTranscriptionText(existingRow.transcription_text);
+            setAnalysisResults(existingRow.full_analysis || '');
+            setTranscriptionResult({
+              text: existingRow.transcription_text,
+              utterances: [],
+              words: []
+            });
+            setProgress(100);
+            setActiveProcessingId(null);
+            return;
+          }
+
           setIsProcessing(true);
           
           toast.info('Reanudando procesamiento', {
-            description: 'Continuando con el video en curso...',
+            description: 'Continuando con el video en segundo plano...',
             duration: 3000
           });
           
