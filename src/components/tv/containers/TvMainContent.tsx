@@ -172,7 +172,11 @@ const TvMainContent = ({
     />
   );
 
-  const analysisSection = (transcriptionText || currentVideoPath || analysisResults) ? (
+  // Always render the analysis section once we have a transcriptionId so the
+  // useTvAnalysisDisplay listener (tv-analysis-ready) is mounted before the
+  // background analyze-tv-stored job dispatches the event. Falling back to
+  // the previous gate when no id exists keeps the empty state behavior.
+  const analysisSection = (transcriptionId || transcriptionText || currentVideoPath || analysisResults) ? (
     <TvAnalysisSection
       transcriptionText={transcriptionText}
       transcriptionId={transcriptionId}
