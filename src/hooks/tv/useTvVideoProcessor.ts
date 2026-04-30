@@ -901,7 +901,12 @@ export const useTvVideoProcessor = () => {
             });
             
             setTranscriptionText(data.transcription_text);
-            setAnalysisResults(data.full_analysis || '');
+            // Don't overwrite a persisted analysis with '' — the analyze
+            // step may complete after this read; useTvAnalysisDisplay will
+            // pick it up via polling / window event.
+            if (data.full_analysis && data.full_analysis.length > 0) {
+              setAnalysisResults(data.full_analysis);
+            }
             
             setTranscriptionResult({
               text: data.transcription_text,
