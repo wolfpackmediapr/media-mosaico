@@ -31,7 +31,7 @@ const TvTopSection = ({
         <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span>
-            Procesando en segundo plano... {progress}%
+            Procesando video... {progress}%
           </span>
         </div>
       )}
