@@ -46,14 +46,29 @@ export const useTranscriptionPolling = (transcriptionId: string | null, enabled:
     enabled: !!transcriptionId && enabled,
     refetchInterval: (query) => {
       const data = query.state.data as TranscriptionStatus | null | undefined;
-      
-      // Stop polling when completed or failed
+
       if (!data) return false;
-      if (data.status === 'completed' || data.status === 'failed') return false;
-      
-      // Adaptive polling based on tab visibility
-      // Poll faster when visible, slower when hidden
+      if (data.status === 'failed') return false;
+
       const isVisible = !document.hidden;
+
+      // Hard timeout (10 min) since record was created — give up waiting
+      // for late-arriving analysis to avoid endless polling.
+      const HARD_TIMEOUT_MS = 10 * 60 * 1000;
+      const elapsedMs = Date.now() - new Date(data.created_at).getTime();
+
+      if (data.status === 'completed') {
+        // Transcription is in but the analysis stage (analyze-tv-stored)
+        // writes full_analysis a few minutes later. Keep polling slowly
+        // so the UI picks it up even if Realtime drops the update.
+        if (!data.full_analysis && elapsedMs < HARD_TIMEOUT_MS) {
+          return isVisible ? 8000 : 20000;
+        }
+        // Analysis present, or we've waited long enough.
+        return false;
+      }
+
+      // Still transcribing — adaptive polling based on tab visibility.
       return isVisible ? 5000 : 15000;
     },
     staleTime: 2000,

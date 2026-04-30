@@ -144,6 +144,9 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   const requestId = `ats_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  let transcriptionIdForFinally: string | undefined;
+  let supabaseForFinally: ReturnType<typeof createClient> | undefined;
+  let terminalReason: string | null = 'unknown failure';
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -152,14 +155,17 @@ serve(async (req) => {
     if (!qwenApiKey) throw new Error('QWEN_API_KEY no configurada');
 
     const supabase = createClient(supabaseUrl, serviceKey);
+    supabaseForFinally = supabase;
 
     const body = await req.json().catch(() => ({}));
     const transcriptionId: string | undefined = body.transcriptionId || body.transcriptId;
     if (!transcriptionId) {
+      terminalReason = null; // 400 is a client error, not an analysis failure
       return new Response(JSON.stringify({ error: 'transcriptionId requerido' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    transcriptionIdForFinally = transcriptionId;
 
     // Load transcription text + categories/clients
     const { data: row, error: rowErr } = await supabase
@@ -190,13 +196,16 @@ serve(async (req) => {
     const prompt = buildTvAnalysisPrompt(categories, clients, transcriptionText);
     const messages = [{ role: 'user', content: [{ type: 'text', text: prompt }] }];
 
-    let result = await callQwenStreaming(qwenApiKey, TEXT_MODEL, messages, requestId, 'analysis', 16384);
+    // Lowered from 16384 → 12288 to reduce odds of hitting Edge Function
+    // wall-time during streaming with the larger shared TV analysis prompt.
+    let result = await callQwenStreaming(qwenApiKey, TEXT_MODEL, messages, requestId, 'analysis', 12288);
     if (!result.success) {
       console.warn(`[analyze-tv-stored][${requestId}] Primary failed, fallback`);
-      result = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, messages, requestId, 'analysis-fallback', 16384);
+      result = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, messages, requestId, 'analysis-fallback', 12288);
     }
 
     if (!result.success) {
+      terminalReason = `provider: ${result.error}`;
       await supabase.from('tv_transcriptions').update({
         provider_fallback_reason: `Analysis failed: ${result.error}`.substring(0, 500),
       }).eq('id', transcriptionId);
@@ -220,15 +229,33 @@ serve(async (req) => {
       .eq('id', transcriptionId);
     if (upErr) throw new Error(`DB update failed: ${upErr.message}`);
 
+    terminalReason = null; // success
     console.log(`[analyze-tv-stored][${requestId}] Done, chars=${analysisText.length}`);
     return new Response(JSON.stringify({ success: true, chars: analysisText.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    terminalReason = msg;
     console.error(`[analyze-tv-stored][${requestId}] Error:`, msg);
     return new Response(JSON.stringify({ error: msg, success: false }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+  } finally {
+    // Defense-in-depth: if anything went sideways and we never wrote a
+    // terminal status, surface the reason in provider_fallback_reason so the
+    // UI/operators can see why analysis is missing instead of "hanging".
+    if (terminalReason && transcriptionIdForFinally && supabaseForFinally) {
+      try {
+        await supabaseForFinally
+          .from('tv_transcriptions')
+          .update({
+            provider_fallback_reason: `analysis: ${terminalReason}`.slice(0, 500),
+          })
+          .eq('id', transcriptionIdForFinally);
+      } catch (e) {
+        console.error(`[analyze-tv-stored][${requestId}] finally update failed:`, e);
+      }
+    }
   }
 });
