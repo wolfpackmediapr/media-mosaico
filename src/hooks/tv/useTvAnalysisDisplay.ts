@@ -80,6 +80,12 @@ export const useTvAnalysisDisplay = ({
   // every time hasFullAnalysis flips — that re-creation was resetting
   // pollStartedAtRef and breaking the 10-minute hard timeout.
   useEffect(() => {
+    console.log('[useTvAnalysisDisplay] Polling effect evaluated:', {
+      transcriptionId,
+      hasExistingAnalysis: !!existingAnalysis,
+      existingAnalysisLength: existingAnalysis?.length || 0
+    });
+
     if (!transcriptionId) return;
     if (hasFullAnalysisRef.current) return;
 
