@@ -468,39 +468,17 @@ export const useTvVideoProcessor = () => {
         }
 
         // Transcription is ready — show it immediately.
-        // Analysis arrives later via analyze-tv-stored (86-115s).
-        // Set transcription now, then start a background poll for analysis.
+        // Analysis arrives later via useTranscriptionPolling/useTvAnalysisDisplay,
+        // so keep the visible transcript stable and let the analysis card show
+        // its own pending state instead of running competing polling loops here.
         if (finalTranscription?.transcription_text && !finalTranscription?.full_analysis) {
-          console.log('[TvVideoProcessor] Transcription ready, analysis still pending — will poll for it');
+          console.log('[TvVideoProcessor] Transcription ready, analysis still pending');
           // Show transcription immediately
           const txData = finalTranscription.transcription_text;
           setTranscriptionText(txData);
           setTranscriptionResult({ text: txData, utterances: [], words: [] });
           setProgress(100);
           setActiveProcessingId(null);
-          // Poll for analysis in background
-          const analysisPollStart = Date.now();
-          const analysisPollInterval = setInterval(async () => {
-            if (Date.now() - analysisPollStart > 10 * 60 * 1000) {
-              clearInterval(analysisPollInterval);
-              console.warn('[TvVideoProcessor] Analysis poll timed out after 10 min');
-              return;
-            }
-            try {
-              const { data: aData } = await supabase
-                .from('tv_transcriptions')
-                .select('full_analysis')
-                .eq('id', actualTranscriptionId)
-                .single();
-              if (aData?.full_analysis) {
-                console.log('[TvVideoProcessor] Analysis arrived:', aData.full_analysis.length, 'chars');
-                setAnalysisResults(aData.full_analysis);
-                clearInterval(analysisPollInterval);
-              }
-            } catch (e) {
-              console.warn('[TvVideoProcessor] Analysis poll error:', e);
-            }
-          }, 10000); // every 10 seconds
           
           toast.success("¡Transcripción completada!", {
             description: "El análisis se generará en aproximadamente 1-2 minutos."
