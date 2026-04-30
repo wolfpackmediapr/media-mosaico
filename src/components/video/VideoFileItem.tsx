@@ -78,7 +78,7 @@ const VideoFileItem = ({
   const getButtonText = () => {
     if (!isProcessing) return "Procesar Video";
     if (progress < 15) return "Subiendo video...";
-    if (progress < 30) return "Preparando análisis...";
+    if (progress < 30) return "Procesando video...";
     if (progress < 60) return "Procesando con IA...";
     if (progress < 90) return "Generando resultados...";
     if (progress === 100) return "¡Procesamiento completado!";
