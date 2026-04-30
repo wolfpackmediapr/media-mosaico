@@ -58,6 +58,33 @@ export const useTvAnalysisDisplay = ({
     fetchExistingAnalysis();
   }, [transcriptionId, forceRefresh]);
 
+  // Listen for the cross-hook signal fired by useTranscriptionPolling when
+  // the analyze-tv-stored background job finally writes full_analysis. The
+  // initial fetch above runs before that completes, so without this listener
+  // the UI is stuck on the placeholder until a full page reload.
+  useEffect(() => {
+    if (!transcriptionId) return;
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent).detail as
+        | { transcriptionId?: string; full_analysis?: string }
+        | undefined;
+      if (!detail || detail.transcriptionId !== transcriptionId) return;
+
+      console.log('[useTvAnalysisDisplay] tv-analysis-ready received for', transcriptionId);
+      if (detail.full_analysis && detail.full_analysis.length > 0) {
+        // Skip the round-trip: hydrate directly from the event payload.
+        setExistingAnalysis(detail.full_analysis);
+        setHasAnalysis(true);
+      } else {
+        // Defensive: fall back to a re-fetch.
+        fetchExistingAnalysis();
+      }
+    };
+
+    window.addEventListener('tv-analysis-ready', handler as EventListener);
+    return () => window.removeEventListener('tv-analysis-ready', handler as EventListener);
+  }, [transcriptionId]);
+
   // Force reset internal state when transcriptionId becomes null
   useEffect(() => {
     if (!transcriptionId) {

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -20,6 +20,9 @@ export const useTranscriptionPolling = (transcriptionId: string | null, enabled:
   const queryClient = useQueryClient();
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  // Track which transcription ids we've already announced as "analysis ready"
+  // so we dispatch the cross-hook event exactly once per id.
+  const dispatchedRef = useRef<Set<string>>(new Set());
 
   const query = useQuery({
     queryKey: ['tv-transcription-status', transcriptionId],
@@ -81,6 +84,34 @@ export const useTranscriptionPolling = (transcriptionId: string | null, enabled:
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
+
+  // When the polling query observes that the analysis has finally landed in
+  // the row (status=completed AND full_analysis non-null), notify the rest of
+  // the app via a window event. `useTvAnalysisDisplay` listens for this and
+  // re-fetches without needing to be rewritten as a React Query consumer.
+  useEffect(() => {
+    const data = query.data;
+    if (
+      data &&
+      data.status === 'completed' &&
+      data.full_analysis &&
+      data.full_analysis.length > 0 &&
+      !dispatchedRef.current.has(data.id)
+    ) {
+      dispatchedRef.current.add(data.id);
+      console.log('[useTranscriptionPolling] full_analysis ready for', data.id, '- dispatching tv-analysis-ready');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('tv-analysis-ready', {
+            detail: {
+              transcriptionId: data.id,
+              full_analysis: data.full_analysis,
+            },
+          }),
+        );
+      }
+    }
+  }, [query.data]);
 
   // Determine whether the analysis stage has timed out for this row.
   const data = query.data;

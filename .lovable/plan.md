@@ -1,83 +1,60 @@
-I checked the current TV pipeline, recent Edge Function logs, and the latest `tv_transcriptions` rows. The loop is real, and the root cause is not only Qwen or AssemblyAI alone.
+## Problem
 
-Findings:
-- AssemblyAI is producing diarized utterances, but its speaker boundaries are imperfect in some clips, especially TV shows with commercials, fast interruptions, and overlapping host/guest dialogue.
-- Qwen speaker identification is currently text-only. Logs show `speaker_id_status=success`, but that only means Qwen returned a map; it is not true vision-grounded name identification.
-- The stored backend transcript is currently being modified into display text like `SPEAKER A (Bexaida - Invitada): ...`.
-- The frontend editor then re-formats parsed utterances using shared Radio utilities. That creates the UI discrepancy/doubling pattern like `SPEAKER A: SPEAKER A|Bexaida|Invitada: ...` and can degrade the transcript display even when the DB row is cleaner.
-- The old project memory says TV speaker identification should use vision/lower-thirds. Current Qwen Stage 3 does not do that for chunked videos; it only infers from transcript text.
+`useTvAnalysisDisplay` fetches `full_analysis` once when `transcriptionId` (or `forceRefresh`) changes. After Commit A decoupled analysis, `process-tv-with-qwen` writes `status='completed'` immediately and `analyze-tv-stored` writes `full_analysis` 1–3 minutes later. The initial fetch sees NULL; nothing ever re-runs it. UI stays on "El análisis se mostrará automáticamente…" even though the row in DB now has the analysis (verified: row `4034ea5b…` has `analysis_len=18666`, `status=completed`).
 
-Plan to fix without touching Prensa Escrita, Radio behavior, or site-wide behavior:
+`useTranscriptionPolling` already polls every 8s post-completion and selects `full_analysis`, but it has no listener that nudges the display hook.
 
-1. Backend: stop mutating the canonical transcript into UI/display markup
-   - In `supabase/functions/process-tv-with-qwen/index.ts`, keep AssemblyAI’s diarized transcript as the canonical text format:
-     - `[00:00] SPEAKER A: dialogue`
-     - `[00:26] SPEAKER B: dialogue`
-   - Do not inject names/roles directly into every `SPEAKER X` header as the primary stored transcript.
-   - Instead, compute a separate speaker identity map internally and use it only to create a clean annotated transcript format or metadata for the UI.
-   - Preserve `speaker_id_status`, `speaker_id_method`, and `speaker_id_error` for debugging.
+## Constraint discovered
 
-2. Backend: make AssemblyAI and Qwen work in concert with clear responsibilities
-   - AssemblyAI remains responsible for `who spoke when` using `utterances` and timestamps.
-   - Qwen is responsible for `who is that speaker` using the diarized transcript and, where possible, vision context.
-   - Add a guard so Qwen never changes AssemblyAI’s speaker boundaries or merges/splits utterances. Qwen can only assign identity to existing speaker letters.
-   - Add validation that every Qwen key maps to an existing AssemblyAI speaker letter only.
+The user's proposed fix — `queryClient.invalidateQueries({ queryKey: ['tv-analysis', transcriptionId] })` — would be a no-op. `useTvAnalysisDisplay` is plain `useState` + `useEffect`, not React Query. There is no `['tv-analysis', id]` query key in the codebase.
 
-3. Backend: restore vision-grounded speaker identification instead of text-only guessing
-   - For single-file video path: use the signed video URL / existing video-capable path to ask the visual model to read lower-thirds/chyrons and identify speaker names/roles.
-   - For chunked video path: do not send raw chunk byte slices to `qwen-vl-max` as video. That was broken. Use the available assembled/streamed-video approach where feasible, or fall back explicitly to `text-only` with a clear status/log when vision is not available.
-   - The speaker ID method should report one of:
-     - `vision-video` when lower-third/visual evidence was used
-     - `text-only` when only dialogue evidence was available
-     - `failed`/`skipped` with a real reason when no trustworthy identity can be assigned
-   - Names are accepted only when there is visual lower-third evidence or direct textual evidence. Otherwise fallback remains `Hablante A`, `Hablante B`, etc.
+## Fix (scope: 1 file)
 
-4. Frontend: make TV use a TV-specific formatting path, not Radio’s speaker text formatter
-   - In `src/hooks/tv/useTvTranscriptionEditor.ts` / TV editor flow, avoid using Radio’s `formatSpeakerText()` for TV parsed utterances.
-   - Keep Radio’s current behavior unchanged.
-   - TV should pass parsed `utterances` to the enhanced editor for colored cards, but it should not rewrite the raw transcript into `SPEAKER A: SPEAKER A|Name|Role:`.
-   - This fixes the doubled prefix and restores the expected colored UI without affecting Radio.
+**File:** `src/hooks/tv/useTranscriptionPolling.ts`
 
-5. Frontend parser: accept both clean backend and annotated backend formats safely
-   - Harden `src/utils/tv/speakerTextParser.ts` so it supports:
-     - `[00:00] SPEAKER A: text`
-     - `[00:00] SPEAKER A (Name - Role): text`
-     - legacy malformed `SPEAKER A: SPEAKER A|Name|Role: text` only as a repair input, not as an output format.
-   - The parser should produce speaker IDs as:
-     - `A` when unidentified
-     - `A|Name|Role` when identified
-   - The display layer renders those as `Hablante A` or `Name (Role)`.
+Inside the existing `useQuery.queryFn`, after a successful fetch, when `data.status === 'completed'` and `data.full_analysis` is non-null, dispatch a window event:
 
-6. Add diagnostics to stop the loop
-   - Add structured Edge logs showing:
-     - AssemblyAI utterance count
-     - detected speaker letters
-     - Qwen identity map
-     - vision/text method used
-     - how many identities were accepted vs rejected
-   - Add a frontend console log only in TV parser when it repairs legacy malformed text, so we can distinguish DB issues from UI transformation issues.
+```ts
+window.dispatchEvent(new CustomEvent('tv-analysis-ready', {
+  detail: { transcriptionId: data.id, full_analysis: data.full_analysis }
+}));
+```
 
-7. Verification
-   - Check latest `tv_transcriptions` rows after implementation for:
-     - `speaker_id_status`
-     - `speaker_id_method`
-     - `speaker_id_error`
-     - transcript preview without doubled prefixes
-   - Confirm TV transcript cards show colors and correct labels.
-   - Confirm Radio and Prensa Escrita files/components were not changed.
+Use a ref to ensure we only fire once per transcription id (prevents repeated dispatches once polling stops on subsequent invalidations).
 
-Technical scope:
-- Expected files to edit:
-  - `supabase/functions/process-tv-with-qwen/index.ts`
-  - `src/utils/tv/speakerTextParser.ts`
-  - TV-specific editor hook/component wiring only if needed, likely `src/hooks/tv/useTvTranscriptionEditor.ts` and/or `src/components/tv/TvTranscriptionEditor.tsx`
-- Files to avoid changing:
-  - Prensa Escrita modules
-  - Radio processing/transcription behavior, except only reading shared utilities if needed
-  - Site-wide layout/routing/auth
+## Companion fix (scope: 1 file)
 
-Important behavior after the fix:
-- If the system cannot identify a name, it shows `Hablante A/B/C`, not guessed names.
-- If lower-third or direct textual evidence identifies the speaker, it shows the real name and role.
-- AssemblyAI controls timing/speaker turns; Qwen only labels those speakers.
-- No more `SPEAKER A: SPEAKER A|Name|Role:` UI output.
+**File:** `src/hooks/tv/useTvAnalysisDisplay.ts`
+
+Add a `useEffect` that listens for `tv-analysis-ready`:
+- If `event.detail.transcriptionId === transcriptionId`, call `fetchExistingAnalysis()` (or set `existingAnalysis` directly from `event.detail.full_analysis` to skip the round-trip).
+
+This is the minimal coupling that doesn't restructure either hook into React Query.
+
+## Why a window event vs. invalidateQueries
+
+`useTvAnalysisDisplay` lives in a different subtree than the polling hook and uses local state. A custom event is the smallest change that crosses the boundary without rewriting the display hook to use React Query (which would be a larger refactor and risks regressions in `TvAnalysis.tsx`'s priority logic `analysisResults || existingAnalysis`).
+
+If you'd prefer the larger refactor — convert `useTvAnalysisDisplay` to `useQuery` with key `['tv-analysis', transcriptionId]` and use `invalidateQueries` from the polling hook — say so and I'll do that instead. It's still 2 files but cleaner long-term.
+
+## Diffstat (expected)
+
+```text
+src/hooks/tv/useTranscriptionPolling.ts  | ~12 +++
+src/hooks/tv/useTvAnalysisDisplay.ts     | ~15 +++
+2 files changed, ~27 insertions(+)
+```
+
+## Out of scope
+
+- `process-tv-with-qwen` (untouched, per gate)
+- `extract-tv-frames` trace (no recent invocations found in logs/codebase — likely already dead)
+- One-time recovery of historical NULL rows (last 10 rows all have `analysis_len > 17k`, so no backfill needed right now)
+
+## Verification after build
+
+1. Upload a new TV video.
+2. Watch console for `[useTranscriptionPolling] Status: completed Progress: 100` followed shortly by `tv-analysis-ready` dispatch.
+3. Confirm "Análisis de Contenido TV" card switches from placeholder to rendered analysis without page reload.
+
+Approve to proceed, or pick the React Query refactor variant.
