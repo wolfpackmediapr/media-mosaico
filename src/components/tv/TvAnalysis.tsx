@@ -4,11 +4,13 @@ import { toast } from "sonner";
 import { NewsSegment } from "@/types/media";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useTvSegmentGenerator } from "@/hooks/tv/useTvSegmentGenerator";
+import { useTranscriptionPolling } from "@/hooks/tv/useTranscriptionPolling";
 import TvAnalysisActions from "./analysis/TvAnalysisActions";
 import TvAnalysisResult from "./analysis/TvAnalysisResult";
 import { useTvAnalysisDisplay } from "@/hooks/tv/useTvAnalysisDisplay";
 import { useTvNotifications } from "@/hooks/tv/useTvNotifications";
 import { BaseAnalysisProps } from "@/components/shared/types/ComponentProps";
+import { Loader2 } from "lucide-react";
 
 interface TvAnalysisProps extends Omit<BaseAnalysisProps, 'onClearAnalysis'> {
   videoPath?: string;
@@ -27,6 +29,10 @@ const TvAnalysis = ({
 }: TvAnalysisProps) => {
   const { generateTvSegments, isGenerating } = useTvSegmentGenerator(onSegmentsGenerated);
   const { createAnalysisNotification } = useTvNotifications();
+  const { data: transcriptionStatus, isAnalysisPending } = useTranscriptionPolling(
+    transcriptionId ?? null,
+    !!transcriptionId
+  );
   
   // Use new display hook to fetch existing analysis
   const {
@@ -42,6 +48,8 @@ const TvAnalysis = ({
   // Determine which analysis to show (priority: analysisResults > existing > empty)
   const displayAnalysis = analysisResults || existingAnalysis;
   const hasAnalysisToShow = !!(analysisResults || hasExistingAnalysis);
+  const hasTranscriptionReady = !!transcriptionText || !!transcriptionStatus?.transcription_text;
+  const isWaitingForAnalysis = !!transcriptionId && !hasAnalysisToShow && (hasTranscriptionReady || isAnalysisPending || isLoadingExisting);
 
   // Clear function for parent
   const clearAnalysisState = () => {
@@ -80,15 +88,22 @@ const TvAnalysis = ({
         <div className="text-sm text-muted-foreground">
           {hasAnalysisToShow 
             ? "Análisis completado - Resultados disponibles"
-            : "Análisis inteligente avanzado de contenido multimedia"
+            : isWaitingForAnalysis
+              ? "Transcripción completada - Generando análisis"
+              : "Análisis inteligente avanzado de contenido multimedia"
           }
         </div>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
         {/* Show analysis actions only if no analysis exists */}
         {!hasAnalysisToShow && (
-          <div className="text-center p-4 text-muted-foreground">
-            <p>El análisis se mostrará automáticamente después del procesamiento del video.</p>
+          <div className="flex items-center justify-center gap-3 rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+            {isWaitingForAnalysis && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+            <p>
+              {isWaitingForAnalysis
+                ? "Generando análisis... Esto puede tardar 1–2 minutos."
+                : "El análisis se mostrará automáticamente después del procesamiento del video."}
+            </p>
           </div>
         )}
         
