@@ -73,6 +73,12 @@ export const useTranscriptionPolling = (transcriptionId: string | null, enabled:
         // writes full_analysis a few minutes later. Keep polling slowly
         // so the UI picks it up even if Realtime drops the update.
         if (!data.full_analysis && elapsedMs < HARD_TIMEOUT_MS) {
+          // Aggressive cadence for the first 60s after transcription
+          // completed (analysis usually lands quickly), then back off.
+          const sinceUpdateMs = Date.now() - new Date(data.updated_at).getTime();
+          if (sinceUpdateMs < 60_000) {
+            return isVisible ? 3000 : 15000;
+          }
           return isVisible ? 8000 : 20000;
         }
         // Analysis present, or we've waited long enough.
