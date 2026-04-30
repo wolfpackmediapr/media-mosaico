@@ -56,10 +56,63 @@ const TvTranscriptionSection = ({
   // gives up (10 min hard timeout with full_analysis still null), expose a
   // "Reintentar análisis" button that re-invokes analyze-tv-stored.
   const {
+    data: transcriptionStatus,
     analysisTimedOut,
+    isAnalysisPending,
+    isAnalysisReady,
     retryAnalysis,
     isRetryingAnalysis,
   } = useTranscriptionPolling(transcriptionId ?? null, !!transcriptionId);
+
+  const hasTranscript = !!textContent || !!transcriptionStatus?.transcription_text;
+  const renderPipelineBadge = () => {
+    if (transcriptionStatus?.status === "failed" || transcriptionStatus?.status?.startsWith("failed:")) {
+      return (
+        <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive">
+          <AlertTriangle className="h-3 w-3" />
+          Procesamiento falló
+        </Badge>
+      );
+    }
+
+    if (hasTranscript && isAnalysisPending) {
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Generando análisis...
+        </Badge>
+      );
+    }
+
+    if (hasTranscript && isAnalysisReady) {
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <CheckCircle2 className="h-3 w-3" />
+          Análisis listo
+        </Badge>
+      );
+    }
+
+    if (hasTranscript) {
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <CheckCircle2 className="h-3 w-3" />
+          Transcripción lista
+        </Badge>
+      );
+    }
+
+    if (isProcessing) {
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Procesando video...
+        </Badge>
+      );
+    }
+
+    return null;
+  };
 
   const handleRetryAnalysis = async () => {
     if (!transcriptionId) return;
@@ -155,14 +208,9 @@ const TvTranscriptionSection = ({
   // Always render the transcription slot, regardless of text content
   return (
     <div className="space-y-2">
-      {(isProcessing || renderSpeakerBadge() || speakerCounts || analysisTimedOut) && (
+      {(isProcessing || renderPipelineBadge() || renderSpeakerBadge() || speakerCounts || analysisTimedOut) && (
         <div className="flex items-center gap-2">
-          {isProcessing && (
-            <Badge variant="secondary" className="gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Procesando
-            </Badge>
-          )}
+          {renderPipelineBadge()}
           {renderSpeakerBadge()}
           {renderSpeakerCountBadge()}
           {analysisTimedOut && (
