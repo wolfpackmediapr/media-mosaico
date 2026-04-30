@@ -777,24 +777,42 @@ export const useTvVideoProcessor = () => {
               length: existingRow.transcription_text.length,
               hasAnalysis: !!existingRow.full_analysis
             });
-            setTranscriptionText(existingRow.transcription_text);
-            setAnalysisResults(existingRow.full_analysis || '');
-            setTranscriptionResult({
-              text: existingRow.transcription_text,
-              utterances: [],
-              words: []
-            });
+            // Skip rehydration entirely if the UI already has this transcription
+            // loaded — sessionStorage hydrated us synchronously, so re-setting
+            // the same values causes a visible flicker that looks like an
+            // auto-refresh. Only fill in what's actually missing.
+            const sameTextAlreadyLoaded =
+              transcriptionText &&
+              transcriptionText.length === existingRow.transcription_text.length;
+            if (!sameTextAlreadyLoaded) {
+              setTranscriptionText(existingRow.transcription_text);
+              setTranscriptionResult({
+                text: existingRow.transcription_text,
+                utterances: [],
+                words: []
+              });
+            }
+            // NEVER overwrite a non-empty persisted analysis with '' — the
+            // analyze-tv-stored job may write full_analysis after this read.
+            if (existingRow.full_analysis && existingRow.full_analysis.length > 0) {
+              setAnalysisResults(existingRow.full_analysis);
+            }
             setProgress(100);
             setActiveProcessingId(null);
             return;
           }
 
           setIsProcessing(true);
-          
-          toast.info('Reanudando procesamiento', {
-            description: 'Continuando con el video en segundo plano...',
-            duration: 3000
-          });
+
+          // Only show the "resuming" toast for jobs that are actually still
+          // running. Showing it for completed/analysis-pending rows looks
+          // like a refresh to the user.
+          if (existingRow?.status !== 'completed') {
+            toast.info('Reanudando procesamiento', {
+              description: 'Continuando con el video en segundo plano...',
+              duration: 3000
+            });
+          }
           
           await pollForProcessingCompletion(activeProcessingId);
           
@@ -826,8 +844,13 @@ export const useTvVideoProcessor = () => {
               hasAnalysis: !!data.full_analysis
             });
             
-            setTranscriptionText(data.transcription_text || '');
-            setAnalysisResults(data.full_analysis || '');
+            if (data.transcription_text) {
+              setTranscriptionText(data.transcription_text);
+            }
+            // Same no-clobber rule as above.
+            if (data.full_analysis && data.full_analysis.length > 0) {
+              setAnalysisResults(data.full_analysis);
+            }
             
             if (data.transcription_text) {
               setTranscriptionResult({
@@ -878,7 +901,12 @@ export const useTvVideoProcessor = () => {
             });
             
             setTranscriptionText(data.transcription_text);
-            setAnalysisResults(data.full_analysis || '');
+            // Don't overwrite a persisted analysis with '' — the analyze
+            // step may complete after this read; useTvAnalysisDisplay will
+            // pick it up via polling / window event.
+            if (data.full_analysis && data.full_analysis.length > 0) {
+              setAnalysisResults(data.full_analysis);
+            }
             
             setTranscriptionResult({
               text: data.transcription_text,
@@ -932,7 +960,9 @@ export const useTvVideoProcessor = () => {
 
       console.log('[TvVideoProcessor] Recovered missing transcription ID for restored TV session:', data.id);
       setTranscriptionId(data.id);
-      setAnalysisResults(data.full_analysis || '');
+      if (data.full_analysis && data.full_analysis.length > 0) {
+        setAnalysisResults(data.full_analysis);
+      }
     };
 
     recoverMissingTranscriptionId();
