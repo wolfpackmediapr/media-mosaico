@@ -467,6 +467,47 @@ export const useTvVideoProcessor = () => {
           }
         }
 
+        // Transcription is ready — show it immediately.
+        // Analysis arrives later via analyze-tv-stored (86-115s).
+        // Set transcription now, then start a background poll for analysis.
+        if (finalTranscription?.transcription_text && !finalTranscription?.full_analysis) {
+          console.log('[TvVideoProcessor] Transcription ready, analysis still pending — will poll for it');
+          // Show transcription immediately
+          const txData = finalTranscription.transcription_text;
+          setTranscriptionText(txData);
+          setTranscriptionResult({ text: txData, utterances: [], words: [] });
+          setProgress(100);
+          setActiveProcessingId(null);
+          // Poll for analysis in background
+          const analysisPollStart = Date.now();
+          const analysisPollInterval = setInterval(async () => {
+            if (Date.now() - analysisPollStart > 10 * 60 * 1000) {
+              clearInterval(analysisPollInterval);
+              console.warn('[TvVideoProcessor] Analysis poll timed out after 10 min');
+              return;
+            }
+            try {
+              const { data: aData } = await supabase
+                .from('tv_transcriptions')
+                .select('full_analysis')
+                .eq('id', actualTranscriptionId)
+                .single();
+              if (aData?.full_analysis) {
+                console.log('[TvVideoProcessor] Analysis arrived:', aData.full_analysis.length, 'chars');
+                setAnalysisResults(aData.full_analysis);
+                clearInterval(analysisPollInterval);
+              }
+            } catch (e) {
+              console.warn('[TvVideoProcessor] Analysis poll error:', e);
+            }
+          }, 10000); // every 10 seconds
+          
+          toast.success("¡Transcripción completada!", {
+            description: "El análisis se generará en aproximadamente 1-2 minutos."
+          });
+          return;
+        }
+
         if (!finalTranscription) {
           throw new Error('Failed to retrieve final transcription results');
         }
@@ -657,7 +698,7 @@ export const useTvVideoProcessor = () => {
         try {
           const { data, error } = await supabase
             .from('tv_transcriptions')
-            .select('status, progress, updated_at, provider_fallback_reason')
+            .select('status, progress, updated_at, provider_fallback_reason, transcription_text, full_analysis')
             .eq('id', transcriptionId)
             .single();
           
