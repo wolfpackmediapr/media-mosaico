@@ -97,9 +97,11 @@ const TvAnalysis = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
-        {/* Show analysis actions only if no analysis exists */}
+        {/* Pending state — shown ONLY while we have no analysis yet.
+            Uses a stable container so the result card can swap in below
+            without an unmount flash that looks like a page refresh. */}
         {!hasCompletedFullAnalysis && (
-          <div className="flex items-center justify-center gap-3 rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+          <div className="flex items-center justify-center gap-3 rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground transition-opacity duration-300">
             {isWaitingForAnalysis && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
             <p>
               {isWaitingForAnalysis
