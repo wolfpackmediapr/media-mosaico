@@ -1,110 +1,83 @@
-# Fix: TV Analysis Not Showing in UI (Staleness Fix)
+I checked the current TV pipeline, recent Edge Function logs, and the latest `tv_transcriptions` rows. The loop is real, and the root cause is not only Qwen or AssemblyAI alone.
 
-## What's actually broken
+Findings:
+- AssemblyAI is producing diarized utterances, but its speaker boundaries are imperfect in some clips, especially TV shows with commercials, fast interruptions, and overlapping host/guest dialogue.
+- Qwen speaker identification is currently text-only. Logs show `speaker_id_status=success`, but that only means Qwen returned a map; it is not true vision-grounded name identification.
+- The stored backend transcript is currently being modified into display text like `SPEAKER A (Bexaida - Invitada): ...`.
+- The frontend editor then re-formats parsed utterances using shared Radio utilities. That creates the UI discrepancy/doubling pattern like `SPEAKER A: SPEAKER A|Bexaida|Invitada: ...` and can degrade the transcript display even when the DB row is cleaner.
+- The old project memory says TV speaker identification should use vision/lower-thirds. Current Qwen Stage 3 does not do that for chunked videos; it only infers from transcript text.
 
-Yesterday's data confirms **the analysis pipeline works** — 20 of 21 jobs since yesterday got both transcription and analysis written to the DB. The orphaned job `33fe18a2…` you reported actually *did* get its `full_analysis` filled in 3 minutes after transcription. The UI just never reflected it.
+Plan to fix without touching Prensa Escrita, Radio behavior, or site-wide behavior:
 
-There are two root causes feeding the same symptom:
+1. Backend: stop mutating the canonical transcript into UI/display markup
+   - In `supabase/functions/process-tv-with-qwen/index.ts`, keep AssemblyAI’s diarized transcript as the canonical text format:
+     - `[00:00] SPEAKER A: dialogue`
+     - `[00:26] SPEAKER B: dialogue`
+   - Do not inject names/roles directly into every `SPEAKER X` header as the primary stored transcript.
+   - Instead, compute a separate speaker identity map internally and use it only to create a clean annotated transcript format or metadata for the UI.
+   - Preserve `speaker_id_status`, `speaker_id_method`, and `speaker_id_error` for debugging.
 
-### Root cause 1 — Realtime is OFF for `tv_transcriptions`
+2. Backend: make AssemblyAI and Qwen work in concert with clear responsibilities
+   - AssemblyAI remains responsible for `who spoke when` using `utterances` and timestamps.
+   - Qwen is responsible for `who is that speaker` using the diarized transcript and, where possible, vision context.
+   - Add a guard so Qwen never changes AssemblyAI’s speaker boundaries or merges/splits utterances. Qwen can only assign identity to existing speaker letters.
+   - Add validation that every Qwen key maps to an existing AssemblyAI speaker letter only.
 
-`useTvAnalysisDisplay.ts` already opens a `postgres_changes` channel listening for the late `full_analysis` UPDATE. But `pg_publication_tables` confirms the table is **not** in the `supabase_realtime` publication, so the channel never fires. Late writes from `analyze-tv-stored` are silently dropped client-side.
+3. Backend: restore vision-grounded speaker identification instead of text-only guessing
+   - For single-file video path: use the signed video URL / existing video-capable path to ask the visual model to read lower-thirds/chyrons and identify speaker names/roles.
+   - For chunked video path: do not send raw chunk byte slices to `qwen-vl-max` as video. That was broken. Use the available assembled/streamed-video approach where feasible, or fall back explicitly to `text-only` with a clear status/log when vision is not available.
+   - The speaker ID method should report one of:
+     - `vision-video` when lower-third/visual evidence was used
+     - `text-only` when only dialogue evidence was available
+     - `failed`/`skipped` with a real reason when no trustworthy identity can be assigned
+   - Names are accepted only when there is visual lower-third evidence or direct textual evidence. Otherwise fallback remains `Hablante A`, `Hablante B`, etc.
 
-### Root cause 2 — Polling stops at `status='completed'`
+4. Frontend: make TV use a TV-specific formatting path, not Radio’s speaker text formatter
+   - In `src/hooks/tv/useTvTranscriptionEditor.ts` / TV editor flow, avoid using Radio’s `formatSpeakerText()` for TV parsed utterances.
+   - Keep Radio’s current behavior unchanged.
+   - TV should pass parsed `utterances` to the enhanced editor for colored cards, but it should not rewrite the raw transcript into `SPEAKER A: SPEAKER A|Name|Role:`.
+   - This fixes the doubled prefix and restores the expected colored UI without affecting Radio.
 
-`useTranscriptionPolling.ts` line 53:
-```ts
-if (data.status === 'completed' || data.status === 'failed') return false;
-```
-Stops polling the moment transcription is saved, even when `full_analysis` is still NULL. Same pattern in `useTvVideoProcessor.ts` (`setActiveProcessingId(null)` + `setIsProcessing(false)` fire on completion). So there's no fallback when Realtime is unavailable.
+5. Frontend parser: accept both clean backend and annotated backend formats safely
+   - Harden `src/utils/tv/speakerTextParser.ts` so it supports:
+     - `[00:00] SPEAKER A: text`
+     - `[00:00] SPEAKER A (Name - Role): text`
+     - legacy malformed `SPEAKER A: SPEAKER A|Name|Role: text` only as a repair input, not as an output format.
+   - The parser should produce speaker IDs as:
+     - `A` when unidentified
+     - `A|Name|Role` when identified
+   - The display layer renders those as `Hablante A` or `Name (Role)`.
 
-### Defense-in-depth — `analyze-tv-stored` has no `finally` block
+6. Add diagnostics to stop the loop
+   - Add structured Edge logs showing:
+     - AssemblyAI utterance count
+     - detected speaker letters
+     - Qwen identity map
+     - vision/text method used
+     - how many identities were accepted vs rejected
+   - Add a frontend console log only in TV parser when it repairs legacy malformed text, so we can distinguish DB issues from UI transformation issues.
 
-When the function dies mid-stream (rare, but possible with the larger shared prompt), nothing terminal is written to the DB and we can't tell from the data whether it failed or is still running. Violates the existing project memory rule for `EdgeRuntime.waitUntil` background tasks.
+7. Verification
+   - Check latest `tv_transcriptions` rows after implementation for:
+     - `speaker_id_status`
+     - `speaker_id_method`
+     - `speaker_id_error`
+     - transcript preview without doubled prefixes
+   - Confirm TV transcript cards show colors and correct labels.
+   - Confirm Radio and Prensa Escrita files/components were not changed.
 
-## Changes
+Technical scope:
+- Expected files to edit:
+  - `supabase/functions/process-tv-with-qwen/index.ts`
+  - `src/utils/tv/speakerTextParser.ts`
+  - TV-specific editor hook/component wiring only if needed, likely `src/hooks/tv/useTvTranscriptionEditor.ts` and/or `src/components/tv/TvTranscriptionEditor.tsx`
+- Files to avoid changing:
+  - Prensa Escrita modules
+  - Radio processing/transcription behavior, except only reading shared utilities if needed
+  - Site-wide layout/routing/auth
 
-### 1. Enable Realtime on `tv_transcriptions` (migration)
-
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tv_transcriptions;
-ALTER TABLE public.tv_transcriptions REPLICA IDENTITY FULL;
-```
-
-This alone should fix the symptom for ~all future jobs, because `useTvAnalysisDisplay` already subscribes correctly.
-
-### 2. Keep polling until `full_analysis` lands (or hard timeout)
-
-Edit `src/hooks/tv/useTranscriptionPolling.ts`:
-- Add `full_analysis` and `created_at` checks to the `refetchInterval` decision.
-- Continue polling while `status='completed' && full_analysis IS NULL && elapsedSinceCreated < 10 min`.
-- Slow the interval to 8s once transcription is in (analysis stage is longer-cycle).
-- Stop on: `status='failed'` OR `full_analysis IS NOT NULL` OR 10-minute hard timeout.
-
-```ts
-refetchInterval: (query) => {
-  const data = query.state.data;
-  if (!data) return false;
-  if (data.status === 'failed') return false;
-
-  const elapsedMs = Date.now() - new Date(data.created_at).getTime();
-  const HARD_TIMEOUT = 10 * 60 * 1000;
-
-  // Transcription done but analysis still pending — keep polling, slower
-  if (data.status === 'completed' && !data.full_analysis && elapsedMs < HARD_TIMEOUT) {
-    return document.hidden ? 20000 : 8000;
-  }
-  // Fully done OR timed out
-  if (data.status === 'completed' && (data.full_analysis || elapsedMs >= HARD_TIMEOUT)) {
-    return false;
-  }
-  // Still transcribing
-  return document.hidden ? 15000 : 5000;
-}
-```
-
-### 3. Don't drop the active processing handle until analysis lands
-
-Edit `src/hooks/tv/useTvVideoProcessor.ts`:
-- In the "tab visibility sync" branch and the "resume from DB" branch, when `status='completed'` is detected but `full_analysis` is still empty, keep `isProcessing` and `activeProcessingId` set so the polling/Realtime hooks remain alive. Only flip them to "done" once `full_analysis` is populated or the 10-min timeout hits.
-- When the timeout hits with no analysis, surface a non-blocking toast (`"El análisis está demorando más de lo normal. Refresca la página en unos minutos."`) and release `isProcessing`.
-
-### 4. Add `finally` block to `analyze-tv-stored` (defense-in-depth)
-
-Edit `supabase/functions/analyze-tv-stored/index.ts`:
-- Wrap the handler body in `try / catch / finally`.
-- On success: write `full_analysis` + extracted fields (already happens).
-- On failure or unexpected isolate death: write `provider_fallback_reason = "analysis: <reason>"` so future debugging is observable in DB. No new column needed.
-- Lower `max_tokens` from 16384 → 12288 to reduce odds of hitting the streaming wall-time.
-
-```ts
-let terminalReason: string | null = 'unknown failure';
-try {
-  // ... existing analysis flow ...
-  terminalReason = null; // success
-} catch (err) {
-  terminalReason = err instanceof Error ? err.message : String(err);
-  throw err;
-} finally {
-  if (terminalReason) {
-    try {
-      await supabase.from('tv_transcriptions').update({
-        provider_fallback_reason: `analysis: ${terminalReason}`.slice(0, 500),
-      }).eq('id', transcriptionId);
-    } catch {}
-  }
-}
-```
-
-## Files
-
-- **NEW migration** — enable Realtime on `tv_transcriptions` + `REPLICA IDENTITY FULL`.
-- **EDIT** `src/hooks/tv/useTranscriptionPolling.ts` — keep polling past `completed` until `full_analysis` arrives or timeout.
-- **EDIT** `src/hooks/tv/useTvVideoProcessor.ts` — don't release the active job until analysis lands or timeout.
-- **EDIT** `supabase/functions/analyze-tv-stored/index.ts` — `finally` block + lower `max_tokens`.
-
-## Out of scope (per your instruction)
-
-- No "Reanalizar análisis" button.
-- No new `analysis_status` column or schema-level stage tracking.
-- No fix for `extract-tv-frames` CloudConvert error on chunked sessions (already gracefully falls back to text-only speaker ID).
+Important behavior after the fix:
+- If the system cannot identify a name, it shows `Hablante A/B/C`, not guessed names.
+- If lower-third or direct textual evidence identifies the speaker, it shows the real name and role.
+- AssemblyAI controls timing/speaker turns; Qwen only labels those speakers.
+- No more `SPEAKER A: SPEAKER A|Name|Role:` UI output.

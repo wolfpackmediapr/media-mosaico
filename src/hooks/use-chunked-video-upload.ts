@@ -38,17 +38,9 @@ export const useChunkedVideoUpload = () => {
   const [totalChunks, setTotalChunks] = useState<number>(0);
   const [isPaused, setIsPaused] = useState(false);
   const [useClientAssembly, setUseClientAssembly] = useState(false);
-  const [bytesUploaded, setBytesUploaded] = useState<number>(0);
-  const [totalBytes, setTotalBytes] = useState<number>(0);
-  const [uploadSpeed, setUploadSpeed] = useState<number>(0); // bytes/sec
-  const [etaSeconds, setEtaSeconds] = useState<number>(0);
-  const [isFinalizing, setIsFinalizing] = useState(false);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentSessionRef = useRef<UploadSession | null>(null);
-  const speedSamplesRef = useRef<{ t: number; bytes: number }[]>([]);
-  const completedChunksRef = useRef<number>(0);
-  const bytesUploadedRef = useRef<number>(0);
 
   const pauseUpload = () => {
     setIsPaused(true);
@@ -85,29 +77,6 @@ export const useChunkedVideoUpload = () => {
       setIsUploading(true);
       setUploadProgress(0);
       setIsPaused(false);
-      setIsFinalizing(false);
-      setBytesUploaded(0);
-      setTotalBytes(file.size);
-      setUploadSpeed(0);
-      setEtaSeconds(0);
-      speedSamplesRef.current = [{ t: Date.now(), bytes: 0 }];
-      bytesUploadedRef.current = 0;
-      completedChunksRef.current = 0;
-
-      // Cancel any stale in-progress session left behind by previous upload
-      const prev = currentSessionRef.current;
-      if (prev && prev.uploadedChunks < prev.totalChunks) {
-        try {
-          await supabase
-            .from('chunked_upload_sessions')
-            .update({ status: 'cancelled' })
-            .eq('session_id', prev.sessionId)
-            .neq('status', 'completed');
-          removeSession(prev.sessionId);
-        } catch (e) {
-          console.warn('Could not cancel previous session', e);
-        }
-      }
 
       // Determine upload strategy based on file size
       const isLargeFile = file.size > LARGE_FILE_THRESHOLD;
@@ -200,12 +169,6 @@ export const useChunkedVideoUpload = () => {
 
       const fileName = sanitizeFileName(session.fileName);
       const chunks = Math.ceil(file.size / CHUNK_SIZE);
-      // Initialize per-chunk counters from session resume point
-      completedChunksRef.current = session.uploadedChunks;
-      bytesUploadedRef.current = Math.min(session.uploadedChunks * CHUNK_SIZE, file.size);
-      setBytesUploaded(bytesUploadedRef.current);
-      setTotalBytes(file.size);
-      speedSamplesRef.current = [{ t: Date.now(), bytes: bytesUploadedRef.current }];
       
       console.log(`Continuing upload: ${fileName}, chunks: ${chunks}, uploaded: ${session.uploadedChunks}`);
 
@@ -231,33 +194,6 @@ export const useChunkedVideoUpload = () => {
             }
 
             console.log(`Uploaded chunk ${chunkIndex + 1}/${chunks}`);
-            // Per-chunk progress update (runs as each parallel upload finishes)
-            completedChunksRef.current += 1;
-            bytesUploadedRef.current = Math.min(
-              bytesUploadedRef.current + (end - start),
-              file.size
-            );
-            const done = completedChunksRef.current;
-            const bytes = bytesUploadedRef.current;
-            setChunkProgress((done / chunks) * 100);
-            setUploadProgress((done / chunks) * 100);
-            setBytesUploaded(bytes);
-
-            // Rolling 5s speed window
-            const now = Date.now();
-            const samples = speedSamplesRef.current;
-            samples.push({ t: now, bytes });
-            while (samples.length > 1 && now - samples[0].t > 5000) {
-              samples.shift();
-            }
-            if (samples.length >= 2) {
-              const dt = (now - samples[0].t) / 1000;
-              const db = bytes - samples[0].bytes;
-              const speed = dt > 0 ? db / dt : 0;
-              setUploadSpeed(speed);
-              const remaining = file.size - bytes;
-              setEtaSeconds(speed > 0 ? Math.max(0, Math.round(remaining / speed)) : 0);
-            }
             return;
           } catch (error) {
             retries++;
@@ -281,7 +217,9 @@ export const useChunkedVideoUpload = () => {
 
         const batchEnd = Math.min(batchStart + PARALLEL_UPLOADS, chunks);
         const batchIndices = Array.from({ length: batchEnd - batchStart }, (_, i) => batchStart + i);
-
+        
+        setChunkProgress((batchStart / chunks) * 100);
+        
         // Upload batch concurrently
         await Promise.all(batchIndices.map(idx => uploadSingleChunk(idx)));
         
@@ -293,6 +231,8 @@ export const useChunkedVideoUpload = () => {
           .from('chunked_upload_sessions')
           .update({ uploaded_chunks: session.uploadedChunks })
           .eq('session_id', session.sessionId);
+        
+        setUploadProgress((session.uploadedChunks / session.totalChunks) * 100);
       }
 
       if (isPaused) {
@@ -302,8 +242,6 @@ export const useChunkedVideoUpload = () => {
 
       console.log('All chunks uploaded, finalizing upload...');
       setChunkProgress(100);
-      setUploadProgress(100);
-      setIsFinalizing(true);
 
       // Check if session already completed
       const { data: sessionCheck } = await supabase
@@ -349,11 +287,6 @@ export const useChunkedVideoUpload = () => {
       setUploadProgress(0);
       setChunkProgress(0);
       setTotalChunks(0);
-      setIsFinalizing(false);
-      setBytesUploaded(0);
-      setTotalBytes(0);
-      setUploadSpeed(0);
-      setEtaSeconds(0);
     }
   };
 
@@ -674,11 +607,6 @@ export const useChunkedVideoUpload = () => {
     totalChunks,
     isPaused,
     useClientAssembly,
-    bytesUploaded,
-    totalBytes,
-    uploadSpeed,
-    etaSeconds,
-    isFinalizing,
     uploadFileChunked,
     pauseUpload,
     resumeUpload,

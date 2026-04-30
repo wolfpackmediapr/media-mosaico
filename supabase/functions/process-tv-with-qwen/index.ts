@@ -2,7 +2,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { buildTvAnalysisPrompt } from '../_shared/tvAnalysisPrompt.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -764,156 +763,15 @@ async function processChunkedInBackground(
     // which always failed with "Invalid video file" because:
     //   1) qwen-vl-max is image-only (not video)
     //   2) chunk_0000 is a 15MB byte slice without valid MP4 headers
-    // We now use a TWO-PASS hybrid:
-    //   PASS A — VISUAL: extract-tv-frames → CloudConvert thumbnails → JPG list
-    //            → qwen-vl-max-latest with image_url[] to OCR lower-thirds
-    //            (real names + roles from chyrons / banners / network logos).
-    //   PASS B — TEXT-ONLY: qwen-plus on the transcript to fill gaps for
-    //            off-screen voices, callers, voice-over (no graphic to read).
-    // PASS A names always win over PASS B for the same SPEAKER letter.
+    // We now use text-only dialogue analysis (self-introductions, mentions by name,
+    // role indicators) which is reliable and 0-extra-cost (qwen-plus is cheap).
     let speakerIdStatus: 'success' | 'failed' | 'skipped' = 'skipped';
-    let speakerIdMethod: string = 'none';
+    let speakerIdMethod: string = 'text-only';
     let speakerIdError: string | null = null;
     let speakersIdentified = 0;
-    const speakerIdEvidence: any[] = [];
-    const visualSpeakerMap: Record<string, string> = {};
-
-    // ── PASS A: Visual OCR via Qwen-VL ──────────────────────────────────
-    try {
-      console.log(`[qwen-tv][${requestId}] Background: PASS A — extracting frames for visual speaker ID`);
-
-      const framesResp = await supabaseClient.functions.invoke('extract-tv-frames', {
-        body: {
-          transcriptionId: transcriptId,
-          isChunked: true,
-          sessionId,
-        },
-      });
-
-      const framesData = framesResp?.data;
-      const frameList: { url: string; ts_seconds: number; index: number }[] =
-        Array.isArray(framesData?.frames) ? framesData.frames : [];
-
-      if (frameList.length === 0) {
-        console.warn(`[qwen-tv][${requestId}] PASS A: extract-tv-frames returned 0 frames, skipping vision`);
-      } else {
-        console.log(`[qwen-tv][${requestId}] PASS A: ${frameList.length} frames ready for Qwen-VL`);
-
-        // Build Qwen-VL request: each frame as image_url + one text instruction
-        const visionContent: any[] = frameList.map((f) => ({
-          type: 'image_url',
-          image_url: { url: f.url },
-          // Persist ts so we can correlate after OCR
-          _ts: f.ts_seconds,
-        }));
-        // Strip our private _ts field before sending to API
-        const cleanedVisionContent = frameList.map((f) => ({
-          type: 'image_url',
-          image_url: { url: f.url },
-        }));
-
-        const tsList = frameList.map((f) => f.ts_seconds).join(', ');
-        const visionPrompt = `Estás analizando ${frameList.length} fotogramas extraídos en orden cronológico de un noticiero de TV de Puerto Rico (1 cada 5 segundos, comenzando en t=0s).
-
-TAREA: Lee cada "lower third" / chyron / banner / tarjeta gráfica / logo de canal que aparezca en cada fotograma y extrae los nombres y roles de personas que aparecen identificadas en pantalla.
-
-Los timestamps de los fotogramas son (en segundos): ${tsList}
-
-REGLAS ESTRICTAS:
-- Reporta SOLO texto que veas literalmente en pantalla. NO infieras nombres por reconocimiento facial ni por contexto.
-- Si el lower-third dice "JOSÉ TORRES RUIZ — INSPECTOR CIC GUAYAMA" repórtalo así (sin inventar contexto).
-- Si no hay graphic con nombre, no incluyas esa entrada.
-- Si la misma persona aparece en varios fotogramas, repórtala una vez por aparición distinta.
-- Reconoce logos de canal: WAPA, Telemundo, WIPR, TeleOnce, Tele Oro, ABCPR.
-
-RESPONDE ÚNICAMENTE con JSON válido (sin markdown ni texto adicional) en este formato exacto:
-{"graphics":[
-  {"ts_seconds": 42.5, "name": "Nombre Apellido", "role": "Cargo / título visto", "outlet": "Canal opcional"},
-  {"ts_seconds": 187.0, "name": "...", "role": "..."}
-]}
-
-Si no detectas ningún nombre en ningún fotograma, responde {"graphics":[]}.`;
-
-        cleanedVisionContent.push({ type: 'text', text: visionPrompt } as any);
-
-        const visionMessages = [{ role: 'user', content: cleanedVisionContent }];
-
-        const visionResult = await callQwenStreaming(
-          qwenApiKey,
-          'qwen-vl-max-latest',
-          visionMessages,
-          requestId,
-          'visual-speaker-id',
-          4096,
-        );
-
-        if (visionResult.success && visionResult.data) {
-          const jsonStr = extractJsonObject(visionResult.data);
-          if (jsonStr) {
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const graphics: { ts_seconds: number; name: string; role?: string; outlet?: string }[] =
-                Array.isArray(parsed?.graphics) ? parsed.graphics : [];
-              console.log(`[qwen-tv][${requestId}] PASS A: Qwen-VL detected ${graphics.length} on-screen identities`);
-
-              // Map each graphic ts_seconds to the SPEAKER letter that was talking at that moment.
-              // We use the existing transcription text which has format "[MM:SS] SPEAKER X: ..."
-              const utteranceRegex = /\[(\d{2}):(\d{2})\]\s*SPEAKER\s+([A-Z]):/g;
-              const utterances: { ts: number; letter: string }[] = [];
-              let m: RegExpExecArray | null;
-              while ((m = utteranceRegex.exec(transcriptionText)) !== null) {
-                const ts = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-                utterances.push({ ts, letter: m[3] });
-              }
-
-              for (const g of graphics) {
-                if (!g.name || !g.name.trim()) continue;
-                // Find utterance whose timestamp is closest within ±10s of the graphic
-                let bestLetter: string | null = null;
-                let bestDelta = Infinity;
-                for (const u of utterances) {
-                  const delta = Math.abs(u.ts - g.ts_seconds);
-                  if (delta < bestDelta && delta <= 10) {
-                    bestDelta = delta;
-                    bestLetter = u.letter;
-                  }
-                }
-                if (bestLetter) {
-                  const label = g.role ? `${g.name.trim()} - ${g.role.trim()}` : g.name.trim();
-                  // First match wins per letter (graphics are chronological)
-                  if (!visualSpeakerMap[bestLetter]) {
-                    visualSpeakerMap[bestLetter] = label;
-                    speakerIdEvidence.push({
-                      letter: bestLetter,
-                      ts_seconds: g.ts_seconds,
-                      name: g.name,
-                      role: g.role || null,
-                      outlet: g.outlet || null,
-                      method: 'vision-ocr',
-                      delta_seconds: Math.round(bestDelta * 10) / 10,
-                    });
-                  }
-                }
-              }
-            } catch (parseErr) {
-              console.warn(`[qwen-tv][${requestId}] PASS A: vision JSON parse failed:`, (parseErr as Error).message);
-            }
-          }
-        } else {
-          console.warn(`[qwen-tv][${requestId}] PASS A: Qwen-VL call failed: ${visionResult.error}`);
-        }
-      }
-    } catch (visErr) {
-      console.warn(`[qwen-tv][${requestId}] PASS A failed (non-fatal):`, (visErr as Error).message);
-    }
-
-    const visualLetters = Object.keys(visualSpeakerMap);
-    if (visualLetters.length > 0) {
-      console.log(`[qwen-tv][${requestId}] PASS A: visual map = ${JSON.stringify(visualSpeakerMap)}`);
-    }
 
     try {
-      console.log(`[qwen-tv][${requestId}] Background: PASS B — text-only speaker ID for unmapped letters...`);
+      console.log(`[qwen-tv][${requestId}] Background: Identifying speakers from dialogue (text-only)...`);
 
       const speakerIdPrompt = `Analiza esta transcripción de noticias de Puerto Rico e identifica cada hablante (SPEAKER A, SPEAKER B, etc.) usando SOLO evidencia explícita de la transcripción.
 
@@ -968,10 +826,6 @@ ${transcriptionText.substring(0, 15000)}`;
           try {
             const rawSpeakerMap = JSON.parse(jsonStr);
             const speakerMap = sanitizeSpeakerMap(rawSpeakerMap, transcriptionText);
-            // PASS A wins: overwrite any text-only guess with visual OCR result.
-            for (const [letter, label] of Object.entries(visualSpeakerMap)) {
-              speakerMap[letter] = label;
-            }
             console.log(`[qwen-tv][${requestId}] Speaker map:`, JSON.stringify(speakerMap));
 
             // Replace SPEAKER X with SPEAKER X (Name - Role) in transcription
@@ -986,9 +840,6 @@ ${transcriptionText.substring(0, 15000)}`;
 
             if (speakersIdentified > 0) {
               speakerIdStatus = 'success';
-              speakerIdMethod = visualLetters.length > 0
-                ? (Object.keys(speakerMap).length > visualLetters.length ? 'vision+text' : 'vision-only')
-                : 'text-only';
               console.log(`[qwen-tv][${requestId}] Identified ${speakersIdentified} speakers`);
             } else {
               speakerIdStatus = 'failed';
@@ -1004,25 +855,8 @@ ${transcriptionText.substring(0, 15000)}`;
           speakerIdError = 'No JSON object found in model response';
         }
       } else {
-        // Text pass failed but we may still have visual results
-        if (visualLetters.length > 0) {
-          for (const [letter, nameRole] of Object.entries(visualSpeakerMap)) {
-            const regex = new RegExp(`SPEAKER ${letter}(?!\\s*\\()`, 'g');
-            const before = transcriptionText;
-            transcriptionText = transcriptionText.replace(regex, `SPEAKER ${letter} (${nameRole})`);
-            if (before !== transcriptionText) speakersIdentified++;
-          }
-          if (speakersIdentified > 0) {
-            speakerIdStatus = 'success';
-            speakerIdMethod = 'vision-only';
-          } else {
-            speakerIdStatus = 'failed';
-            speakerIdError = `Text pass failed and visual map unmatched: ${speakerIdResult.error}`;
-          }
-        } else {
-          speakerIdStatus = 'failed';
-          speakerIdError = speakerIdResult.error || 'Qwen call failed';
-        }
+        speakerIdStatus = 'failed';
+        speakerIdError = speakerIdResult.error || 'Qwen call failed';
       }
     } catch (speakerErr) {
       speakerIdStatus = 'failed';
@@ -1030,58 +864,73 @@ ${transcriptionText.substring(0, 15000)}`;
       console.warn(`[qwen-tv][${requestId}] Speaker identification failed (non-fatal):`, speakerErr);
     }
 
-    // Save transcription + mark transcription stage complete.
-    // Analysis is decoupled to a separate edge function (analyze-tv-stored)
-    // to avoid CPU Time exceeded errors caused by streaming a 32k-token
-    // analysis response inline. The user already has the transcription;
-    // analysis arrives shortly after via a separate fresh-CPU isolate.
-    const transcriptionPayload: any = {
+    // Save transcription immediately
+    await supabaseClient
+      .from('tv_transcriptions')
+      .update({
+        transcription_text: transcriptionText,
+        progress: 55,
+        provider_used: 'assemblyai+qwen-text',
+        speaker_id_status: speakerIdStatus,
+        speaker_id_method: speakerIdMethod,
+        speaker_id_error: speakerIdError,
+      })
+      .eq('id', transcriptId);
+
+    // 4. Analysis via Qwen (text-only)
+    console.log(`[qwen-tv][${requestId}] Background: Starting Qwen text analysis`);
+    await new Promise(r => setTimeout(r, 5000)); // rate limit spacing
+
+    const analysisPrompt = buildAnalysisPrompt(categories, clients, transcriptionText);
+    const analysisMessages = [
+      { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
+    ];
+
+    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'bg-analysis', 32768);
+
+    if (!analysisResult.success) {
+      console.warn(`[qwen-tv][${requestId}] Background: Primary model failed, falling back`);
+      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'bg-analysis-fallback', 32768);
+    }
+
+    let analysisText = '';
+    let providerUsed = 'assemblyai+qwen-text';
+    let fallbackReason: string | null = null;
+
+    if (analysisResult.success) {
+      analysisText = analysisResult.data!;
+      console.log(`[qwen-tv][${requestId}] Background: Analysis complete, ${analysisText.length} chars`);
+    } else {
+      fallbackReason = `Analysis: ${analysisResult.error}`;
+      analysisText = `Error en análisis: ${analysisResult.error}`;
+    }
+
+    // 5. Write final results — store analysis as raw text (not JSON)
+    const updatePayload: any = {
       status: 'completed',
       progress: 100,
       transcription_text: transcriptionText,
-      provider_used: 'assemblyai+qwen-text',
-      provider_fallback_reason: null,
-      speaker_id_status: speakerIdStatus,
-      speaker_id_method: speakerIdMethod,
-      speaker_id_error: speakerIdError,
-      speaker_id_evidence: speakerIdEvidence.length > 0 ? speakerIdEvidence : null,
+      full_analysis: analysisText,
+      provider_used: providerUsed,
+      provider_fallback_reason: fallbackReason,
       updated_at: new Date().toISOString(),
     };
-    const { error: txUpdateErr } = await supabaseClient
+
+    // Extract structured fields from text using regex
+    extractAnalysisFieldsFromText(analysisText, updatePayload);
+
+    const { error: updateError } = await supabaseClient
       .from('tv_transcriptions')
-      .update(transcriptionPayload)
+      .update(updatePayload)
       .eq('id', transcriptId);
-    if (txUpdateErr) {
-      console.error(`[qwen-tv][${requestId}] Background: transcription update error:`, txUpdateErr);
+
+    if (updateError) {
+      console.error(`[qwen-tv][${requestId}] Background: DB update error:`, updateError);
     } else {
-      console.log(`[qwen-tv][${requestId}] Background: Transcription saved, invoking analysis function`);
+      console.log(`[qwen-tv][${requestId}] Background: Completed successfully`);
     }
 
     reachedTerminal = true;
-
-    // Fire-and-forget invoke of analyze-tv-stored (fresh CPU budget).
-    try {
-      // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
-      EdgeRuntime.waitUntil(
-        supabaseClient.functions.invoke('analyze-tv-stored', {
-          body: {
-            transcriptionId: transcriptId,
-            categories,
-            clients,
-          },
-        }).then((res: any) => {
-          if (res?.error) {
-            console.warn(`[qwen-tv][${requestId}] analyze-tv-stored error:`, res.error);
-          } else {
-            console.log(`[qwen-tv][${requestId}] analyze-tv-stored invoked successfully`);
-          }
-        }).catch((err: any) => {
-          console.warn(`[qwen-tv][${requestId}] analyze-tv-stored invoke failed:`, err?.message || err);
-        }),
-      );
-    } catch (invokeErr) {
-      console.warn(`[qwen-tv][${requestId}] Could not schedule analysis:`, invokeErr);
-    }
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1304,9 +1153,7 @@ serve(async (req) => {
     console.log(`[qwen-tv][${requestId}] Starting Stage 2: Analysis`);
     await new Promise(r => setTimeout(r, 5000));
 
-    // Use the shared canonical prompt to guarantee identical [TIPO DE CONTENIDO:]
-    // + [NOTICIA N] structure across qwen + analyze-tv-stored + Gemini fallback.
-    const analysisPrompt = buildTvAnalysisPrompt(resolvedCategories, resolvedClients, transcriptionText);
+    const analysisPrompt = buildAnalysisPrompt(resolvedCategories, resolvedClients, transcriptionText);
     const analysisMessages = [
       { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
     ];
