@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface TranscriptionStatus {
@@ -16,7 +17,11 @@ export interface TranscriptionStatus {
  * Provides automatic polling with visibility-aware intervals
  */
 export const useTranscriptionPolling = (transcriptionId: string | null, enabled: boolean = true) => {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  const query = useQuery({
     queryKey: ['tv-transcription-status', transcriptionId],
     queryFn: async (): Promise<TranscriptionStatus | null> => {
       if (!transcriptionId) return null;
@@ -75,6 +80,51 @@ export const useTranscriptionPolling = (transcriptionId: string | null, enabled:
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+  });
+
+  // Determine whether the analysis stage has timed out for this row.
+  const data = query.data;
+  const HARD_TIMEOUT_MS = 10 * 60 * 1000;
+  const elapsedMs = data ? Date.now() - new Date(data.created_at).getTime() : 0;
+  const analysisTimedOut =
+    !!data &&
+    data.status === 'completed' &&
+    !data.full_analysis &&
+    elapsedMs >= HARD_TIMEOUT_MS;
+
+  const retryAnalysis = useCallback(async (idOverride?: string) => {
+    const id = idOverride || transcriptionId;
+    if (!id) return { ok: false, error: 'No transcription ID' };
+
+    setRetryError(null);
+    setRetrying(true);
+    try {
+      console.log('[useTranscriptionPolling] Retrying analyze-tv-stored for', id);
+      const { error } = await supabase.functions.invoke('analyze-tv-stored', {
+        body: { transcriptionId: id },
+      });
+      if (error) throw error;
+
+      // Resume polling: invalidate so refetchInterval re-engages immediately.
+      await queryClient.invalidateQueries({
+        queryKey: ['tv-transcription-status', id],
+      });
+      return { ok: true };
+    } catch (err: any) {
+      const message = err?.message || String(err);
+      console.error('[useTranscriptionPolling] retryAnalysis failed:', message);
+      setRetryError(message);
+      return { ok: false, error: message };
+    } finally {
+      setRetrying(false);
+    }
+  }, [transcriptionId, queryClient]);
+
+  return Object.assign(query, {
+    analysisTimedOut,
+    retryAnalysis,
+    isRetryingAnalysis: retrying,
+    retryAnalysisError: retryError,
   });
 };
 
