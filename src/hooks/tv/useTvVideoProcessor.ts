@@ -501,7 +501,12 @@ export const useTvVideoProcessor = () => {
         });
         
         setTranscriptionText(transcriptionData);
-        setAnalysisResults(analysisData);
+        // Don't overwrite analysisResults with '' — analyze-tv-stored may
+        // still be running; useTvAnalysisDisplay will populate via the
+        // tv-analysis-ready window event when it completes.
+        if (analysisData && analysisData.length > 0) {
+          setAnalysisResults(analysisData);
+        }
         
         // Parse transcription text into utterances for editor
         if (transcriptionData) {
@@ -986,7 +991,9 @@ export const useTvVideoProcessor = () => {
             if (data.status === 'completed' && !transcriptionText) {
               console.log('[TvVideoProcessor] Processing completed while tab was hidden');
               setTranscriptionText(data.transcription_text || '');
-              setAnalysisResults(data.full_analysis || '');
+              if (data.full_analysis && data.full_analysis.length > 0) {
+                setAnalysisResults(data.full_analysis);
+              }
               setProgress(100);
               setActiveProcessingId(null);
               toast.success('¡Procesamiento completado mientras estabas ausente!');
