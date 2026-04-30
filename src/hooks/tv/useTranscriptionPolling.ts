@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +12,12 @@ export interface TranscriptionStatus {
   updated_at: string;
 }
 
+// Module-level guard: ensures the tv-analysis-ready event fires exactly once
+// per transcription id across the lifetime of the page, even if the hook
+// unmounts and remounts (e.g. when TvTranscriptionSection re-renders or the
+// user briefly toggles tabs). A per-instance useRef would lose this guarantee.
+const dispatchedAnalysisIds = new Set<string>();
+
 /**
  * React Query-based hook for polling TV transcription status
  * Provides automatic polling with visibility-aware intervals
@@ -20,9 +26,6 @@ export const useTranscriptionPolling = (transcriptionId: string | null, enabled:
   const queryClient = useQueryClient();
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
-  // Track which transcription ids we've already announced as "analysis ready"
-  // so we dispatch the cross-hook event exactly once per id.
-  const dispatchedRef = useRef<Set<string>>(new Set());
 
   const query = useQuery({
     queryKey: ['tv-transcription-status', transcriptionId],
@@ -96,9 +99,9 @@ export const useTranscriptionPolling = (transcriptionId: string | null, enabled:
       data.status === 'completed' &&
       data.full_analysis &&
       data.full_analysis.length > 0 &&
-      !dispatchedRef.current.has(data.id)
+      !dispatchedAnalysisIds.has(data.id)
     ) {
-      dispatchedRef.current.add(data.id);
+      dispatchedAnalysisIds.add(data.id);
       console.log('[useTranscriptionPolling] full_analysis ready for', data.id, '- dispatching tv-analysis-ready');
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
