@@ -1092,6 +1092,21 @@ serve(async (req) => {
 
     console.log(`[qwen-tv][${requestId}] User authenticated: ${user.id}`);
 
+    // ── Watchdog: mark zombie 'processing' rows (>5 min stale) as failed:timeout ──
+    try {
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { error: wdErr } = await supabaseClient
+        .from('tv_transcriptions')
+        .update({ status: 'failed:timeout', updated_at: new Date().toISOString() })
+        .eq('status', 'processing')
+        .lt('updated_at', fiveMinAgo);
+      if (wdErr) {
+        console.warn(`[qwen-tv][${requestId}] Watchdog update warning:`, wdErr.message);
+      }
+    } catch (e) {
+      console.warn(`[qwen-tv][${requestId}] Watchdog skipped:`, (e as Error).message);
+    }
+
     // ── Parse request ──
     const body = await req.json();
     const {
