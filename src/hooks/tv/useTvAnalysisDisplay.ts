@@ -1,6 +1,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 
 interface UseTvAnalysisDisplayProps {
   transcriptionId?: string;
@@ -11,11 +12,21 @@ export const useTvAnalysisDisplay = ({
   transcriptionId,
   forceRefresh
 }: UseTvAnalysisDisplayProps) => {
-  const [existingAnalysis, setExistingAnalysis] = useState<string>("");
+  // Persist analysis per-transcription so it survives remounts and navigation
+  // (mirrors RadioAnalysis's usePersistentState pattern).
+  const persistKey = `tv-content-analysis-${transcriptionId || "draft"}`;
+  const [existingAnalysis, setExistingAnalysis, removeExistingAnalysis] =
+    usePersistentState<string>(persistKey, "", { storage: "sessionStorage" });
   const [isLoading, setIsLoading] = useState(false);
-  const [hasAnalysis, setHasAnalysis] = useState(false);
-  const [hasFullAnalysis, setHasFullAnalysis] = useState(false);
   const pollStartedAtRef = useRef<number | null>(null);
+
+  const hasAnalysis = !!existingAnalysis;
+  // Treat any persisted, non-empty analysis as "full" — once we land it we
+  // stop polling. This is OK because every successful write below comes from
+  // full_analysis or an authoritative summary fallback.
+  const hasFullAnalysis = !!existingAnalysis;
+  const hasFullAnalysisRef = useRef(hasFullAnalysis);
+  hasFullAnalysisRef.current = hasFullAnalysis;
 
   const fetchExistingAnalysis = useCallback(async (options?: { silent?: boolean }) => {
     if (!transcriptionId) return false;
@@ -39,10 +50,10 @@ export const useTvAnalysisDisplay = ({
                                data.analysis_content_summary || 
                                data.summary || 
                                "";
-        
-        setExistingAnalysis(analysisContent);
-        setHasAnalysis(!!analysisContent);
-        setHasFullAnalysis(!!data.full_analysis);
+
+        if (analysisContent) {
+          setExistingAnalysis(analysisContent);
+        }
         console.log('[useTvAnalysisDisplay] Fetched existing analysis:', {
           hasFullAnalysis: !!data.full_analysis,
           hasContentSummary: !!data.analysis_content_summary,
@@ -58,19 +69,28 @@ export const useTvAnalysisDisplay = ({
       if (!options?.silent) setIsLoading(false);
     }
     return false;
-  }, [transcriptionId]);
+  }, [transcriptionId, setExistingAnalysis]);
 
   useEffect(() => {
     fetchExistingAnalysis();
   }, [fetchExistingAnalysis, forceRefresh]);
 
   // Fallback polling for missed window events or late-mounted analysis UI.
-  // Stops when full_analysis lands or after 10 minutes to avoid endless polling.
+  // Depend ONLY on transcriptionId so the interval isn't torn down/rebuilt
+  // every time hasFullAnalysis flips — that re-creation was resetting
+  // pollStartedAtRef and breaking the 10-minute hard timeout.
   useEffect(() => {
-    if (!transcriptionId || hasFullAnalysis) return;
+    if (!transcriptionId) return;
+    if (hasFullAnalysisRef.current) return;
 
-    pollStartedAtRef.current = Date.now();
+    if (pollStartedAtRef.current === null) {
+      pollStartedAtRef.current = Date.now();
+    }
     const interval = window.setInterval(async () => {
+      if (hasFullAnalysisRef.current) {
+        window.clearInterval(interval);
+        return;
+      }
       const elapsedMs = Date.now() - (pollStartedAtRef.current || Date.now());
       if (elapsedMs >= 10 * 60 * 1000) {
         window.clearInterval(interval);
@@ -82,7 +102,7 @@ export const useTvAnalysisDisplay = ({
     }, 8000);
 
     return () => window.clearInterval(interval);
-  }, [transcriptionId, hasFullAnalysis, fetchExistingAnalysis]);
+  }, [transcriptionId, fetchExistingAnalysis]);
 
   // Listen for the cross-hook signal fired by useTranscriptionPolling when
   // the analyze-tv-stored background job finally writes full_analysis. The
@@ -100,8 +120,6 @@ export const useTvAnalysisDisplay = ({
       if (detail.full_analysis && detail.full_analysis.length > 0) {
         // Skip the round-trip: hydrate directly from the event payload.
         setExistingAnalysis(detail.full_analysis);
-        setHasAnalysis(true);
-        setHasFullAnalysis(true);
       } else {
         // Defensive: fall back to a re-fetch.
         fetchExistingAnalysis();
@@ -110,18 +128,16 @@ export const useTvAnalysisDisplay = ({
 
     window.addEventListener('tv-analysis-ready', handler as EventListener);
     return () => window.removeEventListener('tv-analysis-ready', handler as EventListener);
-  }, [transcriptionId]);
+  }, [transcriptionId, fetchExistingAnalysis, setExistingAnalysis]);
 
   // Force reset internal state when transcriptionId becomes null
   useEffect(() => {
     if (!transcriptionId) {
       console.log('[useTvAnalysisDisplay] transcriptionId cleared, resetting internal state');
-      setExistingAnalysis("");
-      setHasAnalysis(false);
-      setHasFullAnalysis(false);
+      removeExistingAnalysis();
       pollStartedAtRef.current = null;
     }
-  }, [transcriptionId]);
+  }, [transcriptionId, removeExistingAnalysis]);
 
   return {
     existingAnalysis,
