@@ -857,6 +857,45 @@ export const useTvVideoProcessor = () => {
     restoreFromDatabase();
   }, [transcriptionId, transcriptionText, isProcessing, activeProcessingId]);
 
+  // Self-heal older/restored sessions where the transcript text survived in
+  // sessionStorage but tv-transcription-id did not. Without an id the analysis
+  // card cannot fetch full_analysis, so recover the newest completed TV row for
+  // the current user and hydrate analysis from it.
+  useEffect(() => {
+    const recoverMissingTranscriptionId = async () => {
+      if (transcriptionId || !transcriptionText || isProcessing || activeProcessingId) return;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('tv_transcriptions')
+        .select('id, transcription_text, full_analysis')
+        .eq('user_id', user.id)
+        .eq('status', 'completed')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[TvVideoProcessor] Error recovering missing transcription ID:', error);
+        return;
+      }
+
+      if (!data?.id || !data.transcription_text) return;
+
+      const currentPrefix = transcriptionText.slice(0, 500);
+      const candidatePrefix = data.transcription_text.slice(0, 500);
+      if (currentPrefix !== candidatePrefix) return;
+
+      console.log('[TvVideoProcessor] Recovered missing transcription ID for restored TV session:', data.id);
+      setTranscriptionId(data.id);
+      setAnalysisResults(data.full_analysis || '');
+    };
+
+    recoverMissingTranscriptionId();
+  }, [transcriptionId, transcriptionText, isProcessing, activeProcessingId, setTranscriptionId, setAnalysisResults]);
+
   // Sync UI state when tab becomes visible
   useEffect(() => {
     const handleVisibilityChange = async () => {
