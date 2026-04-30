@@ -69,7 +69,7 @@ serve(async (req) => {
           { role: 'user', content: transcriptionText },
         ],
         temperature: 0.3,
-        max_tokens: 4000,
+        max_tokens: 1500,
       }),
     });
     if (!r.ok) {

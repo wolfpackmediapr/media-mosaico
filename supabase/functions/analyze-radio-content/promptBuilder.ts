@@ -51,38 +51,24 @@ PARA CADA SECCIÓN DE ANUNCIO PUBLICITARIO:
 4. Tono del anuncio
 5. Duración aproximada
 
-IDENTIFICACIÓN DE NOTICIAS INDIVIDUALES EN RADIO:
-La radio debe analizarse con la misma lógica operativa que TV. Un bloque radial puede contener varias noticias separadas por frases de transición, cambios de tema, cambios de entrevistado, cortes, menciones de hora, música, o cambio de locutor.
-
-Para CADA NOTICIA INDIVIDUAL dentro de una sección de programa regular, crea un bloque separado con este formato:
-
-[NOTICIA 1]
-Título: [Título conciso]
-Resumen: [8-12 oraciones con los puntos clave]
-Participantes: [locutores, reporteros, invitados o hablantes identificados]
-Categoría principal: [una de: ${categoriesText}]
-5W: Quién / Qué / Cuándo / Dónde / Por qué
-Palabras clave: [8-12 términos]
-Relevancia: [clientes o entidades relevantes si aplica]
-
-[NOTICIA 2]
-Título: ...
-Resumen: ...
-
 PARA CADA SECCIÓN DE PROGRAMA REGULAR:
-1. Divide primero por NOTICIAS INDIVIDUALES; NO agrupes todo en un solo resumen gigante.
-2. Mantén orden cronológico de aparición.
-3. Menciona interacciones entre participantes si las hay.
-4. Identifica participantes en cada noticia (cuántos hablantes participan y si se pueden identificar sus roles o nombres)${hasSpeakerLabels ? ' [utilizar los nombres específicos de los hablantes cuando estén disponibles]' : ' [si hay etiquetas de hablante]'}.
-5. Temas principales por noticia, no solo globales.
-6. Tono del contenido por noticia.
-7. Categorías aplicables de: ${categoriesText}; justificar categoría principal y secundarias.
+1. Resumen del contenido (70-100 oraciones)
+   - Incluir desarrollo cronológico de los temas
+   - Destacar citas textuales relevantes
+   - Mencionar interacciones entre participantes si las hay
+   - Identificación de los participantes en la conversación (cuántos hablantes participan y si se pueden identificar sus roles o nombres)${hasSpeakerLabels ? ' [utilizar los nombres específicos de los hablantes cuando estén disponibles]' : ' [si hay etiquetas de hablante]'}
 
-REGLA CRÍTICA DE SEGMENTACIÓN:
-- Si cambia el tema central, empieza una nueva [NOTICIA N].
-- Si cambia de noticia a anuncio, usa [TIPO DE CONTENIDO: ANUNCIO PUBLICITARIO].
-- Si vuelve el programa regular con otro tema, continúa con la siguiente [NOTICIA N].
-- No mezcles dos noticias diferentes en el mismo resumen.`;
+2. Temas principales tratados
+   - Listar temas por orden de importancia
+   - Incluir subtemas relacionados
+   - Señalar conexiones entre temas si existen
+3. Tono del contenido
+   - Estilo de la presentación (formal/informal)
+   - Tipo de lenguaje utilizado
+   - Enfoque del contenido (informativo/editorial/debate)
+4. Categorías aplicables de: ${categoriesText}
+   - Justificar la selección de cada categoría
+   - Indicar categoría principal y secundarias`;
 
   // Add clients section if available
   if (clientsText) {

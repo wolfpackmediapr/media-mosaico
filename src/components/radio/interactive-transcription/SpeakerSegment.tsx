@@ -71,7 +71,7 @@ const SpeakerSegment = memo(forwardRef<HTMLDivElement, SpeakerSegmentProps>(({
           className="w-4 h-4 rounded-full"
           style={{ backgroundColor: speakerColor }}
         />
-        <span className="font-bold text-sm">{displaySpeaker}</span>
+        <span className="font-medium text-sm">{displaySpeaker}</span>
         <span className="text-xs text-muted-foreground ml-auto">
           {formatTime(utterance.start, false)}
         </span>
