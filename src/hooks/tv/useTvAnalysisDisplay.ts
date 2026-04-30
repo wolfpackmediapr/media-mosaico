@@ -146,6 +146,7 @@ export const useTvAnalysisDisplay = ({
   return {
     existingAnalysis,
     hasAnalysis,
+    hasFullAnalysis: hasStoredFullAnalysis,
     isLoading,
     refetchAnalysis: fetchExistingAnalysis
   };
