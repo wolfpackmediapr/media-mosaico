@@ -145,7 +145,9 @@ serve(async (req) => {
 
   const requestId = `ats_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   let transcriptionIdForFinally: string | undefined;
-  let supabaseForFinally: ReturnType<typeof createClient> | undefined;
+  // Use `any` for the finally-scope client: the generic narrowed
+  // `ReturnType<typeof createClient>` clashes with the inferred client type.
+  let supabaseForFinally: any;
   let terminalReason: string | null = 'unknown failure';
 
   try {
