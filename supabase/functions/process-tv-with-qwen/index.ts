@@ -1256,55 +1256,38 @@ serve(async (req) => {
         .eq('id', transcriptId);
     }
 
-    // ── Stage 2: Analysis via Qwen (text-only) ──
-    console.log(`[qwen-tv][${requestId}] Starting Stage 2: Analysis`);
-    await new Promise(r => setTimeout(r, 5000));
-
-    const analysisPrompt = buildAnalysisPrompt(resolvedCategories, resolvedClients, transcriptionText);
-    const analysisMessages = [
-      { role: 'user', content: [{ type: 'text', text: analysisPrompt }] },
-    ];
-
-    let analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL, analysisMessages, requestId, 'analysis', 32768);
-
-    if (!analysisResult.success) {
-      console.warn(`[qwen-tv][${requestId}] Primary text model failed for analysis, falling back`);
-      if (!fallbackReason) fallbackReason = `Analysis: ${analysisResult.error}`;
-      analysisResult = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, analysisMessages, requestId, 'analysis-fallback', 32768);
-    }
-
-    let analysisText = '';
-    if (analysisResult.success) {
-      analysisText = analysisResult.data!;
-      console.log(`[qwen-tv][${requestId}] Analysis complete, ${analysisText.length} chars`);
-    } else {
-      analysisText = `Error en análisis: ${analysisResult.error}`;
-    }
-
-    // ── Write results to DB ──
+    // ── Mark COMPLETED immediately; analysis runs in analyze-tv-stored ──
     if (transcriptId) {
-      const updatePayload: any = {
-        status: 'completed',
-        progress: 100,
-        transcription_text: transcriptionText,
-        full_analysis: analysisText,
-        provider_used: providerUsed,
-        provider_fallback_reason: fallbackReason,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Extract structured fields from text using regex
-      extractAnalysisFieldsFromText(analysisText, updatePayload);
-
       const { error: updateError } = await supabaseClient
         .from('tv_transcriptions')
-        .update(updatePayload)
+        .update({
+          status: 'completed',
+          progress: 100,
+          transcription_text: transcriptionText,
+          provider_used: providerUsed,
+          provider_fallback_reason: fallbackReason,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', transcriptId);
 
       if (updateError) {
         console.error(`[qwen-tv][${requestId}] DB update error:`, updateError);
       } else {
-        console.log(`[qwen-tv][${requestId}] DB updated successfully`);
+        console.log(`[qwen-tv][${requestId}] Transcription completed; dispatching analyze-tv-stored`);
+      }
+
+      // Fire-and-forget analysis with its own fresh CPU budget
+      try {
+        // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+        EdgeRuntime.waitUntil(
+          supabaseClient.functions.invoke('analyze-tv-stored', {
+            body: { transcriptionId: transcriptId, categories: resolvedCategories, clients: resolvedClients }
+          }).catch((err: any) => {
+            console.warn(`[qwen-tv][${requestId}] analyze-tv-stored invoke failed:`, err?.message || err);
+          })
+        );
+      } catch (e) {
+        console.warn(`[qwen-tv][${requestId}] Could not dispatch analyze-tv-stored:`, (e as Error).message);
       }
     }
 
@@ -1314,7 +1297,8 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         transcription: transcriptionText,
-        analysis: analysisText,
+        analysis: null,
+        analysis_pending: true,
         provider_used: providerUsed,
         fallback_reason: fallbackReason,
       }),
