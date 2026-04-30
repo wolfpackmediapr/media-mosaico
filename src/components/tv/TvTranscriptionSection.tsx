@@ -5,8 +5,11 @@ import { NewsSegment } from "@/hooks/use-video-processor";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Loader2, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { parseTvSpeakerText, hasTvSpeakerPatterns } from "@/utils/tv/speakerTextParser";
+import { useTranscriptionPolling } from "@/hooks/tv/useTranscriptionPolling";
+import { toast } from "sonner";
 
 interface TvTranscriptionSectionProps {
   textContent: string;
@@ -48,6 +51,25 @@ const TvTranscriptionSection = ({
 }: TvTranscriptionSectionProps) => {
   const [speakerIdStatus, setSpeakerIdStatus] = useState<string | null>(null);
   const [speakerIdError, setSpeakerIdError] = useState<string | null>(null);
+
+  // Watch the analysis pipeline for this transcription. When the polling hook
+  // gives up (10 min hard timeout with full_analysis still null), expose a
+  // "Reintentar análisis" button that re-invokes analyze-tv-stored.
+  const {
+    analysisTimedOut,
+    retryAnalysis,
+    isRetryingAnalysis,
+  } = useTranscriptionPolling(transcriptionId ?? null, !!transcriptionId);
+
+  const handleRetryAnalysis = async () => {
+    if (!transcriptionId) return;
+    const result = await retryAnalysis(transcriptionId);
+    if (result.ok) {
+      toast.success("Reintentando análisis…");
+    } else {
+      toast.error(result.error || "No se pudo reintentar el análisis");
+    }
+  };
 
   // Compute speaker counts from utterances or parsed text
   const speakerCounts = useMemo(() => {
@@ -133,7 +155,7 @@ const TvTranscriptionSection = ({
   // Always render the transcription slot, regardless of text content
   return (
     <div className="space-y-2">
-      {(isProcessing || renderSpeakerBadge() || speakerCounts) && (
+      {(isProcessing || renderSpeakerBadge() || speakerCounts || analysisTimedOut) && (
         <div className="flex items-center gap-2">
           {isProcessing && (
             <Badge variant="secondary" className="gap-1">
@@ -143,6 +165,22 @@ const TvTranscriptionSection = ({
           )}
           {renderSpeakerBadge()}
           {renderSpeakerCountBadge()}
+          {analysisTimedOut && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleRetryAnalysis}
+              disabled={isRetryingAnalysis}
+              className="h-7 gap-1 border-destructive/40 text-destructive hover:text-destructive"
+            >
+              {isRetryingAnalysis ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+              Reintentar análisis
+            </Button>
+          )}
         </div>
       )}
       <TvTranscriptionSlot
