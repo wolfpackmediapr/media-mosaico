@@ -54,14 +54,43 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
     });
   };
 
-  const contentParts = displayContent.split(/\[TIPO DE CONTENIDO:.*?\]/)
-    .filter(Boolean)
-    .map(part => part.trim())
-    .filter(part => part.length > 0);
-    
-  const contentTypes = displayContent.match(/\[TIPO DE CONTENIDO:.*?\]/g) || [];
-  
-  if (contentTypes.length === 0 && displayContent.trim()) {
+  // Walk the analysis string and emit {type, content} pairs IN ORDER.
+  // A previous split/match pairing was off-by-one whenever the model emitted
+  // a prelude paragraph before the first [TIPO DE CONTENIDO: …] marker —
+  // that prelude got labeled as the first marker's type, shifting the real
+  // program content into the next (often "ANUNCIO PUBLICITARIO") card.
+  type Section = { type: string | null; content: string };
+  const sections: Section[] = [];
+  const markerRegex = /\[TIPO DE CONTENIDO:[^\]]*\]/g;
+  let lastIndex = 0;
+  let currentType: string | null = null;
+  let match: RegExpExecArray | null;
+  while ((match = markerRegex.exec(displayContent)) !== null) {
+    const chunk = displayContent.slice(lastIndex, match.index).trim();
+    if (chunk.length > 0) {
+      sections.push({ type: currentType, content: chunk });
+    }
+    currentType = match[0];
+    lastIndex = match.index + match[0].length;
+  }
+  const tail = displayContent.slice(lastIndex).trim();
+  if (tail.length > 0) {
+    sections.push({ type: currentType, content: tail });
+  }
+
+  const preludeSection = sections.find(s => s.type === null);
+  if (
+    preludeSection &&
+    preludeSection.content.length > 200 &&
+    typeof console !== 'undefined'
+  ) {
+    console.warn(
+      '[TvFormattedAnalysisResult] Unlabeled prelude detected (rendered as neutral header):',
+      preludeSection.content.slice(0, 120) + '…'
+    );
+  }
+
+  if (sections.length === 0 && displayContent.trim()) {
     return (
       <Card className="p-4 mb-4 bg-blue-50 dark:bg-blue-900/20">
         <div className="flex items-center gap-2 mb-4 text-lg font-medium">
@@ -144,13 +173,43 @@ const TvFormattedAnalysisResult = ({ analysis }: TvFormattedAnalysisResultProps)
 
   return (
     <div className="space-y-4">
-      {contentParts.map((content, index) => 
-        renderContentSection(
-          content,
-          contentTypes[index] || '',
-          index
-        )
-      )}
+      {sections.map((section, index) => {
+        if (section.type === null) {
+          // Neutral preamble card — no Programa Regular / Anuncio label.
+          return (
+            <Card
+              key={`prelude-${index}`}
+              className="p-4 mb-4 bg-muted/40 border-dashed"
+            >
+              <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                Introducción
+              </div>
+              <div
+                className="text-foreground whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none"
+                dangerouslySetInnerHTML={{
+                  __html: DOMPurify.sanitize(markdownToHtml(section.content)),
+                }}
+              />
+              <div className="flex justify-end mt-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => handleCopy(section.content, index)}
+                  title="Copiar texto"
+                >
+                  {copiedIndex === index ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <Copy className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </Card>
+          );
+        }
+        return renderContentSection(section.content, section.type, index);
+      })}
     </div>
   );
 };
