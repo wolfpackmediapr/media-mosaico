@@ -88,22 +88,29 @@ export const useTvAnalysisDisplay = ({
     if (pollStartedAtRef.current === null) {
       pollStartedAtRef.current = Date.now();
     }
-    const interval = window.setInterval(async () => {
-      if (hasFullAnalysisRef.current) {
-        window.clearInterval(interval);
-        return;
-      }
+    // Adaptive cadence: poll every 3s for the first minute (analysis
+    // usually lands fast), then every 8s, give up after 10 minutes.
+    let timeoutId: number | null = null;
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled || hasFullAnalysisRef.current) return;
       const elapsedMs = Date.now() - (pollStartedAtRef.current || Date.now());
-      if (elapsedMs >= 10 * 60 * 1000) {
-        window.clearInterval(interval);
-        return;
-      }
+      if (elapsedMs >= 10 * 60 * 1000) return;
 
       const foundFullAnalysis = await fetchExistingAnalysis({ silent: true });
-      if (foundFullAnalysis) window.clearInterval(interval);
-    }, 8000);
+      if (cancelled || foundFullAnalysis) return;
 
-    return () => window.clearInterval(interval);
+      const nextDelay = elapsedMs < 60_000 ? 3000 : 8000;
+      timeoutId = window.setTimeout(tick, nextDelay);
+    };
+
+    timeoutId = window.setTimeout(tick, 3000);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
   }, [transcriptionId, fetchExistingAnalysis]);
 
   // Listen for the cross-hook signal fired by useTranscriptionPolling when
