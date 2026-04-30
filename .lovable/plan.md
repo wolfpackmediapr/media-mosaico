@@ -1,60 +1,50 @@
-## Problem
+## Goal
 
-`useTvAnalysisDisplay` fetches `full_analysis` once when `transcriptionId` (or `forceRefresh`) changes. After Commit A decoupled analysis, `process-tv-with-qwen` writes `status='completed'` immediately and `analyze-tv-stored` writes `full_analysis` 1–3 minutes later. The initial fetch sees NULL; nothing ever re-runs it. UI stays on "El análisis se mostrará automáticamente…" even though the row in DB now has the analysis (verified: row `4034ea5b…` has `analysis_len=18666`, `status=completed`).
+Keep TV analysis **fully automatic** (appears alongside transcription, no user click), but make it as reliable as Radio. Today the analysis is in the DB but the UI misses it because of mount-order races and lack of persistence.
 
-`useTranscriptionPolling` already polls every 8s post-completion and selects `full_analysis`, but it has no listener that nudges the display hook.
+## Why Radio "feels" instant (even though it's user-initiated)
 
-## Constraint discovered
+Radio captures the analysis **directly from the function response** and writes it to `usePersistentState` (sessionStorage) in the same tick. Survives remounts, navigation, refresh — no DB round-trip needed afterward.
 
-The user's proposed fix — `queryClient.invalidateQueries({ queryKey: ['tv-analysis', transcriptionId] })` — would be a no-op. `useTvAnalysisDisplay` is plain `useState` + `useEffect`, not React Query. There is no `['tv-analysis', id]` query key in the codebase.
+## Why TV fails
 
-## Fix (scope: 1 file)
+TV uses an async two-stage pipeline (`process-tv-with-qwen` → `analyze-tv-stored`). The UI must observe the DB row updating. Three observation mechanisms exist and each has a defect:
 
-**File:** `src/hooks/tv/useTranscriptionPolling.ts`
+1. **Initial fetch on mount** — runs before `analyze-tv-stored` writes `full_analysis` → gets `null`.
+2. **Window event `tv-analysis-ready`** — `dispatchedRef` is per-instance, so if `useTranscriptionPolling` unmounts/remounts (tab switch, section gate flips), the event fires once in a dead instance and the live listener misses it.
+3. **Fallback polling in `useTvAnalysisDisplay`** — works only while the component stays mounted, and `pollStartedAtRef` resets every effect re-run so the timeout never fires correctly.
+4. **No persistence** — `existingAnalysis` lives only in component state. Navigate away → back → empty → race repeats.
 
-Inside the existing `useQuery.queryFn`, after a successful fetch, when `data.status === 'completed'` and `data.full_analysis` is non-null, dispatch a window event:
+## Fix (keeps automatic flow, no user button)
 
-```ts
-window.dispatchEvent(new CustomEvent('tv-analysis-ready', {
-  detail: { transcriptionId: data.id, full_analysis: data.full_analysis }
-}));
-```
+### File 1 — `src/hooks/tv/useTvAnalysisDisplay.ts`
 
-Use a ref to ensure we only fire once per transcription id (prevents repeated dispatches once polling stops on subsequent invalidations).
+- Replace `useState<string>("")` for `existingAnalysis` with `usePersistentState<string>` keyed by `tv-content-analysis-${transcriptionId}`. Mirrors Radio's pattern — survives remounts and navigation.
+- Derive `hasFullAnalysis` from the persisted value rather than tracking it in separate state.
+- In the polling `useEffect`: depend only on `transcriptionId`. Check `hasFullAnalysis` inside the interval callback to decide whether to clear it. Initialize `pollStartedAtRef.current` only when `null` so it survives effect re-runs (10-min timeout actually works).
+- On clear (transcriptionId becomes null), also remove the persisted key.
 
-## Companion fix (scope: 1 file)
+### File 2 — `src/hooks/tv/useTranscriptionPolling.ts`
 
-**File:** `src/hooks/tv/useTvAnalysisDisplay.ts`
+- Promote `dispatchedRef` from a per-instance `useRef<Set>` to a **module-level `Set`** so the once-per-id guard survives hook unmount/remount. Event fires reliably exactly once per transcription id, regardless of which mount of the section observed the change.
 
-Add a `useEffect` that listens for `tv-analysis-ready`:
-- If `event.detail.transcriptionId === transcriptionId`, call `fetchExistingAnalysis()` (or set `existingAnalysis` directly from `event.detail.full_analysis` to skip the round-trip).
+### File 3 — `src/components/tv/containers/TvMainContent.tsx`
 
-This is the minimal coupling that doesn't restructure either hook into React Query.
-
-## Why a window event vs. invalidateQueries
-
-`useTvAnalysisDisplay` lives in a different subtree than the polling hook and uses local state. A custom event is the smallest change that crosses the boundary without rewriting the display hook to use React Query (which would be a larger refactor and risks regressions in `TvAnalysis.tsx`'s priority logic `analysisResults || existingAnalysis`).
-
-If you'd prefer the larger refactor — convert `useTvAnalysisDisplay` to `useQuery` with key `['tv-analysis', transcriptionId]` and use `invalidateQueries` from the polling hook — say so and I'll do that instead. It's still 2 files but cleaner long-term.
+- Drop the gating condition on `analysisSection`. Currently it only renders when `(transcriptionText || currentVideoPath || analysisResults)` — meaning the listener inside `useTvAnalysisDisplay` may not be mounted at the moment the polling hook dispatches the event. Render `<TvAnalysisSection>` whenever `transcriptionId` exists so its listener is always live.
 
 ## Diffstat (expected)
 
 ```text
-src/hooks/tv/useTranscriptionPolling.ts  | ~12 +++
-src/hooks/tv/useTvAnalysisDisplay.ts     | ~15 +++
-2 files changed, ~27 insertions(+)
+src/hooks/tv/useTvAnalysisDisplay.ts        | ~22 ++++++++++--------
+src/hooks/tv/useTranscriptionPolling.ts     |  ~6 ++----
+src/components/tv/containers/TvMainContent.tsx |  ~4 ++--
+3 files changed, ~16 insertions(+), ~16 deletions(-)
 ```
 
-## Out of scope
+## Verification
 
-- `process-tv-with-qwen` (untouched, per gate)
-- `extract-tv-frames` trace (no recent invocations found in logs/codebase — likely already dead)
-- One-time recovery of historical NULL rows (last 10 rows all have `analysis_len > 17k`, so no backfill needed right now)
+1. Upload TV video → transcription appears → analysis card auto-populates within ~8s of `analyze-tv-stored` finishing. No button click.
+2. Navigate away mid-processing → back → analysis hydrates from sessionStorage if it landed, or polling picks it up.
+3. Hard refresh after completion → initial fetch reads DB, persists, displays.
 
-## Verification after build
-
-1. Upload a new TV video.
-2. Watch console for `[useTranscriptionPolling] Status: completed Progress: 100` followed shortly by `tv-analysis-ready` dispatch.
-3. Confirm "Análisis de Contenido TV" card switches from placeholder to rendered analysis without page reload.
-
-Approve to proceed, or pick the React Query refactor variant.
+No DB schema, no edge function, no UX changes — same auto-appearing card, just reliable.
