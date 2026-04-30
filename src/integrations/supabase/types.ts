@@ -1848,6 +1848,7 @@ export type Database = {
           provider_used: string | null
           relevant_clients: string[] | null
           speaker_id_error: string | null
+          speaker_id_evidence: Json | null
           speaker_id_method: string | null
           speaker_id_status: string | null
           status: string
@@ -1894,6 +1895,7 @@ export type Database = {
           provider_used?: string | null
           relevant_clients?: string[] | null
           speaker_id_error?: string | null
+          speaker_id_evidence?: Json | null
           speaker_id_method?: string | null
           speaker_id_status?: string | null
           status?: string
@@ -1940,6 +1942,7 @@ export type Database = {
           provider_used?: string | null
           relevant_clients?: string[] | null
           speaker_id_error?: string | null
+          speaker_id_evidence?: Json | null
           speaker_id_method?: string | null
           speaker_id_status?: string | null
           status?: string
@@ -2078,7 +2081,16 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      storage_cleanup_candidates: {
+        Row: {
+          bucket_id: string | null
+          bytes: number | null
+          category: string | null
+          name: string | null
+          object_created_at: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       create_processing_errors_if_not_exists: {
