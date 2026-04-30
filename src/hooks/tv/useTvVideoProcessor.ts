@@ -960,7 +960,9 @@ export const useTvVideoProcessor = () => {
 
       console.log('[TvVideoProcessor] Recovered missing transcription ID for restored TV session:', data.id);
       setTranscriptionId(data.id);
-      setAnalysisResults(data.full_analysis || '');
+      if (data.full_analysis && data.full_analysis.length > 0) {
+        setAnalysisResults(data.full_analysis);
+      }
     };
 
     recoverMissingTranscriptionId();
