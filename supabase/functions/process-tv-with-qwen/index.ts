@@ -761,8 +761,10 @@ async function transcribeWithAssemblyAI(
       audio_url: uploadUrl,
       language_code: 'es',
       speaker_labels: true,
-      speech_model: 'best',
+      speech_model: Deno.env.get('AAI_TV_MODEL') ?? 'best',
       entity_detection: true,
+      auto_chapters: true,
+      iab_categories: true,
     }),
   });
 
