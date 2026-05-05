@@ -1,4 +1,13 @@
 
+export interface ArticleClient {
+  id: string;
+  name: string;
+  relevance?: 'alta' | 'media' | 'baja' | string;
+  keywords?: string[];
+}
+
+export type ArticleSentiment = 'positive' | 'negative' | 'neutral' | 'mixed';
+
 export interface NewsArticle {
   id: string;
   title: string;
@@ -8,10 +17,12 @@ export interface NewsArticle {
   source: string;
   summary: string;
   category: string;
-  clients: string[];
+  clients: ArticleClient[];
   keywords: string[];
   image_url?: string;
   last_processed?: string;
+  sentiment?: ArticleSentiment;
+  sentiment_score?: number;
   feed_source?: {
     name: string;
     last_successful_fetch: string | null;
