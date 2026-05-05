@@ -1,31 +1,69 @@
-## Goal
-Enable richer AssemblyAI features in the TV pipeline (`process-tv-with-qwen`) and gate the speech model behind an env var, so we can tune quality/cost without redeploying. No DB schema changes.
+# Audit: Prensa Digital `[object Object]` issue
 
-## Change (1 file)
+## Root cause
 
-`supabase/functions/process-tv-with-qwen/index.ts` — in `transcribeWithAssemblyAI` (around lines 760–767), update the request body:
+`news_articles.clients` is stored as JSONB **array of objects**: `{ id, name, relevance }` (this is what `useCombinedNewsFeed` already correctly reads on the Inicio dashboard).
 
+But the Prensa Digital page goes through a different path:
+
+- `src/services/news/transforms.ts` → `transformDatabaseArticlesToNewsArticles` maps each client with `String(client)`. For an object that yields the literal string `"[object Object]"`.
+- `src/types/prensa.ts` declares `clients: string[]`, so the type forces the lossy conversion and drops `id`, `relevance`.
+- `src/components/prensa/NewsArticleCard.tsx` then renders those strings as Badges → user sees `[object Object]`.
+- The card also has no sentiment indicator, no per-client relevance color, and no keywords — unlike `CombinedNewsFeedWidget` (Inicio) which shows sentiment icon + colored client chips.
+
+Other gaps vs Inicio feed:
+- No `sentiment` / `sentiment_score` selected in `fetchArticlesFromDatabase` (`select('*')` does include them, so data is available — just not used by the card).
+- Description still has tracking pixels / images stripped (already fine).
+- The NewsList → NewsArticleCard chain ignores `sentiment`.
+
+## Fix plan
+
+### 1. Type model (`src/types/prensa.ts`)
+Introduce a structured client type and allow sentiment fields:
 ```ts
-body: JSON.stringify({
-  audio_url: uploadUrl,
-  language_code: 'es',
-  speaker_labels: true,
-  speech_model: Deno.env.get('AAI_TV_MODEL') ?? 'best',
-  entity_detection: true,
-  auto_chapters: true,     // NEW — helps separate program vs. ad blocks
-  iab_categories: true,    // NEW — topic tags for downstream analysis
-}),
+export interface ArticleClient { id: string; name: string; relevance?: 'alta'|'media'|'baja'|string }
+export interface NewsArticle {
+  ...
+  clients: ArticleClient[];           // was string[]
+  sentiment?: 'positive'|'negative'|'neutral'|'mixed';
+  sentiment_score?: number;
+}
 ```
 
-That's the entire code change. `entity_detection` is already enabled; we keep it.
+### 2. Transform (`src/services/news/transforms.ts`)
+Replace the `String(client)` branch with object-aware parsing:
+- If item is a string → `{ id: '', name: item }`
+- If item is an object → `{ id: c.id ?? '', name: c.name ?? '', relevance: c.relevance }`
+- Drop entries without a name.
+Also pass through `sentiment` and `sentiment_score` from the row.
 
-## Notes
-- Default behavior is unchanged (still `best`). Setting `AAI_TV_MODEL=universal` or `=nano` in Supabase secrets later will swap models with no redeploy.
-- `auto_chapters` + `iab_categories` are returned in the AssemblyAI poll response. We do not need to consume them yet for the UI to keep working — they'll be available for a future pass that surfaces ad/program boundaries and topic chips. No parsing changes required now.
-- No new secrets required. No migrations. No frontend changes.
+### 3. Card UI (`src/components/prensa/NewsArticleCard.tsx`)
+Match the Inicio look:
+- Render client chips using `client.name` (fixes `[object Object]`).
+- Color the chip by `relevance` (alta = primary, media = secondary, baja = muted) — reuse Tailwind tokens already used in the dashboard widget.
+- Add a sentiment pill near the source row using the same `sentimentConfig` pattern (Smile/Frown/Meh/HelpCircle from lucide-react) — extract a small shared `SentimentBadge` in `src/components/prensa/SentimentBadge.tsx` so Inicio + Prensa stay consistent.
+- Keep the `User` icon row, but only render when `clients.length > 0`.
 
-## Verification
-1. Deploy `process-tv-with-qwen`.
-2. Upload a short TV clip from `/tv`.
-3. Check edge function logs: AssemblyAI job should be created with the new flags and complete normally.
-4. Confirm the existing transcription + speaker-ID + analysis flow still works end-to-end.
+### 4. Shared sentiment config
+Create `src/components/prensa/sentimentConfig.ts` exporting the same `{ positive, negative, neutral, mixed }` map used in `CombinedNewsFeedWidget`, and refactor the widget to import from it (no behavior change there).
+
+### 5. No DB / edge-function changes
+Data already exists; this is purely client-side parsing + presentation.
+
+## Out of scope
+- Changing how RSS ingestion writes clients (already correct).
+- Filters/search on Prensa page (separate request).
+
+## Files touched
+- `src/types/prensa.ts`
+- `src/services/news/transforms.ts`
+- `src/components/prensa/NewsArticleCard.tsx`
+- `src/components/prensa/SentimentBadge.tsx` (new)
+- `src/components/prensa/sentimentConfig.ts` (new)
+- `src/components/dashboard/CombinedNewsFeedWidget.tsx` (import shared config)
+
+## QA checklist
+- Article with object-clients shows real names, no `[object Object]`.
+- Article with sentiment renders correct colored icon.
+- Article with no clients/sentiment renders cleanly (no empty rows).
+- Inicio feed visually unchanged.

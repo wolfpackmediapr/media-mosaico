@@ -13,6 +13,7 @@ import {
   type ExtendedNewsCard 
 } from "@/hooks/use-combined-news-feed";
 import { ChevronLeft, ChevronRight, Newspaper, Share2, RefreshCw, Filter, Smile, Frown, Meh, HelpCircle, Users, Search, X } from "lucide-react";
+import { sentimentConfig } from "@/components/prensa/sentimentConfig";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -33,13 +34,6 @@ import { useDebounce } from "@/hooks/useDebounce";
 interface CombinedNewsFeedWidgetProps {
   className?: string;
 }
-
-const sentimentConfig = {
-  positive: { label: 'Positivo', icon: Smile, color: 'text-green-500', bgColor: 'bg-green-500/10' },
-  negative: { label: 'Negativo', icon: Frown, color: 'text-red-500', bgColor: 'bg-red-500/10' },
-  neutral: { label: 'Neutral', icon: Meh, color: 'text-muted-foreground', bgColor: 'bg-muted' },
-  mixed: { label: 'Mixto', icon: HelpCircle, color: 'text-amber-500', bgColor: 'bg-amber-500/10' },
-};
 
 export function CombinedNewsFeedWidget({ className }: CombinedNewsFeedWidgetProps) {
   const [currentPage, setCurrentPage] = useState(1);

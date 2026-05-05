@@ -7,6 +7,23 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { NewsArticle } from "@/types/prensa";
 import { sanitizeSocialContent } from "@/services/social/content-sanitizer";
+import SentimentBadge from "./SentimentBadge";
+import { cn } from "@/lib/utils";
+
+const relevanceClass = (relevance?: string) => {
+  switch ((relevance || '').toLowerCase()) {
+    case 'alta':
+    case 'high':
+      return 'bg-primary/10 border-primary/40 text-primary';
+    case 'baja':
+    case 'low':
+      return 'bg-muted border-border text-muted-foreground';
+    case 'media':
+    case 'medium':
+    default:
+      return 'bg-primary/5 border-primary/20 text-primary';
+  }
+};
 
 interface NewsArticleCardProps {
   article: NewsArticle;
@@ -50,7 +67,15 @@ const NewsArticleCard = ({ article }: NewsArticleCardProps) => {
               </span>
               <span className="text-muted-foreground">•</span>
               <span className="text-sm text-muted-foreground">{pubDateFormatted}</span>
-              
+
+              {article.sentiment && (
+                <SentimentBadge
+                  sentiment={article.sentiment}
+                  score={article.sentiment_score}
+                  className="ml-2"
+                />
+              )}
+
               {article.category && (
                 <Badge variant="outline" className="ml-auto">
                   {article.category}
@@ -72,12 +97,16 @@ const NewsArticleCard = ({ article }: NewsArticleCardProps) => {
                 <User className="h-3 w-3 text-muted-foreground" />
                 <div className="flex flex-wrap gap-1">
                   {article.clients.map((client, index) => (
-                    <Badge 
-                      key={index} 
-                      variant="outline" 
-                      className="text-xs px-1.5 py-0 h-5 bg-primary/5 border-primary/20 text-primary"
+                    <Badge
+                      key={client.id || `${client.name}-${index}`}
+                      variant="outline"
+                      className={cn(
+                        "text-xs px-1.5 py-0 h-5",
+                        relevanceClass(client.relevance)
+                      )}
+                      title={client.relevance ? `Relevancia: ${client.relevance}` : undefined}
                     >
-                      {client}
+                      {client.name}
                     </Badge>
                   ))}
                 </div>
