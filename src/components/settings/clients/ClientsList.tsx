@@ -40,6 +40,7 @@ interface ClientsListProps {
   onUpdateClient: (client: Client) => void;
   onDeleteClient: (id: string) => void;
   onEditClient: (client: Client) => void;
+  onToggleActiveClient: (client: Client, isActive: boolean) => void;
   onSort: (field: keyof Client) => void;
   onCancelForm: () => void;
 }
@@ -67,6 +68,7 @@ export function ClientsList({
   onUpdateClient,
   onDeleteClient,
   onEditClient,
+  onToggleActiveClient,
   onSort,
   onCancelForm
 }: ClientsListProps) {
@@ -123,6 +125,7 @@ export function ClientsList({
               clients={clients} 
               onEdit={onEditClient} 
               onDelete={onDeleteClient}
+              onToggleActive={onToggleActiveClient}
               sortField={sortField}
               sortOrder={sortOrder}
               onSort={onSort}

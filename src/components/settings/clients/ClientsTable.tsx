@@ -4,11 +4,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Client, formatDate } from "@/services/clients/clientService";
 import { Edit, Trash2, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 interface ClientsTableProps {
   clients: Client[];
   onEdit: (client: Client) => void;
   onDelete: (id: string | undefined) => void;
+  onToggleActive?: (client: Client, isActive: boolean) => void;
   sortField?: keyof Client;
   sortOrder?: 'asc' | 'desc';
   onSort?: (field: keyof Client) => void;
@@ -18,6 +21,7 @@ export function ClientsTable({
   clients,
   onEdit,
   onDelete,
+  onToggleActive,
   sortField = "name",
   sortOrder = "asc",
   onSort
@@ -65,6 +69,7 @@ export function ClientsTable({
             </TableHead>
             <TableHead>Subcategoría</TableHead>
             <TableHead>Palabras clave</TableHead>
+            <TableHead>Estado</TableHead>
             <TableHead>
               Fecha de creación
               <SortButton field="created_at" />
@@ -75,13 +80,15 @@ export function ClientsTable({
         <TableBody>
           {clients.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-8">
+              <TableCell colSpan={7} className="text-center py-8">
                 No se encontraron clientes
               </TableCell>
             </TableRow>
           ) : (
-            clients.map((client) => (
-              <TableRow key={client.id}>
+            clients.map((client) => {
+              const isActive = client.is_active !== false;
+              return (
+              <TableRow key={client.id} className={cn(!isActive && "opacity-60")}>
                 <TableCell className="font-medium">{client.name}</TableCell>
                 <TableCell>
                   <Badge variant="outline">{formatCategory(client.category)}</Badge>
@@ -98,6 +105,19 @@ export function ClientsTable({
                     ) : (
                       <span className="text-muted-foreground text-sm">Sin palabras clave</span>
                     )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={isActive}
+                      onCheckedChange={(checked) => onToggleActive && onToggleActive(client, checked)}
+                      disabled={!onToggleActive}
+                      aria-label={isActive ? "Desactivar cliente" : "Activar cliente"}
+                    />
+                    <Badge variant={isActive ? "default" : "secondary"} className="text-xs">
+                      {isActive ? "Activo" : "Inactivo"}
+                    </Badge>
                   </div>
                 </TableCell>
                 <TableCell>{formatDate(client.created_at)}</TableCell>
@@ -122,7 +142,8 @@ export function ClientsTable({
                   </Button>
                 </TableCell>
               </TableRow>
-            ))
+              );
+            })
           )}
         </TableBody>
       </Table>

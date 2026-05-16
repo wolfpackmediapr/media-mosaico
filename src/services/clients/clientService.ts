@@ -9,6 +9,7 @@ export interface Client {
   category: string;
   subcategory?: string | null;
   keywords?: string[] | null;
+  is_active?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -117,6 +118,22 @@ export async function deleteClient(id: string) {
     return true;
   } catch (error: any) {
     console.error("Error deleting client:", error);
+    throw error;
+  }
+}
+
+export async function setClientActive(id: string, isActive: boolean) {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .update({ is_active: isActive } as any)
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+    return data?.[0];
+  } catch (error: any) {
+    console.error("Error updating client active state:", error);
     throw error;
   }
 }
