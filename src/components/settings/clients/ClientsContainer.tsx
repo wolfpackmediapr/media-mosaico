@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Client, fetchClients, addClient, updateClient, deleteClient } from "@/services/clients/clientService";
+import { Client, fetchClients, addClient, updateClient, deleteClient, setClientActive } from "@/services/clients/clientService";
 import { ClientsList } from "./ClientsList";
 
 export function ClientsContainer() {
@@ -59,6 +59,23 @@ export function ClientsContainer() {
       toast.error(`Error al eliminar cliente: ${error.message}`);
     }
   });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      setClientActive(id, isActive),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      toast.success(vars.isActive ? "Cliente activado" : "Cliente desactivado");
+    },
+    onError: (error: any) => {
+      toast.error(`Error al actualizar estado: ${error.message}`);
+    }
+  });
+
+  const handleToggleActive = (client: Client, isActive: boolean) => {
+    if (!client.id) return;
+    toggleActiveMutation.mutate({ id: client.id, isActive });
+  };
 
   // Handlers
   const handleAddClient = (client: Client) => {
@@ -152,6 +169,7 @@ export function ClientsContainer() {
       onUpdateClient={handleUpdateClient}
       onDeleteClient={handleDeleteClient}
       onEditClient={handleEdit}
+      onToggleActiveClient={handleToggleActive}
       onSort={handleSort}
       onCancelForm={cancelForm}
     />
