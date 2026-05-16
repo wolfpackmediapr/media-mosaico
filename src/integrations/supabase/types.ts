@@ -214,6 +214,7 @@ export type Database = {
           category: string
           created_at: string
           id: string
+          is_active: boolean
           keywords: string[] | null
           name: string
           subcategory: string | null
@@ -223,6 +224,7 @@ export type Database = {
           category: string
           created_at?: string
           id?: string
+          is_active?: boolean
           keywords?: string[] | null
           name: string
           subcategory?: string | null
@@ -232,6 +234,7 @@ export type Database = {
           category?: string
           created_at?: string
           id?: string
+          is_active?: boolean
           keywords?: string[] | null
           name?: string
           subcategory?: string | null
