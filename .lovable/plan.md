@@ -1,69 +1,29 @@
-# Audit: Prensa Digital `[object Object]` issue
+## Add "Disable Client" feature (admins only)
 
-## Root cause
+Allow administrators to deactivate a client without deleting it. Disabled clients are hidden from monitoring/matching logic but stay in the database for history.
 
-`news_articles.clients` is stored as JSONB **array of objects**: `{ id, name, relevance }` (this is what `useCombinedNewsFeed` already correctly reads on the Inicio dashboard).
+### Database
+- Add `is_active boolean NOT NULL DEFAULT true` to `public.clients` via migration.
+- No RLS change needed (existing policies already restrict writes to authenticated users; admin-only enforcement happens in the UI + we'll tighten the UPDATE policy to require `has_role(auth.uid(), 'administrator')` for toggling).
 
-But the Prensa Digital page goes through a different path:
+### Backend / service layer
+- `src/services/clients/clientService.ts`:
+  - Add `is_active?: boolean` to the `Client` interface.
+  - Add `setClientActive(id, isActive)` helper that updates the flag.
+  - Update `fetchClients` to return the flag (already returns `*`, just types).
 
-- `src/services/news/transforms.ts` → `transformDatabaseArticlesToNewsArticles` maps each client with `String(client)`. For an object that yields the literal string `"[object Object]"`.
-- `src/types/prensa.ts` declares `clients: string[]`, so the type forces the lossy conversion and drops `id`, `relevance`.
-- `src/components/prensa/NewsArticleCard.tsx` then renders those strings as Badges → user sees `[object Object]`.
-- The card also has no sentiment indicator, no per-client relevance color, and no keywords — unlike `CombinedNewsFeedWidget` (Inicio) which shows sentiment icon + colored client chips.
+### UI changes (admin-only)
+- `ClientsContainer.tsx`: read current user role (via `has_role` / existing `useAuth`), add `toggleActiveMutation` calling `setClientActive`, pass `isAdmin` and handler down.
+- `ClientsList.tsx` + `ClientsTable.tsx`:
+  - New column "Estado" with a `Badge` (Activo / Inactivo) and a `Switch` (admins only) to toggle.
+  - Visually dim disabled rows (muted text).
+  - Optional filter chip "Mostrar inactivos" (default off) in `ClientFilter`.
+- Non-admin users see the Estado badge but no toggle, no edit/delete.
 
-Other gaps vs Inicio feed:
-- No `sentiment` / `sentiment_score` selected in `fetchArticlesFromDatabase` (`select('*')` does include them, so data is available — just not used by the card).
-- Description still has tracking pixels / images stripped (already fine).
-- The NewsList → NewsArticleCard chain ignores `sentiment`.
+### Downstream consumers
+- Anywhere clients are loaded for matching (RSS analysis, notification preferences, dashboards) should filter `is_active = true`. I'll grep for `from('clients')` and add `.eq('is_active', true)` where appropriate, while leaving the Settings list showing all (with filter).
 
-## Fix plan
+### Out of scope
+- Cascade behavior on existing alerts/notification_preferences (kept as-is; disabling just stops new matches).
 
-### 1. Type model (`src/types/prensa.ts`)
-Introduce a structured client type and allow sentiment fields:
-```ts
-export interface ArticleClient { id: string; name: string; relevance?: 'alta'|'media'|'baja'|string }
-export interface NewsArticle {
-  ...
-  clients: ArticleClient[];           // was string[]
-  sentiment?: 'positive'|'negative'|'neutral'|'mixed';
-  sentiment_score?: number;
-}
-```
-
-### 2. Transform (`src/services/news/transforms.ts`)
-Replace the `String(client)` branch with object-aware parsing:
-- If item is a string → `{ id: '', name: item }`
-- If item is an object → `{ id: c.id ?? '', name: c.name ?? '', relevance: c.relevance }`
-- Drop entries without a name.
-Also pass through `sentiment` and `sentiment_score` from the row.
-
-### 3. Card UI (`src/components/prensa/NewsArticleCard.tsx`)
-Match the Inicio look:
-- Render client chips using `client.name` (fixes `[object Object]`).
-- Color the chip by `relevance` (alta = primary, media = secondary, baja = muted) — reuse Tailwind tokens already used in the dashboard widget.
-- Add a sentiment pill near the source row using the same `sentimentConfig` pattern (Smile/Frown/Meh/HelpCircle from lucide-react) — extract a small shared `SentimentBadge` in `src/components/prensa/SentimentBadge.tsx` so Inicio + Prensa stay consistent.
-- Keep the `User` icon row, but only render when `clients.length > 0`.
-
-### 4. Shared sentiment config
-Create `src/components/prensa/sentimentConfig.ts` exporting the same `{ positive, negative, neutral, mixed }` map used in `CombinedNewsFeedWidget`, and refactor the widget to import from it (no behavior change there).
-
-### 5. No DB / edge-function changes
-Data already exists; this is purely client-side parsing + presentation.
-
-## Out of scope
-- Changing how RSS ingestion writes clients (already correct).
-- Filters/search on Prensa page (separate request).
-
-## Files touched
-- `src/types/prensa.ts`
-- `src/services/news/transforms.ts`
-- `src/components/prensa/NewsArticleCard.tsx`
-- `src/components/prensa/SentimentBadge.tsx` (new)
-- `src/components/prensa/sentimentConfig.ts` (new)
-- `src/components/dashboard/CombinedNewsFeedWidget.tsx` (import shared config)
-
-## QA checklist
-- Article with object-clients shows real names, no `[object Object]`.
-- Article with sentiment renders correct colored icon.
-- Article with no clients/sentiment renders cleanly (no empty rows).
-- Inicio feed visually unchanged.
+Confirm and I'll implement.
