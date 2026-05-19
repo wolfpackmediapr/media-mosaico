@@ -28,7 +28,7 @@
 export function buildTvAnalysisPrompt(
   categories: string[],
   clients: { name: string; keywords?: string[] }[],
-  transcriptionText: string = '',
+  transcriptionText: string,
   contextText: string = '',
 ): string {
   const categoriesText = categories.length > 0
@@ -87,12 +87,6 @@ Categorías: [Categoría principal y secundarias de la lista: ${categoriesText}]
   - CUÁNDO: [Fechas, tiempos, cronología]
   - DÓNDE: [Lugares, municipios, barrios, países]
   - POR QUÉ: [Causas, motivos, razones identificadas]
-QUIÉN DICE QUÉ:
-  - [Nombre completo del hablante (rol)] — "[cita textual breve, 1-2 oraciones máx.]"
-  - [Nombre completo del hablante (rol)] — "[cita textual breve, 1-2 oraciones máx.]"
-  (Lista una entrada por cada hablante con una declaración sustantiva en ESTA noticia.
-   SOLO usa nombres que aparezcan en la transcripción o en un rótulo/lower-third.
-   Si no se conoce el nombre, usa la etiqueta "SPEAKER N" tal como aparece en la transcripción.)
 Palabras clave: [10-15 palabras o frases más relevantes, separadas por coma]
 Puntuación de impacto: [N/10 con breve justificación]
 
@@ -111,15 +105,7 @@ NOTA SOBRE CITAS: Usa citas textuales BREVES (máx. 1-2 oraciones) SOLO donde se
 
 Después de listar todas las noticias del programa regular, añade:
 
-ALERTAS Y RECOMENDACIONES:
-Lista SOLO situaciones reales de alto impacto o urgencia que requieran atención inmediata.
-
-INVARIANTES DE ALERTA (OBLIGATORIO):
-- Cada alerta debe ser una oración completa (mínimo 8 palabras) que describa el evento y por qué requiere atención.
-- Cada alerta debe mencionar al menos UNA entidad concreta: persona, organización, cliente, lugar o evento específico.
-- NUNCA emitas alertas de una sola palabra como "Sí", "No", "Ninguna", "N/A", "OK".
-- Si NO hay situaciones de alto impacto, escribe literalmente: "Sin alertas relevantes en este programa."
-- NO repitas la misma alerta para varias noticias; consolida.
+ALERTAS Y RECOMENDACIONES: Situaciones de alto impacto o urgencia que requieran atención inmediata (de cualquier noticia del programa).
 
 PRESENCIA DE PERSONAS O ENTIDADES RELEVANTES: Lista global de personas/entidades de alto perfil mencionadas en todo el programa.`;
 
@@ -158,23 +144,19 @@ REGLAS DE SALIDA:
 2. Si es PROGRAMA REGULAR, mantener la segmentación por [NOTICIA N] con TODOS los campos listados.
 3. Si es ANUNCIO PUBLICITARIO, enfatizar marcas, productos y CTA.
 4. Utilizar los nombres específicos de los hablantes (con su rol entre paréntesis si está disponible) en lugar de "SPEAKER A".
-5. Responder en español puertorriqueño profesional.
-6. NUNCA inventes nombres de personas. Solo identifica a alguien por nombre si su nombre aparece literalmente en la transcripción o en un rótulo/lower-third en pantalla.
-7. En "QUIÉN DICE QUÉ", asocia cada cita SOLO al hablante que realmente la pronunció según la transcripción. No atribuyas citas a personas mencionadas pero que no hablan.`;
+5. Responder en español puertorriqueño profesional.`;
 
   if (contextText) {
     prompt += `\n\nContexto adicional: ${contextText}`;
   }
 
-  if (transcriptionText && transcriptionText.trim().length > 0) {
-    prompt += `
+  prompt += `
 
 ═══════════════════════════════════════════════════════════════
 TRANSCRIPCIÓN A ANALIZAR:
 ═══════════════════════════════════════════════════════════════
 
 ${transcriptionText}`;
-  }
 
   return prompt;
 }

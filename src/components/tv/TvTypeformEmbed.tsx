@@ -2,13 +2,11 @@
 import { useState } from "react";
 import { useTypeform } from "@/hooks/use-typeform";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, RefreshCw, Plus } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import TypeformFullscreenControls from "@/components/typeform/TypeformFullscreenControls";
 
 const TvTypeformEmbed = () => {
   const [showTypeform, setShowTypeform] = useState(false);
-  const [iframeKey, setIframeKey] = useState(0);
   
   // Only initialize Typeform when user has chosen to show it
   // Pass options to disable microphone access by default
@@ -30,14 +28,6 @@ const TvTypeformEmbed = () => {
     // Clean up typeform before hiding it
     typeform.cleanup();
     setShowTypeform(false);
-  };
-
-  const handleNewAlert = () => {
-    // Manual fallback if Typeform's form-submit postMessage didn't fire:
-    // remount the embed div (key bump) and re-init the widget.
-    setIframeKey((k) => k + 1);
-    setTimeout(() => typeform.reset(), 200);
-    toast.success("Formulario reiniciado para nueva alerta");
   };
   
   const handleRefresh = async () => {
@@ -80,16 +70,6 @@ const TvTypeformEmbed = () => {
       ) : (
         <>
           <div className="flex justify-end mb-2 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNewAlert}
-              disabled={typeform.isRefreshing}
-              title="Iniciar nueva alerta"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Nueva alerta
-            </Button>
             <Button 
               variant="outline" 
               size="sm"
@@ -114,13 +94,8 @@ const TvTypeformEmbed = () => {
                 <p className="text-slate-700 font-medium">Actualizando formulario...</p>
               </div>
             )}
-            <div
-              key={iframeKey}
-              data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK"
-              className="h-[500px] md:h-[600px]"
-            ></div>
+            <div data-tf-live="01JEWEP95CN5YH8JCET8GEXRSK" className="h-[500px] md:h-[600px]"></div>
           </div>
-          <TypeformFullscreenControls onHide={handleHideTypeform} />
         </>
       )}
     </div>

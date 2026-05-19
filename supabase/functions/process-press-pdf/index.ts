@@ -65,8 +65,7 @@ async function fetchClientsAndCategories(supabase: any): Promise<typeof cachedCl
     // Fetch clients with keywords
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
-      .select('name, category, keywords')
-      .eq('is_active', true);
+      .select('name, category, keywords');
     
     if (clientsError) {
       console.error('[Legacy] Error fetching clients:', clientsError);

@@ -313,7 +313,7 @@ IDENTIFICACIÓN VISUAL DE HABLANTES:
 ✓ LEE los "lower thirds" (subtítulos con nombres en la parte inferior de la pantalla)
 ✓ LEE las tarjetas gráficas con nombres que aparezcan en pantalla
 ✓ IDENTIFICA logos de TV y canales para contexto
-✓ IDENTIFICA personas SOLO si su nombre aparece textualmente en un rótulo/lower-third o en pantalla. NO inventes nombres ni asumas identidades por parecido visual.
+✓ RECONOCE personalidades conocidas de noticias de Puerto Rico visualmente
 ✓ DISTINGUE entre: Presentador/Anchor, Reportero en campo, Invitado/Entrevistado, Voz en off
 ✓ FORMATO CON NOMBRE Y ROL: SPEAKER 1 (Aixa Vázquez - Presentadora):
 ✓ Si NO puedes identificar visualmente, usa solo: SPEAKER 1:
@@ -762,6 +762,9 @@ async function transcribeWithAssemblyAI(
       language_code: 'es',
       speaker_labels: true,
       speech_model: Deno.env.get('AAI_TV_MODEL') ?? 'best',
+      entity_detection: true,
+      auto_chapters: true,
+      iab_categories: true,
     }),
   });
 
@@ -1127,8 +1130,7 @@ serve(async (req) => {
       console.log(`[qwen-tv][${requestId}] No clients from frontend, fetching from DB...`);
       const { data: dbClients } = await supabaseClient
         .from('clients')
-        .select('name, keywords')
-        .eq('is_active', true);
+        .select('name, keywords');
       resolvedClients = dbClients || [];
       console.log(`[qwen-tv][${requestId}] Fetched ${resolvedClients.length} clients from DB`);
     }

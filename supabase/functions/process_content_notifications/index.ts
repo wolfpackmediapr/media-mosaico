@@ -202,8 +202,7 @@ serve(async (req) => {
     // Get all clients with their keywords
     const { data: clients, error: clientsError } = await supabase
       .from("clients")
-      .select("id, name, keywords")
-      .eq('is_active', true);
+      .select("id, name, keywords");
 
     if (clientsError) {
       throw new Error(`Failed to fetch clients: ${clientsError.message}`);

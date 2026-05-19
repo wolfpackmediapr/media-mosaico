@@ -1,8 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { buildTvAnalysisPrompt as sharedBuildTvAnalysisPrompt } from '../_shared/tvAnalysisPrompt.ts';
-import { sanitizeTvAnalysis } from '../_shared/tvAnalysisSanitizer.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -180,7 +178,7 @@ IDENTIFICACIÓN VISUAL DE HABLANTES:
 ✓ LEE los "lower thirds" (subtítulos con nombres en la parte inferior de la pantalla)
 ✓ LEE las tarjetas gráficas con nombres que aparezcan en pantalla
 ✓ IDENTIFICA logos de TV y canales para contexto
-✓ IDENTIFICA personas SOLO si su nombre aparece textualmente en un rótulo/lower-third o en pantalla. NO inventes nombres ni asumas identidades por parecido visual.
+✓ RECONOCE personalidades conocidas de noticias de Puerto Rico visualmente
 ✓ DISTINGUE entre: Presentador/Anchor, Reportero en campo, Invitado/Entrevistado, Voz en off
 ✓ FORMATO CON NOMBRE Y ROL: SPEAKER 1 (Aixa Vázquez - Presentadora):
 ✓ Si NO puedes identificar visualmente, usa solo: SPEAKER 1:
@@ -958,10 +956,7 @@ async function processChunkedUploadWithGemini(
                       }
                     },
                     {
-                      text: sharedBuildTvAnalysisPrompt(
-                        categories.map((c: any) => c?.name || c).filter(Boolean),
-                        clients,
-                      )
+                      text: buildTvAnalysisPrompt(categories, clients)
                     }
                   ]
                 }
@@ -1130,17 +1125,13 @@ async function processChunkedUploadWithGemini(
     finalTranscription = `SPEAKER 1: ${(analysisResult || '').substring(0, 1000).trim()}`;
   }
 
-  const sanitizedAnalysis = sanitizeTvAnalysis(
-    analysisResult,
-    (clients || []).map((c: any) => c?.name).filter(Boolean),
-  );
   return {
     success: true,
     transcription: finalTranscription,
-    segments: extractSegmentsFromAnalysis(sanitizedAnalysis),
-    full_analysis: sanitizedAnalysis,
-    summary: extractSummaryFromAnalysis(sanitizedAnalysis),
-    keywords: extractKeywordsFromAnalysis(sanitizedAnalysis)
+    segments: extractSegmentsFromAnalysis(analysisResult),
+    full_analysis: analysisResult,
+    summary: extractSummaryFromAnalysis(analysisResult),
+    keywords: extractKeywordsFromAnalysis(analysisResult)
   };
 
   } catch (error) {
@@ -1458,17 +1449,13 @@ async function processAssembledVideoWithGemini(
         : extractTranscriptionFromAnalysis(analysisResult)
     );
 
-    const sanitizedAnalysis = sanitizeTvAnalysis(
-      analysisResult,
-      (clients || []).map((c: any) => c?.name).filter(Boolean),
-    );
     return {
       success: true,
       transcription: finalTranscription,
-      segments: extractSegmentsFromAnalysis(sanitizedAnalysis),
-      full_analysis: sanitizedAnalysis,
-      summary: extractSummaryFromAnalysis(sanitizedAnalysis),
-      keywords: extractKeywordsFromAnalysis(sanitizedAnalysis)
+      segments: extractSegmentsFromAnalysis(analysisResult),
+      full_analysis: analysisResult,
+      summary: extractSummaryFromAnalysis(analysisResult),
+      keywords: extractKeywordsFromAnalysis(analysisResult)
     };
 
   } catch (error) {
@@ -1478,18 +1465,10 @@ async function processAssembledVideoWithGemini(
 }
 
 function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
-  // Delegate to the canonical shared prompt so all TV analysis paths
-  // produce the same [TIPO DE CONTENIDO]/[NOTICIA N] structure with the
-  // same QUIÉN DICE QUÉ + alert invariants.
-  const categoryNames = Array.isArray(categories)
-    ? categories.map((c: any) => c?.name || c).filter(Boolean)
-    : [];
-  return sharedBuildTvAnalysisPrompt(categoryNames, clients || []);
-}
-
-// Legacy inline prompt body retained below (unused) for reference only.
-function _legacyBuildTvAnalysisPrompt_unused(categories: any[], clients: any[]): string {
-  const clientsList = clients.map((c: any) => c.name).join(', ');
+  // Generate dynamic clients list
+  const clientsList = clients.map(c => c.name).join(', ');
+  
+  // Generate dynamic categories list
   const categoriesList = [
     'Accidentes', 'Agencia de Gobierno', 'Ambiente', 'Ambiente & El Tiempo',
     'Ciencia & Tecnología', 'Comunidad', 'Crimen', 'Deportes',
@@ -2441,7 +2420,6 @@ async function processVideoInBackground(
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
       .select('*')
-      .eq('is_active', true)
       .order('name');
     
     if (clientsError) {
