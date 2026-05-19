@@ -1,6 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { buildTvAnalysisPrompt as sharedBuildTvAnalysisPrompt } from '../_shared/tvAnalysisPrompt.ts';
+import { sanitizeTvAnalysis } from '../_shared/tvAnalysisSanitizer.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -956,7 +958,10 @@ async function processChunkedUploadWithGemini(
                       }
                     },
                     {
-                      text: buildTvAnalysisPrompt(categories, clients)
+                      text: sharedBuildTvAnalysisPrompt(
+                        categories.map((c: any) => c?.name || c).filter(Boolean),
+                        clients,
+                      )
                     }
                   ]
                 }
@@ -1125,13 +1130,17 @@ async function processChunkedUploadWithGemini(
     finalTranscription = `SPEAKER 1: ${(analysisResult || '').substring(0, 1000).trim()}`;
   }
 
+  const sanitizedAnalysis = sanitizeTvAnalysis(
+    analysisResult,
+    (clients || []).map((c: any) => c?.name).filter(Boolean),
+  );
   return {
     success: true,
     transcription: finalTranscription,
-    segments: extractSegmentsFromAnalysis(analysisResult),
-    full_analysis: analysisResult,
-    summary: extractSummaryFromAnalysis(analysisResult),
-    keywords: extractKeywordsFromAnalysis(analysisResult)
+    segments: extractSegmentsFromAnalysis(sanitizedAnalysis),
+    full_analysis: sanitizedAnalysis,
+    summary: extractSummaryFromAnalysis(sanitizedAnalysis),
+    keywords: extractKeywordsFromAnalysis(sanitizedAnalysis)
   };
 
   } catch (error) {
@@ -1449,13 +1458,17 @@ async function processAssembledVideoWithGemini(
         : extractTranscriptionFromAnalysis(analysisResult)
     );
 
+    const sanitizedAnalysis = sanitizeTvAnalysis(
+      analysisResult,
+      (clients || []).map((c: any) => c?.name).filter(Boolean),
+    );
     return {
       success: true,
       transcription: finalTranscription,
-      segments: extractSegmentsFromAnalysis(analysisResult),
-      full_analysis: analysisResult,
-      summary: extractSummaryFromAnalysis(analysisResult),
-      keywords: extractKeywordsFromAnalysis(analysisResult)
+      segments: extractSegmentsFromAnalysis(sanitizedAnalysis),
+      full_analysis: sanitizedAnalysis,
+      summary: extractSummaryFromAnalysis(sanitizedAnalysis),
+      keywords: extractKeywordsFromAnalysis(sanitizedAnalysis)
     };
 
   } catch (error) {
@@ -1465,10 +1478,18 @@ async function processAssembledVideoWithGemini(
 }
 
 function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
-  // Generate dynamic clients list
-  const clientsList = clients.map(c => c.name).join(', ');
-  
-  // Generate dynamic categories list
+  // Delegate to the canonical shared prompt so all TV analysis paths
+  // produce the same [TIPO DE CONTENIDO]/[NOTICIA N] structure with the
+  // same QUIÉN DICE QUÉ + alert invariants.
+  const categoryNames = Array.isArray(categories)
+    ? categories.map((c: any) => c?.name || c).filter(Boolean)
+    : [];
+  return sharedBuildTvAnalysisPrompt(categoryNames, clients || []);
+}
+
+// Legacy inline prompt body retained below (unused) for reference only.
+function _legacyBuildTvAnalysisPrompt_unused(categories: any[], clients: any[]): string {
+  const clientsList = clients.map((c: any) => c.name).join(', ');
   const categoriesList = [
     'Accidentes', 'Agencia de Gobierno', 'Ambiente', 'Ambiente & El Tiempo',
     'Ciencia & Tecnología', 'Comunidad', 'Crimen', 'Deportes',
