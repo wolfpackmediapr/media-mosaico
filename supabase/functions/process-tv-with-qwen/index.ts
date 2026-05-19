@@ -1130,7 +1130,8 @@ serve(async (req) => {
       console.log(`[qwen-tv][${requestId}] No clients from frontend, fetching from DB...`);
       const { data: dbClients } = await supabaseClient
         .from('clients')
-        .select('name, keywords');
+        .select('name, keywords')
+        .eq('is_active', true);
       resolvedClients = dbClients || [];
       console.log(`[qwen-tv][${requestId}] Fetched ${resolvedClients.length} clients from DB`);
     }
