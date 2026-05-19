@@ -37,7 +37,8 @@ async function fetchClientsAndCategories(supabase: any): Promise<{
     // Fetch clients with keywords
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
-      .select('name, category, keywords');
+      .select('name, category, keywords')
+      .eq('is_active', true);
     
     if (clientsError) {
       console.error('[FileSearch] Error fetching clients:', clientsError);
