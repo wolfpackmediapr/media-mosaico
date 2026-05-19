@@ -178,7 +178,7 @@ IDENTIFICACIÓN VISUAL DE HABLANTES:
 ✓ LEE los "lower thirds" (subtítulos con nombres en la parte inferior de la pantalla)
 ✓ LEE las tarjetas gráficas con nombres que aparezcan en pantalla
 ✓ IDENTIFICA logos de TV y canales para contexto
-✓ RECONOCE personalidades conocidas de noticias de Puerto Rico visualmente
+✓ IDENTIFICA personas SOLO si su nombre aparece textualmente en un rótulo/lower-third o en pantalla. NO inventes nombres ni asumas identidades por parecido visual.
 ✓ DISTINGUE entre: Presentador/Anchor, Reportero en campo, Invitado/Entrevistado, Voz en off
 ✓ FORMATO CON NOMBRE Y ROL: SPEAKER 1 (Aixa Vázquez - Presentadora):
 ✓ Si NO puedes identificar visualmente, usa solo: SPEAKER 1:
@@ -2420,6 +2420,7 @@ async function processVideoInBackground(
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
       .select('*')
+      .eq('is_active', true)
       .order('name');
     
     if (clientsError) {

@@ -98,30 +98,42 @@ const TranscriptionAnalysis = ({
             // Only create notification if we have matches
             if ((data.matched_clients && data.matched_clients.length > 0) || 
                 (data.category && data.category.length > 0)) {
-              
-              const clientsText = data.matched_clients && data.matched_clients.length > 0 
-                ? `Clientes relacionados: ${data.matched_clients.join(', ')}` 
-                : '';
-                
-              const keywordsText = data.keywords && data.keywords.length > 0 
-                ? `Palabras clave: ${data.keywords.join(', ')}` 
-                : '';
-                
-              await createNotification({
-                client_id: user.id,
-                title: `Análisis de contenido: ${data.category || 'Sin categoría'}`,
-                description: `${clientsText} ${keywordsText}`.trim(),
-                content_type: "tv",
-                importance_level: data.matched_clients && data.matched_clients.length > 0 ? 4 : 3,
-                keyword_matched: data.keywords,
-                metadata: {
-                  category: data.category,
-                  matchedClients: data.matched_clients,
-                  relevantKeywords: data.keywords
+
+              const matchedClients: string[] = Array.isArray(data.matched_clients) ? data.matched_clients : [];
+              if (matchedClients.length === 0) {
+                console.log("[TranscriptionAnalysis] No matched clients, skipping alert (avoids FK violation)");
+              } else {
+                // Resolve client names → real client UUIDs (was incorrectly passing user.id).
+                const { data: clientRows } = await supabase
+                  .from('clients')
+                  .select('id, name')
+                  .eq('is_active', true)
+                  .in('name', matchedClients);
+
+                if (!clientRows || clientRows.length === 0) {
+                  console.warn("[TranscriptionAnalysis] Matched client names not found in DB:", matchedClients);
+                } else {
+                  const keywordsText = data.keywords && data.keywords.length > 0
+                    ? `Palabras clave: ${data.keywords.join(', ')}`
+                    : '';
+                  for (const c of clientRows) {
+                    await createNotification({
+                      client_id: c.id,
+                      title: `Análisis de contenido: ${data.category || 'Sin categoría'}`,
+                      description: `Cliente: ${c.name}. ${keywordsText}`.trim(),
+                      content_type: "tv",
+                      importance_level: 4,
+                      keyword_matched: data.keywords,
+                      metadata: {
+                        category: data.category,
+                        matchedClients,
+                        relevantKeywords: data.keywords
+                      }
+                    });
+                  }
+                  console.log(`[TranscriptionAnalysis] Created ${clientRows.length} alert(s) for content analysis`);
                 }
-              });
-              
-              console.log("Created notification for content analysis with matches");
+              }
             }
           }
         }

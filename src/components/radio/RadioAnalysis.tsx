@@ -236,20 +236,34 @@ const RadioAnalysis = ({
             }
             
             if (category || keywords.length > 0 || matchedClients.length > 0) {
-              await createNotification({
-                client_id: user.id,
-                title: `Análisis de contenido radial: ${category || 'Sin categoría'}`,
-                description: `${matchedClients.length > 0 ? 'Clientes: ' + matchedClients.join(', ') : ''}`,
-                content_type: "radio",
-                importance_level: matchedClients.length > 0 ? 4 : 3,
-                keyword_matched: keywords,
-                metadata: {
-                  category,
-                  matchedClients,
-                  relevantKeywords: keywords
+              if (matchedClients.length === 0) {
+                console.log("[RadioAnalysis] No matched clients, skipping alert (avoids FK violation)");
+              } else {
+                // Resolve client names → real client UUIDs. The previous code passed
+                // user.id as client_id, which violated the FK on client_alerts.
+                const { data: clientRows } = await supabase
+                  .from('clients')
+                  .select('id, name')
+                  .eq('is_active', true)
+                  .in('name', matchedClients);
+
+                if (!clientRows || clientRows.length === 0) {
+                  console.warn("[RadioAnalysis] Matched client names not found in DB:", matchedClients);
+                } else {
+                  for (const c of clientRows) {
+                    await createNotification({
+                      client_id: c.id,
+                      title: `Análisis de contenido radial: ${category || 'Sin categoría'}`,
+                      description: `Cliente: ${c.name}`,
+                      content_type: "radio",
+                      importance_level: 4,
+                      keyword_matched: keywords,
+                      metadata: { category, matchedClients, relevantKeywords: keywords }
+                    });
+                  }
+                  console.log(`[RadioAnalysis] Created ${clientRows.length} alert(s) for radio content analysis`);
                 }
-              });
-              console.log("[RadioAnalysis] Created notification for radio content analysis");
+              }
             }
           }
         } catch (notifyError) {

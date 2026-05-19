@@ -189,7 +189,7 @@ serve(async (req) => {
       categories = (cats || []).map((c: any) => c.name_es || c.name).filter(Boolean);
     }
     if (clients.length === 0) {
-      const { data: cls } = await supabase.from('clients').select('name, keywords').limit(50);
+      const { data: cls } = await supabase.from('clients').select('name, keywords').eq('is_active', true).limit(50);
       clients = (cls || []).map((c: any) => ({ name: c.name, keywords: c.keywords || [] })).filter((c: any) => c.name);
     }
 
