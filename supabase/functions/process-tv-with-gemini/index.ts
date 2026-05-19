@@ -1,6 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { buildTvAnalysisPrompt as sharedBuildTvAnalysisPrompt } from '../_shared/tvAnalysisPrompt.ts';
+import { sanitizeTvAnalysis } from '../_shared/tvAnalysisSanitizer.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -956,7 +958,10 @@ async function processChunkedUploadWithGemini(
                       }
                     },
                     {
-                      text: buildTvAnalysisPrompt(categories, clients)
+                      text: sharedBuildTvAnalysisPrompt(
+                        categories.map((c: any) => c?.name || c).filter(Boolean),
+                        clients,
+                      )
                     }
                   ]
                 }
