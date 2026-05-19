@@ -17,6 +17,7 @@ export const useClientData = () => {
         const { data, error } = await supabase
           .from('clients')
           .select('*')
+          .eq('is_active', true)
           .order('name')
           .limit(100);
         
