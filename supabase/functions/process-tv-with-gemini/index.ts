@@ -1130,13 +1130,17 @@ async function processChunkedUploadWithGemini(
     finalTranscription = `SPEAKER 1: ${(analysisResult || '').substring(0, 1000).trim()}`;
   }
 
+  const sanitizedAnalysis = sanitizeTvAnalysis(
+    analysisResult,
+    (clients || []).map((c: any) => c?.name).filter(Boolean),
+  );
   return {
     success: true,
     transcription: finalTranscription,
-    segments: extractSegmentsFromAnalysis(analysisResult),
-    full_analysis: analysisResult,
-    summary: extractSummaryFromAnalysis(analysisResult),
-    keywords: extractKeywordsFromAnalysis(analysisResult)
+    segments: extractSegmentsFromAnalysis(sanitizedAnalysis),
+    full_analysis: sanitizedAnalysis,
+    summary: extractSummaryFromAnalysis(sanitizedAnalysis),
+    keywords: extractKeywordsFromAnalysis(sanitizedAnalysis)
   };
 
   } catch (error) {
@@ -1454,13 +1458,17 @@ async function processAssembledVideoWithGemini(
         : extractTranscriptionFromAnalysis(analysisResult)
     );
 
+    const sanitizedAnalysis = sanitizeTvAnalysis(
+      analysisResult,
+      (clients || []).map((c: any) => c?.name).filter(Boolean),
+    );
     return {
       success: true,
       transcription: finalTranscription,
-      segments: extractSegmentsFromAnalysis(analysisResult),
-      full_analysis: analysisResult,
-      summary: extractSummaryFromAnalysis(analysisResult),
-      keywords: extractKeywordsFromAnalysis(analysisResult)
+      segments: extractSegmentsFromAnalysis(sanitizedAnalysis),
+      full_analysis: sanitizedAnalysis,
+      summary: extractSummaryFromAnalysis(sanitizedAnalysis),
+      keywords: extractKeywordsFromAnalysis(sanitizedAnalysis)
     };
 
   } catch (error) {
