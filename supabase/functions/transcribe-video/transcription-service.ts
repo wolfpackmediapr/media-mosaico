@@ -44,12 +44,6 @@ export const processWithAssemblyAI = async (audioUrl: string): Promise<any> => {
       audio_url: audioUrl,
       language_code: 'es',  // Spanish language code
       speaker_labels: true,
-      auto_chapters: true,
-      entity_detection: true,
-      auto_highlights: true,
-      summarization: true,
-      summary_type: 'paragraph',
-      summary_model: 'conversational',
       model: 'nano'  // Using Nano model which works well with Spanish
     })
   });
