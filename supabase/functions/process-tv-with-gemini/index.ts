@@ -1470,10 +1470,18 @@ async function processAssembledVideoWithGemini(
 }
 
 function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
-  // Generate dynamic clients list
-  const clientsList = clients.map(c => c.name).join(', ');
-  
-  // Generate dynamic categories list
+  // Delegate to the canonical shared prompt so all TV analysis paths
+  // produce the same [TIPO DE CONTENIDO]/[NOTICIA N] structure with the
+  // same QUIÉN DICE QUÉ + alert invariants.
+  const categoryNames = Array.isArray(categories)
+    ? categories.map((c: any) => c?.name || c).filter(Boolean)
+    : [];
+  return sharedBuildTvAnalysisPrompt(categoryNames, clients || []);
+}
+
+// Legacy inline prompt body retained below (unused) for reference only.
+function _legacyBuildTvAnalysisPrompt_unused(categories: any[], clients: any[]): string {
+  const clientsList = clients.map((c: any) => c.name).join(', ');
   const categoriesList = [
     'Accidentes', 'Agencia de Gobierno', 'Ambiente', 'Ambiente & El Tiempo',
     'Ciencia & Tecnología', 'Comunidad', 'Crimen', 'Deportes',
