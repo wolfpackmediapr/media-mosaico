@@ -201,11 +201,24 @@ serve(async (req) => {
 
     // Lowered from 16384 → 12288 to reduce odds of hitting Edge Function
     // wall-time during streaming with the larger shared TV analysis prompt.
+    const analysisStartedAt = Date.now();
     let result = await callQwenStreaming(qwenApiKey, TEXT_MODEL, messages, requestId, 'analysis', 12288);
     if (!result.success) {
       console.warn(`[analyze-tv-stored][${requestId}] Primary failed, fallback`);
       result = await callQwenStreaming(qwenApiKey, TEXT_MODEL_FALLBACK, messages, requestId, 'analysis-fallback', 12288);
     }
+    // ── Timeout telemetry (Phase 3) ─────────────────────────────────────────
+    // Single structured log line so we can grep Edge logs for TIMEOUT_TELEMETRY
+    // and count how often we approach the ~60s Edge Function wall-time. Used
+    // to decide when to invest in Phase 4 chunking of analyze-tv-stored.
+    const analysisElapsedMs = Date.now() - analysisStartedAt;
+    const NEAR_WALL_MS = 50_000;
+    const nearWall = analysisElapsedMs >= NEAR_WALL_MS;
+    const telemetryLine =
+      `[analyze-tv-stored][${requestId}] TIMEOUT_TELEMETRY ` +
+      `near_wall=${nearWall} elapsed_ms=${analysisElapsedMs} ` +
+      `transcript_chars=${transcriptionText.length} success=${result.success}`;
+    if (nearWall) console.warn(telemetryLine); else console.log(telemetryLine);
 
     if (!result.success) {
       terminalReason = `provider: ${result.error}`;

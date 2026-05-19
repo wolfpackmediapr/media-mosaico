@@ -1,109 +1,61 @@
-# Audit: TV/Radio analysis & alert bugs
 
-## Direct answer to your question
+# Phase 3 — Approved Scope
 
-**Yes** — the clients used in TV and Radio analysis prompts come from `Configuración > Ajustes > Clientes` (the `public.clients` table). Confirmed in:
+Ship Typeform fixes + lightweight timeout telemetry. Defer chunking to Phase 4.
 
-- `src/hooks/radio/useClientData.ts` → `supabase.from('clients').select('*')`
-- `supabase/functions/process-tv-with-qwen/index.ts:1132` → `from('clients').select('name, keywords')`
-- `supabase/functions/process-tv-with-gemini/index.ts:2421` → `from('clients').select('*')`
-- `supabase/functions/analyze-tv-stored/index.ts:192` → `from('clients').select('name, keywords')`
-- `supabase/functions/analyze-radio-content` receives clients from the frontend (which loaded them via `useClientData`)
+## 1. Typeform fixes (frontend only)
 
-**None of these queries filter `is_active = true`** — so the disable toggle we just added has no effect on AI prompts yet. That's bug #4.
+### Bug #6 — 3-alert limit reset after submit
 
-## Findings confirmed against the codebase
+`src/hooks/use-typeform.ts`
+- Add a `reset()` helper that wraps `cleanup()` + delayed `initialize()` (single source of timing logic).
+- Mount a single `window.addEventListener('message', ...)` inside the hook. When `event.origin` is a typeform domain and `event.data.type === 'form-submit'` (Typeform's standard postMessage), call `reset()` after ~800ms so the user sees the "thank you" screen briefly before the form remounts.
 
-| # | Bug | Confirmed root cause |
-|---|-----|----------------------|
-| 1 | Name hallucination | Both `process-tv-with-qwen/index.ts:316` and `process-tv-with-gemini/index.ts:181` literally instruct the model: `✓ RECONOCE personalidades conocidas de noticias de Puerto Rico visualmente`. No "use only names present in transcript" guard, no post-gen validator. |
-| 2 | Attribution errors | Free-form prose output — no structured `{speaker, claim}` schema in any of the four analysis prompts. |
-| 3 | "Quién dice qué" missing | No required speaker→statement section in prompts; UI has no dedicated render slot. |
-| 4 | **Former clients in alerts** | Confirmed via DB query: all 22 clients (incl. **AAA**, **Ética Gubernamental**) currently have `is_active=true`. No edge function filters by `is_active`. The disable toggle from the prior task added the column + UI but did not propagate the filter into AI/notification queries. |
-| 5 | Incomplete segment analysis | `analyze-tv-stored` runs one big prompt at `max_tokens=12288` with a single Qwen call — confirmed at line ~200; near edge-function wall-time. |
-| 6 | Typeform 3-alert limit (Radio) | `src/components/radio/TypeformAlert.tsx` — iframe is mounted via `data-tf-live` and only torn down on the manual "Ocultar" button. No `onSubmit` reset, no remount key after submit. |
-| 7 | Fullscreen back button gone | Same file — refresh/hide buttons live **outside** the Typeform iframe, so they disappear when Typeform goes fullscreen. |
-| 8 | "Sí" alert with no client | No invariant in any TV/Radio prompt forbidding `Alerta: SÍ` + `Clientes: ninguno`. No post-parse validator. |
+`src/components/radio/TypeformAlert.tsx` and `src/components/tv/TvTypeformEmbed.tsx`
+- Add `iframeKey` state (number). Bind `key={iframeKey}` on the `<div data-tf-live=...>` wrapper so React tears it down on bump.
+- Expose a "Nueva alerta" button next to refresh/hide. Clicking it bumps `iframeKey` then calls `typeform.reset()`. Used as manual fallback if postMessage doesn't fire.
 
-### Critical extra finding (matches GPT-5.5 audit)
+### Bug #7 — Fullscreen back/hide controls
 
-- **Three TV analysis paths use three different prompts:**
-  - `analyze-tv-content` → local `./tvPromptBuilder.ts`
-  - `process-tv-with-gemini` → inline prompt in `index.ts`
-  - `process-tv-with-qwen` → inline prompt in `index.ts`
-  - `analyze-tv-stored` → **canonical** `_shared/tvAnalysisPrompt.ts` ✓ (only one using it)
-- **`client_alerts` insertion bug confirmed in 3 frontend files** (insert `client_id: user.id`, which is the auth UUID, not a client UUID — FK fails silently):
-  - `src/hooks/tv/useTvNotifications.ts:31`
-  - `src/components/radio/RadioAnalysis.tsx:240`
-  - `src/components/transcription/TranscriptionAnalysis.tsx:111`
+Same two component files:
+- Listen for `document.fullscreenchange` events.
+- When the Typeform iframe enters fullscreen, render a floating control overlay via React portal to `document.body`:
+  - `position: fixed; top: 12px; right: 12px; z-index: 2147483647`
+  - Two buttons: "Salir pantalla completa" → `document.exitFullscreen()`, "Ocultar" → existing `handleHideTypeform()`.
+- Unmount overlay when fullscreen exits.
 
-## Remediation plan
+### Files touched (frontend)
 
-### Phase 1 — Quick wins (high impact, low risk)
+- `src/hooks/use-typeform.ts`
+- `src/components/radio/TypeformAlert.tsx`
+- `src/components/tv/TvTypeformEmbed.tsx`
 
-1. **Filter `is_active=true` everywhere clients feed AI/notifications.** Single-line change in 6 spots:
-   - `src/hooks/radio/useClientData.ts` → `.eq('is_active', true)`
-   - `process-tv-with-qwen`, `process-tv-with-gemini`, `analyze-tv-stored`, `process-rss-feed`, `process-press-pdf`, `process-press-pdf-filesearch`, `reanalyze-articles`, `process_content_notifications`, `analyze_notification_relevance`, `test_notification_settings`, `process_notification_delivery`, `process-notifications` → same `.eq('is_active', true)` on each `from('clients')` select.
-   - Use the admin UI to disable AAA, Ética Gubernamental (or do a one-shot `UPDATE`).
+## 2. Timeout telemetry for `analyze-tv-stored` (edge function)
 
-2. **Fix `client_alerts` FK bug.** Replace `client_id: user.id` in the 3 files with the actual matched client UUID (lookup by name from analysis result, similar to `mediaAnalysisService.ts`). If no client matched, skip the insert.
+`supabase/functions/analyze-tv-stored/index.ts` — add ~15 lines, no behavior change:
 
-3. **Remove the hallucination instruction** from `process-tv-with-qwen` (line 316) and `process-tv-with-gemini` (line 181). Replace with: "Identifica personas SOLO si su nombre aparece textualmente en la transcripción o en un rótulo en pantalla."
+- Capture `analysisStartedAt = Date.now()` before the Qwen streaming call.
+- After streaming returns, compute `elapsed_ms`.
+- Always emit a single structured log line:
+  ```
+  [analyze-tv-stored][<requestId>] TIMEOUT_TELEMETRY
+    near_wall=<bool>  elapsed_ms=<n>  transcript_chars=<n>  success=<bool>
+  ```
+- Use `console.warn` when `elapsed_ms >= 50_000` (within 10s of the 60s wall), `console.log` otherwise.
 
-### Phase 2 — Consolidate prompts
+This gives us a queryable signal in Edge logs to count how often analyses approach the wall-time. We use it to decide when to start Phase 4 chunking.
 
-4. **Make `_shared/tvAnalysisPrompt.ts` the single source of truth.** Update `process-tv-with-gemini`, `process-tv-with-qwen`, and `analyze-tv-content` to import `buildTvAnalysisPrompt` from `_shared`. Delete `analyze-tv-content/tvPromptBuilder.ts`.
+## What does NOT change
 
-5. **Add prompt invariants + JSON schema:**
-   - Required structured field `quien_dice_que: [{ speaker, statement, timestamp }]`.
-   - Required field `alerta: { triggered: bool, matched_clients: string[] }` with invariant `triggered=true ⇒ matched_clients.length > 0`.
-   - Constraint: "Use ONLY names appearing verbatim in the transcript or in on-screen text. If unsure, return `null`."
+- Shared TV analysis prompt (`_shared/tvAnalysisPrompt.ts`).
+- Sanitizer (`_shared/tvAnalysisSanitizer.ts`).
+- Any TV transcription edge function (`process-tv-with-gemini`, `process-tv-with-qwen`, `transcribe-video`).
+- DB schema, RLS, migrations.
 
-6. **Add post-generation validator** in `analyze-tv-stored` and `analyze-radio-content`:
-   - Cross-check every name in output against the transcript text.
-   - Enforce the alerta invariant; if violated, set `triggered=false`.
-   - Strip names not found in transcript.
+## Validation
 
-### Phase 3 — Segment & UX
+1. `/radio` and `/tv`: load Typeform, submit 5 alerts in a row — each presents a fresh form. Manual "Nueva alerta" also works.
+2. Enter Typeform fullscreen — floating "Salir" + "Ocultar" appear top-right, both work, overlay disappears on exit.
+3. Run a TV transcription end-to-end — analysis completes, look for `TIMEOUT_TELEMETRY` line in Edge logs.
 
-7. **Chunk `analyze-tv-stored`** by transcript segment (~3-5k token chunks), run in parallel with `Promise.allSettled`, merge results. Should drop per-call time below the 60s soft limit.
-
-8. **Radio Typeform reset (bugs 6+7):**
-   - Add a `key` state to force iframe remount.
-   - Subscribe to Typeform's `submit` event via `window.tf.load(..., { onSubmit })` and bump the key.
-   - Move the refresh/hide controls **inside** the iframe wrapper using Typeform's `hideHeaders`/`hideFooter`+ `transitiveSearchParams`, OR add a floating control that listens for the fullscreen-change event and re-portals itself.
-
-## Technical reference
-
-```text
-clients (DB)
-  │  is_active = true ←── must filter HERE in every query below
-  ├─► useClientData.ts ──► RadioAnalysis ──► analyze-radio-content
-  ├─► process-tv-with-qwen (DB fallback)
-  ├─► process-tv-with-gemini (DB fallback)
-  ├─► analyze-tv-stored (DB fallback)
-  └─► RSS / press / notifications fns
-
-TV prompt sources (consolidate → canonical):
-  _shared/tvAnalysisPrompt.ts  ← keep, expand
-     ▲
-     └── analyze-tv-stored ✓ (already uses)
-     ✗ analyze-tv-content       (uses local tvPromptBuilder.ts)
-     ✗ process-tv-with-gemini   (uses inline prompt)
-     ✗ process-tv-with-qwen     (uses inline prompt)
-```
-
-## Effort estimate
-
-- Phase 1: ~4-6h (mostly mechanical, low risk) — fixes bugs #4, #1 partial, alerts table starts populating
-- Phase 2: ~12-18h — fixes bugs #1, #2, #3, #8
-- Phase 3: ~10-14h — fixes bugs #5, #6, #7
-
-## What I need from you to proceed
-
-Pick a starting scope:
-
-- **A)** Phase 1 only — fastest path to stop sending disabled clients to AI and to start populating `client_alerts`.
-- **B)** Phase 1 + Phase 2 — full prompt fix, all hallucination/attribution bugs.
-- **C)** All three phases (largest changeset).
-- **D)** A specific bug number you want done first.
+Switch to **build mode** and I'll implement.

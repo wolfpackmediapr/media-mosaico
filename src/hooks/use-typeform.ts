@@ -254,6 +254,61 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
     });
   };
 
+  // ── Phase 3: reset() helper + post-submit auto-reset ────────────────────
+  // `reset` is a thin wrapper around cleanup → delayed initialize so callers
+  // (and the post-submit listener) share a single source of timing logic.
+  const reset = () => {
+    safePerformCleanup();
+    setTimeout(() => {
+      if (window.tf && typeof window.tf.createWidget === 'function') {
+        try {
+          typeformWidgetRef.current = window.tf.createWidget();
+          if (typeformWidgetRef.current && typeformWidgetRef.current.options) {
+            typeformWidgetRef.current.options({
+              disableKeyboardShortcuts: !keyboardShortcuts,
+              disableMicrophone,
+              disableTracking: true,
+              enableSandbox: true,
+            });
+          }
+          typeformInitializedRef.current = true;
+          console.log("Typeform widget reset and re-initialized");
+        } catch (err) {
+          console.error("Error during Typeform reset:", err);
+        }
+      }
+    }, 600);
+  };
+
+  // Listen for Typeform's `form-submit` postMessage so we can remount the
+  // embed after each submission and bypass the ~3-alert session limit.
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        // Typeform postMessages come from *.typeform.com origins.
+        if (!event.origin || !/\.typeform\.com$/i.test(new URL(event.origin).hostname)) {
+          return;
+        }
+        const data: any = event.data;
+        const type = typeof data === 'string' ? data : data?.type;
+        if (type === 'form-submit' || type === 'form-ready:form-submit') {
+          console.log("Typeform form-submit detected, scheduling reset");
+          // Brief delay so the user sees the thank-you screen first.
+          setTimeout(() => reset(), 800);
+        }
+      } catch {
+        /* ignore non-URL origins */
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+    // `reset` closes over refs/state via React; safe to omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, disableMicrophone, keyboardShortcuts]);
+
   // Return functions to explicitly initialize, cleanup, refresh with improved error handling
   return {
     initialize: () => {
@@ -299,6 +354,7 @@ export const useTypeform = (enabled: boolean, options: TypeformOptions = {}) => 
       return safePerformCleanup();
     },
     refresh, // Use the enhanced refresh function
+    reset,
     isInitialized: typeformInitializedRef.current,
     isRefreshing
   };
