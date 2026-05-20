@@ -1,12 +1,8 @@
-import { supabase } from "@/integrations/supabase/client";
-import { createNotification } from "@/services/notifications/unifiedNotificationService";
+import { createClientMatchNotifications } from "@/services/notifications/createClientMatchNotifications";
 
 export const useTvNotifications = () => {
-  const createAnalysisNotification = async (analysisData: string) => {
+  const createAnalysisNotification = async (analysisData: string, contentId?: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       let category = "";
       let keywords: string[] = [];
       let matchedClients: string[] = [];
@@ -26,21 +22,18 @@ export const useTvNotifications = () => {
         matchedClients = clientsMatch[1].split(',').map((c: string) => c.trim()).filter(Boolean);
       }
       
-      if (category || keywords.length > 0 || matchedClients.length > 0) {
-        await createNotification({
-          client_id: user.id,
-          title: `Análisis de contenido televisivo: ${category || 'Sin categoría'}`,
-          description: `${matchedClients.length > 0 ? 'Clientes: ' + matchedClients.join(', ') : ''}`,
+      if (matchedClients.length > 0) {
+        const res = await createClientMatchNotifications({
+          matchedClients,
+          title: (name) => `Mención en TV: ${name}${category ? ` (${category})` : ''}`,
+          description: `Análisis de contenido televisivo${category ? ` — ${category}` : ''}`,
+          content_id: contentId,
           content_type: "tv",
-          importance_level: matchedClients.length > 0 ? 4 : 3,
+          importance_level: 4,
           keyword_matched: keywords,
-          metadata: {
-            category,
-            matchedClients,
-            relevantKeywords: keywords
-          }
+          metadata: { category, matchedClients, relevantKeywords: keywords },
         });
-        console.log("Created notification for TV content analysis");
+        console.log("[useTvNotifications] Client-match notifications:", res);
       }
     } catch (notifyError) {
       console.error('Error creating notification:', notifyError);
