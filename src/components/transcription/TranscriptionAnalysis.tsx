@@ -7,7 +7,7 @@ import { Loader2, ScrollText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { NewsSegment } from "@/hooks/use-video-processor";
-import { createNotification } from "@/services/notifications/unifiedNotificationService";
+import { createClientMatchNotifications } from "@/services/notifications/createClientMatchNotifications";
 
 interface TranscriptionAnalysisProps {
   transcriptionText?: string;
@@ -91,39 +91,24 @@ const TranscriptionAnalysis = ({
           onSegmentsReceived(newsSegments);
         }
         
-        // Create notification for matched categories, clients, and keywords if they exist
-        if (mountedRef.current && (data.category || data.matched_clients || data.keywords)) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            // Only create notification if we have matches
-            if ((data.matched_clients && data.matched_clients.length > 0) || 
-                (data.category && data.category.length > 0)) {
-              
-              const clientsText = data.matched_clients && data.matched_clients.length > 0 
-                ? `Clientes relacionados: ${data.matched_clients.join(', ')}` 
-                : '';
-                
-              const keywordsText = data.keywords && data.keywords.length > 0 
-                ? `Palabras clave: ${data.keywords.join(', ')}` 
-                : '';
-                
-              await createNotification({
-                client_id: user.id,
-                title: `Análisis de contenido: ${data.category || 'Sin categoría'}`,
-                description: `${clientsText} ${keywordsText}`.trim(),
-                content_type: "tv",
-                importance_level: data.matched_clients && data.matched_clients.length > 0 ? 4 : 3,
-                keyword_matched: data.keywords,
-                metadata: {
-                  category: data.category,
-                  matchedClients: data.matched_clients,
-                  relevantKeywords: data.keywords
-                }
-              });
-              
-              console.log("Created notification for content analysis with matches");
-            }
-          }
+        // Create notifications only for matched real clients (by client_id, not staff user.id)
+        if (mountedRef.current && data.matched_clients && data.matched_clients.length > 0) {
+          const keywordsText = data.keywords && data.keywords.length > 0
+            ? `Palabras clave: ${data.keywords.join(', ')}` : '';
+          const res = await createClientMatchNotifications({
+            matchedClients: data.matched_clients,
+            title: (name) => `Mención: ${name}${data.category ? ` (${data.category})` : ''}`,
+            description: keywordsText || undefined,
+            content_type: "tv",
+            importance_level: 4,
+            keyword_matched: data.keywords,
+            metadata: {
+              category: data.category,
+              matchedClients: data.matched_clients,
+              relevantKeywords: data.keywords,
+            },
+          });
+          console.log("[TranscriptionAnalysis] Client-match notifications:", res);
         }
       }
     } catch (error) {

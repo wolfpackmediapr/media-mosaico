@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
-import { createNotification } from "@/services/notifications/unifiedNotificationService";
+import { createClientMatchNotifications } from "@/services/notifications/createClientMatchNotifications";
 import { TranscriptionResult } from "@/services/audio/transcriptionService";
 import { useRadioSegmentGenerator } from "@/hooks/radio/useRadioSegmentGenerator";
 import { useCategories } from "@/hooks/radio/useCategories";
@@ -211,46 +211,37 @@ const RadioAnalysis = ({
           }
         }
         
-        // Create notification for successful analysis
+        // Create notifications only for matched real clients
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            let category = "";
-            let keywords: string[] = [];
-            let matchedClients: string[] = [];
-            
-            // Extract information from analysis
-            const categoryMatch = data.analysis.match(/Categoría[s]?:?\s*([A-ZÁ-ÚÑ\s&]+)/i);
-            if (categoryMatch && categoryMatch[1]) {
-              category = categoryMatch[1].trim();
-            }
-            
-            const keywordsMatch = data.analysis.match(/Palabras clave:?\s*([^\.]+)/i);
-            if (keywordsMatch && keywordsMatch[1]) {
-              keywords = keywordsMatch[1].split(',').map((k: string) => k.trim()).filter(Boolean);
-            }
-            
-            const clientsMatch = data.analysis.match(/Clientes [^:]*:?\s*([^\.]+)/i);
-            if (clientsMatch && clientsMatch[1]) {
-              matchedClients = clientsMatch[1].split(',').map((c: string) => c.trim()).filter(Boolean);
-            }
-            
-            if (category || keywords.length > 0 || matchedClients.length > 0) {
-              await createNotification({
-                client_id: user.id,
-                title: `Análisis de contenido radial: ${category || 'Sin categoría'}`,
-                description: `${matchedClients.length > 0 ? 'Clientes: ' + matchedClients.join(', ') : ''}`,
-                content_type: "radio",
-                importance_level: matchedClients.length > 0 ? 4 : 3,
-                keyword_matched: keywords,
-                metadata: {
-                  category,
-                  matchedClients,
-                  relevantKeywords: keywords
-                }
-              });
-              console.log("[RadioAnalysis] Created notification for radio content analysis");
-            }
+          let category = "";
+          let keywords: string[] = [];
+          let matchedClients: string[] = [];
+
+          const categoryMatch = data.analysis.match(/Categoría[s]?:?\s*([A-ZÁ-ÚÑ\s&]+)/i);
+          if (categoryMatch && categoryMatch[1]) category = categoryMatch[1].trim();
+
+          const keywordsMatch = data.analysis.match(/Palabras clave:?\s*([^\.]+)/i);
+          if (keywordsMatch && keywordsMatch[1]) {
+            keywords = keywordsMatch[1].split(',').map((k: string) => k.trim()).filter(Boolean);
+          }
+
+          const clientsMatch = data.analysis.match(/Clientes [^:]*:?\s*([^\.]+)/i);
+          if (clientsMatch && clientsMatch[1]) {
+            matchedClients = clientsMatch[1].split(',').map((c: string) => c.trim()).filter(Boolean);
+          }
+
+          if (matchedClients.length > 0) {
+            const res = await createClientMatchNotifications({
+              matchedClients,
+              title: (name) => `Mención en radio: ${name}${category ? ` (${category})` : ''}`,
+              description: `Análisis de contenido radial${category ? ` — ${category}` : ''}`,
+              content_id: transcriptionId,
+              content_type: "radio",
+              importance_level: 4,
+              keyword_matched: keywords,
+              metadata: { category, matchedClients, relevantKeywords: keywords },
+            });
+            console.log("[RadioAnalysis] Client-match notifications:", res);
           }
         } catch (notifyError) {
           console.error('[RadioAnalysis] Error creating notification:', notifyError);
