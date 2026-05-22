@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useClientSpotlight, type SpotlightScope } from "@/hooks/use-client-spotlight";
+import { useClientsRealtime } from "@/hooks/use-clients-realtime";
 import { ClientSpotlightCard } from "./ClientSpotlightCard";
 
 interface Props {
@@ -15,6 +16,7 @@ const ClientSpotlightSection = ({ onClientSelect, scope = "all" }: Props) => {
   const [collapsed, setCollapsed] = useState(false);
   const [activeScope, setActiveScope] = useState<SpotlightScope>(scope);
   const { data: spotlights = [], isLoading } = useClientSpotlight(activeScope);
+  useClientsRealtime();
 
   return (
     <section className="rounded-lg border bg-card p-4">

@@ -28,6 +28,7 @@ export function ClientsContainer() {
     mutationFn: addClient,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["client-spotlight"] });
       toast.success("Cliente agregado correctamente");
       setShowForm(false);
     },
@@ -40,6 +41,7 @@ export function ClientsContainer() {
     mutationFn: updateClient,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["client-spotlight"] });
       toast.success("Cliente actualizado correctamente");
       setShowForm(false);
       setEditingClient(null);
@@ -53,6 +55,7 @@ export function ClientsContainer() {
     mutationFn: deleteClient,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["client-spotlight"] });
       toast.success("Cliente eliminado correctamente");
     },
     onError: (error) => {
@@ -65,6 +68,7 @@ export function ClientsContainer() {
       setClientActive(id, isActive),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["client-spotlight"] });
       toast.success(vars.isActive ? "Cliente activado" : "Cliente desactivado");
     },
     onError: (error: any) => {
