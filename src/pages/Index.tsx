@@ -51,6 +51,17 @@ const DashboardContent = () => {
       {/* Quick Actions */}
       <QuickActions />
 
+      {/* Client Spotlight - Mixed Prensa Digital + Redes Sociales (30d) */}
+      <ClientSpotlightSection
+        scope="all"
+        onClientSelect={(name) =>
+          navigate(`/redes-sociales?q=${encodeURIComponent(name)}`)
+        }
+      />
+
+      {/* Combined News Feed - Full Width */}
+      <CombinedNewsFeedWidget />
+
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         <DashboardStatCard
@@ -114,17 +125,6 @@ const DashboardContent = () => {
           onClick={() => navigate('/clientes')}
         />
       </div>
-
-      {/* Client Spotlight - Mixed Prensa Digital + Redes Sociales (30d) */}
-      <ClientSpotlightSection
-        scope="all"
-        onClientSelect={(name) =>
-          navigate(`/redes-sociales?q=${encodeURIComponent(name)}`)
-        }
-      />
-
-      {/* Combined News Feed - Full Width */}
-      <CombinedNewsFeedWidget />
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
