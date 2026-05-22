@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import SocialHeader from "@/components/social/SocialHeader";
 import SocialFeedList from "@/components/social/SocialFeedList";
 import PlatformFilters from "@/components/social/PlatformFilters";
+import ClientSpotlightSection from "@/components/social/ClientSpotlightSection";
 import { useSocialFeeds } from "@/hooks/use-social-feeds";
 import { ITEMS_PER_PAGE } from "@/services/social/api";
 import { SocialPost } from "@/types/social";
@@ -103,7 +104,9 @@ const RedesSociales = () => {
     <ErrorBoundary>
       <div className="w-full space-y-6">
         <SocialHeader onRefresh={handleRefresh} isRefreshing={isRefreshing} />
-        
+
+        <ClientSpotlightSection onClientSelect={(name) => setSearchTerm(name)} />
+
         {lastRefreshTime && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">

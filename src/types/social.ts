@@ -22,3 +22,11 @@ export interface SocialPlatform {
   name: string;
   count: number;
 }
+
+export interface ClientSpotlight {
+  clientId: string;
+  clientName: string;
+  category: string;
+  matchCount: number;
+  articles: SocialPost[];
+}
