@@ -342,13 +342,18 @@ async function processFeedSource(
     
     const currentErrorCount = (feedSource.error_count || 0) + 1;
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const shouldDeactivate = currentErrorCount >= 100;
     await supabase
       .from('feed_sources')
       .update({
         last_fetch_error: errorMessage,
-        error_count: currentErrorCount
+        error_count: currentErrorCount,
+        ...(shouldDeactivate ? { active: false } : {}),
       })
       .eq('id', feedSource.id);
+    if (shouldDeactivate) {
+      console.warn(`[process-rss-feed] Auto-deactivated feed "${feedSource.name}" after ${currentErrorCount} consecutive errors. Last error: ${errorMessage}`);
+    }
 
     return { successCount: 0, errorCount: 1, error: errorMessage };
   }
@@ -587,31 +592,65 @@ Para clients: solo incluye clientes de la lista proporcionada que sean REALMENTE
         }),
       });
 
+      let content: string | undefined;
       if (!response.ok) {
         const errorData = await response.text();
-        console.error(`Lovable AI API error (attempt ${attempt + 1}):`, errorData);
-        
-        if (response.status === 429) {
-          console.log('Rate limited, waiting before retry...');
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 2000));
+        console.error(`Lovable AI API error (attempt ${attempt + 1}, status ${response.status}):`, errorData);
+
+        // Fallback to direct Google Gemini API on credit exhaustion or rate-limit
+        const isCreditsExhausted = response.status === 402 || /payment_required|Not enough credits/i.test(errorData);
+        const isRateLimited = response.status === 429;
+        if (isCreditsExhausted || isRateLimited) {
+          const geminiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+          if (geminiKey) {
+            try {
+              console.log(`[fallback] Calling Google Gemini direct API (reason: ${isCreditsExhausted ? 'credits' : 'rate-limit'})`);
+              const sysPrompt = `Eres un asistente especializado en análisis de noticias de Puerto Rico. Tu tarea es analizar titulares y contenido de noticias para:\n1. Categorizar la noticia\n2. Determinar el sentimiento (positivo, negativo, neutral, mixto)\n3. Identificar clientes relevantes basándote en la lista proporcionada\n4. Extraer palabras clave\n\nResponde ÚNICAMENTE en formato JSON válido.`;
+              const userPrompt = `Analiza este artículo de noticias:\n\nTÍTULO: ${sanitizedTitle}\nDESCRIPCIÓN: ${sanitizedDescription}\nFUENTE: ${source}\n\nLISTA DE CLIENTES Y SUS PALABRAS CLAVE:\n${clientListForPrompt}\n\nResponde SOLO con un JSON válido con esta estructura exacta:\n{\n  "summary": "resumen breve del artículo en español (max 100 palabras)",\n  "category": "una de: ACCIDENTES|AGENCIAS DE GOBIERNO|AMBIENTE|AMBIENTE & EL TIEMPO|CIENCIA & TECNOLOGÍA|COMUNIDAD|CRIMEN|DEPORTES|ECONOMÍA & NEGOCIOS|EDUCACIÓN & CULTURA|EE.UU. & INTERNACIONALES|ENTRETENIMIENTO|GOBIERNO|OTRAS|POLÍTICA|RELIGIÓN|SALUD|SEGURIDAD|TRIBUNALES",\n  "clients": [{"id": "client_uuid", "name": "nombre del cliente", "relevance": "alta|media|baja"}],\n  "keywords": ["5-7 palabras clave relevantes en español"],\n  "sentiment": "positive|negative|neutral|mixed",\n  "sentiment_score": 0.0\n}\n\nPara sentiment_score: usa un valor entre -1.0 (muy negativo) y 1.0 (muy positivo), donde 0.0 es neutral.\nPara clients: solo incluye clientes de la lista proporcionada que sean REALMENTE relevantes al contenido.`;
+              const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  systemInstruction: { parts: [{ text: sysPrompt }] },
+                  contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+                  generationConfig: { temperature: 0.3, responseMimeType: 'application/json' },
+                }),
+              });
+              if (gRes.ok) {
+                const gData = await gRes.json();
+                content = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
+              } else {
+                const gErr = await gRes.text();
+                console.error(`[fallback] Gemini direct API failed (status ${gRes.status}):`, gErr);
+              }
+            } catch (gErr) {
+              console.error('[fallback] Gemini direct API exception:', gErr);
+            }
+          } else {
+            console.warn('[fallback] GOOGLE_GEMINI_API_KEY not configured; cannot fall back');
+          }
+        }
+
+        if (!content) {
+          if (isRateLimited && attempt < 2) {
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 2000));
+            continue;
+          }
+          if (attempt === 2) {
+            await logProcessingError(supabase, {
+              stage: 'analysis',
+              error: `Lovable AI API error: ${errorData}`,
+              article: { title, description, source }
+            });
+            return getFallbackAnalysis('Error en el servicio de análisis', keywordMatches);
+          }
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
           continue;
         }
-        
-        if (attempt === 2) {
-          await logProcessingError(supabase, {
-            stage: 'analysis',
-            error: `Lovable AI API error: ${errorData}`,
-            article: { title, description, source }
-          });
-          return getFallbackAnalysis('Error en el servicio de análisis', keywordMatches);
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-        continue;
+      } else {
+        const data = await response.json();
+        content = data.choices[0].message.content;
       }
-
-      const data = await response.json();
-      const content = data.choices[0].message.content;
       
       try {
         // Clean up the response if it has markdown code blocks
