@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, RefreshCw, Search } from "lucide-react";
+import { Bell, RefreshCw, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,24 +9,42 @@ import ErrorBoundary from "@/components/common/ErrorBoundary";
 import { useTypeformAlerts, type AlertFormFilter } from "@/hooks/use-typeform-alerts";
 import { AlertResponseCard } from "@/components/alertas/AlertResponseCard";
 
+const PAGE_SIZE = 12;
+
 const EnvioAlertas = () => {
   const [form, setForm] = useState<AlertFormFilter>("all");
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
   }, [search]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [form, debounced]);
+
   const { data, isLoading, isFetching, refresh, error } = useTypeformAlerts({
     form,
     search: debounced,
-    pageSize: 50,
+    pageSize: PAGE_SIZE,
+    page,
   });
 
   const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
   const tvMissing = data && data.tvFormConfigured === false;
+
+  const handlePrev = () => {
+    if (page > 1) setPage((p) => p - 1);
+  };
+
+  const handleNext = () => {
+    if (page < totalPages) setPage((p) => p + 1);
+  };
 
   return (
     <ErrorBoundary>
@@ -95,11 +113,39 @@ const EnvioAlertas = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {items.map((a) => (
-              <AlertResponseCard key={`${a.formType}-${a.id}`} alert={a} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {items.map((a) => (
+                <AlertResponseCard key={`${a.formType}-${a.id}`} alert={a} />
+              ))}
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handlePrev}
+                disabled={page <= 1 || isFetching}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground px-2 min-w-[60px] text-center">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleNext}
+                disabled={page >= totalPages || isFetching}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <span className="text-xs text-muted-foreground ml-2">
+                {total} total
+              </span>
+            </div>
+          </>
         )}
       </div>
     </ErrorBoundary>
