@@ -80,6 +80,7 @@ export function matchArticlesToClients(
         category: client.category,
         matchCount: sorted.length,
         articles: sorted.slice(0, maxArticlesPerClient),
+        allArticles: sorted,
       };
     })
     .sort((a, b) => b.matchCount - a.matchCount);
