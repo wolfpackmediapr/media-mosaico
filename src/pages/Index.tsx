@@ -16,6 +16,7 @@ import {
 } from "@/components/dashboard";
 import NotificationFeed from "@/components/notifications/NotificationFeed";
 import { useNavigate } from "react-router-dom";
+import ClientSpotlightSection from "@/components/social/ClientSpotlightSection";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DashboardDateProvider, useDashboardDate } from "@/contexts/DashboardDateContext";
@@ -113,6 +114,14 @@ const DashboardContent = () => {
           onClick={() => navigate('/clientes')}
         />
       </div>
+
+      {/* Client Spotlight - Mixed Prensa Digital + Redes Sociales (30d) */}
+      <ClientSpotlightSection
+        scope="all"
+        onClientSelect={(name) =>
+          navigate(`/redes-sociales?q=${encodeURIComponent(name)}`)
+        }
+      />
 
       {/* Combined News Feed - Full Width */}
       <CombinedNewsFeedWidget />
