@@ -7,7 +7,19 @@ const normalize = (s: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-const MIN_KEYWORD_LEN = 3;
+const MIN_KEYWORD_LEN = 4;
+
+// Common honorifics/titles to strip so "Hon. Juan Pérez" matches "Juan Pérez"
+const HONORIFIC_RE = /^(hon|lcdo|lcda|dr|dra|sr|sra|srta|sen|rep|ing|prof|mons|rev)\.?\s+/i;
+
+const stripHonorifics = (s: string) => s.replace(HONORIFIC_RE, "").trim();
+
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Build a word-boundary regex for a normalized term. Uses lookarounds on
+// non-letter/digit chars so multi-word terms still match correctly.
+const buildTermRegex = (term: string) =>
+  new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(term)}(?![\\p{L}\\p{N}])`, "iu");
 
 export interface RawArticle {
   id: string;
@@ -20,14 +32,16 @@ export interface RawArticle {
   feed_source_id: string | null;
   clients?: any;
   keywords?: string[] | null;
+  summary?: string | null;
   feed_source?: any;
 }
 
 /**
  * Match articles to clients by:
  * - article.clients JSONB containing client name or id
- * - case/diacritic-insensitive substring of client name or keywords
- *   (>= 3 chars) inside title + description
+ * - word-boundary, case/diacritic-insensitive match of client name
+ *   (always searched in full) or keywords (>= 4 chars) inside
+ *   title + description + summary + article keywords.
  */
 export function matchArticlesToClients(
   clients: Client[],
@@ -38,7 +52,10 @@ export function matchArticlesToClients(
   const grouped = new Map<string, { client: Client; articles: SocialPost[] }>();
 
   for (const article of articles) {
-    const haystack = normalize(`${article.title ?? ""} ${article.description ?? ""}`);
+    const articleKeywords = Array.isArray(article.keywords) ? article.keywords.join(" ") : "";
+    const haystack = normalize(
+      `${article.title ?? ""} ${article.description ?? ""} ${article.summary ?? ""} ${articleKeywords}`
+    );
     const clientsField = article.clients;
     const clientsArr: any[] = Array.isArray(clientsField)
       ? clientsField
@@ -48,19 +65,26 @@ export function matchArticlesToClients(
 
     for (const client of clients) {
       if (!client.id) continue;
-      const normName = normalize(client.name);
-      const terms = [normName, ...(client.keywords ?? []).map(normalize)].filter(
-        (t) => t.length >= MIN_KEYWORD_LEN
-      );
+      const normName = normalize(stripHonorifics(client.name));
+      // Always include the full client name (no min length); apply min length to keywords only.
+      const keywordTerms = (client.keywords ?? [])
+        .map((k) => normalize(stripHonorifics(k)))
+        .filter((t) => t.length >= MIN_KEYWORD_LEN);
+      const terms = [normName, ...keywordTerms].filter((t) => t.length > 0);
 
       const jsonMatch = clientsArr.some((c) => {
-        if (typeof c === "string") return normalize(c) === normName || c === client.id;
+        if (typeof c === "string")
+          return normalize(stripHonorifics(c)) === normName || c === client.id;
         if (c && typeof c === "object")
-          return c.id === client.id || (c.name && normalize(c.name) === normName);
+          return (
+            c.id === client.id ||
+            (c.name && normalize(stripHonorifics(String(c.name))) === normName)
+          );
         return false;
       });
 
-      const textMatch = !jsonMatch && terms.some((t) => haystack.includes(t));
+      const textMatch =
+        !jsonMatch && terms.some((t) => buildTermRegex(t).test(haystack));
 
       if (jsonMatch || textMatch) {
         if (!grouped.has(client.id)) grouped.set(client.id, { client, articles: [] });

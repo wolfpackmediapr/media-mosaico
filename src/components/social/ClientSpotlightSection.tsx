@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useClientSpotlight, type SpotlightScope } from "@/hooks/use-client-spotlight";
 import { ClientSpotlightCard } from "./ClientSpotlightCard";
 
@@ -12,7 +13,8 @@ interface Props {
 
 const ClientSpotlightSection = ({ onClientSelect, scope = "all" }: Props) => {
   const [collapsed, setCollapsed] = useState(false);
-  const { data: spotlights = [], isLoading } = useClientSpotlight(scope);
+  const [activeScope, setActiveScope] = useState<SpotlightScope>(scope);
+  const { data: spotlights = [], isLoading } = useClientSpotlight(activeScope);
 
   return (
     <section className="rounded-lg border bg-card p-4">
@@ -26,14 +28,23 @@ const ClientSpotlightSection = ({ onClientSelect, scope = "all" }: Props) => {
             </p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? "Mostrar" : "Ocultar"}
-        >
-          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Tabs value={activeScope} onValueChange={(v) => setActiveScope(v as SpotlightScope)}>
+            <TabsList className="h-8">
+              <TabsTrigger value="all" className="text-xs px-2 h-6">Todos</TabsTrigger>
+              <TabsTrigger value="news" className="text-xs px-2 h-6">Prensa</TabsTrigger>
+              <TabsTrigger value="social" className="text-xs px-2 h-6">Social</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? "Mostrar" : "Ocultar"}
+          >
+            {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {!collapsed && (
