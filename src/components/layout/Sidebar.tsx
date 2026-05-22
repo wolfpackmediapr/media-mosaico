@@ -16,7 +16,7 @@ const mainMenuItems = [
   { icon: FileText, label: "Prensa Escrita", path: "/prensa-escrita" },
   { icon: Rss, label: "Redes Sociales", path: "/redes-sociales" },
   { icon: Bell, label: "Notificaciones", path: "/notificaciones" },
-  { icon: Send, label: "Envío de Alertas", path: "/envio-alertas" },
+  { icon: Send, label: "Alertas Enviadas", path: "/envio-alertas" },
   { icon: BarChart2, label: "Reportes", path: "/reportes" },
   { icon: BookOpen, label: "Media Monitoring", path: "/media-monitoring" },
 ];
