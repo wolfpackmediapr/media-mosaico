@@ -32,7 +32,7 @@ async function fetchSpotlights(scope: SpotlightScope): Promise<ClientSpotlight[]
   let articlesQuery = supabase
     .from("news_articles")
     .select(
-      "id, title, description, link, pub_date, source, image_url, feed_source_id, clients, keywords, feed_source:feed_sources(name, platform, platform_display_name, platform_icon)"
+      "id, title, description, summary, link, pub_date, source, image_url, feed_source_id, clients, keywords, feed_source:feed_sources(name, platform, platform_display_name, platform_icon)"
     )
     .gte("pub_date", since)
     .order("pub_date", { ascending: false })
@@ -65,7 +65,7 @@ async function fetchSpotlights(scope: SpotlightScope): Promise<ClientSpotlight[]
 
 export function useClientSpotlight(scope: SpotlightScope = "all") {
   return useQuery({
-    queryKey: ["client-spotlight", `${DAYS}d`, scope],
+    queryKey: ["client-spotlight", "v3", `${DAYS}d`, scope],
     queryFn: () => fetchSpotlights(scope),
     staleTime: 60_000,
   });
