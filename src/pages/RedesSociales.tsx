@@ -105,7 +105,7 @@ const RedesSociales = () => {
       <div className="w-full space-y-6">
         <SocialHeader onRefresh={handleRefresh} isRefreshing={isRefreshing} />
 
-        <ClientSpotlightSection onClientSelect={(name) => setSearchTerm(name)} />
+        <ClientSpotlightSection scope="social" onClientSelect={(name) => setSearchTerm(name)} />
 
         {lastRefreshTime && (
           <div className="flex items-center justify-between">
