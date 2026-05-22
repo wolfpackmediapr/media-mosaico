@@ -1,5 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { corsHeaders } from '../_shared/cors.ts'
+
+console.log('[get-typeform-alerts] boot', {
+  hasToken: !!Deno.env.get('TYPEFORM_API_TOKEN'),
+  hasTvId: !!Deno.env.get('TYPEFORM_TV_FORM_ID'),
+})
 
 const RADIO_FORM_ID = '01JEWES3GA7PPQN2SPRNHSVHPG'
 const TV_FORM_ID = Deno.env.get('TYPEFORM_TV_FORM_ID') ?? ''
