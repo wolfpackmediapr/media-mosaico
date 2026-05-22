@@ -2,9 +2,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { TagsInput } from "@/components/ui/tags-input";
 import { Client } from "@/services/clients/clientService";
 
 export interface ClientFormProps {
@@ -25,7 +25,7 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
     name: client?.name || initialData?.name || '',
     category: client?.category || initialData?.category || '',
     subcategory: client?.subcategory || initialData?.subcategory || '',
-    keywordsString: client?.keywords ? client.keywords.join(', ') : initialData?.keywords ? initialData.keywords.join(', ') : ''
+    keywords: (client?.keywords ?? initialData?.keywords ?? []) as string[],
   });
 
   const handleChange = (field: string, value: string) => {
@@ -34,15 +34,11 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const keywords = formData.keywordsString
-      ? formData.keywordsString.split(',').map(k => k.trim()).filter(k => k !== '')
-      : [];
-    
     onSubmit({
       name: formData.name,
       category: formData.category,
       subcategory: formData.subcategory,
-      keywords
+      keywords: formData.keywords,
     });
   };
 
@@ -94,12 +90,11 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
       
       <div className="space-y-2">
         <Label htmlFor="keywords">Palabras clave</Label>
-        <Textarea
+        <TagsInput
           id="keywords"
-          value={formData.keywordsString}
-          onChange={(e) => handleChange('keywordsString', e.target.value)}
-          placeholder="Palabras clave separadas por comas"
-          className="resize-none h-24"
+          value={formData.keywords}
+          onChange={(tags) => setFormData((prev) => ({ ...prev, keywords: tags }))}
+          placeholder="Añade una palabra clave y presiona coma o Enter"
         />
         <p className="text-xs text-muted-foreground">Ingrese palabras clave separadas por comas. Estas se utilizarán para identificar el contenido relevante para este cliente.</p>
       </div>
