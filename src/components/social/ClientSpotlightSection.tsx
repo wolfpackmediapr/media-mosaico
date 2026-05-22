@@ -2,16 +2,17 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useClientSpotlight } from "@/hooks/use-client-spotlight";
+import { useClientSpotlight, type SpotlightScope } from "@/hooks/use-client-spotlight";
 import { ClientSpotlightCard } from "./ClientSpotlightCard";
 
 interface Props {
   onClientSelect?: (clientName: string) => void;
+  scope?: SpotlightScope;
 }
 
-const ClientSpotlightSection = ({ onClientSelect }: Props) => {
+const ClientSpotlightSection = ({ onClientSelect, scope = "all" }: Props) => {
   const [collapsed, setCollapsed] = useState(false);
-  const { data: spotlights = [], isLoading } = useClientSpotlight();
+  const { data: spotlights = [], isLoading } = useClientSpotlight(scope);
 
   return (
     <section className="rounded-lg border bg-card p-4">

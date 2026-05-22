@@ -102,7 +102,7 @@ const Prensa = () => {
         onDateChange={handleDateChange}
       />
 
-      <ClientSpotlightSection onClientSelect={(name) => setSearchTerm(name)} />
+      <ClientSpotlightSection scope="news" onClientSelect={(name) => setSearchTerm(name)} />
 
       <PrensaSearch 
         searchTerm={searchTerm}
