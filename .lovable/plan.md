@@ -1,19 +1,23 @@
-# Add Typeform Alerts Section to Inicio
+## Plan: Limit Feed Unificado to 5 Items
 
-## Goal
-Reusar el feed de respuestas Typeform (TV+Radio mezcladas) en el dashboard `Inicio`, con estilo similar a `ClientSpotlightSection`.
+### Problem
+The Combined News Feed widget currently displays 10 items per page. The user wants it limited to 5 items per page.
 
-## Cambios
+### Changes
 
-### 1. Nuevo componente `src/components/alertas/AlertasSpotlightSection.tsx`
-- Wrapper compacto sobre `useTypeformAlerts({ form: 'all' })`.
-- Header con título "Alertas TV & Radio", subtítulo "Últimas respuestas capturadas desde los formularios de monitoreo", botón Refrescar y link "Ver todas" → `/envio-alertas`.
-- Grid responsive (1 / 2 / 3 cols) reutilizando `AlertResponseCard`.
-- Muestra solo las primeras 6 respuestas; skeletons al cargar; empty state breve.
-- Sin tabs ni búsqueda (esos viven en `/envio-alertas`).
+#### 1. `src/hooks/use-combined-news-feed.ts`
+Change `ITEMS_PER_PAGE` from `10` to `5`:
+```
+const ITEMS_PER_PAGE = 5;
+```
 
-### 2. `src/pages/Index.tsx`
-- Importar y montar `<AlertasSpotlightSection />` justo debajo de `<ClientSpotlightSection />` (línea ~60), antes de `CombinedNewsFeedWidget`.
+#### 2. `src/components/dashboard/CombinedNewsFeedWidget.tsx`
+Update the `totalPages` calculation to use `5` instead of hardcoded `10`:
+```
+const totalPages = data ? Math.ceil(data.totalCount / 5) : 1;
+```
 
-## Sin cambios
-- Edge function, hook, cards y la página `/envio-alertas` se quedan igual — solo añadimos un consumidor adicional.
+### Validation
+- Build passes successfully
+- Feed widget renders only 5 news items per page
+- Pagination navigation updates accordingly

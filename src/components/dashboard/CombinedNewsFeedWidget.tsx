@@ -63,7 +63,7 @@ export function CombinedNewsFeedWidget({ className }: CombinedNewsFeedWidgetProp
   const { data: clients } = useClientsForFilter();
   const queryClient = useQueryClient();
   
-  const totalPages = data ? Math.ceil(data.totalCount / 10) : 1;
+  const totalPages = data ? Math.ceil(data.totalCount / 5) : 1;
   
   const handlePrevPage = () => {
     if (currentPage > 1) {
