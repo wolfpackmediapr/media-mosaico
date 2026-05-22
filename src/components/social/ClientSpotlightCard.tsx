@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { ExternalLink, Sparkles } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { ClientSpotlight } from "@/types/social";
+import { ClientSpotlightDialog } from "./ClientSpotlightDialog";
 
 interface Props {
   spotlight: ClientSpotlight;
@@ -12,9 +14,12 @@ interface Props {
 }
 
 export const ClientSpotlightCard = ({ spotlight, onSelect }: Props) => {
+  const [open, setOpen] = useState(false);
+  const preview = spotlight.articles.slice(0, 3);
   return (
+    <>
     <Card
-      className="min-w-[320px] max-w-[360px] flex-shrink-0 flex flex-col h-[440px] hover:border-primary/50 transition-colors"
+      className="min-w-[320px] max-w-[360px] flex-shrink-0 flex flex-col hover:border-primary/50 transition-colors"
       aria-label={`Menciones de ${spotlight.clientName}`}
     >
       <CardHeader className="pb-3">
@@ -35,9 +40,9 @@ export const ClientSpotlightCard = ({ spotlight, onSelect }: Props) => {
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col gap-2 pb-3 overflow-hidden">
-        <ul className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {spotlight.articles.map((a) => (
+      <CardContent className="flex flex-col gap-2 pb-3">
+        <ul className="space-y-2">
+          {preview.map((a) => (
             <li key={a.id} className="border-l-2 border-primary/30 pl-2">
               <a
                 href={a.link}
@@ -59,19 +64,24 @@ export const ClientSpotlightCard = ({ spotlight, onSelect }: Props) => {
           ))}
         </ul>
 
-        {onSelect && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-auto self-start text-xs"
-            onClick={() => onSelect(spotlight.clientName)}
-          >
-            <ExternalLink className="mr-1 h-3 w-3" />
-            Ver todas
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-auto self-start text-xs"
+          onClick={() => setOpen(true)}
+        >
+          <ExternalLink className="mr-1 h-3 w-3" />
+          Ver todas ({spotlight.matchCount})
+        </Button>
       </CardContent>
     </Card>
+    <ClientSpotlightDialog
+      spotlight={spotlight}
+      open={open}
+      onOpenChange={setOpen}
+      onSelect={onSelect}
+    />
+    </>
   );
 };
 

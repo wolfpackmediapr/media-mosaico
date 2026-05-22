@@ -29,4 +29,5 @@ export interface ClientSpotlight {
   category: string;
   matchCount: number;
   articles: SocialPost[];
+  allArticles: SocialPost[];
 }

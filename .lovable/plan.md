@@ -1,42 +1,38 @@
-## Goal
-Add the existing `ClientSpotlightSection` to the Inicio (`/`) dashboard, mixing both **Prensa Digital** and **Redes Sociales** mentions — same data universe as the Feed Unificado widget.
+## Problem
 
-## Why this is simple
-The `useClientSpotlight` hook already supports `scope="all"`, which queries `news_articles` from the last 30 days without filtering `feed_sources.platform`. Since both Prensa Digital (RSS) and Redes Sociales (Twitter/X via RSS.app) live in `news_articles`, `scope="all"` naturally produces the mixed view we want — exactly matching the Feed Unificado data source.
+Cards still show only 3 articles because the matcher caps `maxArticlesPerClient = 3` — the scrollable container has nothing to scroll. Even if we raise the cap, cramming 6+ items inside a 440px card feels tight.
 
-No new hook, no new matcher, no DB changes.
+## Proposed approach — Dialog drill-in (inspired by the Radix Dialog you shared)
 
-## Changes
+Keep the spotlight cards compact (3 preview items), and add a "Ver todas (N)" action that opens a polished modal listing **all** mentions for that client, scrollable, with richer metadata.
 
-### `src/pages/Index.tsx`
-1. Import `ClientSpotlightSection` from `@/components/social/ClientSpotlightSection`.
-2. Render it between the Stats Grid (line 115) and the Combined News Feed (line 118):
+### Changes
 
-```tsx
-<ClientSpotlightSection
-  scope="all"
-  onClientSelect={(name) => navigate(`/redes-sociales?q=${encodeURIComponent(name)}`)}
-/>
-```
+**1. `src/services/social/clientMatcher.ts`**
+- Return the full matched list on the spotlight object (e.g. add `allArticles: SocialPost[]`) while keeping `articles` capped at 3 for the card preview. No breaking change to existing callers.
 
-Since the Inicio page doesn't have a local search state to fill, `onClientSelect` routes the user to `/redes-sociales` (or alternatively `/prensa-digital`) with the client name in the query. If those pages don't currently read `?q=`, the simplest fallback is to just `navigate('/redes-sociales')` without a query and let the user search there — or drop `onClientSelect` entirely so only the card content is shown.
+**2. `src/components/social/ClientSpotlightDialog.tsx`** (new)
+- Built on the existing shadcn `Dialog` primitives (same Radix base as the snippet).
+- Header: `Sparkles` icon + client name, category badge, total mention count, "últimos 30 días" subtitle.
+- Body: scrollable list (`max-h-[70vh] overflow-y-auto`) of every mention — title, source/platform, relative date, external link icon. Light dividers, hover state, `border-l-2 border-primary/30` accent consistent with the card.
+- Footer: secondary "Cerrar" + primary "Ver en feed" (uses existing `onSelect` to route to `/redes-sociales?q=...`).
 
-### No other files change
-- `ClientSpotlightSection` is already reusable and handles loading/empty/collapsed states.
-- `ClientSpotlightCard` already renders source name + relative date and works for both news and social rows because both come from `news_articles` with the same `feed_source` join.
+**3. `src/components/social/ClientSpotlightCard.tsx`**
+- Drop the fixed `h-[440px]` and the inner `overflow-y-auto` (no longer needed).
+- Show 3 preview items as today.
+- Replace "Ver todas" ghost button with one that opens `ClientSpotlightDialog` for that client. Label becomes `Ver todas (N)` using `matchCount`.
+- Keep optional `onSelect` for the dialog's "Ver en feed" action.
 
-## Visual placement
-```text
-[Header: Bienvenido + Date Range]
-[Quick Actions]
-[Stats Grid: 7 cards]
-[Menciones de Clientes — mixed feed, 30d]   ← NEW
-[Feed Unificado]
-[Charts row]
-...
-```
+**4. `src/components/social/ClientSpotlightSection.tsx`**
+- No structural change. Pass `onSelect` through to cards as today.
+
+## Visual direction (from your snippet)
+
+- Overlay: `bg-black/80 backdrop-blur-sm` with fade-in.
+- Content: centered, `max-w-2xl`, rounded-lg, border, shadow-lg, zoom/slide-in animation, top-right `X` close button — matches the Radix pattern you pasted and the project's existing shadcn dialog styling.
 
 ## Out of scope
-- Adding `?q=` search-from-URL support to Prensa/Redes pages (can be a follow-up).
-- Persisting matches, notifications, custom date range.
-- Including Prensa Escrita (`press_clippings`) — current scope is the same universe as Feed Unificado.
+
+- Pagination beyond the existing 1000-article / 30-day window
+- Search/filter inside the dialog
+- Persisting "last viewed" state
