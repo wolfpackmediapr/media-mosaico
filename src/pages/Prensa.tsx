@@ -4,6 +4,7 @@ import PrensaHeader from "@/components/prensa/PrensaHeader";
 import PrensaSearch from "@/components/prensa/PrensaSearch";
 import NewsList from "@/components/prensa/NewsList";
 import FeedStatus from "@/components/prensa/FeedStatus";
+import ClientSpotlightSection from "@/components/social/ClientSpotlightSection";
 import { useNewsFeed } from "@/hooks/use-news-feed";
 import { toast } from "sonner";
 import { format, startOfDay } from "date-fns";
@@ -100,6 +101,8 @@ const Prensa = () => {
         selectedDate={selectedDate}
         onDateChange={handleDateChange}
       />
+
+      <ClientSpotlightSection onClientSelect={(name) => setSearchTerm(name)} />
 
       <PrensaSearch 
         searchTerm={searchTerm}
