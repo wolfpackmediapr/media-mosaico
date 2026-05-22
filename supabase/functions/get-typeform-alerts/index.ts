@@ -6,7 +6,7 @@ console.log('[get-typeform-alerts] boot', {
   hasTvId: !!Deno.env.get('TYPEFORM_TV_FORM_ID'),
 })
 
-const RADIO_FORM_ID = '01JEWES3GA7PPQN2SPRNHSVHPG'
+const RADIO_FORM_ID = 'ngv41rGM'
 const TV_FORM_ID = Deno.env.get('TYPEFORM_TV_FORM_ID') ?? ''
 const TYPEFORM_TOKEN = Deno.env.get('TYPEFORM_API_TOKEN') ?? ''
 
