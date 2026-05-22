@@ -342,13 +342,18 @@ async function processFeedSource(
     
     const currentErrorCount = (feedSource.error_count || 0) + 1;
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const shouldDeactivate = currentErrorCount >= 100;
     await supabase
       .from('feed_sources')
       .update({
         last_fetch_error: errorMessage,
-        error_count: currentErrorCount
+        error_count: currentErrorCount,
+        ...(shouldDeactivate ? { active: false } : {}),
       })
       .eq('id', feedSource.id);
+    if (shouldDeactivate) {
+      console.warn(`[process-rss-feed] Auto-deactivated feed "${feedSource.name}" after ${currentErrorCount} consecutive errors. Last error: ${errorMessage}`);
+    }
 
     return { successCount: 0, errorCount: 1, error: errorMessage };
   }
