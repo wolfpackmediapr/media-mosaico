@@ -190,6 +190,7 @@ Deno.serve(async (req) => {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
     const form: 'tv' | 'radio' | 'all' = body.form ?? 'all'
     const pageSize = Math.min(Math.max(Number(body.page_size ?? 25), 1), 100)
+    const page = Math.max(Number(body.page ?? 1), 1)
     const since: string | undefined = body.since || undefined
     const search: string = (body.search ?? '').toString().toLowerCase().trim()
 
@@ -202,7 +203,7 @@ Deno.serve(async (req) => {
     }
 
     const results = await Promise.allSettled(
-      targets.map((t) => getCached(t.type, t.id, pageSize, since)),
+      targets.map((t) => getCached(t.type, t.id, pageSize * page, since)),
     )
 
     const items: NormalizedAlert[] = []
@@ -222,8 +223,12 @@ Deno.serve(async (req) => {
 
     filtered.sort((a, b) => (b.submittedAt > a.submittedAt ? 1 : -1))
 
+    const total = filtered.length
+    const start = (page - 1) * pageSize
+    const paged = filtered.slice(start, start + pageSize)
+
     return new Response(
-      JSON.stringify({ items: filtered, total: filtered.length, errors, tvFormConfigured: Boolean(TV_FORM_ID) }),
+      JSON.stringify({ items: paged, total, errors, tvFormConfigured: Boolean(TV_FORM_ID) }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {
