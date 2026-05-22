@@ -35,8 +35,8 @@ export const ClientSpotlightCard = ({ spotlight, onSelect }: Props) => {
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col gap-2 pb-3">
-        <ul className="space-y-2">
+      <CardContent className="flex-1 flex flex-col gap-2 pb-3 overflow-hidden">
+        <ul className="flex-1 overflow-y-auto space-y-2 pr-1">
           {spotlight.articles.map((a) => (
             <li key={a.id} className="border-l-2 border-primary/30 pl-2">
               <a
