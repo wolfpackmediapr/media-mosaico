@@ -105,6 +105,7 @@ export function ClientsList({
         {/* Form */}
         {showForm && (
           <ClientForm 
+            key={editingClient?.id ?? 'new'}
             client={editingClient} 
             onSubmit={editingClient ? onUpdateClient : onAddClient} 
             onCancel={onCancelForm}

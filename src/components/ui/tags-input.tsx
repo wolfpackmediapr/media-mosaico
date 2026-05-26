@@ -10,17 +10,22 @@ export interface TagsInputProps {
   className?: string;
 }
 
-export const TagsInput = React.forwardRef<HTMLDivElement, TagsInputProps>(
+export interface TagsInputHandle {
+  /** Commit any pending text in the input as tags, returning the resulting list. */
+  commit: () => string[];
+}
+
+export const TagsInput = React.forwardRef<TagsInputHandle, TagsInputProps>(
   ({ value, onChange, placeholder, id, className }, ref) => {
     const [draft, setDraft] = React.useState("");
     const inputRef = React.useRef<HTMLInputElement>(null);
 
-    const addTags = (raw: string) => {
+    const computeMerged = (raw: string): string[] => {
       const parts = raw
         .split(",")
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
-      if (parts.length === 0) return;
+      if (parts.length === 0) return value;
       const existingLower = new Set(value.map((t) => t.toLowerCase()));
       const next = [...value];
       for (const p of parts) {
@@ -29,6 +34,11 @@ export const TagsInput = React.forwardRef<HTMLDivElement, TagsInputProps>(
         existingLower.add(key);
         next.push(p);
       }
+      return next;
+    };
+
+    const addTags = (raw: string) => {
+      const next = computeMerged(raw);
       if (next.length !== value.length) onChange(next);
     };
 
@@ -36,6 +46,16 @@ export const TagsInput = React.forwardRef<HTMLDivElement, TagsInputProps>(
       if (draft.trim()) addTags(draft);
       setDraft("");
     };
+
+    React.useImperativeHandle(ref, () => ({
+      commit: () => {
+        if (!draft.trim()) return value;
+        const next = computeMerged(draft);
+        if (next.length !== value.length) onChange(next);
+        setDraft("");
+        return next;
+      },
+    }), [draft, value, onChange]);
 
     const removeTag = (idx: number) => {
       onChange(value.filter((_, i) => i !== idx));
@@ -71,7 +91,7 @@ export const TagsInput = React.forwardRef<HTMLDivElement, TagsInputProps>(
     };
 
     return (
-      <div ref={ref} className={cn("w-full", className)}>
+      <div className={cn("w-full", className)}>
         <div
           onClick={() => inputRef.current?.focus()}
           className="flex min-h-[80px] w-full flex-wrap gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 cursor-text"
