@@ -1,10 +1,10 @@
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { TagsInput } from "@/components/ui/tags-input";
+import { TagsInput, type TagsInputHandle } from "@/components/ui/tags-input";
 import { Client } from "@/services/clients/clientService";
 
 export interface ClientFormProps {
@@ -27,6 +27,7 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
     subcategory: client?.subcategory || initialData?.subcategory || '',
     keywords: (client?.keywords ?? initialData?.keywords ?? []) as string[],
   });
+  const tagsRef = useRef<TagsInputHandle>(null);
 
   const handleChange = (field: string, value: string) => {
     setFormData({ ...formData, [field]: value });
@@ -34,12 +35,14 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Flush any pending tag draft so users don't lose unsaved keywords
+    const finalKeywords = tagsRef.current?.commit() ?? formData.keywords;
     onSubmit({
       id: client?.id,
       name: formData.name,
       category: formData.category,
       subcategory: formData.subcategory,
-      keywords: formData.keywords,
+      keywords: finalKeywords,
     });
   };
 
@@ -92,6 +95,7 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
       <div className="space-y-2">
         <Label htmlFor="keywords">Palabras clave</Label>
         <TagsInput
+          ref={tagsRef}
           id="keywords"
           value={formData.keywords}
           onChange={(tags) => setFormData((prev) => ({ ...prev, keywords: tags }))}
