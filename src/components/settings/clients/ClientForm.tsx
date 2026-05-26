@@ -47,9 +47,7 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-card p-4 rounded-md border mb-6 space-y-4">
-      <h3 className="text-lg font-medium mb-2">{isEditing ? 'Editar cliente' : 'Añadir nuevo cliente'}</h3>
-      
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="name">Nombre del cliente</Label>
         <Input
