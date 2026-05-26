@@ -6,17 +6,14 @@ export interface TagsInputProps {
   value: string[];
   onChange: (tags: string[]) => void;
   placeholder?: string;
-  maxLength?: number;
   id?: string;
   className?: string;
 }
 
 export const TagsInput = React.forwardRef<HTMLDivElement, TagsInputProps>(
-  ({ value, onChange, placeholder, maxLength = 2000, id, className }, ref) => {
+  ({ value, onChange, placeholder, id, className }, ref) => {
     const [draft, setDraft] = React.useState("");
     const inputRef = React.useRef<HTMLInputElement>(null);
-
-    const totalChars = value.join(",").length + draft.length;
 
     const addTags = (raw: string) => {
       const parts = raw
@@ -110,11 +107,8 @@ export const TagsInput = React.forwardRef<HTMLDivElement, TagsInputProps>(
             className="flex-1 min-w-[120px] bg-transparent outline-none placeholder:text-muted-foreground"
           />
         </div>
-        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+        <div className="mt-1 text-xs text-muted-foreground">
           <span>Presiona coma o Enter después de cada palabra clave</span>
-          <span>
-            {totalChars}/{maxLength}
-          </span>
         </div>
       </div>
     );
