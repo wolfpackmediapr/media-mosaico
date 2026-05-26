@@ -16,6 +16,12 @@ import {
   PaginationNext, 
   PaginationPrevious 
 } from "@/components/ui/pagination";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ClientsListProps {
   clients: Client[];
@@ -102,16 +108,25 @@ export function ClientsList({
           </Button>
         </div>
         
-        {/* Form */}
-        {showForm && (
-          <ClientForm 
+        {/* Form Dialog */}
+        <Dialog open={showForm} onOpenChange={(open) => { if (!open) onCancelForm(); }}>
+          <DialogContent
             key={editingClient?.id ?? 'new'}
-            client={editingClient} 
-            onSubmit={editingClient ? onUpdateClient : onAddClient} 
-            onCancel={onCancelForm}
-            isEditing={!!editingClient}
-          />
-        )}
+            className="max-w-2xl max-h-[90vh] overflow-y-auto"
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {editingClient ? 'Editar cliente' : 'Añadir nuevo cliente'}
+              </DialogTitle>
+            </DialogHeader>
+            <ClientForm
+              client={editingClient}
+              onSubmit={editingClient ? onUpdateClient : onAddClient}
+              onCancel={onCancelForm}
+              isEditing={!!editingClient}
+            />
+          </DialogContent>
+        </Dialog>
         
         {/* Table */}
         {isLoading ? (
