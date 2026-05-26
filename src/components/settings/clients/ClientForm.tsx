@@ -9,7 +9,7 @@ import { Client } from "@/services/clients/clientService";
 
 export interface ClientFormProps {
   client?: Client | null;
-  onSubmit: (formData: { name: string; category: string; subcategory: string; keywords: string[] }) => void;
+  onSubmit: (formData: { id?: string; name: string; category: string; subcategory: string; keywords: string[] }) => void;
   onCancel: () => void;
   initialData?: {
     name: string;
@@ -35,6 +35,7 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
+      id: client?.id,
       name: formData.name,
       category: formData.category,
       subcategory: formData.subcategory,

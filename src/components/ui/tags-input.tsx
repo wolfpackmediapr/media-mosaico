@@ -12,7 +12,7 @@ export interface TagsInputProps {
 }
 
 export const TagsInput = React.forwardRef<HTMLDivElement, TagsInputProps>(
-  ({ value, onChange, placeholder, maxLength = 500, id, className }, ref) => {
+  ({ value, onChange, placeholder, maxLength = 2000, id, className }, ref) => {
     const [draft, setDraft] = React.useState("");
     const inputRef = React.useRef<HTMLInputElement>(null);
 
