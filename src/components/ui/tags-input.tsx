@@ -19,15 +19,17 @@ export const TagsInput = React.forwardRef<TagsInputHandle, TagsInputProps>(
   ({ value, onChange, placeholder, id, className }, ref) => {
     const [draft, setDraft] = React.useState("");
     const inputRef = React.useRef<HTMLInputElement>(null);
+    const valueRef = React.useRef<string[]>(value);
+    React.useEffect(() => { valueRef.current = value; }, [value]);
 
-    const computeMerged = (raw: string): string[] => {
+    const computeMerged = (raw: string, base: string[] = valueRef.current): string[] => {
       const parts = raw
         .split(",")
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
-      if (parts.length === 0) return value;
-      const existingLower = new Set(value.map((t) => t.toLowerCase()));
-      const next = [...value];
+      if (parts.length === 0) return base;
+      const existingLower = new Set(base.map((t) => t.toLowerCase()));
+      const next = [...base];
       for (const p of parts) {
         const key = p.toLowerCase();
         if (existingLower.has(key)) continue;
@@ -39,31 +41,46 @@ export const TagsInput = React.forwardRef<TagsInputHandle, TagsInputProps>(
 
     const addTags = (raw: string) => {
       const next = computeMerged(raw);
-      if (next.length !== value.length) onChange(next);
+      if (next.length !== valueRef.current.length) {
+        valueRef.current = next;
+        onChange(next);
+      }
     };
 
     const commitDraft = () => {
-      if (draft.trim()) addTags(draft);
+      // Read directly from the DOM input to avoid losing characters typed
+      // between the last React state update and the keydown/blur event.
+      const raw = inputRef.current?.value ?? draft;
+      if (raw.trim()) addTags(raw);
+      if (inputRef.current) inputRef.current.value = "";
       setDraft("");
     };
 
     React.useImperativeHandle(ref, () => ({
       commit: () => {
-        if (!draft.trim()) return value;
-        const next = computeMerged(draft);
-        if (next.length !== value.length) onChange(next);
+        const raw = inputRef.current?.value ?? draft;
+        if (!raw.trim()) return valueRef.current;
+        const next = computeMerged(raw);
+        if (next.length !== valueRef.current.length) {
+          valueRef.current = next;
+          onChange(next);
+        }
+        if (inputRef.current) inputRef.current.value = "";
         setDraft("");
         return next;
       },
-    }), [draft, value, onChange]);
+    }), [draft, onChange]);
 
     const removeTag = (idx: number) => {
-      onChange(value.filter((_, i) => i !== idx));
+      const next = value.filter((_, i) => i !== idx);
+      valueRef.current = next;
+      onChange(next);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "," || e.key === "Enter") {
         e.preventDefault();
+        e.stopPropagation();
         commitDraft();
       } else if (e.key === "Backspace" && draft === "" && value.length > 0) {
         e.preventDefault();
