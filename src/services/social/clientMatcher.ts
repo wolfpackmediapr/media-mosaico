@@ -1,9 +1,9 @@
 import type { SocialPost, ClientSpotlight } from "@/types/social";
 import type { Client } from "@/services/clients/clientService";
-import { normalizeText } from "@/lib/textNormalize";
 
-// Local lightweight normalize that preserves spacing/punctuation behavior used
-// only inside this matcher (haystack + term comparisons via regex).
+// Lightweight normalize that preserves spacing/punctuation, required so the
+// word-boundary regex below works correctly. For pure equality checks use
+// `normalizeText` from `@/lib/textNormalize`.
 const normalize = (s: string) =>
   (s ?? "")
     .toLowerCase()
