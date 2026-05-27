@@ -240,9 +240,9 @@ serve(async (req) => {
         continue;
       }
 
-      // Find keyword matches
-      const matchedKeywords = client.keywords.filter((keyword: string) => 
-        contentText.toLowerCase().includes(keyword.toLowerCase())
+      // Find keyword matches (accent/case-insensitive, word-boundary).
+      const matchedKeywords = client.keywords.filter((keyword: string) =>
+        matchesKeyword(contentText, keyword)
       );
 
       // Skip if no matches
