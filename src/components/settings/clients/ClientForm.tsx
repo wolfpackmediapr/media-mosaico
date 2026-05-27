@@ -99,7 +99,9 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
           onChange={(tags) => setFormData((prev) => ({ ...prev, keywords: tags }))}
           placeholder="Añade una palabra clave y presiona coma o Enter"
         />
-        <p className="text-xs text-muted-foreground">Ingrese palabras clave separadas por comas. Estas se utilizarán para identificar el contenido relevante para este cliente.</p>
+        <p className="text-xs text-muted-foreground">
+          Ingrese palabras clave separadas por comas. Los acentos y mayúsculas no son necesarios — por ejemplo, <code>Pérez</code> también encuentra <code>Perez</code>.
+        </p>
       </div>
       
       <div className="flex justify-end space-x-2 pt-2">

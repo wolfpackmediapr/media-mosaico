@@ -1,8 +1,11 @@
 import type { SocialPost, ClientSpotlight } from "@/types/social";
 import type { Client } from "@/services/clients/clientService";
 
+// Lightweight normalize that preserves spacing/punctuation, required so the
+// word-boundary regex below works correctly. For pure equality checks use
+// `normalizeText` from `@/lib/textNormalize`.
 const normalize = (s: string) =>
-  s
+  (s ?? "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");

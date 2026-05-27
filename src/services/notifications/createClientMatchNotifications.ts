@@ -1,14 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { createNotification, NotificationData } from "./unifiedNotificationService";
-
-const normalize = (s: string): string =>
-  s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+import { normalizeText } from "@/lib/textNormalize";
 
 export interface ClientMatchNotificationInput {
   matchedClients: string[];
@@ -48,9 +40,9 @@ export const createClientMatchNotifications = async (
 
   if (!clientsData || clientsData.length === 0) return result;
 
-  const normalizedTargets = names.map(normalize);
+  const normalizedTargets = names.map(normalizeText);
   const matches = clientsData.filter((c) =>
-    normalizedTargets.includes(normalize(c.name || ""))
+    normalizedTargets.includes(normalizeText(c.name || ""))
   );
 
   if (matches.length === 0) return result;

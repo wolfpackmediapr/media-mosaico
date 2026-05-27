@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.21.0";
+import { matchesKeyword } from "../_shared/textNormalize.ts";
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -240,9 +241,9 @@ serve(async (req) => {
         continue;
       }
 
-      // Find keyword matches
-      const matchedKeywords = client.keywords.filter((keyword: string) => 
-        contentText.toLowerCase().includes(keyword.toLowerCase())
+      // Find keyword matches (accent/case-insensitive, word-boundary).
+      const matchedKeywords = client.keywords.filter((keyword: string) =>
+        matchesKeyword(contentText, keyword)
       );
 
       // Skip if no matches
