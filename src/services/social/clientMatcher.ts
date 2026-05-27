@@ -1,8 +1,11 @@
 import type { SocialPost, ClientSpotlight } from "@/types/social";
 import type { Client } from "@/services/clients/clientService";
+import { normalizeText } from "@/lib/textNormalize";
 
+// Local lightweight normalize that preserves spacing/punctuation behavior used
+// only inside this matcher (haystack + term comparisons via regex).
 const normalize = (s: string) =>
-  s
+  (s ?? "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
