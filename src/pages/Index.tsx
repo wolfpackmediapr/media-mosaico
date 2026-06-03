@@ -13,6 +13,7 @@ import {
   QuickActions,
   DateRangeFilter,
   CombinedNewsFeedWidget,
+  BuzzWordsCloud,
 } from "@/components/dashboard";
 import NotificationFeed from "@/components/notifications/NotificationFeed";
 import { useNavigate } from "react-router-dom";
@@ -65,6 +66,9 @@ const DashboardContent = () => {
 
       {/* Combined News Feed - Full Width */}
       <CombinedNewsFeedWidget />
+
+      {/* Buzz Words - Animated Word Cloud from RSS feeds */}
+      <BuzzWordsCloud />
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
