@@ -1,4 +1,4 @@
-import type { SocialPost, ClientSpotlight } from "@/types/social";
+import type { SocialPost, ClientSpotlight, SpotlightArticle, MatchedTerm } from "@/types/social";
 import type { Client } from "@/services/clients/clientService";
 
 // Lightweight normalize that preserves spacing/punctuation, required so the
@@ -52,7 +52,7 @@ export function matchArticlesToClients(
   transform: (a: RawArticle) => SocialPost,
   maxArticlesPerClient = 3
 ): ClientSpotlight[] {
-  const grouped = new Map<string, { client: Client; articles: SocialPost[] }>();
+  const grouped = new Map<string, { client: Client; articles: SpotlightArticle[] }>();
 
   for (const article of articles) {
     const articleKeywords = Array.isArray(article.keywords) ? article.keywords.join(" ") : "";
@@ -70,10 +70,9 @@ export function matchArticlesToClients(
       if (!client.id) continue;
       const normName = normalize(stripHonorifics(client.name));
       // Always include the full client name (no min length); apply min length to keywords only.
-      const keywordTerms = (client.keywords ?? [])
-        .map((k) => normalize(stripHonorifics(k)))
-        .filter((t) => t.length >= MIN_KEYWORD_LEN);
-      const terms = [normName, ...keywordTerms].filter((t) => t.length > 0);
+      const keywordPairs = (client.keywords ?? [])
+        .map((k) => ({ label: stripHonorifics(k), norm: normalize(stripHonorifics(k)) }))
+        .filter((p) => p.norm.length >= MIN_KEYWORD_LEN);
 
       const jsonMatch = clientsArr.some((c) => {
         if (typeof c === "string")
@@ -86,12 +85,30 @@ export function matchArticlesToClients(
         return false;
       });
 
-      const textMatch =
-        !jsonMatch && terms.some((t) => buildTermRegex(t).test(haystack));
+      const matchedTerms: MatchedTerm[] = [];
+      const seen = new Set<string>();
+      const pushTerm = (label: string, type: MatchedTerm["type"]) => {
+        const key = label.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        matchedTerms.push({ label, type });
+      };
+
+      if (normName && buildTermRegex(normName).test(haystack)) {
+        pushTerm(stripHonorifics(client.name), "name");
+      }
+      for (const { label, norm } of keywordPairs) {
+        if (buildTermRegex(norm).test(haystack)) pushTerm(label, "keyword");
+      }
+
+      const textMatch = matchedTerms.length > 0;
 
       if (jsonMatch || textMatch) {
+        if (jsonMatch && matchedTerms.length === 0) {
+          pushTerm(client.name, "ai");
+        }
         if (!grouped.has(client.id)) grouped.set(client.id, { client, articles: [] });
-        grouped.get(client.id)!.articles.push(transform(article));
+        grouped.get(client.id)!.articles.push({ ...transform(article), matchedTerms });
       }
     }
   }
