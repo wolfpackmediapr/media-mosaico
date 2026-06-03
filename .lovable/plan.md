@@ -1,112 +1,73 @@
-## Objetivo
+## Buzz Words — Word Bubble Cloud (Dashboard)
 
-En el pop-up "Ver todas" de **Menciones de Clientes** (`ClientSpotlightDialog`), bajo cada noticia mostrar una o varias **bubbles (badges)** con el/los keywords exactos que dispararon el match para ese post. Si matcheó por nombre del cliente, mostrar también ese nombre como bubble. Si matcheó por el JSON `clients` de la IA, mostrar una bubble "IA".
+Add a new interactive word-bubble visualization to the main dashboard (`/`) that surfaces the most frequent "buzz words" from RSS-driven content (`news_articles`), with Day / Week / Month filters and smooth animated transitions when the window changes.
 
-Adicionalmente, auditoría de los filtros actuales con mejoras propuestas (sin implementar).
+### Where it goes
+- New widget on `src/pages/Index.tsx`, placed right under `CombinedNewsFeedWidget` (full width), so it sits next to the existing feed it summarizes.
+- Files created:
+  - `src/hooks/use-buzz-words.ts` — data + aggregation hook
+  - `src/components/dashboard/BuzzWordsCloud.tsx` — card + SVG bubble renderer
+  - export added to `src/components/dashboard/index.ts`
 
----
+### Library choice
+- Use `d3-cloud` (layout engine only) + custom React/SVG renderer + `framer-motion` for enter/exit/transform animations.
+  - `d3-cloud` handles non-overlapping spiral layout; we render the result ourselves as `<motion.text>` / `<motion.circle>` so we get true interpolated movement (bubbles "fly" to new positions when filter changes) instead of a Canvas redraw.
+  - `framer-motion` is already used elsewhere in the project.
+- Install: `d3-cloud` + `@types/d3-cloud`. `framer-motion` is reused if already present (otherwise add).
 
-## 1) Cambios para mostrar las bubbles por post
+### Data source & aggregation
+Read from `news_articles` (covers all RSS — Prensa Digital and Redes Sociales feeds), since this is the unified RSS store used by `useCombinedNewsFeed`.
 
-### a. Tipos — `src/types/social.ts`
+Hook `useBuzzWords(range: 'day' | 'week' | 'month')`:
+1. Compute `since` = now − (1d / 7d / 30d).
+2. Query (React Query, key `['buzz-words', range]`, `staleTime` 60s, `refetchInterval` 5min):
+   ```
+   supabase.from('news_articles')
+     .select('title, description, keywords')
+     .gte('pub_date', since)
+     .order('pub_date', { ascending: false })
+     .limit(2000)
+   ```
+3. Build a token frequency map:
+   - Prefer `keywords` array when present (already AI-extracted, highest signal).
+   - Fall back to tokenizing `title + description`: lowercase, NFD-strip accents, split on non-letter, drop tokens < 4 chars, drop a Spanish + English stopword list (a, de, la, el, los, las, y, en, que, con, por, para, un, una, the, and, of, to, in, for, on, with, is, are, …), drop pure numbers.
+   - Optional: also drop tokens that are exact `feed_source.name` / `source` values to avoid "elnuevodia" dominating.
+4. Return top 60 `[{ text, value }]` sorted by frequency.
 
-```ts
-export type MatchedTermType = "name" | "keyword" | "ai";
-export interface MatchedTerm {
-  label: string;            // texto a mostrar en la bubble (keyword o nombre original)
-  type: MatchedTermType;
-}
-export interface SpotlightArticle extends SocialPost {
-  matchedTerms: MatchedTerm[];
-}
-export interface ClientSpotlight {
-  clientId: string;
-  clientName: string;
-  category: string;
-  matchCount: number;
-  articles: SpotlightArticle[];      // antes SocialPost[]
-  allArticles: SpotlightArticle[];
-}
+Reuse `MIN_KEYWORD_LEN` style logic from `src/services/social/clientMatcher.ts` for consistency. All work is in-memory; no DB schema changes.
+
+### Component: `BuzzWordsCloud.tsx`
+Layout:
+```text
+┌─ Card ───────────────────────────────────────────────┐
+│ Buzz Words            [ Día ] [ Semana ] [ Mes ]    │
+│ Tendencias de las RSS feeds en el período           │
+├──────────────────────────────────────────────────────┤
+│           (animated SVG bubble cloud)                │
+│   word size ∝ frequency, color by frequency bucket   │
+│   hover → tooltip "palabra · N menciones"            │
+│   click → navigates to /prensa-digital?q=palabra     │
+└──────────────────────────────────────────────────────┘
 ```
+Behavior:
+- Filter chips (`Tabs` from shadcn) controlling the `range` state; default `week`.
+- Re-run `d3-cloud` layout in a `useMemo` keyed on `(words, width, range)`. Width comes from a `ResizeObserver` on the card body; height fixed (e.g. 360 px desktop, 280 px mobile).
+- Each word rendered as `<motion.g>` with `layout` + `layoutId={word.text}`. When `range` changes:
+  - Words present in both windows interpolate position/size/rotation.
+  - New words `initial={{ opacity: 0, scale: 0.3 }} animate={{ opacity: 1, scale: 1 }}`.
+  - Removed words exit with `AnimatePresence` (`opacity → 0, scale 0.3`).
+- Sizing: linear-scale frequency to font size 12–48 px. Color via existing semantic tokens (`hsl(var(--primary))`, `--accent`, `--muted-foreground`) cycled by frequency bucket — no hard-coded hex. Respect dark mode automatically.
+- Loading: skeleton bubbles (8 placeholder circles fading in/out).
+- Empty: `"No hay suficientes datos en este período"`.
+- Accessibility: container has `role="img"` and `aria-label="Nube de palabras de tendencias"`; each word also rendered as off-screen `<li>` in a visually-hidden list for screen readers.
 
-### b. Matcher — `src/services/social/clientMatcher.ts`
+### Performance notes
+- Cap at 60 words after aggregation (d3-cloud cost grows quickly).
+- Memoize the tokenization + layout; only recompute when the underlying query data or container width changes.
+- Query limit 2000 rows is enough for a 30-day window without paginating; if a future need grows, push the aggregation into a Supabase RPC.
 
-Por cada artículo que matchea con un cliente, calcular `matchedTerms`:
-
-- Reusar el `haystack` y `buildTermRegex` ya existentes.
-- Recorrer `[client.name, ...client.keywords]` y probar cada uno; si pasa, agregar `{ label: <texto original sin honoríficos>, type: "name" | "keyword" }`.
-- Si hubo `jsonMatch` (campo `article.clients` de la IA) y ningún término textual matcheó, agregar `{ label: client.name, type: "ai" }` para que el post siempre muestre al menos una bubble.
-- Deduplicar por `label` (case-insensitive).
-- Devolver `SpotlightArticle = { ...transform(article), matchedTerms }`.
-
-No se modifica la lógica de inclusión, solo se acumula info para la UI.
-
-### c. Diálogo — `src/components/social/ClientSpotlightDialog.tsx`
-
-Bajo el bloque de fuente/fecha de cada `<li>`, agregar una fila de bubbles:
-
-```tsx
-{a.matchedTerms.length > 0 && (
-  <div className="flex flex-wrap gap-1 mt-1.5">
-    {a.matchedTerms.slice(0, 8).map((t) => (
-      <Badge
-        key={t.label}
-        variant={t.type === "name" ? "default" : t.type === "ai" ? "outline" : "secondary"}
-        className="text-[10px] px-1.5 py-0 h-5"
-      >
-        {t.type === "ai" ? "✨ " : ""}{t.label}
-      </Badge>
-    ))}
-    {a.matchedTerms.length > 8 && (
-      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
-        +{a.matchedTerms.length - 8}
-      </Badge>
-    )}
-  </div>
-)}
-```
-
-Estilo: bubbles pequeñas para no romper el layout actual, colores ya definidos por los variants del design system.
-
----
-
-## 2) Auditoría de filtros del Spotlight (read-only)
-
-Estado actual (`use-client-spotlight.ts` + `clientMatcher.ts`):
-
-| Filtro | Estado | Observación |
-|---|---|---|
-| Ventana 30 días (`pub_date >= now-30d`) | ✅ | Correcto |
-| Scope Todos/Prensa/Social vía `feed_sources.platform` | ⚠️ | "news" = cualquier feed que **no** sea social, incluye `platform = null` (puede colar feeds mal clasificados) |
-| `is_active = true` en `clients` | ✅ | Correcto |
-| `limit(1000)` artículos | ⚠️ | Techo duro; en 30 días el feed puede exceder 1000 y dejar clientes sin menciones |
-| Match por JSON `article.clients` | ✅ | Funciona; pero si el mismo artículo aparece en varios feeds, cuenta múltiple |
-| Match por nombre completo (sin min length) | ✅ | Strip de honoríficos correcto |
-| Match por keywords `>= 4` chars | ⚠️ | Excluye acrónimos importantes: `AAA`, `LUMA`, `UPR`, `PRI`, `DDEC`, `JGo` |
-| Word-boundary + sin acentos + sin honoríficos | ✅ | Robusto |
-| Ordenamiento por `matchCount` desc | ✅ | Falta tie-breaker por fecha del artículo más reciente |
-| Realtime | ⚠️ | Solo escucha cambios en `clients`, no en `news_articles` |
-| Dedupe entre fuentes (mismo `link`) | ❌ | No se hace en el spotlight, sí en ingestor de Prensa Digital |
-
-### Mejoras recomendadas (no se implementan en este plan)
-
-1. **Bajar el mínimo a 3 caracteres para acrónimos** (heurística: keyword toda en MAYÚSCULAS o con dígitos/puntuación). Impacto alto, captura `AAA`, `LUMA`, `UPR`, `JGo`, `DDEC`.
-2. **Dedupe por `link` normalizado** antes de matchear, evita doble conteo en clientes con presencia en RSS + Web.
-3. **Paginación en bloques** de 1000 hasta agotar la ventana de 30 días, o mover el matching al backend con una RPC/edge function.
-4. **Endurecer scope "news"**: requerir `platform NOT NULL` y/o lista explícita de plataformas de prensa.
-5. **Tie-breaker por recencia** cuando hay empate de `matchCount`.
-6. **Filtro de plataforma dentro del diálogo** (Tabs Prensa/Social) para listas largas.
-7. **Realtime opcional sobre `news_articles`** con throttle 60s.
-8. **`MIN_KEYWORD_LEN` configurable** por cliente (columna nueva `match_min_length`) para casos especiales.
-
-Confirmar si se quiere abordar alguna de estas en plan aparte; las de mayor ROI son **#1, #2 y #4**.
-
----
-
-## Archivos a modificar (solo bubbles)
-
-- `src/types/social.ts`
-- `src/services/social/clientMatcher.ts`
-- `src/components/social/ClientSpotlightDialog.tsx`
-
-No se toca: card resumen, matching, filtros, hook, ni el resto de la UI.
+### Out of scope (can add later)
+- Click-to-filter that drives the `CombinedNewsFeedWidget` (today it just deep-links).
+- Per-client / per-platform filter chips inside the cloud.
+- Sentiment-tinted bubbles.
+- Custom mask shape (heart/PR map) via `wordcloud2.js`.
