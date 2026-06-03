@@ -19,6 +19,14 @@ const STOPWORDS = new Set<string>([
   "the","and","for","that","with","this","from","have","has","had","not","but","are","was","were","will","would","could","should","into","over","than","then","they","them","their","there","here","what","when","where","which","while","about","after","before","also","just","only","more","most","such","some","other","your","you","our","its","been","being","said","says","say","like","very","much","many","new","old","one","two",
 ]);
 
+// Media outlet handles, UI/promo words, and common noise that should never appear as buzz words
+const MEDIA_BLOCKLIST = new Set<string>([
+  // Outlets / handles
+  "elnuevodia","nuevodia","primerahora","primera","hora","wapatv","wapa","telemundopr","telemundo","noticel","metropr","metro","voceropr","vocero","eldiariopr","eldiario","tele11pr","tele11","noticentrowapa","noticentro","telenoticiaspr","telenoticias","lasnoticias","lasnoticiast11","lasnoticias11","notiuno","notiuno630","abcnews","cnnespanol","cnn","univision","trib","tribuna","periodico","redaccion","newsismybusiness","adoquintimes","adoquin",
+  // UI / promo
+  "clic","ahi","lea","leer","mira","mire","vea","vean","video","videos","foto","fotos","galeria","nota","noticia","noticias","cool","share","compartir","suscribete","entrevista","entrevistas","editorial","pdf","htm","html","www","http","https","com","net","org",
+]);
+
 const tokenize = (s: string): string[] =>
   (s ?? "")
     .toLowerCase()
@@ -27,6 +35,13 @@ const tokenize = (s: string): string[] =>
     .replace(/<[^>]*>/g, " ")
     .split(/[^a-z0-9ñ]+/i)
     .filter(Boolean);
+
+const normalize = (s: string): string =>
+  (s ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
 
 async function fetchBuzzRows(range: BuzzRange) {
   const since = new Date(Date.now() - RANGE_DAYS[range] * 24 * 60 * 60 * 1000).toISOString();
@@ -40,12 +55,39 @@ async function fetchBuzzRows(range: BuzzRange) {
   return data ?? [];
 }
 
+async function fetchFeedSourceTokens(): Promise<Set<string>> {
+  const tokens = new Set<string>();
+  const { data, error } = await supabase
+    .from("feed_sources")
+    .select("name, url");
+  if (error || !data) return tokens;
+  for (const row of data as any[]) {
+    for (const t of tokenize(row.name ?? "")) tokens.add(t);
+    const url = (row.url ?? "") as string;
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, "");
+      tokens.add(normalize(host));
+      for (const part of host.split(".")) tokens.add(normalize(part));
+    } catch {
+      // ignore
+    }
+  }
+  return tokens;
+}
+
 export function useBuzzWords(range: BuzzRange) {
   const query = useQuery({
     queryKey: ["buzz-words", range],
     queryFn: () => fetchBuzzRows(range),
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
+  });
+
+  const sourceTokensQuery = useQuery({
+    queryKey: ["buzz-words", "feed-source-tokens"],
+    queryFn: fetchFeedSourceTokens,
+    staleTime: 30 * 60_000,
+    gcTime: 60 * 60_000,
   });
 
   const words = useMemo<BuzzWord[]>(() => {
@@ -58,13 +100,23 @@ export function useBuzzWords(range: BuzzRange) {
       for (const t of tokenize((r as any).source ?? "")) sourceTokens.add(t);
     }
 
+    const dynamicTokens = sourceTokensQuery.data ?? new Set<string>();
+
+    const isBlocked = (tok: string): boolean => {
+      if (STOPWORDS.has(tok)) return true;
+      if (MEDIA_BLOCKLIST.has(tok)) return true;
+      if (sourceTokens.has(tok)) return true;
+      if (dynamicTokens.has(tok)) return true;
+      if (/\d{2,}/.test(tok)) return true; // e.g. notiuno630
+      return false;
+    };
+
     const add = (raw: string) => {
       const tok = raw.trim();
       if (!tok) return;
-      if (tok.length < 4) return;
+      if (tok.length < 5) return;
       if (/^\d+$/.test(tok)) return;
-      if (STOPWORDS.has(tok)) return;
-      if (sourceTokens.has(tok)) return;
+      if (isBlocked(tok)) return;
       counts.set(tok, (counts.get(tok) ?? 0) + 1);
     };
 
@@ -74,12 +126,12 @@ export function useBuzzWords(range: BuzzRange) {
         for (const k of kw) {
           if (typeof k !== "string") continue;
           // keywords may be phrases; keep multi-word as-is, normalized
-          const norm = k
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .trim();
-          if (norm.length >= 3 && !/^\d+$/.test(norm) && !STOPWORDS.has(norm)) {
+          const norm = normalize(k);
+          if (
+            norm.length >= 3 &&
+            !/^\d+$/.test(norm) &&
+            !isBlocked(norm)
+          ) {
             counts.set(norm, (counts.get(norm) ?? 0) + 2); // boost AI keywords
           }
         }
@@ -93,7 +145,7 @@ export function useBuzzWords(range: BuzzRange) {
       .map(([text, value]) => ({ text, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 60);
-  }, [query.data]);
+  }, [query.data, sourceTokensQuery.data]);
 
   return { words, isLoading: query.isLoading, isFetching: query.isFetching, error: query.error };
 }
