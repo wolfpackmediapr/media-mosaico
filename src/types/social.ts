@@ -23,11 +23,22 @@ export interface SocialPlatform {
   count: number;
 }
 
+export type MatchedTermType = "name" | "keyword" | "ai";
+
+export interface MatchedTerm {
+  label: string;
+  type: MatchedTermType;
+}
+
+export interface SpotlightArticle extends SocialPost {
+  matchedTerms: MatchedTerm[];
+}
+
 export interface ClientSpotlight {
   clientId: string;
   clientName: string;
   category: string;
   matchCount: number;
-  articles: SocialPost[];
-  allArticles: SocialPost[];
+  articles: SpotlightArticle[];
+  allArticles: SpotlightArticle[];
 }
