@@ -70,6 +70,25 @@ export const ClientSpotlightDialog = ({ spotlight, open, onOpenChange, onSelect 
                     : ""}
                 </span>
               </div>
+              {a.matchedTerms && a.matchedTerms.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {a.matchedTerms.slice(0, 8).map((t) => (
+                    <Badge
+                      key={`${t.type}-${t.label}`}
+                      variant={t.type === "name" ? "default" : t.type === "ai" ? "outline" : "secondary"}
+                      className="text-[10px] px-1.5 py-0 h-5 font-normal"
+                    >
+                      {t.type === "ai" ? "✨ " : ""}
+                      {t.label}
+                    </Badge>
+                  ))}
+                  {a.matchedTerms.length > 8 && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                      +{a.matchedTerms.length - 8}
+                    </Badge>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
