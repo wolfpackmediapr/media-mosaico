@@ -8,3 +8,4 @@ export { ClientKeywordsWidget } from './ClientKeywordsWidget';
 export { QuickActions } from './QuickActions';
 export { DateRangeFilter } from './DateRangeFilter';
 export { CombinedNewsFeedWidget } from './CombinedNewsFeedWidget';
+export { BuzzWordsCloud } from './BuzzWordsCloud';
