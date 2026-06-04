@@ -87,6 +87,12 @@ Tu tarea es analizar ${hasTranscription ? 'la transcripción de un programa de T
 ${categoriesText}
 ${clientsText}
 
+REGLA CRÍTICA — RELEVANCIA PARA CLIENTES:
+En el campo "relevancia_clientes" SOLO incluye clientes cuyo nivel_relevancia sea ALTA o MEDIA (acepta también "alto"/"medio").
+NO incluyas clientes NO RELEVANTES, "bajo", "ninguna" ni "no especificado" — OMÍTELOS por completo del array.
+Si ningún cliente es relevante, devuelve "relevancia_clientes": [] (array vacío).
+Criterios para considerar relevante: mención directa del cliente o sus productos, competidor del sector, regulación/política que lo afecte, tendencia de su industria, o coincidencia con sus keywords asignadas.
+
 IDENTIFICACIÓN DE NOTICIAS INDIVIDUALES:
 Primero, identifica cada NOTICIA INDIVIDUAL dentro del programa. Un noticiero típico contiene 8-15 noticias separadas por transiciones visuales (cambios de escena, gráficos, cortes comerciales breves).
 
