@@ -121,7 +121,7 @@ RESPONDE ÚNICAMENTE EN ESPAÑOL CON ESTA ESTRUCTURA JSON EXACTA (usa estos nomb
   "relevancia_clientes": [
     {
       "cliente": "nombre del cliente",
-      "nivel_relevancia": "alto/medio/bajo", 
+      "nivel_relevancia": "ALTA o MEDIA (NO incluyas clientes con 'bajo', 'no relevante' o 'ninguna' — omítelos completamente)", 
       "razon": "explicación de por qué es relevante"
     }
   ],
