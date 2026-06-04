@@ -38,6 +38,18 @@ const RadioNewsSegmentCard = ({
     setIsEditing(false);
   };
 
+  const handleCopyText = async () => {
+    try {
+      await navigator.clipboard.writeText(segment.text);
+      setIsCopied(true);
+      toast.success("Texto copiado al portapapeles");
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy text:", error);
+      toast.error("No se pudo copiar el texto. Intente de nuevo.");
+    }
+  };
+
   const formatTime = (milliseconds: number) => {
     const totalSeconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(totalSeconds / 60);
