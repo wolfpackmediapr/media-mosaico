@@ -47,7 +47,7 @@ export function CombinedNewsFeedWidget({ className }: CombinedNewsFeedWidgetProp
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   
   // Debounce search term to avoid too many API calls (500ms for smoother UX)
-  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const debouncedSearchTerm = useDebounce(searchTerm, 900);
   
   // Update filters when debounced search term changes (only if 3+ chars or empty)
   React.useEffect(() => {
