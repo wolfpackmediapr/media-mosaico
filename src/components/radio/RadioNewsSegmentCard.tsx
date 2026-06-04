@@ -3,7 +3,8 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Edit2, Save, Play, X } from "lucide-react";
+import { Clock, Edit2, Save, Play, X, Copy, CheckCheck } from "lucide-react";
+import { toast } from "sonner";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 
 interface RadioNewsSegmentCardProps {
@@ -23,6 +24,7 @@ const RadioNewsSegmentCard = ({
 }: RadioNewsSegmentCardProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(segment.text);
+  const [isCopied, setIsCopied] = useState(false);
 
   const handleEditToggle = () => {
     if (isEditing && onEdit) {
@@ -34,6 +36,18 @@ const RadioNewsSegmentCard = ({
   const handleCancel = () => {
     setEditText(segment.text);
     setIsEditing(false);
+  };
+
+  const handleCopyText = async () => {
+    try {
+      await navigator.clipboard.writeText(segment.text);
+      setIsCopied(true);
+      toast.success("Texto copiado al portapapeles");
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy text:", error);
+      toast.error("No se pudo copiar el texto. Intente de nuevo.");
+    }
   };
 
   const formatTime = (milliseconds: number) => {
@@ -88,9 +102,9 @@ const RadioNewsSegmentCard = ({
         
         <div className="flex justify-between w-full">
           {!isReadOnly && (
-            <div>
+            <div className="flex gap-2">
               {isEditing ? (
-                <div className="flex gap-2">
+                <>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -107,7 +121,7 @@ const RadioNewsSegmentCard = ({
                     <Save className="h-4 w-4 mr-1" />
                     Guardar
                   </Button>
-                </div>
+                </>
               ) : (
                 <Button
                   size="sm"
@@ -118,6 +132,20 @@ const RadioNewsSegmentCard = ({
                   Editar
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCopyText}
+                disabled={!segment.text}
+                aria-label="Copiar texto"
+                title="Copiar texto"
+              >
+                {isCopied ? (
+                  <CheckCheck className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
             </div>
           )}
           

@@ -1,9 +1,13 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Copy, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { TypeformAlert } from "@/hooks/use-typeform-alerts";
+import { toast } from "sonner";
+import { useState } from "react";
 
 interface Props {
   alert: TypeformAlert;
@@ -12,6 +16,26 @@ interface Props {
 }
 
 export const AlertResponseDialog = ({ alert, open, onOpenChange }: Props) => {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopySummary = async () => {
+    const textToCopy = [
+      alert.title,
+      alert.program,
+      alert.channel,
+      alert.summary,
+    ].filter(Boolean).join("\n\n");
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setIsCopied(true);
+      toast.success("Texto copiado al portapapeles");
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy text:", error);
+      toast.error("No se pudo copiar el texto. Intente de nuevo.");
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -36,7 +60,23 @@ export const AlertResponseDialog = ({ alert, open, onOpenChange }: Props) => {
           <div className="space-y-4">
             {alert.summary && (
               <section>
-                <h4 className="text-sm font-semibold mb-1">Resumen</h4>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-sm font-semibold">Resumen</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={handleCopySummary}
+                    aria-label="Copiar resumen"
+                    title="Copiar resumen"
+                  >
+                    {isCopied ? (
+                      <CheckCheck className="h-3.5 w-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
                 <p className="text-sm whitespace-pre-line text-muted-foreground">{alert.summary}</p>
               </section>
             )}
