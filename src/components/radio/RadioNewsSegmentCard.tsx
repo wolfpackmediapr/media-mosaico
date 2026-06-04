@@ -24,6 +24,7 @@ const RadioNewsSegmentCard = ({
 }: RadioNewsSegmentCardProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(segment.text);
+  const [isCopied, setIsCopied] = useState(false);
 
   const handleEditToggle = () => {
     if (isEditing && onEdit) {
