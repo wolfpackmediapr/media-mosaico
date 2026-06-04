@@ -3,7 +3,8 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Edit2, Save, Play, X } from "lucide-react";
+import { Clock, Edit2, Save, Play, X, Copy, CheckCheck } from "lucide-react";
+import { toast } from "sonner";
 import { RadioNewsSegment } from "./RadioNewsSegmentsContainer";
 
 interface RadioNewsSegmentCardProps {
