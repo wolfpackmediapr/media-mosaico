@@ -60,7 +60,23 @@ export const AlertResponseDialog = ({ alert, open, onOpenChange }: Props) => {
           <div className="space-y-4">
             {alert.summary && (
               <section>
-                <h4 className="text-sm font-semibold mb-1">Resumen</h4>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-sm font-semibold">Resumen</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={handleCopySummary}
+                    aria-label="Copiar resumen"
+                    title="Copiar resumen"
+                  >
+                    {isCopied ? (
+                      <CheckCheck className="h-3.5 w-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
                 <p className="text-sm whitespace-pre-line text-muted-foreground">{alert.summary}</p>
               </section>
             )}
