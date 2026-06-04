@@ -16,6 +16,26 @@ interface Props {
 }
 
 export const AlertResponseDialog = ({ alert, open, onOpenChange }: Props) => {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopySummary = async () => {
+    const textToCopy = [
+      alert.title,
+      alert.program,
+      alert.channel,
+      alert.summary,
+    ].filter(Boolean).join("\n\n");
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setIsCopied(true);
+      toast.success("Texto copiado al portapapeles");
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy text:", error);
+      toast.error("No se pudo copiar el texto. Intente de nuevo.");
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
