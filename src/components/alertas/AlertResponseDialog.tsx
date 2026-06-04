@@ -1,9 +1,13 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Copy, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { TypeformAlert } from "@/hooks/use-typeform-alerts";
+import { toast } from "sonner";
+import { useState } from "react";
 
 interface Props {
   alert: TypeformAlert;
