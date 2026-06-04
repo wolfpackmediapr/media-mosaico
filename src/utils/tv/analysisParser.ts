@@ -80,7 +80,7 @@ export const parseAnalysisContent = (analysis: string): string => {
     console.log('[parseAnalysisContent] Successfully parsed as JSON');
     
     const formattedResult = convertJsonToReadableFormat(parsed);
-    return cleanTranscriptionFromAnalysis(formattedResult);
+    return stripNonRelevantClientLines(cleanTranscriptionFromAnalysis(formattedResult));
   } catch (jsonError) {
     console.log('[parseAnalysisContent] JSON parsing failed, checking existing formatting');
   }
@@ -88,7 +88,7 @@ export const parseAnalysisContent = (analysis: string): string => {
   // Check if already formatted with content type markers
   if (analysis.includes('[TIPO DE CONTENIDO:')) {
     console.log('[parseAnalysisContent] Content already formatted with type markers');
-    return consolidateContent(analysis);
+    return stripNonRelevantClientLines(consolidateContent(analysis));
   }
 
   // Determine if this is structured analysis or raw transcription
@@ -96,7 +96,7 @@ export const parseAnalysisContent = (analysis: string): string => {
     console.log('[parseAnalysisContent] Detected structured analysis content');
     const contentType = determineContentType(analysis);
     // Keep analysis content as-is, just add content type header if missing
-    return `[TIPO DE CONTENIDO: ${contentType}]\n\n${analysis.trim()}`;
+    return stripNonRelevantClientLines(`[TIPO DE CONTENIDO: ${contentType}]\n\n${analysis.trim()}`);
   }
 
   // Only apply transcription cleaning to raw dialogue
@@ -104,6 +104,69 @@ export const parseAnalysisContent = (analysis: string): string => {
   const contentType = determineContentType(analysis);
   return `[TIPO DE CONTENIDO: ${contentType}]\n\n${cleanTranscriptionContent(analysis)}`;
 };
+
+// Remove client-relevance bullets whose level is NO RELEVANTE / bajo / ninguna / etc.
+// Operates on plain-text TV analyses, where each client is rendered as a bullet
+// block beginning with "- " (or "* "/"• ") followed by the client name and
+// "Nivel de relevancia: <LEVEL>". A bullet block continues until the next
+// bullet at the same indentation or a blank line. Keeps everything else
+// (news summaries, 5W, copy button content) intact.
+export function stripNonRelevantClientLines(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+  if (!/nivel de relevancia/i.test(text)) return text;
+
+  const isNonRelevantLevel = (lvl: string): boolean => {
+    const n = (lvl || '')
+      .toString()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+    if (!n) return false;
+    if (n.startsWith('no relevante') || n.startsWith('no_relevante')) return true;
+    if (n === 'bajo' || n === 'baja' || n === 'low') return true;
+    if (n === 'ninguna' || n === 'ninguno' || n === 'none' || n === 'n/a' || n === 'na') return true;
+    if (n.startsWith('no especific')) return true;
+    return false;
+  };
+
+  const lines = text.split('\n');
+  const bulletStart = /^(\s*)([-*•])\s+/;
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const m = line.match(bulletStart);
+    if (!m) {
+      out.push(line);
+      i++;
+      continue;
+    }
+    // Collect this bullet block until next bullet at same/less indent or blank line.
+    const indentLen = m[1].length;
+    const block: string[] = [line];
+    let j = i + 1;
+    while (j < lines.length) {
+      const next = lines[j];
+      if (next.trim() === '') break;
+      const nm = next.match(bulletStart);
+      if (nm && nm[1].length <= indentLen) break;
+      block.push(next);
+      j++;
+    }
+    const blockText = block.join('\n');
+    const relMatch = blockText.match(/nivel de relevancia\s*:\s*([^.\n)]+)/i);
+    if (relMatch && isNonRelevantLevel(relMatch[1])) {
+      // Drop this bullet block entirely.
+    } else {
+      out.push(blockText);
+    }
+    i = j;
+  }
+
+  // Collapse 3+ consecutive blank lines that may result from removals.
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 
 // Enhanced function to clean transcription content from analysis
 function cleanTranscriptionFromAnalysis(content: string): string {
