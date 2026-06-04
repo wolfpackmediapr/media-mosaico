@@ -224,13 +224,33 @@ function convertJsonToReadableFormat(parsed: ParsedAnalysisData | any): string {
   // Client relevance section (prioritize Spanish)
   const clientRelevance = parsed.relevancia_clientes || parsed.client_relevance;
   if (clientRelevance && Array.isArray(clientRelevance)) {
-    sections.push('\n=== RELEVANCIA PARA CLIENTES ===');
-    clientRelevance.forEach(client => {
-      const clientName = client.cliente || client.client || 'Cliente';
-      const relevanceLevel = client.nivel_relevancia || client.relevance_level || 'No especificado';
-      const reason = client.razon || client.reason || 'No especificada';
-      sections.push(`• ${clientName} (${relevanceLevel}): ${reason}`);
-    });
+    const isRelevant = (lvl: string) => {
+      const n = (lvl || '')
+        .toString()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+      // Drop anything that is explicitly NOT relevant, low, none, n/a, or unspecified.
+      if (!n) return false;
+      if (n.includes('no relevante') || n.includes('no_relevante')) return false;
+      if (n === 'bajo' || n === 'baja' || n === 'low') return false;
+      if (n === 'ninguna' || n === 'ninguno' || n === 'none' || n === 'n/a' || n === 'na') return false;
+      if (n.includes('no especific')) return false;
+      return true;
+    };
+    const relevantOnly = clientRelevance.filter((c: any) =>
+      isRelevant(c.nivel_relevancia || c.relevance_level || '')
+    );
+    if (relevantOnly.length > 0) {
+      sections.push('\n=== RELEVANCIA PARA CLIENTES ===');
+      relevantOnly.forEach((client: any) => {
+        const clientName = client.cliente || client.client || 'Cliente';
+        const relevanceLevel = client.nivel_relevancia || client.relevance_level || 'No especificado';
+        const reason = client.razon || client.reason || 'No especificada';
+        sections.push(`• ${clientName} (${relevanceLevel}): ${reason}`);
+      });
+    }
   }
   
   // Alerts section (prioritize Spanish)
