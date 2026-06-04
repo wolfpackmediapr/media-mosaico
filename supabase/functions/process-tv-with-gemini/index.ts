@@ -87,6 +87,12 @@ Tu tarea es analizar ${hasTranscription ? 'la transcripción de un programa de T
 ${categoriesText}
 ${clientsText}
 
+REGLA CRÍTICA — RELEVANCIA PARA CLIENTES:
+En el campo "relevancia_clientes" SOLO incluye clientes cuyo nivel_relevancia sea ALTA o MEDIA (acepta también "alto"/"medio").
+NO incluyas clientes NO RELEVANTES, "bajo", "ninguna" ni "no especificado" — OMÍTELOS por completo del array.
+Si ningún cliente es relevante, devuelve "relevancia_clientes": [] (array vacío).
+Criterios para considerar relevante: mención directa del cliente o sus productos, competidor del sector, regulación/política que lo afecte, tendencia de su industria, o coincidencia con sus keywords asignadas.
+
 IDENTIFICACIÓN DE NOTICIAS INDIVIDUALES:
 Primero, identifica cada NOTICIA INDIVIDUAL dentro del programa. Un noticiero típico contiene 8-15 noticias separadas por transiciones visuales (cambios de escena, gráficos, cortes comerciales breves).
 
@@ -1476,26 +1482,19 @@ function buildTvAnalysisPrompt(categories: any[], clients: any[]): string {
     'Entretenimiento', 'Gobierno', 'Otras', 'Política', 'Religión', 'Salud', 'Tribunales'
   ].join(', ');
   
-  // Generate dynamic client-keyword mapping
-  const clientKeywordMapping = `
-**Accidentes:** tráfico, autopista, PR-52, heridas, choque
-**Agencia de Gobierno:** infraestructura, Naguabo, PROMESA, carreteras, servicios públicos
-**Ambiente:** conservación, bosques, reforestación, educación ambiental
-**Ambiente & El Tiempo:** tormenta tropical, lluvias, vientos, alerta
-**Ciencia & Tecnología:** científicos, Universidad de Puerto Rico, detección temprana, enfermedades tropicales
-**Comunidad:** Cruz Roja Americana, talleres, primeros auxilios, Hospital del Niño, recaudación de fondos
-**Crimen:** Policía, arresto, robos, San Juan, investigaciones
-**Deportes:** baloncesto, equipo nacional, torneo, Juegos Olímpicos, victoria
-**Economía & Negocios:** economía, recuperación, Coop de Seguros Múltiples, ingresos, Ford, vehículos
-**Educación & Cultura:** Departamento de Educación, currículo, historia, cultura, estudiantes
-**EE.UU. & Internacionales:** tensiones diplomáticas, Estados Unidos, China, negociaciones comerciales, repercusiones económicas
-**Entretenimiento:** Telemundo, serie, público puertorriqueño, actores
-**Gobierno:** Etica Gubernamental, investigación, irregularidades, fondos públicos, agencias gubernamentales
-**Otras:** organizaciones sin fines de lucro, campaña, concienciación, voluntariado, eventos, actividades
-**Política:** elecciones, candidatos, plataformas, propuestas, debate, temas económicos, temas sociales
-**Religión:** festividades, iglesias, eventos, actividades, feligreses
-**Salud:** enfermedades respiratorias, campañas de prevención, atención primaria, capacidad hospitalaria, medicamentos
-**Tribunales:** Tribunal Supremo, decisión, derechos civiles, precedente, organizaciones de derechos humanos`;
+  // Build client→keyword mapping dynamically from the clients table (Ajustes → Clientes).
+  // This replaces the previous hardcoded category→keyword list so the prompt always reflects
+  // what the user has actually configured.
+  const clientKeywordMapping = clients.length > 0
+    ? clients
+        .map((c: any) => {
+          const kws = Array.isArray(c.keywords) && c.keywords.length > 0
+            ? c.keywords.join(', ')
+            : '—';
+          return `**${c.name}:** ${kws}`;
+        })
+        .join('\n')
+    : '(sin clientes configurados)';
 
   return `Eres un analista experto en contenido de TV. Tu tarea es analizar la siguiente transcripción de TV en español e identificar y separar el contenido publicitario del contenido regular del programa.
 
@@ -1548,6 +1547,9 @@ PARA CADA SECCIÓN DE PROGRAMA REGULAR:
 
 7. Palabras clave mencionadas relevantes para los clientes. Lista de correlación entre clientes y palabras clave:
 ${clientKeywordMapping}
+
+REGLA CRÍTICA — RELEVANCIA PARA CLIENTES:
+SOLO menciona clientes cuyo nivel de relevancia sea ALTA o MEDIA. NO listes clientes NO RELEVANTES, "bajo", "ninguna" ni "no especificado" — OMÍTELOS por completo de la sección de clientes relevantes. Si ningún cliente aplica, indica explícitamente "Ningún cliente relevante en este contenido".
 
 Responde en español de manera concisa y profesional. Asegúrate de:
 1. Comenzar SIEMPRE con el encabezado de tipo de contenido correspondiente en mayúsculas
