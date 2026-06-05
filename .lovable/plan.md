@@ -1,20 +1,34 @@
-## Problem
+## Plan: Add 13 social feeds (12 + INDUNIV) to Redes Sociales
 
-In the Feed Unificado search input (`src/components/dashboard/CombinedNewsFeedWidget.tsx`), the debounce on the search term is set to **500ms**. This fires a new query while the user is still typing, causing the list to reload mid-word, the input to feel like it "jumps", and making it hard to type a full multi-word query before results refresh.
+All 13 feeds will be appended to `SOCIAL_FEEDS` in `supabase/functions/process-social-feeds/constants.ts` using the JSON v1.1 URL pattern `https://rss.app/feeds/v1.1/{ID}.json`. No processor changes — the existing `processRssJsonFeed` handles them, and `instagram` is already in `SOCIAL_PLATFORMS` so the Instagram icon (already defined in `src/lib/platform-icons.tsx`) will render automatically next to each post.
 
-## Fix
+### Entries to append
 
-Single, surgical change in `src/components/dashboard/CombinedNewsFeedWidget.tsx`:
+| Name | Platform | Feed ID |
+|------|----------|---------|
+| La Fortaleza | instagram | iNq4TI2MxVgtHR3t |
+| Jenniffer González | instagram | N6JfDAhqIKWq5x4W |
+| DDEC | instagram | ci2oAm96pI9w3nF4 |
+| PRIDCO | instagram | bpocIAq25wwFhldi |
+| Roberto Lefranc Fortuño | instagram | wA0tGymiwGq7Zfnt |
+| PRFAA | instagram | xKyIwIcm4Wx7oFC1 |
+| Municipio de Juncos | instagram | krpvxLcSphDzGCZA |
+| PRMA | instagram | 5zr5dGnelbfhAXUh |
+| Cámara de Comercio PR | twitter | fyHIr8k2uDBONIhD |
+| PIA Puerto Rico | instagram | zcpd8UjmqsAsLkuK |
+| PR Science Trust | instagram | gVi1cBJpnqC883S0 |
+| Invest Puerto Rico | instagram | KqDAsz3K05A15HUF |
+| INDUNIV | instagram | RGTLzu33tiyv0lyA |
 
-- Increase the debounce delay passed to `useDebounce(searchTerm, 500)` from **500ms → 900ms**.
+INDUNIV: original XML URL is converted to the JSON v1.1 form and classified as `instagram` so it shows under Redes Sociales with the Instagram icon. Not added to Prensa Digital.
 
-That's it. No other logic touched:
-- Minimum 3-character gate stays the same.
-- "Search pending" indicator (already wired via `searchTerm !== debouncedSearchTerm`) keeps working and will simply show slightly longer, signaling to the user that typing is being captured.
-- No changes to the query, filters, pagination, results-while-loading behavior, Prensa Digital / Redes Sociales merging, TV, Prensa Escrita, Radio, or any other component.
+### Verification
 
-## Out of scope
+- File parses (no duplicate IDs / names).
+- After deploy, manual refresh from Redes Sociales populates the 13 new feeds; Instagram icon renders via existing `platformIcons.instagram`.
 
-- No changes to `useDebounce` itself (it's shared).
-- No changes to the search hook, edge functions, or backend.
-- No visual/UI changes.
+### Out of scope
+
+- Category labels (Gobierno / Industria / etc.) — deferred.
+- No schema changes, no new tables, no UI changes.
+- If any feed ID is XML-only on rss.app and the JSON URL 404s, it will surface as `error_count > 0` on `feed_sources` and we'll revisit individually.
