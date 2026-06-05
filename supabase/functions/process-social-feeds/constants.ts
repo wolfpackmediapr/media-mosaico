@@ -209,6 +209,72 @@ export const SOCIAL_FEEDS = [
     url: "https://rss.app/feeds/v1.1/GWSpZ5r9stWa9698.json",
     name: "WALO Radio",
     platform: "twitter"
+  },
+  // Government & Institutional (Instagram + Twitter)
+  {
+    url: "https://rss.app/feeds/v1.1/iNq4TI2MxVgtHR3t.json",
+    name: "La Fortaleza",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/N6JfDAhqIKWq5x4W.json",
+    name: "Jenniffer González",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/ci2oAm96pI9w3nF4.json",
+    name: "DDEC",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/bpocIAq25wwFhldi.json",
+    name: "PRIDCO",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/wA0tGymiwGq7Zfnt.json",
+    name: "Roberto Lefranc Fortuño",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/xKyIwIcm4Wx7oFC1.json",
+    name: "PRFAA",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/krpvxLcSphDzGCZA.json",
+    name: "Municipio de Juncos",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/5zr5dGnelbfhAXUh.json",
+    name: "PRMA",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/fyHIr8k2uDBONIhD.json",
+    name: "Cámara de Comercio PR",
+    platform: "twitter"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/zcpd8UjmqsAsLkuK.json",
+    name: "PIA Puerto Rico",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/gVi1cBJpnqC883S0.json",
+    name: "PR Science Trust",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/KqDAsz3K05A15HUF.json",
+    name: "Invest Puerto Rico",
+    platform: "instagram"
+  },
+  {
+    url: "https://rss.app/feeds/v1.1/RGTLzu33tiyv0lyA.json",
+    name: "INDUNIV",
+    platform: "instagram"
   }
 ];
 
