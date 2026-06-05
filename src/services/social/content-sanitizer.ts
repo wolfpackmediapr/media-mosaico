@@ -1,5 +1,34 @@
 
 /**
+ * Rewrite hotlink-blocked image src attributes (Instagram CDN, fbcdn) to go
+ * through the social-image-proxy edge function so the browser can render them.
+ */
+const PROXY_HOST_SUFFIXES = ["cdninstagram.com", "fbcdn.net"];
+
+const rewriteInlineImages = (html: string): string => {
+  if (!html) return html;
+  const base = import.meta.env.VITE_SUPABASE_URL;
+  if (!base) return html;
+  return html.replace(
+    /(<img\b[^>]*\bsrc=)(["'])([^"']+)\2/gi,
+    (_m, prefix, quote, src) => {
+      try {
+        const u = new URL(src);
+        const host = u.hostname.toLowerCase();
+        const needsProxy = PROXY_HOST_SUFFIXES.some(
+          (s) => host === s || host.endsWith("." + s),
+        );
+        if (!needsProxy) return `${prefix}${quote}${src}${quote}`;
+        const proxied = `${base}/functions/v1/social-image-proxy?url=${encodeURIComponent(src)}`;
+        return `${prefix}${quote}${proxied}${quote}`;
+      } catch {
+        return `${prefix}${quote}${src}${quote}`;
+      }
+    },
+  );
+};
+
+/**
  * Sanitizes social media content by removing unwanted HTML and formatting properly
  */
 export const sanitizeSocialContent = (content: string): string => {
@@ -8,7 +37,7 @@ export const sanitizeSocialContent = (content: string): string => {
   // First check if this is a Twitter-style post (which often has blockquotes)
   if (content.includes('<blockquote class="twitter-tweet"') || 
       content.includes('<blockquote class="twitter-content"')) {
-    return handleTwitterContent(content);
+    return rewriteInlineImages(handleTwitterContent(content));
   }
   
   // For other content, do basic HTML cleanup
@@ -31,7 +60,7 @@ export const sanitizeSocialContent = (content: string): string => {
     cleaned = paragraphs.slice(0, 3).join('</p>') + '</p>';
   }
   
-  return cleaned;
+  return rewriteInlineImages(cleaned);
 };
 
 /**
