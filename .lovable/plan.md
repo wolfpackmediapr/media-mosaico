@@ -1,34 +1,35 @@
-## Plan: Add 13 social feeds (12 + INDUNIV) to Redes Sociales
+## Goal
+Make Instagram thumbnails render in Redes Sociales by proxying `scontent.cdninstagram.com` URLs through a Supabase edge function, bypassing Instagram's referrer/hotlink block.
 
-All 13 feeds will be appended to `SOCIAL_FEEDS` in `supabase/functions/process-social-feeds/constants.ts` using the JSON v1.1 URL pattern `https://rss.app/feeds/v1.1/{ID}.json`. No processor changes — the existing `processRssJsonFeed` handles them, and `instagram` is already in `SOCIAL_PLATFORMS` so the Instagram icon (already defined in `src/lib/platform-icons.tsx`) will render automatically next to each post.
+## Changes
 
-### Entries to append
+### 1. New edge function: `social-image-proxy`
+- Path: `supabase/functions/social-image-proxy/index.ts`
+- Public (no JWT) — declared in `supabase/config.toml` with `verify_jwt = false`.
+- Accepts `GET /functions/v1/social-image-proxy?url=<encoded>`.
+- Validates the `url` param: must be `https://` and host must end in one of `cdninstagram.com`, `fbcdn.net`, `rss.app` (allowlist to prevent open-proxy abuse).
+- Server-side `fetch(url)` (no browser referrer restriction).
+- Streams the response body back with:
+  - `Content-Type` copied from upstream (default `image/jpeg`)
+  - `Cache-Control: public, max-age=86400, immutable`
+  - CORS headers
+- Returns 400 on invalid input, 502 on upstream failure.
 
-| Name | Platform | Feed ID |
-|------|----------|---------|
-| La Fortaleza | instagram | iNq4TI2MxVgtHR3t |
-| Jenniffer González | instagram | N6JfDAhqIKWq5x4W |
-| DDEC | instagram | ci2oAm96pI9w3nF4 |
-| PRIDCO | instagram | bpocIAq25wwFhldi |
-| Roberto Lefranc Fortuño | instagram | wA0tGymiwGq7Zfnt |
-| PRFAA | instagram | xKyIwIcm4Wx7oFC1 |
-| Municipio de Juncos | instagram | krpvxLcSphDzGCZA |
-| PRMA | instagram | 5zr5dGnelbfhAXUh |
-| Cámara de Comercio PR | twitter | fyHIr8k2uDBONIhD |
-| PIA Puerto Rico | instagram | zcpd8UjmqsAsLkuK |
-| PR Science Trust | instagram | gVi1cBJpnqC883S0 |
-| Invest Puerto Rico | instagram | KqDAsz3K05A15HUF |
-| INDUNIV | instagram | RGTLzu33tiyv0lyA |
+### 2. Frontend rewrite helper
+- File: `src/services/social/image-utils.ts` (already exists — extend `getSocialPostImage`).
+- Add `proxyInstagramUrl(url)` that, when the URL host matches the allowlist, returns:
+  `${VITE_SUPABASE_URL}/functions/v1/social-image-proxy?url=${encodeURIComponent(url)}`.
+- Twitter/rss.app-hosted images pass through unchanged.
 
-INDUNIV: original XML URL is converted to the JSON v1.1 form and classified as `instagram` so it shows under Redes Sociales with the Instagram icon. Not added to Prensa Digital.
+### 3. Apply rewrite at render
+- `src/components/social/SocialPostCard.tsx` already calls `getSocialPostImage(post)` — no further changes needed once the helper rewrites Instagram URLs.
+- Also strip inline `<img src="scontent…">` inside the description HTML (in `content-sanitizer.ts`) and replace with the proxied URL, so the small inline thumbnail under the title also loads.
 
-### Verification
+## Out of scope
+- Rehosting to Supabase Storage (Option B).
+- Backfilling old broken images — once the proxy is live, old cards will start working too because rewrite happens at render time. Only caveat: Instagram signed URLs eventually expire (days), so very old posts may still 404 from upstream.
 
-- File parses (no duplicate IDs / names).
-- After deploy, manual refresh from Redes Sociales populates the 13 new feeds; Instagram icon renders via existing `platformIcons.instagram`.
-
-### Out of scope
-
-- Category labels (Gobierno / Industria / etc.) — deferred.
-- No schema changes, no new tables, no UI changes.
-- If any feed ID is XML-only on rss.app and the JSON URL 404s, it will surface as `error_count > 0` on `feed_sources` and we'll revisit individually.
+## Technical notes
+- No DB migration, no new secrets.
+- No new env vars — function uses public anon key via the standard `/functions/v1/` URL the SDK already knows.
+- Open-proxy hardening via host allowlist + size guard (reject responses > 10 MB).

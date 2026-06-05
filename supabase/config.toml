@@ -25,6 +25,9 @@ verify_jwt = false
 [functions.process-social-feeds]
 verify_jwt = false
 
+[functions.social-image-proxy]
+verify_jwt = false
+
 [functions.reanalyze-articles]
 verify_jwt = false
 

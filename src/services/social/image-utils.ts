@@ -1,6 +1,31 @@
 
 import { extractImageFromHtml, getPlatformPlaceholderImage } from "./content-sanitizer";
 
+const PROXY_HOST_SUFFIXES = ["cdninstagram.com", "fbcdn.net"];
+
+/**
+ * Rewrite hotlink-blocked image URLs (Instagram CDN) through our edge proxy
+ * so the browser can render them without a referrer/403 block.
+ */
+export const proxyImageUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+  const host = parsed.hostname.toLowerCase();
+  const needsProxy = PROXY_HOST_SUFFIXES.some(
+    (s) => host === s || host.endsWith("." + s),
+  );
+  if (!needsProxy) return url;
+
+  const base = import.meta.env.VITE_SUPABASE_URL;
+  if (!base) return url;
+  return `${base}/functions/v1/social-image-proxy?url=${encodeURIComponent(url)}`;
+};
+
 /**
  * Extract image URL from various possible sources in social feed data
  */
@@ -45,5 +70,5 @@ export const getSocialPostImage = (article: any): string | null => {
     );
   }
   
-  return image;
+  return proxyImageUrl(image);
 };
