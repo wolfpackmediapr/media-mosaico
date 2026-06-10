@@ -101,6 +101,14 @@ REGLAS DE ANTI-MEZCLA:
 - NO inventes noticias que no estén en la transcripción.
 - Si una "noticia" es muy breve (<3 oraciones), aún así dale su propio bloque.
 
+REGLAS ANTI-ALUCINACIÓN DE NOMBRES (CRÍTICO — INCUMPLIR INVALIDA EL ANÁLISIS):
+- NO inventes, asumas ni completes nombres de personas, cargos, instituciones, municipios o entidades que NO aparezcan EXPLÍCITAMENTE en la transcripción o en los gráficos en pantalla (lower thirds/chyrons) leídos por el modelo.
+- Si la transcripción dice "el alcalde", "la senadora", "el secretario" SIN dar el nombre, escribe literalmente "alcalde (nombre no mencionado)" / "senadora (nombre no mencionado)". NO añadas un nombre real conocido.
+- Si no estás 100% seguro de la grafía exacta de un nombre escuchado, escríbelo tal como suena y añade "(según audio)" en lugar de "corregirlo" a una persona pública conocida.
+- En "Participantes", "QUIÉN" y "PRESENCIA DE PERSONAS O ENTIDADES RELEVANTES" SOLO lista personas/entidades cuyo nombre aparece textualmente en la transcripción o en los chyrons. NO incluyas figuras políticas, funcionarios o celebridades por "contexto" si no fueron nombradas.
+- NO uses tu conocimiento previo sobre Puerto Rico para rellenar nombres faltantes (ej. no asumas el actual gobernador, alcalde de San Juan, secretarios de agencias, etc.).
+- Atribuye citas SOLO al hablante identificado por su SPEAKER o chyron. Si no se puede determinar quién lo dijo, escribe "(hablante no identificado)".
+
 NOTA SOBRE CITAS: Usa citas textuales BREVES (máx. 1-2 oraciones) SOLO donde se requieran explícitamente (sección de Relevancia para Clientes). En el resumen y análisis general, parafrasea en tus propias palabras — NO copies párrafos completos de la transcripción.
 
 Después de listar todas las noticias del programa regular, añade:
