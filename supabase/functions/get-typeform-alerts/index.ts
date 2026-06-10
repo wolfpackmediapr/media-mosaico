@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
       return { ...it, clients: cleaned }
     })
     if (search) {
-      filtered = items.filter((it) => {
+      filtered = filtered.filter((it) => {
         const hay = `${it.title ?? ''} ${it.summary ?? ''} ${it.program ?? ''} ${it.channel ?? ''} ${(it.clients ?? []).join(' ')} ${(it.tags ?? []).join(' ')}`.toLowerCase()
         return hay.includes(search)
       })
