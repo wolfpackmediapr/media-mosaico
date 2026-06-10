@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { normalizeText } from '../_shared/textNormalize.ts'
 
 console.log('[get-typeform-alerts] boot', {
   hasToken: !!Deno.env.get('TYPEFORM_API_TOKEN'),
@@ -28,7 +29,32 @@ interface NormalizedAlert {
 
 interface CacheEntry { at: number; data: NormalizedAlert[] }
 const cache = new Map<FormType, CacheEntry>()
-const CACHE_TTL_MS = 5 * 60 * 1000
+const CACHE_TTL_MS = 60 * 1000
+
+interface ActiveClientsCache { at: number; names: string[]; normalized: Set<string> }
+let activeClientsCache: ActiveClientsCache | null = null
+const ACTIVE_CLIENTS_TTL_MS = 60 * 1000
+
+async function getActiveClients(adminClient: any): Promise<ActiveClientsCache> {
+  if (activeClientsCache && Date.now() - activeClientsCache.at < ACTIVE_CLIENTS_TTL_MS) {
+    return activeClientsCache
+  }
+  const { data, error } = await adminClient
+    .from('clients')
+    .select('name')
+    .eq('is_active', true)
+  if (error) {
+    console.error('[get-typeform-alerts] active clients fetch error', error)
+    return activeClientsCache ?? { at: Date.now(), names: [], normalized: new Set() }
+  }
+  const names = (data ?? []).map((r: any) => String(r.name || '')).filter(Boolean)
+  activeClientsCache = {
+    at: Date.now(),
+    names,
+    normalized: new Set(names.map((n) => normalizeText(n))),
+  }
+  return activeClientsCache
+}
 
 function matchKey(title: string, keywords: string[]): boolean {
   const t = title.toLowerCase()
@@ -187,6 +213,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'typeform_token_missing' }), { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    const adminClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
+    const activeClients = await getActiveClients(adminClient)
+
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
     const form: 'tv' | 'radio' | 'all' = body.form ?? 'all'
     const pageSize = Math.min(Math.max(Number(body.page_size ?? 25), 1), 100)
@@ -213,9 +245,14 @@ Deno.serve(async (req) => {
       else errors[targets[i].type] = String((r as PromiseRejectedResult).reason?.message ?? r.reason)
     })
 
-    let filtered = items
+    // Filter out inactive client labels from each item's clients[]
+    let filtered = items.map((it) => {
+      if (!it.clients || it.clients.length === 0) return it
+      const cleaned = it.clients.filter((c) => activeClients.normalized.has(normalizeText(c)))
+      return { ...it, clients: cleaned }
+    })
     if (search) {
-      filtered = items.filter((it) => {
+      filtered = filtered.filter((it) => {
         const hay = `${it.title ?? ''} ${it.summary ?? ''} ${it.program ?? ''} ${it.channel ?? ''} ${(it.clients ?? []).join(' ')} ${(it.tags ?? []).join(' ')}`.toLowerCase()
         return hay.includes(search)
       })
