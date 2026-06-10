@@ -48,6 +48,13 @@ REGLAS DE FORMATO:
 PARTE 2 - ANÁLISIS ESTRUCTURADO:
 Después de la transcripción, proporciona un análisis en formato JSON:
 
+REGLAS ANTI-ALUCINACIÓN DE NOMBRES (CRÍTICO):
+- NO inventes ni asumas nombres de personas, cargos, instituciones o municipios que no aparezcan EXPLÍCITAMENTE en la transcripción o en chyrons/lower-thirds visibles en el video.
+- Si la transcripción dice un cargo sin nombre (ej. "el alcalde", "la secretaria"), escribe "(nombre no mencionado)" en lugar de añadir un nombre conocido.
+- NO uses tu conocimiento previo sobre figuras públicas de Puerto Rico para rellenar nombres faltantes.
+- En "quien" y "relevancia_clientes" SOLO lista personas/entidades textualmente mencionadas o visualmente identificadas.
+- Atribuye declaraciones SOLO al hablante que efectivamente las dijo según SPEAKER X o el chyron en pantalla. Si es ambiguo, marca "(hablante no identificado)".
+
 {
   "categoria": "categoría principal del contenido",
   "relevancia_clientes": [
