@@ -1957,6 +1957,102 @@ export type Database = {
         }
         Relationships: []
       }
+      typeform_responses: {
+        Row: {
+          category: string | null
+          channel: string | null
+          clients: string[]
+          created_at: string
+          form_id: string
+          form_type: string
+          id: string
+          is_alert: boolean
+          landed_at: string | null
+          payload: Json
+          program: string | null
+          raw_answers: Json
+          response_id: string
+          submitted_at: string
+          summary: string | null
+          tags: string[]
+          title: string | null
+          token: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          channel?: string | null
+          clients?: string[]
+          created_at?: string
+          form_id: string
+          form_type: string
+          id?: string
+          is_alert?: boolean
+          landed_at?: string | null
+          payload?: Json
+          program?: string | null
+          raw_answers?: Json
+          response_id: string
+          submitted_at: string
+          summary?: string | null
+          tags?: string[]
+          title?: string | null
+          token?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          channel?: string | null
+          clients?: string[]
+          created_at?: string
+          form_id?: string
+          form_type?: string
+          id?: string
+          is_alert?: boolean
+          landed_at?: string | null
+          payload?: Json
+          program?: string | null
+          raw_answers?: Json
+          response_id?: string
+          submitted_at?: string
+          summary?: string | null
+          tags?: string[]
+          title?: string | null
+          token?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      typeform_sync_state: {
+        Row: {
+          form_id: string
+          form_type: string
+          last_error: string | null
+          last_run_at: string | null
+          last_run_status: string | null
+          last_synced_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          form_id: string
+          form_type: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_status?: string | null
+          last_synced_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          form_id?: string
+          form_type?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_status?: string | null
+          last_synced_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           created_at: string
