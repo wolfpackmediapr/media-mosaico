@@ -7,9 +7,7 @@ console.log('[get-typeform-alerts] boot', {
   hasTvId: !!Deno.env.get('TYPEFORM_TV_FORM_ID'),
 })
 
-const RADIO_FORM_ID = 'ngv41rGM'
 const TV_FORM_ID = Deno.env.get('TYPEFORM_TV_FORM_ID') ?? ''
-const TYPEFORM_TOKEN = Deno.env.get('TYPEFORM_API_TOKEN') ?? ''
 
 type FormType = 'tv' | 'radio'
 
@@ -26,10 +24,6 @@ interface NormalizedAlert {
   clients: string[]
   rawAnswers: Record<string, string | string[]>
 }
-
-interface CacheEntry { at: number; data: NormalizedAlert[] }
-const cache = new Map<FormType, CacheEntry>()
-const CACHE_TTL_MS = 60 * 1000
 
 interface ActiveClientsCache { at: number; names: string[]; normalized: Set<string> }
 let activeClientsCache: ActiveClientsCache | null = null
@@ -56,142 +50,6 @@ async function getActiveClients(adminClient: any): Promise<ActiveClientsCache> {
   return activeClientsCache
 }
 
-function matchKey(title: string, keywords: string[]): boolean {
-  const t = title.toLowerCase()
-  return keywords.some((k) => t.includes(k))
-}
-
-function classifyField(title: string): keyof NormalizedAlert | 'program' | 'clients' | 'tags' | null {
-  const t = title.toLowerCase()
-  if (matchKey(t, ['título', 'titulo'])) return 'title'
-  if (matchKey(t, ['resumen', 'noticia o evento'])) return 'summary'
-  if (matchKey(t, ['categoría', 'categoria'])) return 'category'
-  if (matchKey(t, ['canal', 'emisora', 'estación', 'estacion'])) return 'channel'
-  if (matchKey(t, ['programa'])) return 'program'
-  if (matchKey(t, ['lista de email', 'clientes', 'cliente'])) return 'clients'
-  if (matchKey(t, ['tag'])) return 'tags'
-  return null
-}
-
-function extractAnswerValue(answer: any): string | string[] | null {
-  if (!answer) return null
-  switch (answer.type) {
-    case 'text':
-    case 'long_text':
-    case 'email':
-    case 'url':
-    case 'phone_number':
-      return answer[answer.type] ?? null
-    case 'choice':
-      return answer.choice?.label ?? answer.choice?.other ?? null
-    case 'choices':
-      return answer.choices?.labels ?? []
-    case 'number':
-      return String(answer.number)
-    case 'boolean':
-      return answer.boolean ? 'Sí' : 'No'
-    case 'date':
-      return answer.date ?? null
-    default:
-      return null
-  }
-}
-
-async function fetchFormSchema(formId: string): Promise<Map<string, string>> {
-  const res = await fetch(`https://api.typeform.com/forms/${formId}`, {
-    headers: { Authorization: `Bearer ${TYPEFORM_TOKEN}` },
-  })
-  if (!res.ok) throw new Error(`schema:${res.status}`)
-  const json = await res.json()
-  const map = new Map<string, string>()
-  const walk = (fields: any[]) => {
-    for (const f of fields ?? []) {
-      if (f.id && f.title) map.set(f.id, f.title)
-      if (f.properties?.fields) walk(f.properties.fields)
-    }
-  }
-  walk(json.fields ?? [])
-  return map
-}
-
-async function fetchResponses(formId: string, formType: FormType, pageSize: number, since?: string, until?: string): Promise<NormalizedAlert[]> {
-  const titles = await fetchFormSchema(formId)
-  const params = new URLSearchParams({ page_size: String(pageSize), completed: 'true' })
-  if (since) params.set('since', since)
-  if (until) params.set('until', until)
-  const res = await fetch(`https://api.typeform.com/forms/${formId}/responses?${params}`, {
-    headers: { Authorization: `Bearer ${TYPEFORM_TOKEN}` },
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`responses:${res.status}:${body.slice(0, 200)}`)
-  }
-  const json = await res.json()
-  const items: NormalizedAlert[] = []
-  for (const item of json.items ?? []) {
-    const norm: NormalizedAlert = {
-      id: item.response_id ?? item.token,
-      formType,
-      submittedAt: item.submitted_at ?? item.landed_at ?? new Date().toISOString(),
-      tags: [],
-      clients: [],
-      rawAnswers: {},
-    }
-    for (const ans of item.answers ?? []) {
-      const fieldId = ans.field?.id
-      const title = (fieldId ? titles.get(fieldId) : undefined) ?? ans.field?.ref ?? ''
-      const value = extractAnswerValue(ans)
-      if (value == null) continue
-      if (title) norm.rawAnswers[title] = value
-      const kind = title ? classifyField(title) : null
-      if (!kind) continue
-      switch (kind) {
-        case 'title':
-        case 'summary':
-        case 'category':
-        case 'channel':
-        case 'program':
-          ;(norm as any)[kind] = Array.isArray(value) ? value.join(', ') : value
-          break
-        case 'clients':
-          norm.clients = Array.isArray(value) ? value : [value]
-          break
-        case 'tags':
-          norm.tags = Array.isArray(value) ? value : [value]
-          break
-      }
-    }
-    // If a "Programas De ..." field was answered for a specific channel and no canal was selected,
-    // infer channel from field title.
-    if (!norm.channel || !norm.program) {
-      for (const [t, v] of Object.entries(norm.rawAnswers)) {
-        const low = t.toLowerCase()
-        if (low.startsWith('programas de') && v) {
-          norm.program = Array.isArray(v) ? v.join(', ') : v
-          if (!norm.channel) {
-            const m = t.match(/\(([^)]+)\)/)
-            if (m) norm.channel = m[1]
-          }
-          break
-        }
-      }
-    }
-    items.push(norm)
-  }
-  return items
-}
-
-async function getCached(formType: FormType, formId: string, pageSize: number, since?: string, until?: string): Promise<NormalizedAlert[]> {
-  if (since || until) {
-    return fetchResponses(formId, formType, pageSize, since, until)
-  }
-  const hit = cache.get(formType)
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data.slice(0, pageSize)
-  const data = await fetchResponses(formId, formType, pageSize)
-  cache.set(formType, { at: Date.now(), data })
-  return data
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -210,10 +68,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    if (!TYPEFORM_TOKEN) {
-      return new Response(JSON.stringify({ error: 'typeform_token_missing' }), { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-    }
-
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -228,49 +82,69 @@ Deno.serve(async (req) => {
     const until: string | undefined = body.until || undefined
     const search: string = (body.search ?? '').toString().toLowerCase().trim()
 
-    const targets: { type: FormType; id: string }[] = []
-    if (form === 'tv' || form === 'all') {
-      if (TV_FORM_ID) targets.push({ type: 'tv', id: TV_FORM_ID })
-    }
-    if (form === 'radio' || form === 'all') {
-      targets.push({ type: 'radio', id: RADIO_FORM_ID })
-    }
+    const formTypes: FormType[] = form === 'all' ? ['tv', 'radio'] : [form]
 
-    // When date filtering, pull up to 1000 responses for the range; otherwise keep the
-    // previous page-based fetch behavior.
-    const fetchSize = (since || until) ? 1000 : pageSize * page
-    const results = await Promise.allSettled(
-      targets.map((t) => getCached(t.type, t.id, fetchSize, since, until)),
-    )
+    // Build query
+    let query = adminClient
+      .from('typeform_responses')
+      .select(
+        'response_id, form_type, submitted_at, title, summary, category, channel, program, clients, tags, raw_answers',
+        { count: 'exact' },
+      )
+      .in('form_type', formTypes)
+      .order('submitted_at', { ascending: false })
 
-    const items: NormalizedAlert[] = []
-    const errors: Record<string, string> = {}
-    results.forEach((r, i) => {
-      if (r.status === 'fulfilled') items.push(...r.value)
-      else errors[targets[i].type] = String((r as PromiseRejectedResult).reason?.message ?? r.reason)
-    })
-
-    // Filter out inactive client labels from each item's clients[]
-    let filtered = items.map((it) => {
-      if (!it.clients || it.clients.length === 0) return it
-      const cleaned = it.clients.filter((c) => activeClients.normalized.has(normalizeText(c)))
-      return { ...it, clients: cleaned }
-    })
+    if (since) query = query.gte('submitted_at', since)
+    if (until) query = query.lte('submitted_at', until)
     if (search) {
-      filtered = filtered.filter((it) => {
-        const hay = `${it.title ?? ''} ${it.summary ?? ''} ${it.program ?? ''} ${it.channel ?? ''} ${(it.clients ?? []).join(' ')} ${(it.tags ?? []).join(' ')}`.toLowerCase()
-        return hay.includes(search)
-      })
+      const esc = search.replace(/[\\%_,()]/g, (m) => `\\${m}`)
+      const like = `%${esc}%`
+      query = query.or(
+        `title.ilike.${like},summary.ilike.${like},program.ilike.${like},channel.ilike.${like}`,
+      )
     }
 
-    filtered.sort((a, b) => (b.submittedAt > a.submittedAt ? 1 : -1))
-
-    const total = filtered.length
+    // Server-side pagination (no active-client filtering applied to total — matches prior UX
+    // where total reflects raw results and inactive-client labels are stripped per-row).
     const start = (page - 1) * pageSize
-    const paged = filtered.slice(start, start + pageSize)
+    const end = start + pageSize - 1
+    query = query.range(start, end)
+
+    const { data, error, count } = await query
+    if (error) {
+      console.error('[get-typeform-alerts] mirror query error', error)
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const items: NormalizedAlert[] = (data ?? []).map((r: any) => {
+      const clients = (r.clients ?? []).filter((c: string) =>
+        activeClients.normalized.has(normalizeText(c)),
+      )
+      return {
+        id: r.response_id,
+        formType: r.form_type as FormType,
+        submittedAt: r.submitted_at,
+        channel: r.channel ?? undefined,
+        program: r.program ?? undefined,
+        title: r.title ?? undefined,
+        summary: r.summary ?? undefined,
+        category: r.category ?? undefined,
+        tags: r.tags ?? [],
+        clients,
+        rawAnswers: r.raw_answers ?? {},
+      }
+    })
 
     return new Response(
-      JSON.stringify({ items: paged, total, errors, tvFormConfigured: Boolean(TV_FORM_ID) }),
+      JSON.stringify({
+        items,
+        total: count ?? items.length,
+        errors: {},
+        tvFormConfigured: Boolean(TV_FORM_ID),
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {
