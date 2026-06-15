@@ -8,6 +8,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 import { useTypeformAlerts, type AlertFormFilter } from "@/hooks/use-typeform-alerts";
 import { AlertResponseCard } from "@/components/alertas/AlertResponseCard";
+import {
+  AlertsDateRangePicker,
+  type AlertsDateRange,
+  resolveAlertsPreset,
+} from "@/components/alertas/AlertsDateRangePicker";
 
 const PAGE_SIZE = 12;
 
@@ -16,6 +21,10 @@ const EnvioAlertas = () => {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(1);
+  const [dateRange, setDateRange] = useState<AlertsDateRange>(() => {
+    const { from, to } = resolveAlertsPreset("30days");
+    return { preset: "30days", from, to };
+  });
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -24,11 +33,13 @@ const EnvioAlertas = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [form, debounced]);
+  }, [form, debounced, dateRange.from, dateRange.to]);
 
   const { data, isLoading, isFetching, refresh, error } = useTypeformAlerts({
     form,
     search: debounced,
+    since: dateRange.from ? dateRange.from.toISOString() : undefined,
+    until: dateRange.to ? dateRange.to.toISOString() : undefined,
     pageSize: PAGE_SIZE,
     page,
   });
@@ -87,14 +98,17 @@ const EnvioAlertas = () => {
               <TabsTrigger value="radio">Radio</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar en título, resumen, cliente…"
-              className="pl-8"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <AlertsDateRangePicker value={dateRange} onChange={setDateRange} />
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar en título, resumen, cliente…"
+                className="pl-8"
+              />
+            </div>
           </div>
         </div>
 

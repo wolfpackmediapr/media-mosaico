@@ -114,10 +114,11 @@ async function fetchFormSchema(formId: string): Promise<Map<string, string>> {
   return map
 }
 
-async function fetchResponses(formId: string, formType: FormType, pageSize: number, since?: string): Promise<NormalizedAlert[]> {
+async function fetchResponses(formId: string, formType: FormType, pageSize: number, since?: string, until?: string): Promise<NormalizedAlert[]> {
   const titles = await fetchFormSchema(formId)
   const params = new URLSearchParams({ page_size: String(pageSize), completed: 'true' })
   if (since) params.set('since', since)
+  if (until) params.set('until', until)
   const res = await fetch(`https://api.typeform.com/forms/${formId}/responses?${params}`, {
     headers: { Authorization: `Bearer ${TYPEFORM_TOKEN}` },
   })
@@ -180,9 +181,9 @@ async function fetchResponses(formId: string, formType: FormType, pageSize: numb
   return items
 }
 
-async function getCached(formType: FormType, formId: string, pageSize: number, since?: string): Promise<NormalizedAlert[]> {
-  if (since) {
-    return fetchResponses(formId, formType, pageSize, since)
+async function getCached(formType: FormType, formId: string, pageSize: number, since?: string, until?: string): Promise<NormalizedAlert[]> {
+  if (since || until) {
+    return fetchResponses(formId, formType, pageSize, since, until)
   }
   const hit = cache.get(formType)
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data.slice(0, pageSize)
@@ -224,6 +225,7 @@ Deno.serve(async (req) => {
     const pageSize = Math.min(Math.max(Number(body.page_size ?? 25), 1), 100)
     const page = Math.max(Number(body.page ?? 1), 1)
     const since: string | undefined = body.since || undefined
+    const until: string | undefined = body.until || undefined
     const search: string = (body.search ?? '').toString().toLowerCase().trim()
 
     const targets: { type: FormType; id: string }[] = []
@@ -234,8 +236,11 @@ Deno.serve(async (req) => {
       targets.push({ type: 'radio', id: RADIO_FORM_ID })
     }
 
+    // When date filtering, pull up to 1000 responses for the range; otherwise keep the
+    // previous page-based fetch behavior.
+    const fetchSize = (since || until) ? 1000 : pageSize * page
     const results = await Promise.allSettled(
-      targets.map((t) => getCached(t.type, t.id, pageSize * page, since)),
+      targets.map((t) => getCached(t.type, t.id, fetchSize, since, until)),
     )
 
     const items: NormalizedAlert[] = []
