@@ -1,94 +1,113 @@
-## Goal
+## Phase 2 — Supabase mirror + cron sync
 
-Browse Typeform alerts by date over **months of history**, fast and reliably, by mirroring Typeform responses into Supabase and adding a date-range picker to the "Alertas Enviadas" tab.
+Supabase access is confirmed (`select 1` succeeded against sb1-uj6a984i).
 
----
+### Step 1 — Migration: mirror tables
 
-## Phase 1 — Date picker in UI (quick win, ships first)
+Create in `public`:
 
-1. **`src/pages/EnvioAlertas.tsx`** — Add a `DateRangePicker` above the alerts list with presets: *Hoy, Últimos 7 días, 30 días, 90 días, 6 meses, Personalizado*. Default = **last 30 days**. Reuse existing `src/components/dashboard/DateRangeFilter.tsx` pattern (or extract a shared `<DateRangePicker>` if it's too dashboard-specific).
-2. **`src/hooks/use-typeform-alerts.ts`** — Accept `{ since, until }` and pass them through to the edge function. Include dates in the React Query key so changing range refetches.
-3. **`supabase/functions/get-typeform-alerts/index.ts`** — Accept `since`/`until` params. In Phase 1 still call Typeform directly (forwarding `since`/`until`), so users get date filtering immediately even before the mirror is populated.
-
-Phase 1 alone gives reliable date browsing for ranges with ≤1000 responses.
-
----
-
-## Phase 2 — Supabase mirror + cron sync (the real fix)
-
-### 2.1 Schema (migration)
-
-New table `public.typeform_responses`:
-
-- `id uuid pk`
-- `form_type text` (e.g. `'tv'`, `'radio'`, `'redes'`, `'prensa_escrita'`, `'prensa_digital'`) — matches the existing form-type tabs
-- `form_id text` — the Typeform form ID
-- `response_id text` — Typeform's `response_id` (unique per form)
-- `submitted_at timestamptz` — from Typeform `submitted_at`
-- `landed_at timestamptz`
+**`typeform_responses`**
+- `id uuid pk default gen_random_uuid()`
+- `form_type text not null` — `'tv' | 'radio'` (and future form types)
+- `form_id text not null`
+- `response_id text not null`
 - `token text`
-- `client_id uuid null` — best-effort match, nullable
-- `client_name text null`
-- `is_alert boolean` — derived from the "¿Enviar alerta?" answer
-- `payload jsonb` — full Typeform response for the dialog/details view
-- `raw_answers jsonb` — normalized answers for search
-- `created_at timestamptz default now()`
+- `submitted_at timestamptz not null`
+- `landed_at timestamptz`
+- `title text`, `summary text`, `category text`, `channel text`, `program text`
+- `clients text[] default '{}'`, `tags text[] default '{}'`
+- `is_alert boolean default false`
+- `raw_answers jsonb default '{}'::jsonb`
+- `payload jsonb default '{}'::jsonb` — full Typeform item
+- `created_at timestamptz default now()`, `updated_at timestamptz default now()`
+- `unique (form_id, response_id)`
+- Indexes: `(form_type, submitted_at desc)`, GIN on `raw_answers`, GIN on `clients`
+- Trigger: `update_updated_at_column()` on update
+
+**`typeform_sync_state`**
+- `form_id text primary key`
+- `form_type text not null`
+- `last_synced_at timestamptz` (nullable on first run)
+- `last_run_at timestamptz`
+- `last_run_status text` — `'ok' | 'error' | 'running'`
+- `last_error text`
 - `updated_at timestamptz default now()`
-- Unique constraint on `(form_id, response_id)` for idempotent upserts
-- Indexes: `(form_type, submitted_at desc)`, `(client_id)`, `(is_alert)`, GIN on `raw_answers`
 
-Plus a `public.typeform_sync_state` table with one row per `(form_type, form_id)` tracking `last_synced_at` and `last_run_status`.
+**Grants & RLS** (per project memory):
+```sql
+GRANT SELECT ON public.typeform_responses TO authenticated;
+GRANT ALL ON public.typeform_responses TO service_role;
+GRANT SELECT ON public.typeform_sync_state TO authenticated;
+GRANT ALL ON public.typeform_sync_state TO service_role;
 
-RLS: read for `authenticated`; writes via `service_role` only (edge functions). Standard `GRANT` block.
+ALTER TABLE public.typeform_responses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.typeform_sync_state ENABLE ROW LEVEL SECURITY;
 
-### 2.2 Sync edge function
+CREATE POLICY "auth read typeform_responses" ON public.typeform_responses
+  FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+CREATE POLICY "auth read typeform_sync_state" ON public.typeform_sync_state
+  FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+```
+Writes happen only via `service_role` from the sync edge function — no INSERT/UPDATE policies for `authenticated`.
 
-New function `sync-typeform-responses` (no JWT verify, cron-callable):
+### Step 2 — `sync-typeform-responses` edge function
 
-- For each configured `(form_type, form_id)`, read `last_synced_at` from `typeform_sync_state`.
-- Page through Typeform `/responses?since=<last_synced_at>&page_size=1000&sort=submitted_at,asc` using `before` cursor pagination until exhausted.
-- For each response: normalize answers, derive `client_id`/`client_name` (reuse existing client-match logic — confirm location with the user during build), derive `is_alert`, upsert into `typeform_responses` on `(form_id, response_id)`.
-- On success, advance `last_synced_at` to the max `submitted_at` processed.
-- Use `EdgeRuntime.waitUntil` with a `finally` block writing terminal status (per project memory).
+New function, `verify_jwt = false` (cron-triggered). For each `(form_type, form_id)` in:
+- `'radio'` → `ngv41rGM`
+- `'tv'` → `TYPEFORM_TV_FORM_ID` (if set)
 
-### 2.3 Cron schedule
+Logic:
+1. Read row from `typeform_sync_state`; use `last_synced_at` as `since` (omit on first run for full backfill).
+2. Page through `https://api.typeform.com/forms/{id}/responses?page_size=1000&completed=true&sort=submitted_at,asc&since=<iso>&before=<token?>`. Continue while `items.length === page_size`, advancing `before` to the **oldest** item's token per Typeform's cursor semantics.
+3. Reuse the schema-driven normalization from `get-typeform-alerts` (title/summary/category/channel/program/clients/tags/`is_alert`). Extracted into `_shared/typeformNormalize.ts` so both functions agree.
+4. Upsert into `typeform_responses` on `(form_id, response_id)`.
+5. Update `typeform_sync_state` with new `last_synced_at = max(submitted_at)`, `last_run_status`, `last_error`. Use `EdgeRuntime.waitUntil` with a `finally` that always writes terminal status.
+6. Accept optional POST body `{ form?: 'tv'|'radio'|'all', since?: string }` so we can trigger a manual backfill.
 
-`pg_cron` + `pg_net` job every **10 minutes** invoking `sync-typeform-responses`. Created via the **insert tool**, not migration (per project rules — contains URL + anon key).
+### Step 3 — Manual backfill
 
-### 2.4 Read path
+After deploy, call `sync-typeform-responses` once with `{ since: '2025-09-01' }` (≈9 months back) via `curl_edge_functions`. Verify row counts and most-recent `submitted_at` against Typeform.
 
-Rewrite `get-typeform-alerts` (or add `get-typeform-alerts-v2` and switch the hook) to query `typeform_responses` directly:
+### Step 4 — Cron schedule
 
-- Filter by `form_type`, `since`, `until`, optional `q` (text search across `raw_answers`), optional `client_id`.
-- Server-side pagination (`limit`/`offset` or keyset on `submitted_at`).
-- Returns total count for the range so the UI can show real pagination.
+Enable `pg_cron` + `pg_net` and schedule every 10 minutes via the **insert tool** (contains anon key, must not go in migration):
+```sql
+select cron.schedule(
+  'sync-typeform-responses-10m',
+  '*/10 * * * *',
+  $$ select net.http_post(
+       url := 'https://qpozetnbnzdinqkrafze.supabase.co/functions/v1/sync-typeform-responses',
+       headers := '{"Content-Type":"application/json","apikey":"<ANON>"}'::jsonb,
+       body := '{}'::jsonb
+  ); $$
+);
+```
 
-`use-typeform-alerts.ts` switches its source from "live Typeform" to "mirrored table"; the component API stays the same so `AlertResponseCard` / `AlertResponseDialog` don't change.
+### Step 5 — Switch the read path
 
-### 2.5 Backfill
+Replace the Typeform-live read in `get-typeform-alerts` with a Supabase query:
+- Filter: `form_type in (...)`, `submitted_at >= since`, `submitted_at <= until`, optional `ilike` over `title/summary/program/channel` plus `clients @> array[...]` for client filter, plus tag filter.
+- Server-side pagination: `range(start, end)` with `{ count: 'exact' }` so the UI gets a real `total`.
+- Keep the same response shape (`{ items, total, errors, tvFormConfigured }`) so `useTypeformAlerts`, `EnvioAlertas`, and `AlertResponseCard` need no changes.
+- Active-client filtering (already in place) stays — applied to `clients[]` post-query, same logic.
 
-One-off invocation of `sync-typeform-responses` with `since=null` (or `since=2026-01-01`) to backfill the last several months on first deploy. Triggered manually after the function deploys.
+### Step 6 — Verify
 
----
+1. `curl_edge_functions` → `sync-typeform-responses` (no body) → expect `200`, check `typeform_sync_state.last_run_status = 'ok'`.
+2. `read_query` → `select form_type, count(*), max(submitted_at) from typeform_responses group by form_type`.
+3. In Alertas Enviadas: switch to *Últimos 90 días* and *Últimos 6 meses*; confirm rows appear, pagination total matches a DB count, and `AlertResponseCard` opens the dialog with the same fields as before.
 
-## Out of scope (call out, don't build)
+### Out of scope (call out, don't build)
 
-- CSV export, per-client filtering UI, charts over time — unlocked by the mirror but not part of this change unless you ask.
-- Schema for Typeform webhook ingestion (push instead of pull). Cron sync is enough for "couple of months" needs; webhooks can come later if latency matters.
+- Webhook ingestion (push). Cron is enough for "couple of months" needs.
+- CSV export, per-client filter UI, charts. The mirror unlocks these; build on request.
+- Schema additions for prensa/redes forms — only `tv` + `radio` are wired today; add new form types when their IDs exist.
 
----
+### Order of execution
 
-## Technical notes
-
-- Typeform pagination uses `before=<token>` (response token of the oldest item on the prior page) — not numeric pages. The current edge function uses `pageSize * page` which silently truncates past ~1000 records; the sync function fixes that.
-- `submitted_at` from Typeform is ISO 8601 UTC — store as `timestamptz` and let the UI convert to PR time.
-- Client matching: reuse whatever currently powers `client_name` in `AlertResponseCard` so historical and new rows match consistently. I'll locate that during build (likely `src/services/...` or inside the existing edge function).
-- The two phases are independently shippable: Phase 1 works against live Typeform; Phase 2 swaps the read source without UI changes.
-
----
-
-## Order of operations
-
-1. Phase 1 (UI + edge function passthrough) — ship.
-2. Phase 2.1 migration → 2.2 sync function → 2.5 backfill → 2.3 cron → 2.4 swap read path.
-3. Verify in Alertas Enviadas: pick *Últimos 90 días*, confirm results, paginate, open a card.
+1. Migration (step 1) → wait for approval.
+2. Create `_shared/typeformNormalize.ts` + `sync-typeform-responses` function → auto-deploys.
+3. Backfill via `curl_edge_functions` (step 3).
+4. Schedule cron via insert tool (step 4).
+5. Swap `get-typeform-alerts` read path (step 5).
+6. Verify (step 6).
