@@ -5,6 +5,7 @@ import { Client, formatDate } from "@/services/clients/clientService";
 import { Edit, Trash2, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 interface ClientsTableProps {
@@ -88,26 +89,52 @@ export function ClientsTable({
             clients.map((client) => {
               const isActive = client.is_active !== false;
               return (
-              <TableRow key={client.id} className={cn(!isActive && "opacity-60")}>
-                <TableCell className="font-medium">{client.name}</TableCell>
-                <TableCell>
+              <TableRow key={client.id} className={cn(!isActive && "opacity-60", "align-top")}>
+                <TableCell className="font-medium align-top">{client.name}</TableCell>
+                <TableCell className="align-top">
                   <Badge variant="outline">{formatCategory(client.category)}</Badge>
                 </TableCell>
-                <TableCell>{client.subcategory || '-'}</TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1 max-w-[300px]">
-                    {client.keywords && client.keywords.length > 0 ? (
-                      client.keywords.map((keyword, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs">
+                <TableCell className="align-top">{client.subcategory || '-'}</TableCell>
+                <TableCell className="align-top">
+                  {client.keywords && client.keywords.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1 max-w-[320px]">
+                      {client.keywords.slice(0, 6).map((keyword, idx) => (
+                        <Badge
+                          key={idx}
+                          variant="secondary"
+                          className="text-xs max-w-[160px] truncate"
+                          title={keyword}
+                        >
                           {keyword}
                         </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground text-sm">Sin palabras clave</span>
-                    )}
-                  </div>
+                      ))}
+                      {client.keywords.length > 6 && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Badge
+                              variant="outline"
+                              className="text-xs cursor-pointer hover:bg-accent"
+                            >
+                              +{client.keywords.length - 6}
+                            </Badge>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 max-h-80 overflow-y-auto">
+                            <div className="flex flex-wrap gap-1">
+                              {client.keywords.map((keyword, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  {keyword}
+                                </Badge>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">Sin palabras clave</span>
+                  )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="align-top">
                   <div className="flex items-center gap-2">
                     <Switch
                       checked={isActive}
@@ -120,8 +147,8 @@ export function ClientsTable({
                     </Badge>
                   </div>
                 </TableCell>
-                <TableCell>{formatDate(client.created_at)}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="align-top">{formatDate(client.created_at)}</TableCell>
+                <TableCell className="text-right align-top">
                   <Button
                     variant="ghost"
                     size="sm"
