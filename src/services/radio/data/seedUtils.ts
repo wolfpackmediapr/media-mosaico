@@ -64,7 +64,6 @@ export async function createStations(): Promise<Record<string, string>> {
         .from('media_outlets')
         .insert({
           name: station.name,
-          code: station.code,
           type: 'radio'
         })
         .select('id, name')

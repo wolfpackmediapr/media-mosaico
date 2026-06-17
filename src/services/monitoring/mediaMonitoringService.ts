@@ -31,9 +31,10 @@ interface MonitoringSummary {
  */
 export const createMonitoringTarget = async (target: Omit<MonitoringTarget, 'id' | 'created_at' | 'updated_at'>) => {
   try {
+    const { clientName: _ignored, ...payload } = target as typeof target & { clientName?: string };
     const { data, error } = await supabase
       .from('monitoring_targets')
-      .insert(target)
+      .insert(payload)
       .select()
       .single();
       
@@ -161,9 +162,10 @@ export const deleteMonitoringTarget = async (id: string) => {
  */
 export const updateMonitoringTarget = async (id: string, updates: Partial<MonitoringTarget>) => {
   try {
+    const { clientName: _ignored, ...payload } = updates as Partial<MonitoringTarget> & { clientName?: string };
     const { data, error } = await supabase
       .from('monitoring_targets')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();
