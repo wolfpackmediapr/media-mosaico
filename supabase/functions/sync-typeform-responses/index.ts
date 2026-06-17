@@ -78,7 +78,15 @@ async function syncOne(admin: any, target: Target, sinceOverride?: string): Prom
 
   try {
     const state = await getSyncState(admin, target.formId)
-    const since = sinceOverride ?? state?.last_synced_at ?? undefined
+    const sinceRaw = sinceOverride ?? state?.last_synced_at ?? undefined
+    // Typeform's `since` param only accepts Unix timestamps (seconds) or ISO
+    // strings with a `Z` suffix — it rejects `+00:00` offsets that Postgres
+    // emits for timestamptz columns.
+    let since: string | undefined
+    if (sinceRaw) {
+      const ms = new Date(sinceRaw).getTime()
+      if (!Number.isNaN(ms)) since = String(Math.floor(ms / 1000))
+    }
     const titles = await fetchFormSchema(target.formId, TYPEFORM_TOKEN)
 
     const pageSize = 1000
