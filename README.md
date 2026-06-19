@@ -1,69 +1,107 @@
-# Welcome to your Lovable project
+# Media Mosaico
 
-## Project info
+A comprehensive media monitoring and transcription platform for tracking TV, radio, press, and social media coverage.
 
-**URL**: https://lovable.dev/projects/f1549133-7bd8-4084-9533-99e84362dea1
+## Features
 
-## How can I edit this code?
+- 📺 **TV Monitoring**: Track and transcribe television programs
+- 📻 **Radio Monitoring**: Monitor radio broadcasts
+- 📰 **Press Monitoring**: Track written press and articles
+- 📱 **Social Media Monitoring**: Monitor social media mentions
+- 📊 **Reports & Analytics**: Generate comprehensive media reports
+- 🔔 **Alerts**: Set up automated notifications for mentions
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend**: React 18 + TypeScript + Vite
+- **UI Components**: shadcn/ui + Radix UI + Tailwind CSS
+- **Backend**: Supabase (PostgreSQL + Auth + Storage)
+- **State Management**: TanStack Query
+- **Forms**: React Hook Form + Zod
+- **Charts**: Recharts
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/f1549133-7bd8-4084-9533-99e84362dea1) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js 18+ (recommended: use [nvm](https://github.com/nvm-sh/nvm))
+- A Supabase account and project
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+1. Clone the repository:
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+git clone https://github.com/wolfpackmediapr/media-mosaico.git
+cd media-mosaico
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Install dependencies:
+```sh
+npm install
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. Set up environment variables:
+```sh
+cp .env.example .env
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+4. Edit `.env` with your Supabase credentials:
+   - Get your Project ID, URL, and Publishable Key from [Supabase Dashboard](https://app.supabase.com)
+   - Update the values in `.env`
+
+5. Start the development server:
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Build for Production
 
-**Use GitHub Codespaces**
+```sh
+npm run build
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Project Structure
 
-## What technologies are used for this project?
+```
+src/
+├── components/     # Reusable UI components
+├── pages/         # Page components (routes)
+├── services/      # Business logic and API calls
+│   ├── tv/       # TV monitoring services
+│   ├── radio/    # Radio monitoring services
+│   ├── press/    # Press monitoring services
+│   └── ...
+├── config/        # Configuration files
+└── lib/          # Utility functions
+```
 
-This project is built with .
+## Deployment
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+This project can be deployed to:
+- [Lovable](https://lovable.dev) (click Share → Publish)
+- [Netlify](https://www.netlify.com/)
+- [Vercel](https://vercel.com/)
+- Any static hosting service
 
-## How can I deploy this project?
+## Environment Variables
 
-Simply open [Lovable](https://lovable.dev/projects/f1549133-7bd8-4084-9533-99e84362dea1) and click on Share -> Publish.
+See `.env.example` for required environment variables.
 
-## I want to use a custom domain - is that possible?
+⚠️ **Security Note**: Never commit `.env` files with real credentials to version control.
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+## Contributing
+
+1. Create a feature branch: `git checkout -b feature/your-feature-name`
+2. Make your changes and commit: `git commit -m 'Add some feature'`
+3. Push to the branch: `git push origin feature/your-feature-name`
+4. Open a Pull Request
+
+## License
+
+Private - WolfPack Media PR
+
+## Support
+
+For questions or issues, contact the development team.
