@@ -32,6 +32,11 @@ serve(async (req) => {
       throw new Error('User ID is required');
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof userId !== 'string' || !UUID_RE.test(userId)) {
+      throw new Error('Invalid userId: must be a UUID');
+    }
+
     // Validate file size and contents
     if (file.size === 0) {
       throw new Error('File is empty');
