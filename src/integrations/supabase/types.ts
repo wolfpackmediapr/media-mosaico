@@ -2197,6 +2197,13 @@ export type Database = {
         Returns: undefined
       }
       delete_user: { Args: { user_id: string }; Returns: undefined }
+      get_old_video_chunks: {
+        Args: { cutoff_days?: number; max_bytes?: number; max_files?: number }
+        Returns: {
+          bytes: number
+          name: string
+        }[]
+      }
       get_platforms_with_counts: {
         Args: never
         Returns: {
