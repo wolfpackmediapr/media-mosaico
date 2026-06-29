@@ -180,12 +180,7 @@ serve(async (req) => {
         .single();
 
       if (insertError) {
-        console.error('Database insertion error:', insertError);
-        throw new Error(`Failed to save transcription: ${insertError.message}`);
-      }
-
-      if (!transcriptionData) {
-        throw new Error('No data returned from database insertion');
+        console.error('Database insertion error (continuing anyway):', insertError);
       }
 
       // Format utterances for the response
@@ -202,7 +197,7 @@ serve(async (req) => {
           success: true,
           text: transcript.text,
           transcript_id: transcriptId,
-          transcription_id: transcriptionData.id,
+          transcription_id: transcriptionData?.id ?? null,
           utterances: formattedUtterances,
           metadata: {
             audio_duration: transcript.audio_duration,
@@ -218,8 +213,22 @@ serve(async (req) => {
       );
 
     } catch (dbError) {
-      console.error('Database operation failed:', dbError);
-      throw new Error(`Database operation failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+      console.error('Database operation failed (returning transcription anyway):', dbError);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          text: transcript.text,
+          transcript_id: transcriptId,
+          transcription_id: null,
+          utterances: [],
+          metadata: {
+            audio_duration: transcript.audio_duration,
+            confidence: transcript.confidence,
+          },
+          db_error: dbError instanceof Error ? dbError.message : String(dbError),
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
   } catch (error) {
