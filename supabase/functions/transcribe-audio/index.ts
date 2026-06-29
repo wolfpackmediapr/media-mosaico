@@ -32,6 +32,11 @@ serve(async (req) => {
       throw new Error('User ID is required');
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof userId !== 'string' || !UUID_RE.test(userId)) {
+      throw new Error('Invalid userId: must be a UUID');
+    }
+
     // Validate file size and contents
     if (file.size === 0) {
       throw new Error('File is empty');
@@ -86,7 +91,7 @@ serve(async (req) => {
       body: JSON.stringify({
         audio_url: uploadResult.upload_url,
         language_code: 'es',
-        speech_model: 'nano',
+        speech_model: 'universal-2',
         speaker_labels: true,
         punctuate: true,
         format_text: true,
@@ -175,12 +180,7 @@ serve(async (req) => {
         .single();
 
       if (insertError) {
-        console.error('Database insertion error:', insertError);
-        throw new Error(`Failed to save transcription: ${insertError.message}`);
-      }
-
-      if (!transcriptionData) {
-        throw new Error('No data returned from database insertion');
+        console.error('Database insertion error (continuing anyway):', insertError);
       }
 
       // Format utterances for the response
@@ -197,7 +197,7 @@ serve(async (req) => {
           success: true,
           text: transcript.text,
           transcript_id: transcriptId,
-          transcription_id: transcriptionData.id,
+          transcription_id: transcriptionData?.id ?? null,
           utterances: formattedUtterances,
           metadata: {
             audio_duration: transcript.audio_duration,
@@ -213,8 +213,22 @@ serve(async (req) => {
       );
 
     } catch (dbError) {
-      console.error('Database operation failed:', dbError);
-      throw new Error(`Database operation failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+      console.error('Database operation failed (returning transcription anyway):', dbError);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          text: transcript.text,
+          transcript_id: transcriptId,
+          transcription_id: null,
+          utterances: [],
+          metadata: {
+            audio_duration: transcript.audio_duration,
+            confidence: transcript.confidence,
+          },
+          db_error: dbError instanceof Error ? dbError.message : String(dbError),
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
   } catch (error) {

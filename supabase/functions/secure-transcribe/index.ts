@@ -267,7 +267,7 @@ serve(async (req) => {
         .insert({
           user_id: userId,
           transcription_text: result.text,
-          metadata: {
+          analysis_result: {
             audio_duration: audioDuration,
             has_segment_timestamps: true,
             language_code: 'es',
