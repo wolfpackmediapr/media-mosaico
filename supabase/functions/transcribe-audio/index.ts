@@ -86,7 +86,7 @@ serve(async (req) => {
       body: JSON.stringify({
         audio_url: uploadResult.upload_url,
         language_code: 'es',
-        speech_model: 'nano',
+        speech_model: 'universal-2',
         speaker_labels: true,
         punctuate: true,
         format_text: true,
