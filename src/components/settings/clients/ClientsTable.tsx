@@ -148,7 +148,7 @@ export function ClientsTable({
                   </div>
                 </TableCell>
                 <TableCell className="align-top">{formatDate(client.created_at)}</TableCell>
-                <TableCell className="text-right align-top whitespace-nowrap">
+                <TableCell className="text-right align-top whitespace-nowrap sticky right-0 bg-background shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.1)]">
                   <Button
                     variant="ghost"
                     size="sm"
