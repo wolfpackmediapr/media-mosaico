@@ -75,7 +75,7 @@ export function ClientsTable({
               Fecha de creación
               <SortButton field="created_at" />
             </TableHead>
-            <TableHead className="text-right whitespace-nowrap w-[120px]">Acciones</TableHead>
+            <TableHead className="text-right whitespace-nowrap w-[120px] sticky right-0 bg-background shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.1)] z-10">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -96,9 +96,9 @@ export function ClientsTable({
                 </TableCell>
                 <TableCell className="align-top">{client.subcategory || '-'}</TableCell>
                 <TableCell className="align-top">
-                  {client.keywords && client.keywords.length > 0 ? (
+              {client.keywords && client.keywords.length > 0 ? (
                     <div className="flex flex-wrap items-center gap-1 max-w-[320px]">
-                      {client.keywords.slice(0, 6).map((keyword, idx) => (
+                      {client.keywords.slice(0, 4).map((keyword, idx) => (
                         <Badge
                           key={idx}
                           variant="secondary"
@@ -108,14 +108,14 @@ export function ClientsTable({
                           {keyword}
                         </Badge>
                       ))}
-                      {client.keywords.length > 6 && (
+                      {client.keywords.length > 4 && (
                         <Popover>
                           <PopoverTrigger asChild>
                             <Badge
                               variant="outline"
                               className="text-xs cursor-pointer hover:bg-accent"
                             >
-                              +{client.keywords.length - 6}
+                              +{client.keywords.length - 4}
                             </Badge>
                           </PopoverTrigger>
                           <PopoverContent className="w-80 max-h-80 overflow-y-auto">
