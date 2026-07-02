@@ -75,7 +75,7 @@ export function ClientsTable({
               Fecha de creación
               <SortButton field="created_at" />
             </TableHead>
-            <TableHead className="text-right">Acciones</TableHead>
+            <TableHead className="text-right whitespace-nowrap w-[120px]">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -148,7 +148,7 @@ export function ClientsTable({
                   </div>
                 </TableCell>
                 <TableCell className="align-top">{formatDate(client.created_at)}</TableCell>
-                <TableCell className="text-right align-top">
+                <TableCell className="text-right align-top whitespace-nowrap">
                   <Button
                     variant="ghost"
                     size="sm"
