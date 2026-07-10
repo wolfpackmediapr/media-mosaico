@@ -10,18 +10,18 @@ import { createProtectedRoute } from "./protectedRoutes";
 export const publitecaLayoutRoutes: RouteObject[] = [
   {
     path: "publiteca/prensa",
-    element: createProtectedRoute(publitecaRoutes.PublitecaPrensa)
+    element: createProtectedRoute(publitecaRoutes.PublitecaPrensa, false, "publiteca")
   },
   {
     path: "publiteca/radio",
-    element: createProtectedRoute(publitecaRoutes.PublitecaRadio)
+    element: createProtectedRoute(publitecaRoutes.PublitecaRadio, false, "publiteca")
   },
   {
     path: "publiteca/tv",
-    element: createProtectedRoute(publitecaRoutes.PublitecaTv)
+    element: createProtectedRoute(publitecaRoutes.PublitecaTv, false, "publiteca")
   },
   {
     path: "publiteca/redes-sociales",
-    element: createProtectedRoute(publitecaRoutes.PublitecaRedesSociales)
+    element: createProtectedRoute(publitecaRoutes.PublitecaRedesSociales, false, "publiteca")
   }
 ];
