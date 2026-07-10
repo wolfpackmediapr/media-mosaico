@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { fetchUsers, UserProfile, createUser, updateUserProfile, updateUserPassword, deleteUser } from "@/services/users/userService";
+import { fetchUsers, UserProfile, createUser, updateUserProfile, updateUserPassword, deleteUser, setUserPermissions } from "@/services/users/userService";
 import { UsersList } from "./UsersList";
 
 export function UsersContainer() {
@@ -75,10 +75,16 @@ export function UsersContainer() {
     }
   };
 
-  const handleAddUser = async (user: { email: string; password: string; username: string; role: "administrator" | "data_entry" }) => {
+  const handleAddUser = async (user: { email: string; password: string; username: string; role: "administrator" | "data_entry"; permissions?: string[] }) => {
     try {
-      const { error } = await createUser(user.email, user.password, user.username, user.role);
+      const { data, error } = await createUser(user.email, user.password, user.username, user.role);
       if (error) throw new Error(error.message);
+
+      // Persist section permissions for data_entry users
+      const newUserId = (data as any)?.user?.id;
+      if (newUserId && user.role === "data_entry" && user.permissions) {
+        await setUserPermissions(newUserId, user.permissions);
+      }
       
       toast({
         title: "Usuario creado",
@@ -97,7 +103,7 @@ export function UsersContainer() {
     }
   };
 
-  const handleUpdateUser = async (user: UserProfile & { password?: string }) => {
+  const handleUpdateUser = async (user: UserProfile & { password?: string; permissions?: string[] }) => {
     try {
       const { error } = await updateUserProfile(user.id, {
         username: user.username, 
@@ -110,6 +116,13 @@ export function UsersContainer() {
       if (user.password) {
         const { error: pwError } = await updateUserPassword(user.id, user.password);
         if (pwError) throw new Error(pwError.message);
+      }
+
+      // Persist section permissions (only meaningful for data_entry; harmless otherwise)
+      if (user.permissions) {
+        const permsToSave = user.role === "administrator" ? [] : user.permissions;
+        const { error: permError } = await setUserPermissions(user.id, permsToSave);
+        if (permError) throw new Error(permError.message || "Error al guardar permisos");
       }
       
       toast({

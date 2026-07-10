@@ -2098,6 +2098,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_section_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          section: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          section: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          section?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       video_chunk_manifests: {
         Row: {
           chunk_order: Json

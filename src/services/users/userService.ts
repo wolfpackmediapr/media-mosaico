@@ -126,3 +126,45 @@ export async function deleteUser(
 
   return { success: true, error: null };
 }
+
+export async function fetchUserPermissions(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('user_section_permissions')
+    .select('section')
+    .eq('user_id', userId);
+  if (error) {
+    console.error('Error fetching user permissions:', error);
+    return [];
+  }
+  return (data ?? []).map((row: any) => row.section);
+}
+
+export async function setUserPermissions(
+  userId: string,
+  sections: string[]
+): Promise<{ success: boolean; error: any | null }> {
+  const current = await fetchUserPermissions(userId);
+  const currentSet = new Set(current);
+  const nextSet = new Set(sections);
+
+  const toAdd = sections.filter((s) => !currentSet.has(s));
+  const toRemove = current.filter((s) => !nextSet.has(s));
+
+  if (toAdd.length > 0) {
+    const { error } = await supabase
+      .from('user_section_permissions')
+      .insert(toAdd.map((section) => ({ user_id: userId, section })));
+    if (error) return { success: false, error };
+  }
+
+  if (toRemove.length > 0) {
+    const { error } = await supabase
+      .from('user_section_permissions')
+      .delete()
+      .eq('user_id', userId)
+      .in('section', toRemove);
+    if (error) return { success: false, error };
+  }
+
+  return { success: true, error: null };
+}

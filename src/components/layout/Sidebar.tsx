@@ -6,19 +6,20 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useSectionPermissions, type SectionKey } from "@/hooks/use-section-permissions";
 
-const mainMenuItems = [
-  { icon: Home, label: "Inicio", path: "/" },
-  { icon: BookOpen, label: "Publiteca", path: "/publiteca/prensa" },
-  { icon: Tv, label: "TV", path: "/tv" },
-  { icon: Radio, label: "Radio", path: "/radio" },
-  { icon: Tablet, label: "Prensa Digital", path: "/prensa" },
-  { icon: FileText, label: "Prensa Escrita", path: "/prensa-escrita" },
-  { icon: Rss, label: "Redes Sociales", path: "/redes-sociales" },
-  { icon: Bell, label: "Notificaciones", path: "/notificaciones" },
-  { icon: Send, label: "Alertas Enviadas", path: "/envio-alertas" },
-  { icon: BarChart2, label: "Reportes", path: "/reportes" },
-  { icon: BookOpen, label: "Media Monitoring", path: "/media-monitoring" },
+const mainMenuItems: { icon: any; label: string; path: string; section?: SectionKey; adminOnly?: boolean }[] = [
+  { icon: Home, label: "Inicio", path: "/", section: "inicio" },
+  { icon: BookOpen, label: "Publiteca", path: "/publiteca/prensa", section: "publiteca" },
+  { icon: Tv, label: "TV", path: "/tv", section: "tv" },
+  { icon: Radio, label: "Radio", path: "/radio", section: "radio" },
+  { icon: Tablet, label: "Prensa Digital", path: "/prensa", section: "prensa" },
+  { icon: FileText, label: "Prensa Escrita", path: "/prensa-escrita", section: "prensa-escrita" },
+  { icon: Rss, label: "Redes Sociales", path: "/redes-sociales", section: "redes-sociales" },
+  { icon: Bell, label: "Notificaciones", path: "/notificaciones", section: "notificaciones" },
+  { icon: Send, label: "Alertas Enviadas", path: "/envio-alertas", section: "envio-alertas" },
+  { icon: BarChart2, label: "Reportes", path: "/reportes", section: "reportes" },
+  { icon: BookOpen, label: "Media Monitoring", path: "/media-monitoring", adminOnly: true },
 ];
 
 const bottomMenuItems = [
@@ -31,6 +32,7 @@ const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const { canAccess } = useSectionPermissions();
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -98,7 +100,13 @@ const Sidebar = () => {
       </div>
       <nav className="flex-1 overflow-y-auto py-4 px-2">
         <ul className="space-y-1">
-          {mainMenuItems.map((item) => (
+          {mainMenuItems
+            .filter((item) => {
+              if (item.adminOnly) return userRole === "administrator";
+              if (item.section) return canAccess(item.section);
+              return true;
+            })
+            .map((item) => (
             <li key={item.path}>
               <MenuItem item={item} />
             </li>

@@ -4,17 +4,20 @@ import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import type { SectionKey } from "@/hooks/use-section-permissions";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   adminOnly?: boolean;
+  section?: SectionKey;
 }
 
-const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, adminOnly = false, section }: ProtectedRouteProps) => {
   const { user, isLoading: authLoading } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isCheckingRole, setIsCheckingRole] = useState(true);
   const [checkedUserId, setCheckedUserId] = useState<string | null>(null);
+  const [allowedSections, setAllowedSections] = useState<Set<string> | null>(null);
   const location = useLocation();
 
   useEffect(() => {
@@ -62,6 +65,18 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
             setUserRole(data?.role || null);
             setCheckedUserId(user.id);
           }
+
+          // Load section permissions for non-admins
+          const currentRole = data?.role || null;
+          if (currentRole && currentRole !== 'administrator') {
+            const { data: perms } = await supabase
+              .from('user_section_permissions')
+              .select('section')
+              .eq('user_id', user.id);
+            setAllowedSections(new Set((perms ?? []).map((p: any) => p.section)));
+          } else {
+            setAllowedSections(null);
+          }
         } catch (error) {
           console.error('Error in role check:', error);
         } finally {
@@ -99,6 +114,18 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
 
   // Redirect to home if admin-only route but user is not an admin
   if (adminOnly && userRole !== 'administrator') {
+    return <Navigate to="/" replace />;
+  }
+
+  // Section-based access check for data_entry users
+  if (
+    section &&
+    userRole &&
+    userRole !== 'administrator' &&
+    section !== 'inicio' &&
+    allowedSections &&
+    !allowedSections.has(section)
+  ) {
     return <Navigate to="/" replace />;
   }
 
