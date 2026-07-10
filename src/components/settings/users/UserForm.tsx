@@ -3,16 +3,19 @@ import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { UserProfile } from "@/services/users/userService";
+import { UserProfile, fetchUserPermissions } from "@/services/users/userService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { ALL_SECTIONS, type SectionKey } from "@/hooks/use-section-permissions";
 import { toast } from "sonner";
 
 interface UserFormProps {
-  onSubmit: (user: any) => Promise<void>;
+  onSubmit: (user: any & { permissions?: string[] }) => Promise<void>;
   onCancel: () => void;
   editingUser: UserProfile | null;
   roles: string[];
@@ -29,6 +32,9 @@ const userSchema = z.object({
 
 export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormProps) {
   const [loading, setLoading] = useState(false);
+  const [permissions, setPermissions] = useState<Set<SectionKey>>(
+    new Set(ALL_SECTIONS.map((s) => s.key))
+  );
   
   const defaultValues = {
     username: editingUser?.username || "",
@@ -42,6 +48,8 @@ export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormPro
     defaultValues,
   });
 
+  const currentRole = form.watch("role");
+
   useEffect(() => {
     if (editingUser) {
       form.reset({
@@ -50,20 +58,36 @@ export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormPro
         email: editingUser.email || "",
         password: "", // Don't populate password when editing
       });
+      // Load current permissions
+      fetchUserPermissions(editingUser.id).then((secs) => {
+        setPermissions(new Set(secs as SectionKey[]));
+      });
     } else {
       form.reset(defaultValues);
+      setPermissions(new Set(ALL_SECTIONS.map((s) => s.key)));
     }
   }, [editingUser, form]);
+
+  const togglePermission = (key: SectionKey, checked: boolean) => {
+    setPermissions((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  };
 
   const handleSubmit = async (values: z.infer<typeof userSchema>) => {
     setLoading(true);
     try {
+      const permsArray = Array.from(permissions);
       if (editingUser) {
         const { email, ...updateData } = values;
         await onSubmit({
           id: editingUser.id,
           ...updateData,
           password: values.password || undefined, // only include if non-empty
+          permissions: permsArray,
         });
       } else {
         // Creating new user requires email and password
@@ -72,7 +96,7 @@ export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormPro
           setLoading(false);
           return;
         }
-        await onSubmit(values);
+        await onSubmit({ ...values, permissions: permsArray });
       }
       
       form.reset(defaultValues);
@@ -165,6 +189,41 @@ export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormPro
                 </FormItem>
               )}
             />
+
+            <div className="space-y-3 rounded-md border p-4">
+              <div>
+                <h4 className="text-sm font-semibold">Permisos de acceso a secciones</h4>
+                {currentRole === "administrator" ? (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Los administradores tienen acceso completo a todas las secciones.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Selecciona las secciones que este usuario podrá ver y acceder. Inicio y Ayuda están siempre disponibles.
+                  </p>
+                )}
+              </div>
+              {currentRole !== "administrator" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {ALL_SECTIONS.filter((s) => s.key !== "inicio").map((s) => {
+                    const id = `perm-${s.key}`;
+                    const checked = permissions.has(s.key);
+                    return (
+                      <div key={s.key} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={id}
+                          checked={checked}
+                          onCheckedChange={(c) => togglePermission(s.key, !!c)}
+                        />
+                        <Label htmlFor={id} className="text-sm font-normal cursor-pointer">
+                          {s.label}
+                        </Label>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </CardContent>
           <CardFooter className="flex justify-between">
             <Button variant="outline" onClick={onCancel} type="button">
