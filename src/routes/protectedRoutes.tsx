@@ -13,13 +13,19 @@ import type { SectionKey } from "@/hooks/use-section-permissions";
 export const createProtectedRoute = (
   Component: React.LazyExoticComponent<() => JSX.Element> | React.ComponentType<any>, 
   adminOnly = false,
-  section?: SectionKey
+  section?: SectionKey,
+  extras?: { sections?: SectionKey[]; anySection?: SectionKey[] }
 ) => {
   // Direct component (function) - no suspense needed
   if (typeof Component === 'function') {
     const DirectComponent = Component as React.ComponentType<any>;
     return (
-      <ProtectedRoute adminOnly={adminOnly} section={section}>
+      <ProtectedRoute
+        adminOnly={adminOnly}
+        section={section}
+        sections={extras?.sections}
+        anySection={extras?.anySection}
+      >
         <DirectComponent />
       </ProtectedRoute>
     );
@@ -29,7 +35,12 @@ export const createProtectedRoute = (
   const LazyComponent = Component as React.LazyExoticComponent<() => JSX.Element>;
   return (
     <Suspense fallback={<PageLoader />}>
-      <ProtectedRoute adminOnly={adminOnly} section={section}>
+      <ProtectedRoute
+        adminOnly={adminOnly}
+        section={section}
+        sections={extras?.sections}
+        anySection={extras?.anySection}
+      >
         <LazyComponent />
       </ProtectedRoute>
     </Suspense>
