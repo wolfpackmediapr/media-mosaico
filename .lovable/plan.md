@@ -1,92 +1,49 @@
+## Diagnosis
 
-# Per-User Section Permissions for Data Entry Users
+Data confirms permissions save correctly (verified in `user_section_permissions`). The problem is that the **frontend gate lets some navigations through anyway**. Four concrete gaps found:
 
-Yes — this fits the current infrastructure. We already have a `user_profiles` + `user_roles` model and a `ProtectedRoute` gatekeeper. We'll add a permissions layer that admins toggle per user, and enforce it in the sidebar + routes.
+1. **`ProtectedRoute` treats "not yet loaded" as allowed.** The state `allowedSections` starts as `null`, and the guard reads `allowedSections && !allowedSections.has(section)`. When it is `null` (before the async fetch resolves, or if the safety 6s timer fires early, or if the early-return branch `checkedUserId === user.id && userRole` runs without having populated it) the expression is falsy and the route renders. Result: a `data_entry` user can briefly land on a blocked page.
 
-Administrators keep full access always. Only `data_entry` users are constrained by these checkboxes.
+2. **Publiteca sub-routes are all gated by a single `publiteca` section.** `/publiteca/tv`, `/publiteca/radio`, `/publiteca/redes-sociales`, `/publiteca/prensa` all share `section="publiteca"`. A user whose TV / Radio / Redes checkboxes are OFF but who has Publiteca ON can still open TV / Radio / Redes content via the Publiteca sub-tabs. Admins reasonably read this as "block didn't work."
 
-## Sections that can be toggled
+3. **`Ayuda` and settings shell are exempt but shouldn't hide `Radio`/`TV`/etc. sub-links.** Not blocking — worth mentioning. No change unless requested.
 
-Matches the sidebar tabs:
-- Inicio (`/`)
-- Publiteca (`/publiteca/*`)
-- TV (`/tv`)
-- Radio (`/radio`)
-- Prensa Digital (`/prensa`)
-- Prensa Escrita (`/prensa-escrita`)
-- Redes Sociales (`/redes-sociales`)
-- Notificaciones (`/notificaciones`)
-- Alertas Enviadas (`/envio-alertas`)
-- Reportes (`/reportes`)
-- Media Monitoring (`/media-monitoring`) — already admin-only, will stay so
+4. **Direct URL navigation isn't blocked while the role check is still resolving.** The loader hides it in the happy path, but if the profile fetch throws (non-PGRST116), `userRole` stays null, `allowedSections` stays null, the finally clears the spinner, and the child renders. `!user` redirect only catches unauthenticated users.
 
-Ayuda stays available to everyone. Ajustes stays admin-only.
+## Fix plan
 
-## Database changes (one migration)
+### 1. Harden `src/components/auth/ProtectedRoute.tsx`
+- Initialize `allowedSections` as `null` but treat `null` for a non-admin `data_entry` user as **still loading, not allowed**. Concretely: keep `isCheckingRole = true` until `allowedSections` is set (or role is confirmed admin).
+- Remove the early-return short-circuit that skips permission loading when `checkedUserId === user.id`; instead cache role+permissions together, or always await both.
+- If `userRole` load fails, redirect to `/` instead of rendering children.
+- Reduce the safety timeout to only clear `isCheckingRole` when we have concrete data; on timeout with no data, redirect to `/auth` instead of rendering.
 
-New table `public.user_section_permissions`:
+### 2. Per-sub-route gating for Publiteca
+Update `src/routes/publitecaRoutes.tsx` so each sub-route requires **both** `publiteca` AND its media section:
+- `/publiteca/tv` → require `publiteca` AND `tv`
+- `/publiteca/radio` → require `publiteca` AND `radio`
+- `/publiteca/redes-sociales` → require `publiteca` AND `redes-sociales`
+- `/publiteca/prensa` → require `publiteca` AND (`prensa` OR `prensa-escrita`)
 
-- `user_id uuid` → references `auth.users(id) on delete cascade`
-- `section text` — one of the section keys above
-- unique on `(user_id, section)`
-- standard `created_at`, `updated_at`
+Implementation: extend `ProtectedRoute` to accept `sections?: SectionKey[]` (all required) alongside existing `section`, or add `requireAll` variant. Sidebar sub-links in Publiteca should also respect these.
 
-Grants: `SELECT, INSERT, UPDATE, DELETE` to `authenticated`; `ALL` to `service_role`. No `anon`.
+### 3. Verify enforcement with Playwright
+After build, log in as `Alejandra` (permissions: only `inicio`) using the pre-injected Supabase session tools, then:
+- Attempt `GET /tv`, `/radio`, `/prensa`, `/publiteca/tv` directly via URL.
+- Confirm each redirects to `/` (screenshot each).
+- Confirm sidebar shows only Inicio + Ayuda + (bottom items appropriate for role).
 
-RLS policies:
-- Users can `SELECT` their own rows (`auth.uid() = user_id`)
-- Admins (via existing `has_role(auth.uid(), 'administrator')`) can `SELECT/INSERT/UPDATE/DELETE` any row
-
-Semantics: **presence of a row = access granted**. If a `data_entry` user has no rows, they see nothing except Inicio + Ayuda (safe default). Administrators bypass this table entirely.
-
-Optional seed: for each existing `data_entry` user, insert rows for every section so nothing changes for current users until an admin edits them.
-
-## Frontend changes
-
-1. **New hook `src/hooks/use-section-permissions.ts`**
-   - Fetches current user's role and their granted sections
-   - Exposes `canAccess(section)` — always `true` for administrators; otherwise checks the set
-   - Cached via React Query
-
-2. **`ProtectedRoute`** — accept an optional `section` prop. If set and user is `data_entry` and not permitted, redirect to `/`.
-
-3. **`src/routes/protectedRoutes.tsx` and `publitecaRoutes.tsx`** — pass the matching `section` key to each `createProtectedRoute` call.
-
-4. **`Sidebar.tsx`** — filter `mainMenuItems` using the same `canAccess` check so hidden sections don't render for restricted users.
-
-5. **Users settings UI (`src/components/settings/users/UserForm.tsx` + a new `UserPermissionsPanel.tsx`)**
-   - When editing a `data_entry` user, show a "Permisos de acceso" section with a checkbox per tab
-   - When editing an `administrator`, show a disabled note "Los administradores tienen acceso completo"
-   - Save = diff current vs selected → insert/delete rows in `user_section_permissions`
-   - Available on both the "Agregar usuario" and "Editar usuario" flows (for new users, we insert after creation)
-
-6. **`userService.ts`** — add `fetchUserPermissions(userId)` and `setUserPermissions(userId, sections[])` helpers.
-
-## Enforcement summary
-
-| Layer | Behavior |
-|---|---|
-| Sidebar | Hides tabs the user can't access |
-| Route guard | Redirects direct-URL access to `/` |
-| DB RLS | Users can only read their own permission rows; only admins can write |
-
-Administrators are unaffected everywhere.
-
-## Files touched
-
-- `supabase/migrations/*` (new, via migration tool)
-- `src/hooks/use-section-permissions.ts` (new)
-- `src/components/auth/ProtectedRoute.tsx`
-- `src/components/layout/Sidebar.tsx`
-- `src/routes/protectedRoutes.tsx`
-- `src/routes/publitecaRoutes.tsx`
-- `src/services/users/userService.ts`
-- `src/components/settings/users/UserForm.tsx`
-- `src/components/settings/users/UserPermissionsPanel.tsx` (new)
-- `src/components/settings/users/UsersContainer.tsx` (wire save)
+### 4. Small cleanup
+- Consolidate the duplicated permission-fetching logic between `ProtectedRoute` and `useSectionPermissions` — have `ProtectedRoute` consume the hook so there is one source of truth and caching is shared.
 
 ## Out of scope
+- No DB or RLS changes (data layer is correct).
+- No changes to admin-only routes (`/ajustes`, `/media-monitoring`, etc.).
+- No changes to how permissions are edited in the users form.
 
-- Changing admin-only routes (Ajustes, Media Monitoring, Admin) — remain admin-only
-- Sub-tab / per-feature permissions inside a section (only top-level tabs for now)
-- Bulk-edit permissions across many users at once
+## Files to touch
+- `src/components/auth/ProtectedRoute.tsx` (main fix)
+- `src/hooks/use-section-permissions.ts` (expose loading state, allow multi-section check)
+- `src/routes/publitecaRoutes.tsx` (per-sub-route sections)
+- `src/components/publiteca/*` sidebar/tab component (if it lists sub-tabs) — hide items the user can't access
+- Playwright verification script under `/tmp/browser/perm-check/`

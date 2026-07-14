@@ -1,102 +1,38 @@
 
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import type { SectionKey } from "@/hooks/use-section-permissions";
+import { useSectionPermissions, type SectionKey } from "@/hooks/use-section-permissions";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   adminOnly?: boolean;
   section?: SectionKey;
+  /**
+   * When provided, the user must have access to ALL of these sections
+   * (in addition to `section` if it is also passed).
+   */
+  sections?: SectionKey[];
+  /**
+   * When provided, the user must have access to AT LEAST ONE of these sections.
+   */
+  anySection?: SectionKey[];
 }
 
-const ProtectedRoute = ({ children, adminOnly = false, section }: ProtectedRouteProps) => {
+const ProtectedRoute = ({
+  children,
+  adminOnly = false,
+  section,
+  sections,
+  anySection,
+}: ProtectedRouteProps) => {
   const { user, isLoading: authLoading } = useAuth();
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [isCheckingRole, setIsCheckingRole] = useState(true);
-  const [checkedUserId, setCheckedUserId] = useState<string | null>(null);
-  const [allowedSections, setAllowedSections] = useState<Set<string> | null>(null);
+  const { role, canAccess, canAccessAll, canAccessAny, isLoading: permsLoading } =
+    useSectionPermissions();
   const location = useLocation();
 
-  useEffect(() => {
-    // Skip re-check if we already have the role for this user
-    if (user && checkedUserId === user.id && userRole) {
-      setIsCheckingRole(false);
-      return;
-    }
-
-    // Safety timeout: never let the spinner run more than 6 seconds
-    const safetyTimer = setTimeout(() => {
-      setIsCheckingRole(false);
-    }, 6000);
-
-    const checkUserRole = async () => {
-      if (user) {
-        setIsCheckingRole(true);
-        try {
-          const { data, error } = await supabase
-            .from('user_profiles')
-            .select('role')
-            .eq('id', user.id)
-            .single();
-          
-          if (error) {
-            if (error.code === 'PGRST116') {
-              const { error: insertError } = await supabase
-                .from('user_profiles')
-                .insert({ 
-                  id: user.id, 
-                  username: user.email?.split('@')[0] || 'user', 
-                  role: 'data_entry' 
-                });
-              
-              if (insertError) {
-                console.error('Error creating user profile:', insertError);
-              } else {
-                setUserRole('data_entry');
-                setCheckedUserId(user.id);
-              }
-            } else {
-              console.error('Error fetching user role:', error);
-            }
-          } else {
-            setUserRole(data?.role || null);
-            setCheckedUserId(user.id);
-          }
-
-          // Load section permissions for non-admins
-          const currentRole = data?.role || null;
-          if (currentRole && currentRole !== 'administrator') {
-            const { data: perms } = await supabase
-              .from('user_section_permissions')
-              .select('section')
-              .eq('user_id', user.id);
-            setAllowedSections(new Set((perms ?? []).map((p: any) => p.section)));
-          } else {
-            setAllowedSections(null);
-          }
-        } catch (error) {
-          console.error('Error in role check:', error);
-        } finally {
-          clearTimeout(safetyTimer);
-          setIsCheckingRole(false);
-        }
-      } else if (!authLoading) {
-        // FIX: No user and auth is done loading — stop the spinner immediately
-        setUserRole(null);
-        setCheckedUserId(null);
-        clearTimeout(safetyTimer);
-        setIsCheckingRole(false);
-      }
-    };
-
-    checkUserRole();
-  }, [user, authLoading]);
-
-  // Show loading state while checking auth or role
-  if (authLoading || isCheckingRole) {
+  // Show loading state while checking auth or permissions
+  if (authLoading || (user && permsLoading)) {
     return (
       <div className="w-full h-screen flex flex-col items-center justify-center">
         <Loader2 className="animate-spin h-12 w-12 text-primary mb-4" />
@@ -107,25 +43,28 @@ const ProtectedRoute = ({ children, adminOnly = false, section }: ProtectedRoute
 
   // Redirect to auth if not logged in
   if (!user) {
-    // Save the current location to redirect back after login
     sessionStorage.setItem('redirectAfterLogin', location.pathname);
     return <Navigate to="/auth" replace />;
   }
 
-  // Redirect to home if admin-only route but user is not an admin
-  if (adminOnly && userRole !== 'administrator') {
+  // If we couldn't determine a role after loading, fail closed
+  if (!role) {
     return <Navigate to="/" replace />;
   }
 
-  // Section-based access check for data_entry users
-  if (
-    section &&
-    userRole &&
-    userRole !== 'administrator' &&
-    section !== 'inicio' &&
-    allowedSections &&
-    !allowedSections.has(section)
-  ) {
+  // Redirect to home if admin-only route but user is not an admin
+  if (adminOnly && role !== 'administrator') {
+    return <Navigate to="/" replace />;
+  }
+
+  // Section-based access checks (admins bypass via canAccess helpers).
+  if (section && !canAccess(section)) {
+    return <Navigate to="/" replace />;
+  }
+  if (sections && !canAccessAll(sections)) {
+    return <Navigate to="/" replace />;
+  }
+  if (anySection && !canAccessAny(anySection)) {
     return <Navigate to="/" replace />;
   }
 
