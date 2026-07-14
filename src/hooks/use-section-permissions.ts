@@ -82,5 +82,24 @@ export function useSectionPermissions() {
     return sections.has(section);
   };
 
-  return { role, sections, canAccess, isLoading: isLoading || authLoading };
+  const canAccessAll = (keys?: SectionKey[]) => {
+    if (!keys || keys.length === 0) return true;
+    if (role === "administrator") return true;
+    return keys.every((k) => canAccess(k));
+  };
+
+  const canAccessAny = (keys?: SectionKey[]) => {
+    if (!keys || keys.length === 0) return true;
+    if (role === "administrator") return true;
+    return keys.some((k) => canAccess(k));
+  };
+
+  return {
+    role,
+    sections,
+    canAccess,
+    canAccessAll,
+    canAccessAny,
+    isLoading: isLoading || authLoading,
+  };
 }
