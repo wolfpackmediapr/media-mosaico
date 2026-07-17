@@ -27,6 +27,19 @@ export const ALL_SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "reportes", label: "Reportes" },
 ];
 
+export const SECTION_ROUTES: Record<SectionKey, string> = {
+  inicio: "/",
+  publiteca: "/publiteca",
+  tv: "/tv",
+  radio: "/radio",
+  prensa: "/prensa",
+  "prensa-escrita": "/prensa-escrita",
+  "redes-sociales": "/redes-sociales",
+  notificaciones: "/notificaciones",
+  "envio-alertas": "/envio-alertas",
+  reportes: "/reportes",
+};
+
 export function useSectionPermissions() {
   const { user, isLoading: authLoading } = useAuth();
   const [role, setRole] = useState<string | null>(null);
@@ -77,8 +90,6 @@ export function useSectionPermissions() {
   const canAccess = (section?: SectionKey) => {
     if (!section) return true;
     if (role === "administrator") return true;
-    // Inicio is always available for signed-in users
-    if (section === "inicio") return true;
     return sections.has(section);
   };
 
@@ -94,12 +105,21 @@ export function useSectionPermissions() {
     return keys.some((k) => canAccess(k));
   };
 
+  const firstAccessibleSection = (): SectionKey | null => {
+    if (role === "administrator") return "inicio";
+    for (const s of ALL_SECTIONS) {
+      if (sections.has(s.key)) return s.key;
+    }
+    return null;
+  };
+
   return {
     role,
     sections,
     canAccess,
     canAccessAll,
     canAccessAny,
+    firstAccessibleSection,
     isLoading: isLoading || authLoading,
   };
 }
