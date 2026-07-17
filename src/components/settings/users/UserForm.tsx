@@ -199,13 +199,13 @@ export function UserForm({ onSubmit, onCancel, editingUser, roles }: UserFormPro
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Selecciona las secciones que este usuario podrá ver y acceder. Inicio y Ayuda están siempre disponibles.
+                    Selecciona las secciones que este usuario podrá ver y acceder. Si Inicio no está seleccionado, el usuario será redirigido a la primera sección disponible. Ayuda siempre está disponible.
                   </p>
                 )}
               </div>
               {currentRole !== "administrator" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {ALL_SECTIONS.filter((s) => s.key !== "inicio").map((s) => {
+                  {ALL_SECTIONS.map((s) => {
                     const id = `perm-${s.key}`;
                     const checked = permissions.has(s.key);
                     return (
