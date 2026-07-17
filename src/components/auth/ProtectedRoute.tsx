@@ -2,7 +2,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
-import { useSectionPermissions, type SectionKey } from "@/hooks/use-section-permissions";
+import { useSectionPermissions, SECTION_ROUTES, type SectionKey } from "@/hooks/use-section-permissions";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -27,7 +27,7 @@ const ProtectedRoute = ({
   anySection,
 }: ProtectedRouteProps) => {
   const { user, isLoading: authLoading } = useAuth();
-  const { role, canAccess, canAccessAll, canAccessAny, isLoading: permsLoading } =
+  const { role, canAccess, canAccessAll, canAccessAny, firstAccessibleSection, isLoading: permsLoading } =
     useSectionPermissions();
   const location = useLocation();
 
@@ -57,15 +57,19 @@ const ProtectedRoute = ({
     return <Navigate to="/" replace />;
   }
 
+  // Compute fallback route: first accessible section, else /ayuda.
+  const fallbackKey = firstAccessibleSection();
+  const fallback = fallbackKey ? SECTION_ROUTES[fallbackKey] : "/ayuda";
+
   // Section-based access checks (admins bypass via canAccess helpers).
   if (section && !canAccess(section)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={fallback} replace />;
   }
   if (sections && !canAccessAll(sections)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={fallback} replace />;
   }
   if (anySection && !canAccessAny(anySection)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={fallback} replace />;
   }
 
   return <>{children}</>;
