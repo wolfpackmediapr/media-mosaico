@@ -8,6 +8,7 @@ import { protectedRoutes, adminRoutes } from "./protectedRoutes";
 import { publicLayoutRoutes } from "./publicRoutes";
 import { configurationRoutes } from "./configurationRoutes";
 import { publitecaLayoutRoutes } from "./publitecaRoutes";
+import { createProtectedRoute } from "./protectedRoutes";
 
 // Import directly from the source file instead of from config/routes
 import Index from "../pages/Index";
@@ -30,7 +31,7 @@ export const mainAppRoute = {
   children: [
     {
       index: true,
-      element: <Index />
+      element: createProtectedRoute(Index, false, "inicio")
     },
     ...publicLayoutRoutes,
     ...protectedRoutes,
