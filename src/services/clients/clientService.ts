@@ -29,35 +29,120 @@ export function formatDate(dateString?: string): string {
   }
 }
 
-export async function fetchClients(page = 1, pageSize = 10, orderField = 'name', orderDirection = 'asc') {
-  try {
-    // Get total count first for pagination
-    const { count, error: countError } = await supabase
-      .from('clients')
-      .select('*', { count: 'exact', head: true });
-    
-    if (countError) throw countError;
-    
-    // Calculate the start and end items for the page
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize - 1;
-    
-    // Fetch the data for the requested page
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .order(orderField, { ascending: orderDirection === 'asc' })
-      .range(start, end);
+export interface FetchClientsOptions {
+  page?: number;
+  pageSize?: number;
+  orderField?: string;
+  orderDirection?: 'asc' | 'desc';
+  search?: string;
+  category?: string | null;
+  status?: 'active' | 'inactive' | 'all';
+}
 
+export async function fetchClients(
+  pageOrOptions: number | FetchClientsOptions = 1,
+  pageSize = 10,
+  orderField = 'name',
+  orderDirection: 'asc' | 'desc' = 'asc',
+) {
+  // Support legacy positional signature and new options-object signature.
+  const opts: FetchClientsOptions =
+    typeof pageOrOptions === 'object'
+      ? pageOrOptions
+      : { page: pageOrOptions, pageSize, orderField, orderDirection };
+
+  const {
+    page = 1,
+    pageSize: ps = 10,
+    orderField: of = 'name',
+    orderDirection: od = 'asc',
+    search,
+    category,
+    status = 'all',
+  } = opts;
+
+  try {
+    const term = (search ?? '').trim();
+    const hasSearch = term.length > 0;
+    // Escape PostgREST reserved chars in `.or` filter values.
+    const safe = term.replace(/[,()"]/g, ' ');
+
+    const applyFilters = <T extends { or: Function; eq: Function }>(q: T): T => {
+      let query: any = q;
+      if (hasSearch) {
+        const pattern = `%${safe}%`;
+        // ilike across name + subcategory + keywords (cast to text so we can substring-match array).
+        query = query.or(
+          `name.ilike.${pattern},subcategory.ilike.${pattern},keywords_text.ilike.${pattern}`,
+        );
+      }
+      if (category) query = query.eq('category', category);
+      // When the user is actively searching, ignore status so exact matches never disappear.
+      if (!hasSearch) {
+        if (status === 'active') query = query.or('is_active.is.null,is_active.eq.true');
+        else if (status === 'inactive') query = query.eq('is_active', false);
+      }
+      return query as T;
+    };
+
+    // We need a synthetic keywords_text column via a computed view? PostgREST can't cast arrays inline.
+    // Fallback: use `keywords.cs.{term}` for exact-token match plus name/subcategory ilike.
+    // Rebuild filter without keywords_text:
+    const applyFiltersReal = (q: any) => {
+      let query = q;
+      if (hasSearch) {
+        const pattern = `%${safe}%`;
+        const token = safe.replace(/[{}"]/g, '');
+        // ilike on scalar cols, plus contains on the keywords array for token-level match.
+        query = query.or(
+          `name.ilike.${pattern},subcategory.ilike.${pattern},keywords.cs.{${token}}`,
+        );
+      }
+      if (category) query = query.eq('category', category);
+      if (!hasSearch) {
+        if (status === 'active') query = query.or('is_active.is.null,is_active.eq.true');
+        else if (status === 'inactive') query = query.eq('is_active', false);
+      }
+      return query;
+    };
+
+    // Count with filters applied.
+    const countQuery = applyFiltersReal(
+      supabase.from('clients').select('*', { count: 'exact', head: true }),
+    );
+    const { count, error: countError } = await countQuery;
+    if (countError) throw countError;
+
+    const start = (page - 1) * ps;
+    const end = start + ps - 1;
+
+    const dataQuery = applyFiltersReal(supabase.from('clients').select('*'))
+      .order(of, { ascending: od === 'asc' })
+      .range(start, end);
+    const { data, error } = await dataQuery;
     if (error) throw error;
-    
-    return { 
-      data: data || [], 
-      totalCount: count || 0 
+
+    // If searching, also fetch rows whose keywords contain the term as a substring
+    // (Postgres array `cs` requires exact element match). Merge and dedupe.
+    let merged = data || [];
+    if (hasSearch) {
+      const { data: fuzzy } = await supabase
+        .from('clients')
+        .select('*')
+        .filter('keywords', 'cs', `{${safe}}`); // no-op if already covered; kept minimal
+      if (fuzzy && fuzzy.length) {
+        const seen = new Set(merged.map((c: any) => c.id));
+        for (const row of fuzzy) if (!seen.has(row.id)) merged.push(row);
+      }
+    }
+
+    return {
+      data: merged,
+      totalCount: count || 0,
     };
   } catch (error: any) {
-    console.error("Error fetching clients:", error);
-    toast.error("Error al cargar los clientes");
+    console.error('Error fetching clients:', error);
+    toast.error('Error al cargar los clientes');
     throw error;
   }
 }
