@@ -100,7 +100,7 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
           placeholder="Añade una palabra clave y presiona coma o Enter"
         />
         <p className="text-xs text-muted-foreground">
-          Ingrese palabras clave separadas por comas. Los acentos y mayúsculas no son necesarios — por ejemplo, <code>Pérez</code> también encuentra <code>Perez</code>.
+          Ingrese palabras clave separadas por comas. Haz clic en una etiqueta para corregirla, o usa la X para eliminarla. Los acentos y mayúsculas no son necesarios — por ejemplo, <code>Pérez</code> también encuentra <code>Perez</code>.
         </p>
       </div>
       
