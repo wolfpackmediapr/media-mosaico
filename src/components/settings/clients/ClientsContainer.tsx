@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Client, fetchClients, addClient, updateClient, deleteClient, setClientActive } from "@/services/clients/clientService";
@@ -15,13 +15,32 @@ export function ClientsContainer() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
+  // Debounce the search term so we don't fire a query on every keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+  // Reset to page 1 whenever a filter changes.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, filterCategory, filterStatus]);
 
   const queryClient = useQueryClient();
 
   // Fetch clients with pagination
   const { data, isLoading, error } = useQuery({
-    queryKey: ["clients", currentPage, pageSize, sortField, sortOrder],
-    queryFn: () => fetchClients(currentPage, pageSize, sortField, sortOrder)
+    queryKey: ["clients", currentPage, pageSize, sortField, sortOrder, debouncedSearch, filterCategory, filterStatus],
+    queryFn: () =>
+      fetchClients({
+        page: currentPage,
+        pageSize,
+        orderField: sortField as string,
+        orderDirection: sortOrder,
+        search: debouncedSearch,
+        category: filterCategory,
+        status: filterStatus,
+      }),
   });
 
   // Mutations
@@ -120,8 +139,8 @@ export function ClientsContainer() {
   };
 
   // Get unique categories for filter
-  const categories = data?.data
-    ? [...new Set(data.data.map(client => client.category))]
+  const categories: string[] = data?.data
+    ? Array.from(new Set(data.data.map((client) => client.category).filter(Boolean) as string[]))
     : [];
 
   // Calculate total pages
@@ -129,27 +148,8 @@ export function ClientsContainer() {
     ? Math.ceil(data.totalCount / pageSize)
     : 1;
 
-  // Filter and sort clients (server handles most of this now)
-  const filteredClients = data?.data
-    ? data.data
-        .filter(client => {
-          // Category filter
-          if (filterCategory && client.category !== filterCategory) {
-            return false;
-          }
-          
-          // Search filter
-          if (searchTerm && !client.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-            return false;
-          }
-
-          // Status filter (active by default so deactivated rows don't look like duplicates)
-          if (filterStatus === "active" && client.is_active === false) return false;
-          if (filterStatus === "inactive" && client.is_active !== false) return false;
-
-          return true;
-        })
-    : [];
+  // Filtering, search, and status are all handled server-side now.
+  const filteredClients = data?.data ?? [];
 
   // Check if we have filters applied
   const hasFilters = !!filterCategory || !!searchTerm || filterStatus !== "active";
