@@ -64,17 +64,35 @@ export async function fetchClients(page = 1, pageSize = 10, orderField = 'name',
 
 export async function addClient(client: Client) {
   try {
+    const normalized = client.name.trim();
+    // Pre-check for case-insensitive duplicate (active or inactive).
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id, name, is_active')
+      .ilike('name', normalized)
+      .limit(1);
+    if (existing && existing.length > 0) {
+      throw new Error(
+        `Ya existe un cliente con ese nombre ("${existing[0].name}"${existing[0].is_active === false ? ", inactivo" : ""}). Edítalo en vez de crear uno nuevo.`
+      );
+    }
+
     const { data, error } = await supabase
       .from('clients')
       .insert([{
-        name: client.name,
+        name: normalized,
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
       }])
       .select();
 
-    if (error) throw error;
+    if (error) {
+      if ((error as any).code === '23505') {
+        throw new Error('Ya existe un cliente con ese nombre (activo o inactivo). Edítalo en vez de crear uno nuevo.');
+      }
+      throw error;
+    }
     return data?.[0];
   } catch (error: any) {
     console.error("Error adding client:", error);
@@ -88,10 +106,24 @@ export async function updateClient(client: Client) {
   }
 
   try {
+    const normalized = client.name.trim();
+    // Block rename that would collide with another existing client (case-insensitive).
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id, name, is_active')
+      .ilike('name', normalized)
+      .neq('id', client.id)
+      .limit(1);
+    if (existing && existing.length > 0) {
+      throw new Error(
+        `Ya existe otro cliente con ese nombre ("${existing[0].name}"${existing[0].is_active === false ? ", inactivo" : ""}).`
+      );
+    }
+
     const { data, error } = await supabase
       .from('clients')
       .update({
-        name: client.name,
+        name: normalized,
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
@@ -99,7 +131,12 @@ export async function updateClient(client: Client) {
       .eq('id', client.id)
       .select();
 
-    if (error) throw error;
+    if (error) {
+      if ((error as any).code === '23505') {
+        throw new Error('Ya existe otro cliente con ese nombre (activo o inactivo).');
+      }
+      throw error;
+    }
     return data?.[0];
   } catch (error: any) {
     console.error("Error updating client:", error);
