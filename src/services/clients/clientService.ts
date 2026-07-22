@@ -29,35 +29,81 @@ export function formatDate(dateString?: string): string {
   }
 }
 
-export async function fetchClients(page = 1, pageSize = 10, orderField = 'name', orderDirection = 'asc') {
-  try {
-    // Get total count first for pagination
-    const { count, error: countError } = await supabase
-      .from('clients')
-      .select('*', { count: 'exact', head: true });
-    
-    if (countError) throw countError;
-    
-    // Calculate the start and end items for the page
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize - 1;
-    
-    // Fetch the data for the requested page
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .order(orderField, { ascending: orderDirection === 'asc' })
-      .range(start, end);
+export interface FetchClientsOptions {
+  page?: number;
+  pageSize?: number;
+  orderField?: string;
+  orderDirection?: 'asc' | 'desc';
+  search?: string;
+  category?: string | null;
+  status?: 'active' | 'inactive' | 'all';
+}
 
+export async function fetchClients(
+  pageOrOptions: number | FetchClientsOptions = 1,
+  pageSize = 10,
+  orderField = 'name',
+  orderDirection: 'asc' | 'desc' = 'asc',
+) {
+  const opts: FetchClientsOptions =
+    typeof pageOrOptions === 'object'
+      ? pageOrOptions
+      : { page: pageOrOptions, pageSize, orderField, orderDirection };
+
+  const {
+    page = 1,
+    pageSize: ps = 10,
+    orderField: of = 'name',
+    orderDirection: od = 'asc',
+    search,
+    category,
+    status = 'all',
+  } = opts;
+
+  try {
+    const term = (search ?? '').trim();
+    const hasSearch = term.length > 0;
+    // Escape PostgREST `.or` reserved chars.
+    const safe = term.replace(/[,()"{}]/g, ' ').trim();
+
+    const applyFilters = (q: any) => {
+      let query = q;
+      if (hasSearch && safe.length > 0) {
+        const pattern = `*${safe}*`;
+        // ilike on scalar cols + array-contains on keywords (exact token match).
+        query = query.or(
+          `name.ilike.${pattern},subcategory.ilike.${pattern},keywords.cs.{${safe}}`,
+        );
+      }
+      if (category) query = query.eq('category', category);
+      // When searching, ignore status so exact matches always surface.
+      if (!hasSearch) {
+        if (status === 'active') query = query.or('is_active.is.null,is_active.eq.true');
+        else if (status === 'inactive') query = query.eq('is_active', false);
+      }
+      return query;
+    };
+
+    const { count, error: countError } = await applyFilters(
+      supabase.from('clients').select('*', { count: 'exact', head: true }),
+    );
+    if (countError) throw countError;
+
+    const start = (page - 1) * ps;
+    const end = start + ps - 1;
+
+    const { data, error } = await applyFilters(supabase.from('clients').select('*'))
+      .order(of, { ascending: od === 'asc' })
+      .range(start, end);
     if (error) throw error;
-    
-    return { 
-      data: data || [], 
-      totalCount: count || 0 
+
+    return {
+      data: (data || []) as Client[],
+      totalCount: count || 0,
     };
   } catch (error: any) {
-    console.error("Error fetching clients:", error);
-    toast.error("Error al cargar los clientes");
+    console.error('Error fetching clients:', error);
+    toast.error('Error al cargar los clientes');
     throw error;
   }
 }

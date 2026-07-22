@@ -1,42 +1,50 @@
-# Fix: "Deleted clients remain duplicated" — approved plan
+## Bug 2 audit: Search fails to find existing clients — CONFIRMED
 
-## Diagnosis (from audit)
-- `clients` has no soft-delete column; `deleteClient()` is a hard `DELETE`, so truly deleted rows cannot reappear.
-- No exact duplicates in the DB, but two near-duplicate pairs exist because admins re-added instead of edited:
-  - `Coop de Seguros Múltiples` (2025-01) vs `Cooperativa Seguros Múltiples` (2026-07)
-  - `NF Energía` (2025-01, inactive) vs `NF Energy` (2026-05)
-- No unique constraint on `name`, and the Gestión de Clientes table lists active + inactive together, which is why deactivated rows look like duplicates of their replacements.
+### Root cause (verified in code)
 
-## Merge decisions (user-approved: keep latest added)
-- Keep **`Cooperativa Seguros Múltiples`** (2026-07-20). Merge keywords from `Coop de Seguros Múltiples` into it, then delete the older row.
-- Keep **`NF Energy`** (2026-05-28). Merge keywords from `NF Energía` into it, then delete the older row.
+The search in Ajustes → Clientes is **client-side only, over the current page**, not a database query.
 
-## Steps
+`src/services/clients/clientService.ts` → `fetchClients(page, pageSize=10, ...)` pulls one page of 10 rows ordered by name. `src/components/settings/clients/ClientsContainer.tsx` (line 142) then filters those 10 rows in JS:
 
-### 1. Migration — prevent future duplicates
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS clients_name_ci_uidx
-  ON public.clients (lower(btrim(name)));
+```ts
+if (searchTerm && !client.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
 ```
-Case-insensitive, ignores leading/trailing whitespace. No `deleted_at` column added — the app's model stays hard-delete + `is_active`.
 
-### 2. Data merge (insert tool, after migration is approved)
-For each pair: union `keywords` into the winner, delete the loser.
+Consequences:
+1. **Most matches are invisible.** A client on page 3 will never appear when you type their name on page 1 — the search only sees the 10 rows already loaded.
+2. **Keywords/aliases aren't searched.** Only `client.name` is checked; `keywords[]` and `subcategory` are ignored, even though those are the "alternate names" operators rely on.
+3. **Inactive clients are hidden by default.** After the last fix, `filterStatus` defaults to `"active"`, so searching for a deactivated client returns nothing until the user switches Estado to Inactivos/Todos.
 
-### 3. Frontend — prevent re-introduction and clarify the list
-- `src/services/clients/clientService.ts`
-  - Pre-check `addClient` / `updateClient` with a case-insensitive `ilike` on `name`; block with toast: *"Ya existe un cliente con ese nombre (activo o inactivo). Edítalo en vez de crear uno nuevo."*
-  - Catch Postgres `23505` (unique violation) and surface the same message.
-- `src/components/settings/clients/ClientsContainer.tsx` + `ClientFilter.tsx` + `ClientsList.tsx`
-  - Add an "Estado" filter: **Activos (default)** / Inactivos / Todos, so deactivated rows don't appear next to their active replacements by default.
-  - Existing "Inactivo" badge / dimming stays for the "Todos" view.
+Case sensitivity itself is fine (`toLowerCase` on both sides), and there's no stale index — the search simply never reaches the database.
 
-### 4. Verification
-- `SELECT lower(btrim(name)), count(*) FROM public.clients GROUP BY 1 HAVING count(*) > 1;` → zero rows.
-- Try to create `"aaa"` from the UI → blocked with the Spanish toast.
-- Gestión de Clientes defaults to Activos; the two merged pairs are gone.
+### Fix
 
-## Not doing
-- No `deleted_at` / soft-delete column. Introducing it would silently break 30+ existing call sites (spotlight, alerts, TV/RSS analyzers, notifications) that assume hard-delete + `is_active`.
+Move the search to the server, broaden it to keywords, and stop hiding inactive rows when the user is actively searching.
 
-Switch to build mode and I'll run the migration, execute the two merges, and ship the frontend guardrails.
+1. **`src/services/clients/clientService.ts` — `fetchClients` signature**
+   - Add `search?: string` and `status?: 'active' | 'inactive' | 'all'` params.
+   - Build the query with `.or(...)` using `ilike` across `name`, `subcategory`, and `keywords` (array contains via `cs.{term}` or an `ilike` on `keywords::text` — use `keywords::text ilike %term%` via `.or` to keep it simple and index-free).
+   - Apply the same filter to the `count` query so pagination is correct.
+   - When `search` is present, ignore `status` (search across all rows) so a user typing an exact inactive name still finds it.
+
+2. **`src/hooks/use-clients-query.ts`** (or wherever `useQuery` for clients lives — will locate during build)
+   - Include `searchTerm`, `filterCategory`, `filterStatus` in the query key and pass them to `fetchClients`.
+   - Debounce `searchTerm` (~350ms) before it hits the query key to avoid a request per keystroke.
+
+3. **`src/components/settings/clients/ClientsContainer.tsx`**
+   - Remove the local `name.includes` filter; keep only UI state.
+   - Reset `currentPage` to 1 when `searchTerm`, `filterCategory`, or `filterStatus` changes.
+   - Keep category filter server-side too (pass to `fetchClients`) so pagination counts stay consistent.
+
+4. **UX polish in `ClientFilter.tsx`**
+   - Small helper text or badge under the search input: "Buscando en nombre, subcategoría y palabras clave" so it's clear aliases are covered.
+
+### Out of scope
+- No schema changes. The existing `clients_name_ci_uidx` and `keywords text[]` are sufficient; a trigram index can be added later if search becomes slow at scale.
+- No changes to how clients are deleted or deduplicated (handled in Bug 1).
+
+### Verification
+- Type an exact name that lives on page 3+ → row appears.
+- Type a substring of a `keywords` entry → matching client appears.
+- Type an inactive client's exact name with Estado = Activos → row still appears (search overrides status).
+- Clear search → paginated list returns with correct total count.
