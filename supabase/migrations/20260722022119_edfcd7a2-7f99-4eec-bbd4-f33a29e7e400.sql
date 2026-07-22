@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS update_client_alerts_updated_at ON public.client_alerts;
