@@ -9,6 +9,7 @@ export function ClientsContainer() {
   const [showForm, setShowForm] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"active" | "inactive" | "all">("active");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<keyof Client>("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
@@ -141,13 +142,17 @@ export function ClientsContainer() {
           if (searchTerm && !client.name.toLowerCase().includes(searchTerm.toLowerCase())) {
             return false;
           }
-          
+
+          // Status filter (active by default so deactivated rows don't look like duplicates)
+          if (filterStatus === "active" && client.is_active === false) return false;
+          if (filterStatus === "inactive" && client.is_active !== false) return false;
+
           return true;
         })
     : [];
 
   // Check if we have filters applied
-  const hasFilters = !!filterCategory || !!searchTerm;
+  const hasFilters = !!filterCategory || !!searchTerm || filterStatus !== "active";
 
   return (
     <ClientsList
@@ -161,6 +166,8 @@ export function ClientsContainer() {
       editingClient={editingClient}
       filterCategory={filterCategory}
       setFilterCategory={setFilterCategory}
+      filterStatus={filterStatus}
+      setFilterStatus={setFilterStatus}
       searchTerm={searchTerm}
       setSearchTerm={setSearchTerm}
       sortField={sortField}
