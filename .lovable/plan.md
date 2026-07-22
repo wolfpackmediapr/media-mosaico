@@ -1,50 +1,41 @@
-## Bug 2 audit: Search fails to find existing clients — CONFIRMED
+## Bug 4 audit: "Misspelled keywords cannot be edited" — MOSTLY FALSE
 
-### Root cause (verified in code)
+### What the bug report assumes vs. what the app actually does
 
-The search in Ajustes → Clientes is **client-side only, over the current page**, not a database query.
+The report assumes keywords live in a separate table with a name field and foreign-key references from news/alerts. That is not the architecture here.
 
-`src/services/clients/clientService.ts` → `fetchClients(page, pageSize=10, ...)` pulls one page of 10 rows ordered by name. `src/components/settings/clients/ClientsContainer.tsx` (line 142) then filters those 10 rows in JS:
+- `clients.keywords` is a Postgres `text[]` column on the `clients` row itself — verified in `src/services/clients/clientService.ts` and used inline by the analysis prompts.
+- News matching and alerts read `clients.keywords` at analysis time; nothing stores a keyword id anywhere else. That means:
+  - **Editing is already supported.** Open the client in Ajustes → Clientes → Editar; the "Palabras clave" `TagsInput` lets you remove any tag and add a corrected one. Saving persists the whole array.
+  - **No cascade is needed.** There are no foreign keys to update; future analyses pick up the corrected list automatically.
+  - **No dedicated merge tool is needed.** "Merging misspelled into correct" is just: delete the wrong tag, keep the right one, save.
 
-```ts
-if (searchTerm && !client.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-```
+So there is no data-integrity bug and nothing to change in the database or edge functions.
 
-Consequences:
-1. **Most matches are invisible.** A client on page 3 will never appear when you type their name on page 1 — the search only sees the 10 rows already loaded.
-2. **Keywords/aliases aren't searched.** Only `client.name` is checked; `keywords[]` and `subcategory` are ignored, even though those are the "alternate names" operators rely on.
-3. **Inactive clients are hidden by default.** After the last fix, `filterStatus` defaults to `"active"`, so searching for a deactivated client returns nothing until the user switches Estado to Inactivos/Todos.
+### The real UX gap (worth fixing, small)
 
-Case sensitivity itself is fine (`toLowerCase` on both sides), and there's no stale index — the search simply never reaches the database.
+`src/components/ui/tags-input.tsx` renders each tag as a static badge with an X button. To correct a typo the user must delete the tag and retype the whole word — with long names that feels like "can't edit". This likely fueled Johanna's report.
 
-### Fix
+Proposed UX-only improvement (frontend, no schema, no data migration):
 
-Move the search to the server, broaden it to keywords, and stop hiding inactive rows when the user is actively searching.
+1. **`src/components/ui/tags-input.tsx`**
+   - Make each tag click-to-edit: clicking the tag text swaps the badge for a small inline `<input>` prefilled with the current value.
+   - Enter / blur commits the edit (updates the array at that index; case-insensitive dedupe against the rest); Escape cancels; empty value removes the tag.
+   - Keep the existing X button for quick delete.
+   - Preserve current behavior for the trailing draft input, comma/Enter handling, and `commit()` imperative handle so `ClientForm` doesn't need changes.
 
-1. **`src/services/clients/clientService.ts` — `fetchClients` signature**
-   - Add `search?: string` and `status?: 'active' | 'inactive' | 'all'` params.
-   - Build the query with `.or(...)` using `ilike` across `name`, `subcategory`, and `keywords` (array contains via `cs.{term}` or an `ilike` on `keywords::text` — use `keywords::text ilike %term%` via `.or` to keep it simple and index-free).
-   - Apply the same filter to the `count` query so pagination is correct.
-   - When `search` is present, ignore `status` (search across all rows) so a user typing an exact inactive name still finds it.
+2. **Copy tweak in `ClientForm.tsx`**
+   - Update the helper text under the tag input to mention that tags are click-to-edit, so operators discover the affordance.
 
-2. **`src/hooks/use-clients-query.ts`** (or wherever `useQuery` for clients lives — will locate during build)
-   - Include `searchTerm`, `filterCategory`, `filterStatus` in the query key and pass them to `fetchClients`.
-   - Debounce `searchTerm` (~350ms) before it hits the query key to avoid a request per keystroke.
+That's the whole change — one component, one line of copy. No migration, no edge function, no cascade logic.
 
-3. **`src/components/settings/clients/ClientsContainer.tsx`**
-   - Remove the local `name.includes` filter; keep only UI state.
-   - Reset `currentPage` to 1 when `searchTerm`, `filterCategory`, or `filterStatus` changes.
-   - Keep category filter server-side too (pass to `fetchClients`) so pagination counts stay consistent.
-
-4. **UX polish in `ClientFilter.tsx`**
-   - Small helper text or badge under the search input: "Buscando en nombre, subcategoría y palabras clave" so it's clear aliases are covered.
-
-### Out of scope
-- No schema changes. The existing `clients_name_ci_uidx` and `keywords text[]` are sufficient; a trigram index can be added later if search becomes slow at scale.
-- No changes to how clients are deleted or deduplicated (handled in Bug 1).
+### Out of scope (intentionally not doing)
+- Introducing a global `keywords` table or ids.
+- A cross-client merge tool. Keywords are scoped per client; a global merge would change semantics and isn't requested here.
+- Retroactively re-tagging historical `news_articles` / `client_alerts`. Those already reference clients by `client_id`, so renaming a keyword doesn't orphan anything; historical matches simply reflect the keywords active at analysis time, which is the correct audit behavior.
 
 ### Verification
-- Type an exact name that lives on page 3+ → row appears.
-- Type a substring of a `keywords` entry → matching client appears.
-- Type an inactive client's exact name with Estado = Activos → row still appears (search overrides status).
-- Clear search → paginated list returns with correct total count.
+- Open a client with a typo'd tag, click the tag, edit inline, press Enter → tag updates in the array; Save persists.
+- Try to rename a tag to another existing tag on the same client → change is rejected silently (dedupe) or replaces (whichever matches existing dedupe rule); no duplicate entries.
+- Empty out a tag and press Enter → tag is removed.
+- Escape while editing → original tag restored.
