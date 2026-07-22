@@ -18,6 +18,8 @@ export interface ClientFilterProps {
   onCategoryChange: (category: string | null) => void;
   searchTerm: string;
   onSearchChange: (term: string) => void;
+  statusFilter?: "active" | "inactive" | "all";
+  onStatusChange?: (status: "active" | "inactive" | "all") => void;
 }
 
 export function ClientFilter({
@@ -25,7 +27,9 @@ export function ClientFilter({
   selectedCategory,
   onCategoryChange,
   searchTerm,
-  onSearchChange
+  onSearchChange,
+  statusFilter = "active",
+  onStatusChange,
 }: ClientFilterProps) {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
@@ -64,6 +68,19 @@ export function ClientFilter({
           </SelectGroup>
         </SelectContent>
       </Select>
+
+      {onStatusChange && (
+        <Select value={statusFilter} onValueChange={(v) => onStatusChange(v as "active" | "inactive" | "all")}>
+          <SelectTrigger className="w-full sm:w-[150px]">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Activos</SelectItem>
+            <SelectItem value="inactive">Inactivos</SelectItem>
+            <SelectItem value="all">Todos</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
     </div>
   );
 }
