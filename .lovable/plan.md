@@ -1,47 +1,42 @@
-# Make "Inicio" a toggleable section permission
+# Fix: "Deleted clients remain duplicated" — approved plan
 
-Currently "Inicio" is hardcoded as always-available for signed-in users. Admins want to be able to remove it too, and when a data_entry user lacks Inicio they should land on the first section they *do* have access to.
+## Diagnosis (from audit)
+- `clients` has no soft-delete column; `deleteClient()` is a hard `DELETE`, so truly deleted rows cannot reappear.
+- No exact duplicates in the DB, but two near-duplicate pairs exist because admins re-added instead of edited:
+  - `Coop de Seguros Múltiples` (2025-01) vs `Cooperativa Seguros Múltiples` (2026-07)
+  - `NF Energía` (2025-01, inactive) vs `NF Energy` (2026-05)
+- No unique constraint on `name`, and the Gestión de Clientes table lists active + inactive together, which is why deactivated rows look like duplicates of their replacements.
 
-## Changes
+## Merge decisions (user-approved: keep latest added)
+- Keep **`Cooperativa Seguros Múltiples`** (2026-07-20). Merge keywords from `Coop de Seguros Múltiples` into it, then delete the older row.
+- Keep **`NF Energy`** (2026-05-28). Merge keywords from `NF Energía` into it, then delete the older row.
 
-### 1. `src/hooks/use-section-permissions.ts`
-- Remove the special case `if (section === "inicio") return true;` inside `canAccess`. Inicio becomes a normal permission gated by the `user_section_permissions` table (admins still bypass via role).
-- Add a derived helper `firstAccessibleSection()` that returns the first key from `ALL_SECTIONS` (in declared order) the user can access, or `null` if none.
+## Steps
 
-### 2. `src/components/settings/users/UserForm.tsx`
-- Stop filtering out `inicio` from the checkbox grid: render the Inicio checkbox alongside the other sections so admins can toggle it.
-- Update the helper copy to remove "Inicio y Ayuda están siempre disponibles" — only Ayuda remains always-on (it isn't in `ALL_SECTIONS`).
-- Default permissions for a brand-new data_entry user keep including `inicio` (current behavior of pre-checking every section), so nothing changes unless the admin unchecks it.
-
-### 3. `src/components/auth/ProtectedRoute.tsx`
-- When a signed-in user hits `/` (Inicio) but lacks the `inicio` permission, redirect to their first accessible section instead of looping back to `/`.
-- Add a small `HomeRedirect` behavior: if `section === "inicio"` and the user cannot access it, `Navigate` to `/${firstAccessibleSection}` (mapping section keys to routes). If no section is accessible, redirect to `/ayuda` (always available) so they aren't stranded.
-
-### 4. Section key → route mapping
-Add a tiny map (in the hook file or a new `src/lib/section-routes.ts`) so the redirect knows where to send users:
-
-```text
-inicio          -> /
-publiteca       -> /publiteca
-tv              -> /tv
-radio           -> /radio
-prensa          -> /prensa
-prensa-escrita  -> /prensa-escrita
-redes-sociales  -> /redes-sociales
-notificaciones  -> /notificaciones
-envio-alertas   -> /envio-alertas
-reportes        -> /reportes
+### 1. Migration — prevent future duplicates
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS clients_name_ci_uidx
+  ON public.clients (lower(btrim(name)));
 ```
+Case-insensitive, ignores leading/trailing whitespace. No `deleted_at` column added — the app's model stays hard-delete + `is_active`.
 
-### 5. Post-login landing
-`src/pages/Auth.tsx` currently sends users to `/` (or the stored `redirectAfterLogin`). The ProtectedRoute redirect handles the follow-up bounce automatically, so no change is required there — but I'll double-check the login flow doesn't loop.
+### 2. Data merge (insert tool, after migration is approved)
+For each pair: union `keywords` into the winner, delete the loser.
 
-## Out of scope
-- Ayuda stays always-available (it's not a gated section).
-- Admin behavior is unchanged (they always see everything).
-- No DB migration needed — `user_section_permissions` already accepts `inicio` as a value.
+### 3. Frontend — prevent re-introduction and clarify the list
+- `src/services/clients/clientService.ts`
+  - Pre-check `addClient` / `updateClient` with a case-insensitive `ilike` on `name`; block with toast: *"Ya existe un cliente con ese nombre (activo o inactivo). Edítalo en vez de crear uno nuevo."*
+  - Catch Postgres `23505` (unique violation) and surface the same message.
+- `src/components/settings/clients/ClientsContainer.tsx` + `ClientFilter.tsx` + `ClientsList.tsx`
+  - Add an "Estado" filter: **Activos (default)** / Inactivos / Todos, so deactivated rows don't appear next to their active replacements by default.
+  - Existing "Inactivo" badge / dimming stays for the "Todos" view.
 
-## Verification
-- Admin edits a data_entry user, unchecks Inicio, keeps Radio → user logs in, is redirected from `/` to `/radio`, sidebar hides Inicio.
-- Uncheck everything → user lands on `/ayuda`.
-- Re-check Inicio → user lands on `/` normally.
+### 4. Verification
+- `SELECT lower(btrim(name)), count(*) FROM public.clients GROUP BY 1 HAVING count(*) > 1;` → zero rows.
+- Try to create `"aaa"` from the UI → blocked with the Spanish toast.
+- Gestión de Clientes defaults to Activos; the two merged pairs are gone.
+
+## Not doing
+- No `deleted_at` / soft-delete column. Introducing it would silently break 30+ existing call sites (spotlight, alerts, TV/RSS analyzers, notifications) that assume hard-delete + `is_active`.
+
+Switch to build mode and I'll run the migration, execute the two merges, and ship the frontend guardrails.
