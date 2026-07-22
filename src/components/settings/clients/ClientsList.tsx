@@ -34,6 +34,8 @@ interface ClientsListProps {
   editingClient: Client | null;
   filterCategory: string | null;
   setFilterCategory: (category: string | null) => void;
+  filterStatus: "active" | "inactive" | "all";
+  setFilterStatus: (status: "active" | "inactive" | "all") => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   sortField: keyof Client;
@@ -62,6 +64,8 @@ export function ClientsList({
   editingClient,
   filterCategory,
   setFilterCategory,
+  filterStatus,
+  setFilterStatus,
   searchTerm,
   setSearchTerm,
   sortField,
@@ -96,6 +100,8 @@ export function ClientsList({
             onCategoryChange={setFilterCategory}
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
+            statusFilter={filterStatus}
+            onStatusChange={setFilterStatus}
           />
           
           <Button 
