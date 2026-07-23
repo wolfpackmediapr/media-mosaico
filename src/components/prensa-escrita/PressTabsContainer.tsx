@@ -18,6 +18,11 @@ interface PressTabsContainerProps {
   documentMetadata?: DocumentMetadata;
   onFileSelect: (file: File, publicationName: string, publicationDate?: Date) => void;
   onCancelProcessing?: () => void;
+  onViewHistoryJob?: (job: {
+    publicationName: string;
+    documentSummary: string;
+    documentMetadata: DocumentMetadata;
+  }) => void;
 }
 
 const PressTabsContainer = ({
@@ -30,7 +35,8 @@ const PressTabsContainer = ({
   documentSummary,
   documentMetadata,
   onFileSelect,
-  onCancelProcessing
+  onCancelProcessing,
+  onViewHistoryJob,
 }: PressTabsContainerProps) => {
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -75,7 +81,7 @@ const PressTabsContainer = ({
       </TabsContent>
 
       <TabsContent value="history" className="space-y-6 mt-6">
-        <ProcessingHistoryContainer />
+        <ProcessingHistoryContainer onViewJob={onViewHistoryJob} />
       </TabsContent>
     </Tabs>
   );

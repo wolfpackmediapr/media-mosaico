@@ -4,9 +4,15 @@ import { toast } from "@/services/toastService";
 import PressTabsContainer from "@/components/prensa-escrita/PressTabsContainer";
 import { usePdfProcessing } from "@/hooks/prensa/usePdfProcessing";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
+import { DocumentMetadata } from "@/hooks/prensa/types";
 
 export default function PrensaEscrita() {
   const [activeTab, setActiveTab] = useState("upload");
+  const [historyView, setHistoryView] = useState<{
+    publicationName: string;
+    documentSummary: string;
+    documentMetadata: DocumentMetadata;
+  } | null>(null);
   
   // Use real hooks instead of mock state
   const {
@@ -39,6 +45,7 @@ export default function PrensaEscrita() {
   // Real file handling
   const handleFileSelect = async (file: File, pubName: string, pubDate?: Date) => {
     try {
+      setHistoryView(null);
       await processFile(file, pubName, pubDate);
       
       // Switch to results tab after successful processing
@@ -58,6 +65,21 @@ export default function PrensaEscrita() {
     cancelProcessing();
   };
 
+  const handleViewHistoryJob = (job: {
+    publicationName: string;
+    documentSummary: string;
+    documentMetadata: DocumentMetadata;
+  }) => {
+    setHistoryView(job);
+    setActiveTab("results");
+  };
+
+  // History view takes priority over live results
+  const displayPublicationName = historyView?.publicationName ?? publicationName;
+  const displaySummary = historyView?.documentSummary ?? currentJob?.document_summary;
+  const displayMetadata = historyView?.documentMetadata ?? currentJob?.document_metadata;
+  const displayClippings = historyView ? [] : clippings;
+
   return (
     <ErrorBoundary>
     <div className="w-full space-y-6">
@@ -70,15 +92,19 @@ export default function PrensaEscrita() {
       
       <PressTabsContainer 
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        clippings={clippings}
+        setActiveTab={(t) => {
+          if (t === "upload") setHistoryView(null);
+          setActiveTab(t);
+        }}
+        clippings={displayClippings}
         isUploading={isUploading}
         uploadProgress={uploadProgress}
-        publicationName={publicationName}
-        documentSummary={currentJob?.document_summary}
-        documentMetadata={currentJob?.document_metadata}
+        publicationName={displayPublicationName}
+        documentSummary={displaySummary}
+        documentMetadata={displayMetadata}
         onFileSelect={handleFileSelect}
         onCancelProcessing={handleCancelProcessing}
+        onViewHistoryJob={handleViewHistoryJob}
       />
     </div>
     </ErrorBoundary>
