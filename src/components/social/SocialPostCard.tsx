@@ -2,13 +2,14 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, ExternalLink, Image as ImageIcon } from "lucide-react";
+import { Calendar, ExternalLink, Image as ImageIcon, Copy, CheckCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import type { SocialPost } from "@/types/social";
 import { platformIcons } from "@/lib/platform-icons";
 import { getSocialPostImage } from "@/services/social/image-utils";
 import { sanitizeSocialContent } from "@/services/social/content-sanitizer";
+import { toast } from "sonner";
 
 interface SocialPostCardProps {
   post: SocialPost;
@@ -27,12 +28,30 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
 
   // Track image loading state
   const [imageError, setImageError] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   // Use the proper image utility function to get the correct image with fallbacks
   const imageUrl = getSocialPostImage(post);
 
   // Sanitize the description content to handle HTML properly
   const sanitizedDescription = sanitizeSocialContent(description || '');
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const tmp = document.createElement("div");
+    tmp.innerHTML = sanitizedDescription || description || "";
+    const plainDescription = (tmp.textContent || tmp.innerText || "").trim();
+    const textToCopy = [title, plainDescription, link].filter(Boolean).join("\n\n");
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setIsCopied(true);
+      toast.success("Texto copiado al portapapeles");
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy text:", error);
+      toast.error("No se pudo copiar el texto. Intente de nuevo.");
+    }
+  };
 
   // Format the publication date
   const formattedDate = pub_date ? formatDistanceToNow(new Date(pub_date), { addSuffix: true }) : '';
@@ -67,6 +86,21 @@ const SocialPostCard = ({ post }: SocialPostCardProps) => {
           <div className="flex items-center text-sm text-muted-foreground">
             <Calendar className="mr-1 h-3 w-3" />
             <span>{formattedDate}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 ml-1"
+              onClick={handleCopy}
+              aria-label="Copiar publicación"
+              title="Copiar publicación"
+            >
+              {isCopied ? (
+                <CheckCheck className="h-3.5 w-3.5 text-green-500" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </Button>
           </div>
         </div>
         
