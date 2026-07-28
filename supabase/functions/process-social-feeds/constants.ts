@@ -26,9 +26,9 @@ export const SOCIAL_FEEDS = [
     platform: "twitter"
   },
   {
-    url: "https://rss.app/feeds/v1.1/fXrfC9jIoNUNsiOa.json",
+    url: "https://rss.app/feeds/v1.1/5Z7XBW9taSumsxWw.json",
     name: "Chente Ydrach",
-    platform: "twitter"
+    platform: "instagram"
   },
   {
     url: "https://rss.app/feeds/v1.1/GdO241HnaVvxjkmw.json",
