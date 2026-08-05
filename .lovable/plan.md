@@ -39,7 +39,21 @@ No keyword data is changed, added, or removed by this work.
 ## Technical notes
 
 - Migration order per table: create, grant to `authenticated`/`service_role`, enable RLS, then policies matching the existing `client_subcategories` policy shape.
-- Backfill runs in the same migration: `INSERT INTO client_subcategory_assignments (client_id, client_subcategory_id) SELECT id, client_subcategory_id FROM clients WHERE client_subcategory_id IS NOT NULL`.
-- `clientService.ts` gains subcategory-assignment reads (nested select) and a write path that diffs assignments on save; `clientCategoriesService.ts` gains usage counts from the junction table.
+- Backfill runs in the same migration and is idempotent:
+
+```sql
+INSERT INTO client_subcategory_assignments (
+  client_id,
+  client_subcategory_id
+)
+SELECT
+  id,
+  client_subcategory_id
+FROM clients
+WHERE client_subcategory_id IS NOT NULL
+ON CONFLICT (client_id, client_subcategory_id) DO NOTHING;
+```
+
+- `clientService.ts` reads nested subcategory assignments and performs classification writes through exactly one call to the transactional `update_client_classification` RPC. The frontend does not independently diff or write assignment rows. `clientCategoriesService.ts` gains usage counts from the junction table.
 - Frontend touchpoints: `ClientForm.tsx`, `ClientsTable.tsx`, `ClientFilter.tsx`, `ClientsContainer.tsx`, `ClientsList.tsx`, `tags-input.tsx`.
 - Edge functions are touched only where they build client context for prompts.
