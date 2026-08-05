@@ -128,12 +128,12 @@ export default function CategoriesSettings() {
 
   return (
     <SettingsLayout
-      title="Categorías"
+      title="Categorías de Noticias"
       description="Administra las categorías para la clasificación de contenido"
     >
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Categorías de Contenido</CardTitle>
+          <CardTitle>Categorías de Noticias</CardTitle>
           <CardDescription>
             Administra las categorías utilizadas para clasificar el contenido en la plataforma
           </CardDescription>
