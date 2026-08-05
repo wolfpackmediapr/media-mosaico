@@ -209,9 +209,88 @@ export type Database = {
           },
         ]
       }
+      client_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      client_subcategories: {
+        Row: {
+          category_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "client_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           category: string
+          client_category_id: string | null
+          client_subcategory_id: string | null
           created_at: string
           id: string
           is_active: boolean
@@ -222,6 +301,8 @@ export type Database = {
         }
         Insert: {
           category: string
+          client_category_id?: string | null
+          client_subcategory_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
@@ -232,6 +313,8 @@ export type Database = {
         }
         Update: {
           category?: string
+          client_category_id?: string | null
+          client_subcategory_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
@@ -240,7 +323,22 @@ export type Database = {
           subcategory?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clients_client_category_id_fkey"
+            columns: ["client_category_id"]
+            isOneToOne: false
+            referencedRelation: "client_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clients_client_subcategory_id_fkey"
+            columns: ["client_subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "client_subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       company_info: {
         Row: {
@@ -2335,6 +2433,7 @@ export type Database = {
         Args: never
         Returns: undefined
       }
+      slugify: { Args: { _txt: string }; Returns: string }
       update_tv_programs: { Args: never; Returns: undefined }
       update_user_password: {
         Args: { new_password: string; target_user_id: string }
