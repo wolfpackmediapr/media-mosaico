@@ -32,6 +32,7 @@ export const settingsRoutes = {
   PressSettings: React.lazy(() => import("../pages/configuracion/PressSettings")),
   MediaSettings: React.lazy(() => import("../pages/configuracion/MediaSettings")),
   CategoriesSettings: React.lazy(() => import("../pages/configuracion/categories/CategoriesSettings")),
+  ClientCategoriesSettings: React.lazy(() => import("../pages/configuracion/clientCategories/ClientCategoriesSettings")),
   TvSettings: React.lazy(() => import("../pages/configuracion/TvSettings")),
   GenresSettings: React.lazy(() => import("../pages/configuracion/press/GenresSettings").then(m => ({ default: m.GenresSettings }))),
   SourcesSettings: React.lazy(() => import("../pages/configuracion/press/SourcesSettings").then(m => ({ default: m.SourcesSettings }))),
