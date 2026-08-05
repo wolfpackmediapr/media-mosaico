@@ -128,6 +128,7 @@ async function fetchClients(supabase: any): Promise<Client[]> {
     const { data, error } = await supabase
       .from('clients')
       .select('id, name, keywords')
+      .eq('is_active', true)
       .not('keywords', 'is', null);
     
     if (error) {

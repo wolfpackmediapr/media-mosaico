@@ -2422,6 +2422,7 @@ async function processVideoInBackground(
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
       .select('*')
+      .eq('is_active', true)
       .order('name');
     
     if (clientsError) {
