@@ -1,5 +1,5 @@
 import * as React from "react";
-import { X } from "lucide-react";
+import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface TagsInputProps {
@@ -8,6 +8,14 @@ export interface TagsInputProps {
   placeholder?: string;
   id?: string;
   className?: string;
+  /** Show only the first N tags until the user expands the list. 0 disables collapsing. */
+  collapseAfter?: number;
+  /** Show a search box that filters the visible tags. */
+  searchable?: boolean;
+  /** Placeholder for the search box. */
+  searchPlaceholder?: string;
+  /** Hide the built-in helper line under the field. */
+  hideHint?: boolean;
 }
 
 export interface TagsInputHandle {
