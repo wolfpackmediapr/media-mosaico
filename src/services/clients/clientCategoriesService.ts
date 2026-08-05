@@ -103,7 +103,7 @@ export async function updateClientCategory(
   id: string,
   input: { name?: string; description?: string | null; is_active?: boolean; sort_order?: number },
 ) {
-  const payload: Record<string, unknown> = {};
+  const payload: any = {};
   if (input.name !== undefined) payload.name = input.name.trim();
   if (input.description !== undefined) payload.description = input.description || null;
   if (input.is_active !== undefined) payload.is_active = input.is_active;
@@ -150,7 +150,7 @@ export async function updateClientSubcategory(
   id: string,
   input: { name?: string; description?: string | null; is_active?: boolean; sort_order?: number },
 ) {
-  const payload: Record<string, unknown> = {};
+  const payload: any = {};
   if (input.name !== undefined) payload.name = input.name.trim();
   if (input.description !== undefined) payload.description = input.description || null;
   if (input.is_active !== undefined) payload.is_active = input.is_active;
