@@ -8,6 +8,27 @@ import { Label } from "@/components/ui/label";
 import { TagsInput, type TagsInputHandle } from "@/components/ui/tags-input";
 import { Client } from "@/services/clients/clientService";
 import { fetchClientCategories } from "@/services/clients/clientCategoriesService";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Check, ChevronsUpDown, X } from "lucide-react";
 
 export interface ClientFormProps {
   client?: Client | null;
@@ -26,10 +47,16 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
   const [formData, setFormData] = useState({
     name: client?.name || initialData?.name || '',
     keywords: (client?.keywords ?? initialData?.keywords ?? []) as string[],
+    aliases: (client?.aliases ?? []) as string[],
   });
   const [categoryId, setCategoryId] = useState<string>(client?.client_category_id || '');
-  const [subcategoryId, setSubcategoryId] = useState<string>(client?.client_subcategory_id || '');
+  const [subcategoryIds, setSubcategoryIds] = useState<string[]>(
+    client?.subcategory_ids ?? (client?.client_subcategory_id ? [client.client_subcategory_id] : []),
+  );
+  const [pendingCategory, setPendingCategory] = useState<string | null>(null);
+  const [subPickerOpen, setSubPickerOpen] = useState(false);
   const tagsRef = useRef<TagsInputHandle>(null);
+  const aliasRef = useRef<TagsInputHandle>(null);
 
   const { data: categories = [], isLoading: loadingCategories } = useQuery({
     queryKey: ["client-categories"],
@@ -51,37 +78,70 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
   const selectableSubcategories = useMemo(
     () =>
       (selectedCategory?.subcategories ?? []).filter(
-        (s) => s.is_active || s.id === client?.client_subcategory_id,
+        (s) => s.is_active || subcategoryIds.includes(s.id),
       ),
-    [selectedCategory, client?.client_subcategory_id],
+    [selectedCategory, subcategoryIds],
+  );
+
+  const selectedSubcategories = useMemo(
+    () => selectableSubcategories.filter((s) => subcategoryIds.includes(s.id)),
+    [selectableSubcategories, subcategoryIds],
   );
 
   const handleChange = (field: string, value: string) => {
     setFormData({ ...formData, [field]: value });
   };
 
-  const handleCategoryChange = (value: string) => {
+  const applyCategory = (value: string) => {
     setCategoryId(value);
-    // Drop a subcategory that no longer belongs to the selected category.
     const next = categories.find((c) => c.id === value);
-    const stillValid = (next?.subcategories ?? []).some((s) => s.id === subcategoryId);
-    if (!stillValid) setSubcategoryId('');
+    const validIds = new Set((next?.subcategories ?? []).map((s) => s.id));
+    setSubcategoryIds((prev) => prev.filter((id) => validIds.has(id)));
+  };
+
+  const handleCategoryChange = (value: string) => {
+    if (value === categoryId) return;
+    const next = categories.find((c) => c.id === value);
+    const validIds = new Set((next?.subcategories ?? []).map((s) => s.id));
+    const dropped = subcategoryIds.filter((id) => !validIds.has(id));
+    // Confirm before discarding subcategories that don't fit the new category.
+    if (dropped.length > 0) {
+      setPendingCategory(value);
+      return;
+    }
+    applyCategory(value);
+  };
+
+  const droppedNames = useMemo(() => {
+    if (!pendingCategory) return [] as string[];
+    const next = categories.find((c) => c.id === pendingCategory);
+    const validIds = new Set((next?.subcategories ?? []).map((s) => s.id));
+    return selectedSubcategories.filter((s) => !validIds.has(s.id)).map((s) => s.name);
+  }, [pendingCategory, categories, selectedSubcategories]);
+
+  const toggleSubcategory = (id: string) => {
+    setSubcategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Flush any pending tag draft so users don't lose unsaved keywords
     const finalKeywords = tagsRef.current?.commit() ?? formData.keywords;
-    const subcategory = selectableSubcategories.find((s) => s.id === subcategoryId);
+    const finalAliases = aliasRef.current?.commit() ?? formData.aliases;
+    const primarySub = selectedSubcategories[0];
     onSubmit({
       id: client?.id,
       name: formData.name,
       // Legacy text columns are kept in sync with the new taxonomy.
       category: selectedCategory?.name || client?.category || 'OTRO',
-      subcategory: subcategory?.name || null,
+      subcategory: primarySub?.name || null,
       keywords: finalKeywords,
+      aliases: finalAliases,
       client_category_id: categoryId || null,
-      client_subcategory_id: subcategoryId || null,
+      client_subcategory_id: primarySub?.id || null,
+      subcategory_ids: selectedSubcategories.map((s) => s.id),
     });
   };
 
@@ -126,7 +186,7 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
 
           <div className="space-y-1">
             <Label htmlFor="client-subcategory" className="text-xs font-normal text-muted-foreground">
-              Subcategoría
+              Subcategorías {selectedSubcategories.length > 0 ? `· ${selectedSubcategories.length}` : ""}
             </Label>
             {!categoryId ? (
               <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
@@ -137,43 +197,114 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
                 Esta categoría no tiene subcategorías
               </p>
             ) : (
-              <Select
-                value={subcategoryId || "none"}
-                onValueChange={(v) => setSubcategoryId(v === "none" ? "" : v)}
-              >
-                <SelectTrigger id="client-subcategory">
-                  <SelectValue placeholder="Sin subcategoría" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  <SelectItem value="none">Sin subcategoría</SelectItem>
-                  {selectableSubcategories.map((sub) => (
-                    <SelectItem key={sub.id} value={sub.id}>
-                      {sub.name}
-                      {!sub.is_active ? " (inactiva)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Popover open={subPickerOpen} onOpenChange={setSubPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="client-subcategory"
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={subPickerOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {selectedSubcategories.length === 0
+                        ? "Sin subcategoría"
+                        : `${selectedSubcategories.length} seleccionada(s)`}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar subcategoría..." />
+                      <CommandList className="max-h-64">
+                        <CommandEmpty>No se encontraron subcategorías.</CommandEmpty>
+                        <CommandGroup>
+                          {selectableSubcategories.map((sub) => {
+                            const checked = subcategoryIds.includes(sub.id);
+                            return (
+                              <CommandItem
+                                key={sub.id}
+                                value={sub.name}
+                                onSelect={() => toggleSubcategory(sub.id)}
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${checked ? "opacity-100" : "opacity-0"}`}
+                                />
+                                {sub.name}
+                                {!sub.is_active ? " (inactiva)" : ""}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+
+                {selectedSubcategories.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Sin subcategoría</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedSubcategories.map((sub) => (
+                      <Badge key={sub.id} variant="secondary" className="gap-1 text-xs">
+                        {sub.name}
+                        <button
+                          type="button"
+                          onClick={() => toggleSubcategory(sub.id)}
+                          aria-label={`Quitar ${sub.name}`}
+                          className="rounded-sm hover:bg-muted-foreground/20"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="aliases">Alias del cliente</Label>
+        <TagsInput
+          ref={aliasRef}
+          id="aliases"
+          value={formData.aliases}
+          onChange={(tags) => setFormData((prev) => ({ ...prev, aliases: tags }))}
+          placeholder="Nombres alternos, siglas o razón social"
+          hideHint
+        />
+        <p className="text-xs text-muted-foreground">
+          Nombres alternos, abreviaturas y razón social del cliente. Se usan solo para
+          identificar al cliente (coincidencia exacta de palabra), no como temas de búsqueda.
+        </p>
+      </div>
       
       <div className="space-y-2">
-        <Label htmlFor="keywords">Palabras clave</Label>
+        <Label htmlFor="keywords">
+          Palabras clave
+          {formData.keywords.length > 0 ? ` · ${formData.keywords.length}` : ""}
+        </Label>
         <TagsInput
           ref={tagsRef}
           id="keywords"
           value={formData.keywords}
           onChange={(tags) => setFormData((prev) => ({ ...prev, keywords: tags }))}
           placeholder="Añade una palabra clave y presiona coma o Enter"
+          collapseAfter={12}
+          searchable
+          searchPlaceholder="Buscar palabra clave..."
+          hideHint
         />
         <p className="text-xs text-muted-foreground">
           Ingrese palabras clave separadas por comas. Haz clic en una etiqueta para corregirla, o usa la X para eliminarla. Los acentos y mayúsculas no son necesarios — por ejemplo, <code>Pérez</code> también encuentra <code>Perez</code>.
         </p>
       </div>
       
-      <div className="flex justify-end space-x-2 pt-2">
+      <div className="sticky bottom-0 -mx-6 flex justify-end space-x-2 border-t bg-background px-6 py-3">
         <Button 
           type="button" 
           variant="outline" 
@@ -185,6 +316,30 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
           {isEditing ? 'Guardar cambios' : 'Añadir cliente'}
         </Button>
       </div>
+
+      <AlertDialog open={!!pendingCategory} onOpenChange={(open) => { if (!open) setPendingCategory(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cambiar la categoría del cliente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estas subcategorías no pertenecen a la nueva categoría y se quitarán:
+              {" "}
+              {droppedNames.join(", ")}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingCategory(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingCategory) applyCategory(pendingCategory);
+                setPendingCategory(null);
+              }}
+            >
+              Continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 }

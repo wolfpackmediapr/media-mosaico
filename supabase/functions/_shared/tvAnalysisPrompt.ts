@@ -27,7 +27,7 @@
  */
 export function buildTvAnalysisPrompt(
   categories: string[],
-  clients: { name: string; keywords?: string[] }[],
+  clients: { name: string; keywords?: string[]; aliases?: string[] }[],
   transcriptionText: string,
   contextText: string = '',
 ): string {
@@ -39,7 +39,10 @@ export function buildTvAnalysisPrompt(
   const clientKeywordMap = clients.length > 0
     ? clients.map(c => {
         const kws = (c.keywords && c.keywords.length > 0) ? c.keywords.join(', ') : '—';
-        return `- ${c.name}: ${kws}`;
+        const alias = (c.aliases && c.aliases.length > 0)
+          ? ` [alias: ${c.aliases.join(', ')}]`
+          : '';
+        return `- ${c.name}${alias}: ${kws}`;
       }).join('\n')
     : '';
 

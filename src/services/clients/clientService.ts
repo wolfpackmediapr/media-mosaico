@@ -9,6 +9,8 @@ export interface Client {
   category: string;
   subcategory?: string | null;
   keywords?: string[] | null;
+  /** Alternate names / abbreviations / legal names. Separate from keywords. */
+  aliases?: string[] | null;
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -17,6 +19,9 @@ export interface Client {
   client_subcategory_id?: string | null;
   client_category?: { id: string; name: string } | null;
   client_subcategory?: { id: string; name: string } | null;
+  /** Authoritative multi-subcategory selection (junction table). */
+  subcategory_ids?: string[];
+  client_subcategories?: { id: string; name: string }[];
 }
 
 export interface PaginatedClients {
@@ -82,14 +87,16 @@ export async function fetchClients(
       let query = q;
       if (hasSearch && safe.length > 0) {
         const pattern = `*${safe}*`;
-        // ilike on scalar cols + array-contains on keywords (exact token match).
+        // ilike on scalar cols + array-contains on keywords/aliases (exact token match).
         query = query.or(
-          `name.ilike.${pattern},subcategory.ilike.${pattern},keywords.cs.{${safe}}`,
+          `name.ilike.${pattern},subcategory.ilike.${pattern},keywords.cs.{${safe}},aliases.cs.{${safe}}`,
         );
       }
       if (category) query = query.eq('category', category);
       if (clientCategoryId) query = query.eq('client_category_id', clientCategoryId);
-      if (clientSubcategoryId) query = query.eq('client_subcategory_id', clientSubcategoryId);
+      if (clientSubcategoryId && subcategoryClientIds) {
+        query = query.in('id', subcategoryClientIds.length > 0 ? subcategoryClientIds : ['00000000-0000-0000-0000-000000000000']);
+      }
       if (uncategorized) query = query.is('client_category_id', null);
       // When searching, ignore status so exact matches always surface.
       if (!hasSearch) {
@@ -98,6 +105,17 @@ export async function fetchClients(
       }
       return query;
     };
+
+    // Subcategory filtering goes through the junction table (multi-subcategory).
+    let subcategoryClientIds: string[] | null = null;
+    if (clientSubcategoryId) {
+      const { data: assigned, error: assignedError } = await supabase
+        .from('client_subcategory_assignments')
+        .select('client_id')
+        .eq('client_subcategory_id', clientSubcategoryId);
+      if (assignedError) throw assignedError;
+      subcategoryClientIds = Array.from(new Set((assigned || []).map((r: any) => r.client_id)));
+    }
 
     const { count, error: countError } = await applyFilters(
       supabase.from('clients').select('*', { count: 'exact', head: true }),
@@ -108,15 +126,35 @@ export async function fetchClients(
     const end = start + ps - 1;
 
     const selectWithTaxonomy =
-      '*, client_category:client_categories(id,name), client_subcategory:client_subcategories(id,name)';
+      '*, client_category:client_categories(id,name), client_subcategory:client_subcategories!clients_client_subcategory_id_fkey(id,name), assignments:client_subcategory_assignments(client_subcategory_id, subcategory:client_subcategories(id,name))';
 
     const { data, error } = await applyFilters(supabase.from('clients').select(selectWithTaxonomy))
       .order(of, { ascending: od === 'asc' })
       .range(start, end);
     if (error) throw error;
 
+    const rows = (data || []).map((row: any) => {
+      const assignments = (row.assignments || [])
+        .map((a: any) => a.subcategory)
+        .filter(Boolean) as { id: string; name: string }[];
+      // Junction table is authoritative; the legacy column is only a fallback
+      // for clients that have no assignments yet.
+      const list =
+        assignments.length > 0
+          ? assignments
+          : row.client_subcategory
+            ? [row.client_subcategory]
+            : [];
+      const { assignments: _drop, ...rest } = row;
+      return {
+        ...rest,
+        client_subcategories: list,
+        subcategory_ids: list.map((s) => s.id),
+      };
+    });
+
     return {
-      data: (data || []) as unknown as Client[],
+      data: rows as unknown as Client[],
       totalCount: count || 0,
     };
   } catch (error: any) {
@@ -148,6 +186,7 @@ export async function addClient(client: Client) {
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
+        aliases: client.aliases || [],
         client_category_id: client.client_category_id || null,
         client_subcategory_id: client.client_subcategory_id || null,
       }])
@@ -159,11 +198,38 @@ export async function addClient(client: Client) {
       }
       throw error;
     }
-    return data?.[0];
+
+    const created = data?.[0];
+    if (created?.id && client.client_category_id) {
+      await saveClientClassification(
+        created.id,
+        client.client_category_id,
+        client.subcategory_ids ?? [],
+      );
+    }
+    return created;
   } catch (error: any) {
     console.error("Error adding client:", error);
     throw error;
   }
+}
+
+/**
+ * Single transactional write for category + subcategories.
+ * The RPC validates authorization and that every subcategory belongs to the
+ * selected category, and rolls everything back on failure.
+ */
+export async function saveClientClassification(
+  clientId: string,
+  clientCategoryId: string,
+  subcategoryIds: string[],
+) {
+  const { error } = await supabase.rpc('update_client_classification', {
+    p_client_id: clientId,
+    p_client_category_id: clientCategoryId,
+    p_subcategory_ids: subcategoryIds,
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function updateClient(client: Client) {
@@ -186,6 +252,16 @@ export async function updateClient(client: Client) {
       );
     }
 
+    // 1. Atomic classification write (category + subcategories) via one RPC call.
+    if (client.client_category_id) {
+      await saveClientClassification(
+        client.id,
+        client.client_category_id,
+        client.subcategory_ids ?? [],
+      );
+    }
+
+    // 2. Remaining fields. `client_category_id` is owned by the RPC above.
     const { data, error } = await supabase
       .from('clients')
       .update({
@@ -193,7 +269,7 @@ export async function updateClient(client: Client) {
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
-        client_category_id: client.client_category_id || null,
+        aliases: client.aliases || [],
         client_subcategory_id: client.client_subcategory_id || null,
       })
       .eq('id', client.id)
