@@ -69,7 +69,7 @@ export function ClientsTable({
               Categoría
               <SortButton field="category" />
             </TableHead>
-            <TableHead>Subcategoría</TableHead>
+            <TableHead>Subcategorías</TableHead>
             <TableHead>Palabras clave</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead>
@@ -98,7 +98,44 @@ export function ClientsTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="align-top">
-                  {client.client_subcategory?.name || client.subcategory || '-'}
+                  {(() => {
+                    const subs =
+                      client.client_subcategories && client.client_subcategories.length > 0
+                        ? client.client_subcategories
+                        : client.client_subcategory
+                          ? [client.client_subcategory]
+                          : [];
+                    if (subs.length === 0) {
+                      return <span className="text-muted-foreground text-sm">{client.subcategory || '-'}</span>;
+                    }
+                    return (
+                      <div className="flex flex-wrap items-center gap-1 max-w-[220px]">
+                        {subs.slice(0, 2).map((sub) => (
+                          <Badge key={sub.id} variant="outline" className="text-xs max-w-[160px] truncate" title={sub.name}>
+                            {sub.name}
+                          </Badge>
+                        ))}
+                        {subs.length > 2 && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Badge variant="outline" className="text-xs cursor-pointer hover:bg-accent">
+                                +{subs.length - 2}
+                              </Badge>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 max-h-72 overflow-y-auto">
+                              <div className="flex flex-wrap gap-1">
+                                {subs.map((sub) => (
+                                  <Badge key={sub.id} variant="secondary" className="text-xs">
+                                    {sub.name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="align-top">
               {client.keywords && client.keywords.length > 0 ? (
