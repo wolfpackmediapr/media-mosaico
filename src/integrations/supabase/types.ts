@@ -286,8 +286,45 @@ export type Database = {
           },
         ]
       }
+      client_subcategory_assignments: {
+        Row: {
+          client_id: string
+          client_subcategory_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          client_id: string
+          client_subcategory_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          client_id?: string
+          client_subcategory_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_subcategory_assignments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_subcategory_assignments_client_subcategory_id_fkey"
+            columns: ["client_subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "client_subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
+          aliases: string[]
           category: string
           client_category_id: string | null
           client_subcategory_id: string | null
@@ -300,6 +337,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aliases?: string[]
           category: string
           client_category_id?: string | null
           client_subcategory_id?: string | null
@@ -312,6 +350,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aliases?: string[]
           category?: string
           client_category_id?: string | null
           client_subcategory_id?: string | null
@@ -2434,6 +2473,14 @@ export type Database = {
         Returns: undefined
       }
       slugify: { Args: { _txt: string }; Returns: string }
+      update_client_classification: {
+        Args: {
+          p_client_category_id: string
+          p_client_id: string
+          p_subcategory_ids: string[]
+        }
+        Returns: undefined
+      }
       update_tv_programs: { Args: never; Returns: undefined }
       update_user_password: {
         Args: { new_password: string; target_user_id: string }
