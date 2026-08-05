@@ -57,10 +57,12 @@ export async function fetchClientCategoryUsage(): Promise<{
   byCategory: Record<string, number>;
   bySubcategory: Record<string, number>;
 }> {
-  const { data, error } = await supabase
-    .from("clients")
-    .select("client_category_id, client_subcategory_id");
+  const [{ data, error }, { data: assignments, error: assignError }] = await Promise.all([
+    supabase.from("clients").select("client_category_id"),
+    supabase.from("client_subcategory_assignments").select("client_id, client_subcategory_id"),
+  ]);
   if (error) throw error;
+  if (assignError) throw assignError;
 
   const byCategory: Record<string, number> = {};
   const bySubcategory: Record<string, number> = {};
@@ -68,9 +70,14 @@ export async function fetchClientCategoryUsage(): Promise<{
     if (row.client_category_id) {
       byCategory[row.client_category_id] = (byCategory[row.client_category_id] || 0) + 1;
     }
-    if (row.client_subcategory_id) {
-      bySubcategory[row.client_subcategory_id] = (bySubcategory[row.client_subcategory_id] || 0) + 1;
-    }
+  });
+  // Subcategory usage now comes from the junction table (multi-subcategory).
+  const seen = new Set<string>();
+  (assignments || []).forEach((row: any) => {
+    const key = `${row.client_id}:${row.client_subcategory_id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    bySubcategory[row.client_subcategory_id] = (bySubcategory[row.client_subcategory_id] || 0) + 1;
   });
   return { byCategory, bySubcategory };
 }
