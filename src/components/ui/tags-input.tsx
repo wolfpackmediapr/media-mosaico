@@ -169,13 +169,43 @@ export const TagsInput = React.forwardRef<TagsInputHandle, TagsInputProps>(
       setDraft(v);
     };
 
+    // Entries keep their original index so edit/remove stay correct while
+    // filtered or collapsed.
+    const entries = React.useMemo(
+      () => value.map((tag, idx) => ({ tag, idx })),
+      [value],
+    );
+    const normalizedQuery = query.trim().toLowerCase();
+    const matching = React.useMemo(
+      () =>
+        normalizedQuery
+          ? entries.filter((e) => e.tag.toLowerCase().includes(normalizedQuery))
+          : entries,
+      [entries, normalizedQuery],
+    );
+    const collapsing = collapseAfter > 0 && !expanded && !normalizedQuery;
+    const visible = collapsing ? matching.slice(0, collapseAfter) : matching;
+    const hiddenCount = matching.length - visible.length;
+
     return (
       <div className={cn("w-full", className)}>
+        {searchable && value.length > 0 && (
+          <div className="relative mb-2">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            />
+          </div>
+        )}
         <div
           onClick={() => inputRef.current?.focus()}
-          className="flex min-h-[80px] w-full flex-wrap gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 cursor-text"
+          className="flex min-h-[80px] max-h-[220px] w-full flex-wrap gap-1.5 overflow-y-auto rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 cursor-text"
         >
-          {value.map((tag, idx) => (
+          {visible.map(({ tag, idx }) => (
             editingIdx === idx ? (
               <input
                 key={`edit-${idx}`}
@@ -228,6 +258,11 @@ export const TagsInput = React.forwardRef<TagsInputHandle, TagsInputProps>(
               </span>
             )
           ))}
+          {normalizedQuery && matching.length === 0 && (
+            <span className="text-xs text-muted-foreground">
+              Ninguna coincidencia para "{query}"
+            </span>
+          )}
           <input
             ref={inputRef}
             id={id}
@@ -240,9 +275,20 @@ export const TagsInput = React.forwardRef<TagsInputHandle, TagsInputProps>(
             className="flex-1 min-w-[120px] bg-transparent outline-none placeholder:text-muted-foreground"
           />
         </div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          <span>Presiona coma o Enter después de cada palabra clave. Haz clic en una etiqueta para editarla.</span>
-        </div>
+        {collapseAfter > 0 && !normalizedQuery && (hiddenCount > 0 || expanded) && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-1 text-xs font-medium text-primary hover:underline"
+          >
+            {expanded ? "Ver menos" : `Ver todas las palabras clave (+${hiddenCount})`}
+          </button>
+        )}
+        {!hideHint && (
+          <div className="mt-1 text-xs text-muted-foreground">
+            <span>Presiona coma o Enter después de cada palabra clave. Haz clic en una etiqueta para editarla.</span>
+          </div>
+        )}
       </div>
     );
   }
