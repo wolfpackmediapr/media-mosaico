@@ -24,8 +24,23 @@ export interface TagsInputHandle {
 }
 
 export const TagsInput = React.forwardRef<TagsInputHandle, TagsInputProps>(
-  ({ value, onChange, placeholder, id, className }, ref) => {
+  (
+    {
+      value,
+      onChange,
+      placeholder,
+      id,
+      className,
+      collapseAfter = 0,
+      searchable = false,
+      searchPlaceholder = "Buscar...",
+      hideHint = false,
+    },
+    ref,
+  ) => {
     const [draft, setDraft] = React.useState("");
+    const [query, setQuery] = React.useState("");
+    const [expanded, setExpanded] = React.useState(false);
     const inputRef = React.useRef<HTMLInputElement>(null);
     const valueRef = React.useRef<string[]>(value);
     React.useEffect(() => { valueRef.current = value; }, [value]);
