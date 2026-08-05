@@ -37,7 +37,8 @@ async function fetchClientsAndCategories(supabase: any): Promise<{
     // Fetch clients with keywords
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
-      .select('name, category, keywords');
+      .select('name, category, keywords, client_category:client_categories(name), client_subcategory:client_subcategories(name)')
+      .eq('is_active', true);
     
     if (clientsError) {
       console.error('[FileSearch] Error fetching clients:', clientsError);
@@ -57,7 +58,7 @@ async function fetchClientsAndCategories(supabase: any): Promise<{
     const clientsByCategory: Record<string, ClientData[]> = {};
     const clientList: ClientData[] = (clients || []).map((c: any) => ({
       name: c.name,
-      category: c.category,
+      category: c.client_category?.name || c.category,
       keywords: c.keywords || []
     }));
     

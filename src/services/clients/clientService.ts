@@ -12,6 +12,11 @@ export interface Client {
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;
+  /** New client taxonomy (industry), independent of news categories. */
+  client_category_id?: string | null;
+  client_subcategory_id?: string | null;
+  client_category?: { id: string; name: string } | null;
+  client_subcategory?: { id: string; name: string } | null;
 }
 
 export interface PaginatedClients {
@@ -37,6 +42,10 @@ export interface FetchClientsOptions {
   search?: string;
   category?: string | null;
   status?: 'active' | 'inactive' | 'all';
+  clientCategoryId?: string | null;
+  clientSubcategoryId?: string | null;
+  /** Only clients that have no client category assigned. */
+  uncategorized?: boolean;
 }
 
 export async function fetchClients(
@@ -58,6 +67,9 @@ export async function fetchClients(
     search,
     category,
     status = 'all',
+    clientCategoryId,
+    clientSubcategoryId,
+    uncategorized,
   } = opts;
 
   try {
@@ -76,6 +88,9 @@ export async function fetchClients(
         );
       }
       if (category) query = query.eq('category', category);
+      if (clientCategoryId) query = query.eq('client_category_id', clientCategoryId);
+      if (clientSubcategoryId) query = query.eq('client_subcategory_id', clientSubcategoryId);
+      if (uncategorized) query = query.is('client_category_id', null);
       // When searching, ignore status so exact matches always surface.
       if (!hasSearch) {
         if (status === 'active') query = query.or('is_active.is.null,is_active.eq.true');
@@ -92,13 +107,16 @@ export async function fetchClients(
     const start = (page - 1) * ps;
     const end = start + ps - 1;
 
-    const { data, error } = await applyFilters(supabase.from('clients').select('*'))
+    const selectWithTaxonomy =
+      '*, client_category:client_categories(id,name), client_subcategory:client_subcategories(id,name)';
+
+    const { data, error } = await applyFilters(supabase.from('clients').select(selectWithTaxonomy))
       .order(of, { ascending: od === 'asc' })
       .range(start, end);
     if (error) throw error;
 
     return {
-      data: (data || []) as Client[],
+      data: (data || []) as unknown as Client[],
       totalCount: count || 0,
     };
   } catch (error: any) {
@@ -130,6 +148,8 @@ export async function addClient(client: Client) {
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
+        client_category_id: client.client_category_id || null,
+        client_subcategory_id: client.client_subcategory_id || null,
       }])
       .select();
 
@@ -173,6 +193,8 @@ export async function updateClient(client: Client) {
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
+        client_category_id: client.client_category_id || null,
+        client_subcategory_id: client.client_subcategory_id || null,
       })
       .eq('id', client.id)
       .select();

@@ -27,8 +27,9 @@ export function ClientsTable({
   sortOrder = "asc",
   onSort
 }: ClientsTableProps) {
-  // Helper function to format category
-  const formatCategory = (category: string): string => {
+  // Prefer the new client taxonomy; fall back to the legacy text value.
+  const formatCategory = (client: Client): string => {
+    if (client.client_category?.name) return client.client_category.name;
     const categoryMap: Record<string, string> = {
       'GOBIERNO': 'Gobierno',
       'EMPRESA': 'Empresa',
@@ -37,8 +38,8 @@ export function ClientsTable({
       'SALUD': 'Salud',
       'OTRO': 'Otro'
     };
-    
-    return categoryMap[category] || category;
+
+    return categoryMap[client.category] || client.category || 'Sin categoría';
   };
 
   // Helper for sort button
@@ -92,9 +93,13 @@ export function ClientsTable({
               <TableRow key={client.id} className={cn(!isActive && "opacity-60", "align-top")}>
                 <TableCell className="font-medium align-top">{client.name}</TableCell>
                 <TableCell className="align-top">
-                  <Badge variant="outline">{formatCategory(client.category)}</Badge>
+                  <Badge variant={client.client_category ? "secondary" : "outline"}>
+                    {formatCategory(client)}
+                  </Badge>
                 </TableCell>
-                <TableCell className="align-top">{client.subcategory || '-'}</TableCell>
+                <TableCell className="align-top">
+                  {client.client_subcategory?.name || client.subcategory || '-'}
+                </TableCell>
                 <TableCell className="align-top">
               {client.keywords && client.keywords.length > 0 ? (
                     <div className="flex flex-wrap items-center gap-1 max-w-[320px]">

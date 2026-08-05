@@ -13,7 +13,7 @@ export function SettingsNav({ currentPath }: SettingsNavProps) {
       path: '/ajustes/general',
       subsections: [
         { label: 'Medios', path: '/ajustes/general/medios' },
-        { label: 'Categorías', path: '/ajustes/general/categorias' }
+        { label: 'Categorías de Noticias', path: '/ajustes/general/categorias' }
       ]
     },
     { 
@@ -29,6 +29,7 @@ export function SettingsNav({ currentPath }: SettingsNavProps) {
       path: '/ajustes/clientes',
       subsections: [
         { label: 'Gestión', path: '/ajustes/clientes/gestion' },
+        { label: 'Categorías de Clientes', path: '/ajustes/clientes/categorias' },
         { label: 'Permisos', path: '/ajustes/clientes/permisos' }
       ]
     },
