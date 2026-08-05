@@ -186,6 +186,7 @@ export async function addClient(client: Client) {
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
+        aliases: client.aliases || [],
         client_category_id: client.client_category_id || null,
         client_subcategory_id: client.client_subcategory_id || null,
       }])
@@ -197,11 +198,38 @@ export async function addClient(client: Client) {
       }
       throw error;
     }
-    return data?.[0];
+
+    const created = data?.[0];
+    if (created?.id && client.client_category_id) {
+      await saveClientClassification(
+        created.id,
+        client.client_category_id,
+        client.subcategory_ids ?? [],
+      );
+    }
+    return created;
   } catch (error: any) {
     console.error("Error adding client:", error);
     throw error;
   }
+}
+
+/**
+ * Single transactional write for category + subcategories.
+ * The RPC validates authorization and that every subcategory belongs to the
+ * selected category, and rolls everything back on failure.
+ */
+export async function saveClientClassification(
+  clientId: string,
+  clientCategoryId: string,
+  subcategoryIds: string[],
+) {
+  const { error } = await supabase.rpc('update_client_classification', {
+    p_client_id: clientId,
+    p_client_category_id: clientCategoryId,
+    p_subcategory_ids: subcategoryIds,
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function updateClient(client: Client) {
@@ -224,6 +252,16 @@ export async function updateClient(client: Client) {
       );
     }
 
+    // 1. Atomic classification write (category + subcategories) via one RPC call.
+    if (client.client_category_id) {
+      await saveClientClassification(
+        client.id,
+        client.client_category_id,
+        client.subcategory_ids ?? [],
+      );
+    }
+
+    // 2. Remaining fields. `client_category_id` is owned by the RPC above.
     const { data, error } = await supabase
       .from('clients')
       .update({
@@ -231,7 +269,7 @@ export async function updateClient(client: Client) {
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
-        client_category_id: client.client_category_id || null,
+        aliases: client.aliases || [],
         client_subcategory_id: client.client_subcategory_id || null,
       })
       .eq('id', client.id)
