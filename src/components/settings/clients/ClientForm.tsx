@@ -8,6 +8,27 @@ import { Label } from "@/components/ui/label";
 import { TagsInput, type TagsInputHandle } from "@/components/ui/tags-input";
 import { Client } from "@/services/clients/clientService";
 import { fetchClientCategories } from "@/services/clients/clientCategoriesService";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Check, ChevronsUpDown, X } from "lucide-react";
 
 export interface ClientFormProps {
   client?: Client | null;
@@ -26,10 +47,16 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
   const [formData, setFormData] = useState({
     name: client?.name || initialData?.name || '',
     keywords: (client?.keywords ?? initialData?.keywords ?? []) as string[],
+    aliases: (client?.aliases ?? []) as string[],
   });
   const [categoryId, setCategoryId] = useState<string>(client?.client_category_id || '');
-  const [subcategoryId, setSubcategoryId] = useState<string>(client?.client_subcategory_id || '');
+  const [subcategoryIds, setSubcategoryIds] = useState<string[]>(
+    client?.subcategory_ids ?? (client?.client_subcategory_id ? [client.client_subcategory_id] : []),
+  );
+  const [pendingCategory, setPendingCategory] = useState<string | null>(null);
+  const [subPickerOpen, setSubPickerOpen] = useState(false);
   const tagsRef = useRef<TagsInputHandle>(null);
+  const aliasRef = useRef<TagsInputHandle>(null);
 
   const { data: categories = [], isLoading: loadingCategories } = useQuery({
     queryKey: ["client-categories"],
@@ -51,37 +78,70 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
   const selectableSubcategories = useMemo(
     () =>
       (selectedCategory?.subcategories ?? []).filter(
-        (s) => s.is_active || s.id === client?.client_subcategory_id,
+        (s) => s.is_active || subcategoryIds.includes(s.id),
       ),
-    [selectedCategory, client?.client_subcategory_id],
+    [selectedCategory, subcategoryIds],
+  );
+
+  const selectedSubcategories = useMemo(
+    () => selectableSubcategories.filter((s) => subcategoryIds.includes(s.id)),
+    [selectableSubcategories, subcategoryIds],
   );
 
   const handleChange = (field: string, value: string) => {
     setFormData({ ...formData, [field]: value });
   };
 
-  const handleCategoryChange = (value: string) => {
+  const applyCategory = (value: string) => {
     setCategoryId(value);
-    // Drop a subcategory that no longer belongs to the selected category.
     const next = categories.find((c) => c.id === value);
-    const stillValid = (next?.subcategories ?? []).some((s) => s.id === subcategoryId);
-    if (!stillValid) setSubcategoryId('');
+    const validIds = new Set((next?.subcategories ?? []).map((s) => s.id));
+    setSubcategoryIds((prev) => prev.filter((id) => validIds.has(id)));
+  };
+
+  const handleCategoryChange = (value: string) => {
+    if (value === categoryId) return;
+    const next = categories.find((c) => c.id === value);
+    const validIds = new Set((next?.subcategories ?? []).map((s) => s.id));
+    const dropped = subcategoryIds.filter((id) => !validIds.has(id));
+    // Confirm before discarding subcategories that don't fit the new category.
+    if (dropped.length > 0) {
+      setPendingCategory(value);
+      return;
+    }
+    applyCategory(value);
+  };
+
+  const droppedNames = useMemo(() => {
+    if (!pendingCategory) return [] as string[];
+    const next = categories.find((c) => c.id === pendingCategory);
+    const validIds = new Set((next?.subcategories ?? []).map((s) => s.id));
+    return selectedSubcategories.filter((s) => !validIds.has(s.id)).map((s) => s.name);
+  }, [pendingCategory, categories, selectedSubcategories]);
+
+  const toggleSubcategory = (id: string) => {
+    setSubcategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Flush any pending tag draft so users don't lose unsaved keywords
     const finalKeywords = tagsRef.current?.commit() ?? formData.keywords;
-    const subcategory = selectableSubcategories.find((s) => s.id === subcategoryId);
+    const finalAliases = aliasRef.current?.commit() ?? formData.aliases;
+    const primarySub = selectedSubcategories[0];
     onSubmit({
       id: client?.id,
       name: formData.name,
       // Legacy text columns are kept in sync with the new taxonomy.
       category: selectedCategory?.name || client?.category || 'OTRO',
-      subcategory: subcategory?.name || null,
+      subcategory: primarySub?.name || null,
       keywords: finalKeywords,
+      aliases: finalAliases,
       client_category_id: categoryId || null,
-      client_subcategory_id: subcategoryId || null,
+      client_subcategory_id: primarySub?.id || null,
+      subcategory_ids: selectedSubcategories.map((s) => s.id),
     });
   };
 
