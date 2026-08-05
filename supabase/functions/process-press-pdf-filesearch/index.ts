@@ -21,6 +21,8 @@ interface ClientData {
   name: string;
   category: string;
   keywords: string[];
+  aliases: string[];
+  subcategories: string[];
 }
 
 /**
@@ -37,7 +39,7 @@ async function fetchClientsAndCategories(supabase: any): Promise<{
     // Fetch clients with keywords
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
-      .select('name, category, keywords, client_category:client_categories(name), client_subcategory:client_subcategories(name)')
+      .select('name, category, keywords, aliases, client_category:client_categories(name), assignments:client_subcategory_assignments(subcategory:client_subcategories(name))')
       .eq('is_active', true);
     
     if (clientsError) {
@@ -59,7 +61,11 @@ async function fetchClientsAndCategories(supabase: any): Promise<{
     const clientList: ClientData[] = (clients || []).map((c: any) => ({
       name: c.name,
       category: c.client_category?.name || c.category,
-      keywords: c.keywords || []
+      keywords: c.keywords || [],
+      aliases: c.aliases || [],
+      subcategories: (c.assignments || [])
+        .map((a: any) => a?.subcategory?.name)
+        .filter(Boolean),
     }));
     
     for (const client of clientList) {
@@ -103,7 +109,10 @@ function buildClientKeywordsPrompt(clientsByCategory: Record<string, ClientData[
       const keywords = client.keywords.length > 0 
         ? client.keywords.join(', ')
         : client.name;
-      lines.push(`  - ${client.name} (palabras clave: ${keywords})`);
+      const parts = [`palabras clave: ${keywords}`];
+      if (client.aliases?.length) parts.push(`también conocido como: ${client.aliases.join(', ')}`);
+      if (client.subcategories?.length) parts.push(`subcategorías: ${client.subcategories.join(', ')}`);
+      lines.push(`  - ${client.name} (${parts.join(' | ')})`);
     }
   }
   return lines.join('\n');
