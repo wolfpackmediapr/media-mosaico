@@ -2480,9 +2480,9 @@ export type Database = {
           p_subcategory_ids: string[]
         }
         Returns: {
-          client_category_id: string
-          client_id: string
-          subcategory_ids: string[]
+          out_client_category_id: string
+          out_client_id: string
+          out_subcategory_ids: string[]
         }[]
       }
       update_tv_programs: { Args: never; Returns: undefined }
