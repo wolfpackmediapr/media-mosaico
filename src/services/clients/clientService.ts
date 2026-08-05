@@ -87,14 +87,16 @@ export async function fetchClients(
       let query = q;
       if (hasSearch && safe.length > 0) {
         const pattern = `*${safe}*`;
-        // ilike on scalar cols + array-contains on keywords (exact token match).
+        // ilike on scalar cols + array-contains on keywords/aliases (exact token match).
         query = query.or(
-          `name.ilike.${pattern},subcategory.ilike.${pattern},keywords.cs.{${safe}}`,
+          `name.ilike.${pattern},subcategory.ilike.${pattern},keywords.cs.{${safe}},aliases.cs.{${safe}}`,
         );
       }
       if (category) query = query.eq('category', category);
       if (clientCategoryId) query = query.eq('client_category_id', clientCategoryId);
-      if (clientSubcategoryId) query = query.eq('client_subcategory_id', clientSubcategoryId);
+      if (clientSubcategoryId && subcategoryClientIds) {
+        query = query.in('id', subcategoryClientIds.length > 0 ? subcategoryClientIds : ['00000000-0000-0000-0000-000000000000']);
+      }
       if (uncategorized) query = query.is('client_category_id', null);
       // When searching, ignore status so exact matches always surface.
       if (!hasSearch) {
@@ -103,6 +105,17 @@ export async function fetchClients(
       }
       return query;
     };
+
+    // Subcategory filtering goes through the junction table (multi-subcategory).
+    let subcategoryClientIds: string[] | null = null;
+    if (clientSubcategoryId) {
+      const { data: assigned, error: assignedError } = await supabase
+        .from('client_subcategory_assignments')
+        .select('client_id')
+        .eq('client_subcategory_id', clientSubcategoryId);
+      if (assignedError) throw assignedError;
+      subcategoryClientIds = Array.from(new Set((assigned || []).map((r: any) => r.client_id)));
+    }
 
     const { count, error: countError } = await applyFilters(
       supabase.from('clients').select('*', { count: 'exact', head: true }),
@@ -113,15 +126,35 @@ export async function fetchClients(
     const end = start + ps - 1;
 
     const selectWithTaxonomy =
-      '*, client_category:client_categories(id,name), client_subcategory:client_subcategories(id,name)';
+      '*, client_category:client_categories(id,name), client_subcategory:client_subcategories!clients_client_subcategory_id_fkey(id,name), assignments:client_subcategory_assignments(client_subcategory_id, subcategory:client_subcategories(id,name))';
 
     const { data, error } = await applyFilters(supabase.from('clients').select(selectWithTaxonomy))
       .order(of, { ascending: od === 'asc' })
       .range(start, end);
     if (error) throw error;
 
+    const rows = (data || []).map((row: any) => {
+      const assignments = (row.assignments || [])
+        .map((a: any) => a.subcategory)
+        .filter(Boolean) as { id: string; name: string }[];
+      // Junction table is authoritative; the legacy column is only a fallback
+      // for clients that have no assignments yet.
+      const list =
+        assignments.length > 0
+          ? assignments
+          : row.client_subcategory
+            ? [row.client_subcategory]
+            : [];
+      const { assignments: _drop, ...rest } = row;
+      return {
+        ...rest,
+        client_subcategories: list,
+        subcategory_ids: list.map((s) => s.id),
+      };
+    });
+
     return {
-      data: (data || []) as unknown as Client[],
+      data: rows as unknown as Client[],
       totalCount: count || 0,
     };
   } catch (error: any) {
