@@ -189,8 +189,8 @@ serve(async (req) => {
       categories = (cats || []).map((c: any) => c.name_es || c.name).filter(Boolean);
     }
     if (clients.length === 0) {
-      const { data: cls } = await supabase.from('clients').select('name, keywords').eq('is_active', true).limit(50);
-      clients = (cls || []).map((c: any) => ({ name: c.name, keywords: c.keywords || [] })).filter((c: any) => c.name);
+      const { data: cls } = await supabase.from('clients').select('name, keywords, aliases').eq('is_active', true).limit(50);
+      clients = (cls || []).map((c: any) => ({ name: c.name, keywords: c.keywords || [], aliases: c.aliases || [] })).filter((c: any) => c.name);
     }
 
     console.log(`[analyze-tv-stored][${requestId}] Analyzing transcript ${transcriptionId} chars=${transcriptionText.length} cats=${categories.length} clients=${clients.length}`);
