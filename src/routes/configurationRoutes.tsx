@@ -49,6 +49,14 @@ export const configurationRoutes: RouteObject[] = [
     element: createProtectedRoute(settingsRoutes.ClientsSettings, true)
   },
   {
+    path: "ajustes/clientes/gestion",
+    element: createProtectedRoute(settingsRoutes.ClientsSettings, true)
+  },
+  {
+    path: "ajustes/clientes/categorias",
+    element: createProtectedRoute(settingsRoutes.ClientCategoriesSettings, true)
+  },
+  {
     path: "ajustes/prensa",
     element: createProtectedRoute(settingsRoutes.PressSettings, true)
   },
