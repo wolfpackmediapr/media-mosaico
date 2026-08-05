@@ -26,14 +26,16 @@ import {
 interface ClientsListProps {
   clients: Client[];
   allClients: Client[];
-  categories: string[];
+  clientCategories: { id: string; name: string; subcategories?: { id: string; name: string }[] }[];
   isLoading: boolean;
   error: Error | null;
   showForm: boolean;
   setShowForm: (show: boolean) => void;
   editingClient: Client | null;
-  filterCategory: string | null;
-  setFilterCategory: (category: string | null) => void;
+  filterClientCategory: string | null;
+  setFilterClientCategory: (id: string | null) => void;
+  filterClientSubcategory: string | null;
+  setFilterClientSubcategory: (id: string | null) => void;
   filterStatus: "active" | "inactive" | "all";
   setFilterStatus: (status: "active" | "inactive" | "all") => void;
   searchTerm: string;
@@ -56,14 +58,16 @@ interface ClientsListProps {
 export function ClientsList({
   clients,
   allClients,
-  categories,
+  clientCategories,
   isLoading,
   error,
   showForm,
   setShowForm,
   editingClient,
-  filterCategory,
-  setFilterCategory,
+  filterClientCategory,
+  setFilterClientCategory,
+  filterClientSubcategory,
+  setFilterClientSubcategory,
   filterStatus,
   setFilterStatus,
   searchTerm,
@@ -95,13 +99,15 @@ export function ClientsList({
         {/* Controls */}
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <ClientFilter 
-            categories={categories} 
-            selectedCategory={filterCategory} 
-            onCategoryChange={setFilterCategory}
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
             statusFilter={filterStatus}
             onStatusChange={setFilterStatus}
+            clientCategories={clientCategories}
+            selectedClientCategory={filterClientCategory}
+            onClientCategoryChange={setFilterClientCategory}
+            selectedClientSubcategory={filterClientSubcategory}
+            onClientSubcategoryChange={setFilterClientSubcategory}
           />
           
           <Button 
