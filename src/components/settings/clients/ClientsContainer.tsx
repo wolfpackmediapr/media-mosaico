@@ -3,12 +3,14 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Client, fetchClients, addClient, updateClient, deleteClient, setClientActive } from "@/services/clients/clientService";
+import { fetchClientCategories } from "@/services/clients/clientCategoriesService";
 import { ClientsList } from "./ClientsList";
 
 export function ClientsContainer() {
   const [showForm, setShowForm] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [filterClientCategory, setFilterClientCategory] = useState<string | null>(null);
+  const [filterClientSubcategory, setFilterClientSubcategory] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<"active" | "inactive" | "all">("active");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<keyof Client>("name");
@@ -24,13 +26,33 @@ export function ClientsContainer() {
   // Reset to page 1 whenever a filter changes.
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, filterCategory, filterStatus]);
+  }, [debouncedSearch, filterClientCategory, filterClientSubcategory, filterStatus]);
+
+  // Reset subcategory when the parent category changes.
+  useEffect(() => {
+    setFilterClientSubcategory(null);
+  }, [filterClientCategory]);
 
   const queryClient = useQueryClient();
 
+  const { data: clientCategories = [] } = useQuery({
+    queryKey: ["client-categories"],
+    queryFn: fetchClientCategories,
+  });
+
   // Fetch clients with pagination
   const { data, isLoading, error } = useQuery({
-    queryKey: ["clients", currentPage, pageSize, sortField, sortOrder, debouncedSearch, filterCategory, filterStatus],
+    queryKey: [
+      "clients",
+      currentPage,
+      pageSize,
+      sortField,
+      sortOrder,
+      debouncedSearch,
+      filterClientCategory,
+      filterClientSubcategory,
+      filterStatus,
+    ],
     queryFn: () =>
       fetchClients({
         page: currentPage,
@@ -38,8 +60,10 @@ export function ClientsContainer() {
         orderField: sortField as string,
         orderDirection: sortOrder,
         search: debouncedSearch,
-        category: filterCategory,
         status: filterStatus,
+        clientCategoryId: filterClientCategory === "none" ? null : filterClientCategory,
+        clientSubcategoryId: filterClientSubcategory,
+        uncategorized: filterClientCategory === "none",
       }),
   });
 
@@ -138,11 +162,6 @@ export function ClientsContainer() {
     setEditingClient(null);
   };
 
-  // Get unique categories for filter
-  const categories: string[] = data?.data
-    ? Array.from(new Set(data.data.map((client) => client.category).filter(Boolean) as string[]))
-    : [];
-
   // Calculate total pages
   const totalPages = data?.totalCount
     ? Math.ceil(data.totalCount / pageSize)
@@ -152,20 +171,23 @@ export function ClientsContainer() {
   const filteredClients = data?.data ?? [];
 
   // Check if we have filters applied
-  const hasFilters = !!filterCategory || !!searchTerm || filterStatus !== "active";
+  const hasFilters =
+    !!filterClientCategory || !!filterClientSubcategory || !!searchTerm || filterStatus !== "active";
 
   return (
     <ClientsList
       clients={filteredClients}
       allClients={data?.data || []}
-      categories={categories}
+      clientCategories={clientCategories}
       isLoading={isLoading}
       error={error as Error | null}
       showForm={showForm}
       setShowForm={setShowForm}
       editingClient={editingClient}
-      filterCategory={filterCategory}
-      setFilterCategory={setFilterCategory}
+      filterClientCategory={filterClientCategory}
+      setFilterClientCategory={setFilterClientCategory}
+      filterClientSubcategory={filterClientSubcategory}
+      setFilterClientSubcategory={setFilterClientSubcategory}
       filterStatus={filterStatus}
       setFilterStatus={setFilterStatus}
       searchTerm={searchTerm}
