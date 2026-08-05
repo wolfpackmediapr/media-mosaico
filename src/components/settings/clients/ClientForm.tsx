@@ -186,7 +186,7 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
 
           <div className="space-y-1">
             <Label htmlFor="client-subcategory" className="text-xs font-normal text-muted-foreground">
-              Subcategoría
+              Subcategorías {selectedSubcategories.length > 0 ? `· ${selectedSubcategories.length}` : ""}
             </Label>
             {!categoryId ? (
               <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
@@ -197,43 +197,114 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
                 Esta categoría no tiene subcategorías
               </p>
             ) : (
-              <Select
-                value={subcategoryId || "none"}
-                onValueChange={(v) => setSubcategoryId(v === "none" ? "" : v)}
-              >
-                <SelectTrigger id="client-subcategory">
-                  <SelectValue placeholder="Sin subcategoría" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  <SelectItem value="none">Sin subcategoría</SelectItem>
-                  {selectableSubcategories.map((sub) => (
-                    <SelectItem key={sub.id} value={sub.id}>
-                      {sub.name}
-                      {!sub.is_active ? " (inactiva)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Popover open={subPickerOpen} onOpenChange={setSubPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="client-subcategory"
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={subPickerOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {selectedSubcategories.length === 0
+                        ? "Sin subcategoría"
+                        : `${selectedSubcategories.length} seleccionada(s)`}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar subcategoría..." />
+                      <CommandList className="max-h-64">
+                        <CommandEmpty>No se encontraron subcategorías.</CommandEmpty>
+                        <CommandGroup>
+                          {selectableSubcategories.map((sub) => {
+                            const checked = subcategoryIds.includes(sub.id);
+                            return (
+                              <CommandItem
+                                key={sub.id}
+                                value={sub.name}
+                                onSelect={() => toggleSubcategory(sub.id)}
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${checked ? "opacity-100" : "opacity-0"}`}
+                                />
+                                {sub.name}
+                                {!sub.is_active ? " (inactiva)" : ""}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+
+                {selectedSubcategories.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Sin subcategoría</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedSubcategories.map((sub) => (
+                      <Badge key={sub.id} variant="secondary" className="gap-1 text-xs">
+                        {sub.name}
+                        <button
+                          type="button"
+                          onClick={() => toggleSubcategory(sub.id)}
+                          aria-label={`Quitar ${sub.name}`}
+                          className="rounded-sm hover:bg-muted-foreground/20"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="aliases">Alias del cliente</Label>
+        <TagsInput
+          ref={aliasRef}
+          id="aliases"
+          value={formData.aliases}
+          onChange={(tags) => setFormData((prev) => ({ ...prev, aliases: tags }))}
+          placeholder="Nombres alternos, siglas o razón social"
+          hideHint
+        />
+        <p className="text-xs text-muted-foreground">
+          Nombres alternos, abreviaturas y razón social del cliente. Se usan solo para
+          identificar al cliente (coincidencia exacta de palabra), no como temas de búsqueda.
+        </p>
+      </div>
       
       <div className="space-y-2">
-        <Label htmlFor="keywords">Palabras clave</Label>
+        <Label htmlFor="keywords">
+          Palabras clave
+          {formData.keywords.length > 0 ? ` · ${formData.keywords.length}` : ""}
+        </Label>
         <TagsInput
           ref={tagsRef}
           id="keywords"
           value={formData.keywords}
           onChange={(tags) => setFormData((prev) => ({ ...prev, keywords: tags }))}
           placeholder="Añade una palabra clave y presiona coma o Enter"
+          collapseAfter={12}
+          searchable
+          searchPlaceholder="Buscar palabra clave..."
+          hideHint
         />
         <p className="text-xs text-muted-foreground">
           Ingrese palabras clave separadas por comas. Haz clic en una etiqueta para corregirla, o usa la X para eliminarla. Los acentos y mayúsculas no son necesarios — por ejemplo, <code>Pérez</code> también encuentra <code>Perez</code>.
         </p>
       </div>
       
-      <div className="flex justify-end space-x-2 pt-2">
+      <div className="sticky bottom-0 -mx-6 flex justify-end space-x-2 border-t bg-background px-6 py-3">
         <Button 
           type="button" 
           variant="outline" 
@@ -245,6 +316,30 @@ export function ClientForm({ client, onSubmit, onCancel, initialData, isEditing 
           {isEditing ? 'Guardar cambios' : 'Añadir cliente'}
         </Button>
       </div>
+
+      <AlertDialog open={!!pendingCategory} onOpenChange={(open) => { if (!open) setPendingCategory(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cambiar la categoría del cliente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estas subcategorías no pertenecen a la nueva categoría y se quitarán:
+              {" "}
+              {droppedNames.join(", ")}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingCategory(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingCategory) applyCategory(pendingCategory);
+                setPendingCategory(null);
+              }}
+            >
+              Continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 }
