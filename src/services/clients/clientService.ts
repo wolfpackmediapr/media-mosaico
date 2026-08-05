@@ -9,6 +9,8 @@ export interface Client {
   category: string;
   subcategory?: string | null;
   keywords?: string[] | null;
+  /** Alternate names / abbreviations / legal names. Separate from keywords. */
+  aliases?: string[] | null;
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -17,6 +19,9 @@ export interface Client {
   client_subcategory_id?: string | null;
   client_category?: { id: string; name: string } | null;
   client_subcategory?: { id: string; name: string } | null;
+  /** Authoritative multi-subcategory selection (junction table). */
+  subcategory_ids?: string[];
+  client_subcategories?: { id: string; name: string }[];
 }
 
 export interface PaginatedClients {
