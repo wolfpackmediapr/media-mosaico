@@ -201,11 +201,15 @@ export async function addClient(client: Client) {
 
     const created = data?.[0];
     if (created?.id && client.client_category_id) {
-      await saveClientClassification(
+      const saved = await saveClientClassification(
         created.id,
         client.client_category_id,
         client.subcategory_ids ?? [],
       );
+      if (saved) {
+        created.client_category_id = saved.client_category_id;
+        (created as any).subcategory_ids = saved.subcategory_ids;
+      }
     }
     return created;
   } catch (error: any) {
@@ -219,17 +223,32 @@ export async function addClient(client: Client) {
  * The RPC validates authorization and that every subcategory belongs to the
  * selected category, and rolls everything back on failure.
  */
+export interface SavedClassification {
+  client_id: string;
+  client_category_id: string | null;
+  subcategory_ids: string[];
+}
+
 export async function saveClientClassification(
   clientId: string,
   clientCategoryId: string,
   subcategoryIds: string[],
-) {
-  const { error } = await supabase.rpc('update_client_classification', {
+): Promise<SavedClassification | null> {
+  const { data, error } = await supabase.rpc('update_client_classification', {
     p_client_id: clientId,
     p_client_category_id: clientCategoryId,
     p_subcategory_ids: subcategoryIds,
   });
   if (error) throw new Error(error.message);
+
+  // The RPC returns what was actually stored — never assume the input took effect.
+  const row: any = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return {
+    client_id: row.out_client_id,
+    client_category_id: row.out_client_category_id ?? null,
+    subcategory_ids: row.out_subcategory_ids ?? [],
+  };
 }
 
 export async function updateClient(client: Client) {
@@ -253,8 +272,9 @@ export async function updateClient(client: Client) {
     }
 
     // 1. Atomic classification write (category + subcategories) via one RPC call.
+    let saved: SavedClassification | null = null;
     if (client.client_category_id) {
-      await saveClientClassification(
+      saved = await saveClientClassification(
         client.id,
         client.client_category_id,
         client.subcategory_ids ?? [],
@@ -281,7 +301,12 @@ export async function updateClient(client: Client) {
       }
       throw error;
     }
-    return data?.[0];
+    const updated = data?.[0];
+    if (updated && saved) {
+      updated.client_category_id = saved.client_category_id;
+      (updated as any).subcategory_ids = saved.subcategory_ids;
+    }
+    return updated;
   } catch (error: any) {
     console.error("Error updating client:", error);
     throw error;
