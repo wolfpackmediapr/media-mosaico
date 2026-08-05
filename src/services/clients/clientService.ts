@@ -148,6 +148,8 @@ export async function addClient(client: Client) {
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
+        client_category_id: client.client_category_id || null,
+        client_subcategory_id: client.client_subcategory_id || null,
       }])
       .select();
 
@@ -191,6 +193,8 @@ export async function updateClient(client: Client) {
         category: client.category,
         subcategory: client.subcategory || null,
         keywords: client.keywords || [],
+        client_category_id: client.client_category_id || null,
+        client_subcategory_id: client.client_subcategory_id || null,
       })
       .eq('id', client.id)
       .select();
