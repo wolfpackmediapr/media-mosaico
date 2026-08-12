@@ -1,53 +1,52 @@
-# Make Publiteca mobile compatible
+# Publiteca — Full Mobile Compatibility Refactor (verified plan)
 
-## Why it breaks on phones today
+Scope: presentation-only responsive refactor. No changes under `supabase/`, no schema/RLS/RPC/Edge Function/auth/permission/business-logic changes. Desktop must stay visually equivalent.
 
-The app was built desktop-first. The viewport meta tag is correct and the base table component already scrolls, so nothing is fundamentally broken — but the navigation shell never adapts:
+## Verification of the proposed scope against the actual code
 
-- `src/components/layout/Layout.tsx` uses `flex flex-col md:flex-row`, so below 768px the sidebar **stacks on top of the page** instead of hiding.
-- `src/components/layout/Sidebar.tsx` has no breakpoint logic, no drawer, no `useIsMobile()`. On a 390px phone the user scrolls past roughly 400px of navigation (logo plus up to 12 labeled items) before reaching any content. The collapse toggle only shrinks it to an icon rail; it never becomes an overlay.
-- `src/components/layout/Header.tsx` has no hamburger button, so there is nothing to open a drawer with.
-- `src/hooks/use-mobile.tsx` exists but is only consumed by an unused shadcn primitive — no real screen uses it.
+Confirmed by reading the repo:
+- `Layout.tsx` uses `flex flex-col md:flex-row` and renders `Sidebar` inline — the sidebar does stack above content below `md`. `Header.tsx` has no hamburger. `src/components/ui/sheet.tsx` exists, so the drawer needs no new dependency.
+- Tailwind `container` has global `padding: "2rem"` — confirmed. Affected: `MediaMonitoring.tsx` (`container mx-auto py-8`), `TvMainContent.tsx` (`container mx-auto p-6`, two places), `PublicLayout.tsx`, `Footer.tsx`.
+- `PressTabsContainer.tsx` line 43: `grid w-full md:w-[500px] grid-cols-3` — confirmed.
+- `SettingsNav.tsx` is a vertical `TabsList` (`flex h-auto w-full flex-col`) inside `SettingsLayout`'s `lg:w-1/5` aside — it does stack the whole settings tree above content below `lg`.
+- `w-[80%]` confirmed in four Prensa tables: `SourcesTable`, `RatesTable`, `GenresTable`, `SectionsTable` (under `src/pages/configuracion/press/components/`).
+- Base `Table` already wraps in `relative w-full overflow-auto` — contained scroll fallback exists, as the document assumes.
+- `DialogContent` is `w-full max-w-lg ... p-6` with no mobile gutter — at 320px it touches both edges.
+- Notification popover: the fixed `w-80` is **not** in `src/components/notifications/NotificationPopover.tsx`; it is in `src/components/ui/notification/notification-popover.tsx` line 86, an absolutely positioned `right-0 mt-2 w-80` panel (not Radix). Fix belongs there.
+- `TvVideoControls.tsx` is a single `flex items-center gap-4` row with play/pause, `min-w-[40px]` timestamps, progress and volume — confirmed as a phone-width risk.
+- `playwright.config.ts` + `playwright-fixture.ts` exist, but there is **no `e2e/` folder yet** — responsive tests will create it.
 
-Secondary issues: tab bars with 3–4 fixed grid columns, filter toolbars built from fixed-pixel controls (180px + 140px + 140px = 460px, wider than a phone), and 25+ data tables with 5–8 columns and no column priority.
+Adjustments to the proposed document:
+1. Notification popover path corrected as above.
+2. Phase 5 should not touch Tailwind's `container` config; local `px-3 sm:px-6` overrides only (as the document itself prefers).
+3. Phase 7 "Publiteca data tables" and "CategoriesTable" need discovery during implementation; exact filenames differ per module.
+4. Backend/data check: nothing in this scope requires reading or changing Supabase. Permission behavior stays sourced from `useSectionPermissions()` and `user_profiles`/`user_section_permissions` — the mobile drawer will reuse the exact same filtered menu array from `Sidebar.tsx`, not a copy.
 
-## What will change
+## Execution phases
 
-### 1. Mobile navigation shell (the blocker)
-- `Layout.tsx`: hold the mobile drawer state, stack correctly, and stop rendering the inline sidebar below `md`.
-- `Sidebar.tsx`: keep current desktop behavior (collapsible rail) as `hidden md:flex`, and add a `Sheet`-based overlay mode that reuses the same menu list, permission filtering and active-route logic (no duplication). Tapping a link closes the drawer.
-- `Header.tsx`: add a hamburger `Menu` button visible only below `md`, plus the Publimedia logo so mobile users still see branding. Trim the header title on narrow screens.
-- Give nav items 44px minimum touch targets.
+**P1 — Shell (blocker).** `Layout.tsx` holds drawer state and stops stacking; `Sidebar.tsx` becomes `hidden md:flex` for desktop plus an exported `Sheet` drawer variant reusing the same `mainMenuItems`/`bottomMenuItems`, `userRole` and `canAccess` filtering and active-route logic; `Header.tsx` gains a `md:hidden` hamburger (44px) plus the logo. Drawer closes on navigation. No remount of TV/Radio trees — layout-level CSS only.
 
-### 2. Tab bars that fit a phone
-Convert fixed `grid-cols-N` tab bars to a horizontally scrollable flex row (hidden scrollbar), with icon-only labels under `sm` where labels are long:
-- `src/pages/publiteca/RedesSociales.tsx`, `Tv.tsx`, `Radio.tsx`, `Prensa.tsx`
-- `src/components/publiteca/PublitecaLayout.tsx`
-- `src/components/prensa-escrita/PressTabsContainer.tsx`
-- `src/components/monitoring/MonitoringTabs.tsx`
-- `src/components/notifications/NotificationTabs.tsx`
-- `src/components/settings/*/…SettingsTabs.tsx` and `SettingsNav.tsx`
+**P2 — Publiteca + section tabs.** `PublitecaLayout.tsx` (inline `gridTemplateColumns`), `pages/publiteca/{Prensa,Radio,Tv,RedesSociales}.tsx`, `PressTabsContainer.tsx`, `MonitoringTabs`, `NotificationTabs`, settings tab bars: convert to scrollable flex strips (`overflow-x-auto`, `shrink-0`, hidden scrollbar). Do not change the shared `Tabs` primitive globally.
 
-### 3. Filter toolbars
-Replace hardcoded widths with `w-full sm:w-[180px]` and make parent rows `flex flex-wrap gap-2`:
-- `src/components/dashboard/DateRangeFilter.tsx`
-- `src/components/alertas/AlertsDateRangePicker.tsx`
-- `src/components/prensa/PrensaSearch.tsx`
-- `src/components/monitoring/ProcessingJobsTable.tsx`
-- `src/components/settings/clients/ClientFilter.tsx`, `MediaFilter.tsx`, `ParticipanteFilter.tsx`, `TvRatesFilter.tsx`
+**P3 — Settings nav.** Below `lg`, replace the vertical tree with a compact selector (scrollable section strip or Select) while keeping `SettingsNav` untouched at `lg+`. URLs and hierarchy unchanged; no route repairs.
 
-### 4. Data tables
-For the heaviest tables, hide low-priority columns below `md` with `hidden md:table-cell`, keeping the primary column and actions always visible: `ClientsTable`, `ChannelsTable`, `ProgramsTable`, `StationsTable`, `MediaOutletsTable`, `ParticipantesTable`, `CategoriasTable`, `ProcessingJobsTable`, `DeliveryLogsTable`, and the rates tables. Also fix `SourcesTable`, where one column is pinned at `w-[80%]`.
+**P4 — Padding.** Local `p-4 sm:p-6` / `px-3 sm:px-8` overrides on the confirmed `container` consumers. No Tailwind config change.
 
-### 5. Page padding and content grids
-- `TvMainContent.tsx` and similar use `container mx-auto p-6`; reduce to `p-4 md:p-6` so phones don't lose 48px of width.
-- `Footer.tsx` uses `container` without padding — add responsive padding.
-- Media/video sections and the Radio/TV two-column control rows already use `md:grid-cols-2`, so they only need spacing tuning.
+**P5 — Filters/toolbars.** `DateRangeFilter`, `AlertsDateRangePicker`, `PrensaSearch`, `ProcessingJobsTable` filters, `ClientFilter`, `MediaFilter`, `ParticipanteFilter`, `TvRatesFilter`, TV rates import, `ClientFilterDropdown`: parent `flex flex-wrap gap-2`, controls `w-full sm:w-[<desktop width>]`.
 
-### 6. Verification
-Screenshot-test the main routes at 390x844 and at 320px width (Inicio, Publiteca, TV, Radio, Prensa Digital, Redes Sociales, Notificaciones, Ajustes > Clientes) and assert `document.scrollWidth === clientWidth` (no horizontal overflow) on each.
+**P6 — Tables.** Per-table A/B/C/D priority pass with `hidden md:table-cell` / `hidden lg:table-cell` applied to head+cell pairs; actions always reachable; remove the four `w-[80%]` widths and audit 250px/120px fixed columns. Sticky action cells kept only where they don't eat a 320px viewport.
 
-## Notes
-- No backend, data, prompt or business-logic changes — presentation only.
-- Desktop layout stays visually identical; every change is gated behind a breakpoint.
-- Suggested order: step 1 alone makes the app usable on a phone; steps 2–4 make each screen comfortable. Step 1 can ship on its own first if you prefer.
+**P7 — Dialogs/forms.** Local override pattern `w-[calc(100vw-2rem)] sm:w-full` plus `max-h-[calc(100dvh-2rem)] overflow-y-auto` on the tall forms (clients/taxonomy, categories, participantes, TV/Radio channel-program-station, rate imports, notification preferences, monitoring targets, alert details). Global `DialogContent` gets a gutter only if the local pass proves it safe for desktop.
+
+**P8 — Media controls.** `TvVideoControls`: wrap to two rows below `sm` (transport+progress, then volume) keeping every prop/callback. Radio player/seek/speed/upload verified at 320px with persistence intact.
+
+**P9 — Floating UI.** Fix `ui/notification/notification-popover.tsx` `w-80` → viewport-aware with `sm:w-80`; audit `PopoverContent` (`w-72` default), `SelectContent`, dropdowns, keyword/subcategory popovers for on-screen containment.
+
+**P10 — Dashboard/charts.** Verify only, no redesign: charts must not impose page min-width.
+
+**P11 — Global overflow + a11y.** Grep-driven pass on fixed widths/nowrap/absolute positioning. No `overflow-x-hidden` on html/body/main. 44px targets for hamburger, drawer items, tabs, pagination, icon-only actions; keep aria labels and focus trapping.
+
+**P12 — Tests.** New `e2e/responsive.spec.ts` using the existing Playwright fixture: viewports 320/375/390/430/tablet/desktop/large across `/`, `/tv`, `/radio`, `/prensa`, `/prensa-escrita`, `/redes-sociales`, `/notificaciones`, `/envio-alertas`, `/reportes`, the four Publiteca routes, one route per Settings family, `/media-monitoring`, `/admin`, `/auth`. Assert `documentElement.scrollWidth <= clientWidth`, plus interaction checks (drawer open/navigate/close, tab scroll, filter open, dialog fit/scroll/close, player controls). Desktop regression pass at the end. No auth weakening.
+
+## Sequencing
+P1 ships usable mobile on its own. P2–P4 make screens navigable, P5–P9 make them comfortable, P10–P12 verify. Each phase ends with the overflow assertion on its touched routes.
