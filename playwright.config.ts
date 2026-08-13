@@ -27,7 +27,7 @@ export default defineConfig({
     },
     {
       name: "authenticated",
-      testMatch: /(responsive|interactions)\.spec\.ts/,
+      testMatch: /(^|[\\/])(responsive|interactions)\.spec\.ts/,
       dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
     },
