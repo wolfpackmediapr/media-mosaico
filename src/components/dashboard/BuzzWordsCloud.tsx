@@ -112,7 +112,7 @@ export function BuzzWordsCloud() {
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           )}
           <Tabs value={range} onValueChange={(v) => setRange(v as BuzzRange)}>
-            <TabsList>
+            <TabsList className="max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
               <TabsTrigger value="day">Día</TabsTrigger>
               <TabsTrigger value="week">Semana</TabsTrigger>
               <TabsTrigger value="month">Mes</TabsTrigger>

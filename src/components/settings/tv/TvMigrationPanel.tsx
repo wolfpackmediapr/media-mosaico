@@ -139,7 +139,7 @@ export function TvMigrationPanel() {
         )}
         
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
             <TabsTrigger value="status">Estado</TabsTrigger>
             <TabsTrigger value="migrations">Migraciones Aplicadas</TabsTrigger>
           </TabsList>

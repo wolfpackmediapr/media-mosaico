@@ -25,7 +25,7 @@ export function ParticipantesTabs({
               Gestiona participantes de noticias y sus categorías
             </CardDescription>
           </div>
-          <TabsList className="mt-2 sm:mt-0">
+          <TabsList className="mt-2 sm:mt-0 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
             <TabsTrigger value="gestion">Gestión</TabsTrigger>
             <TabsTrigger value="categorias">Categorías</TabsTrigger>
           </TabsList>

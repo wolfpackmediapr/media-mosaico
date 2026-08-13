@@ -162,7 +162,7 @@ const ClientRelevanceAnalysis = ({
         </div>
 
         <Tabs defaultValue="keywords">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
             <TabsTrigger value="keywords">Keywords</TabsTrigger>
             <TabsTrigger value="contentTypes">Tipos de Contenido</TabsTrigger>
             <TabsTrigger value="recommendations">Recomendaciones</TabsTrigger>

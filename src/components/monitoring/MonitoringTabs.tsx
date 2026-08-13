@@ -52,7 +52,7 @@ const MonitoringTabs = ({
 }: MonitoringTabsProps) => {
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
-      <TabsList className="mb-4">
+      <TabsList className="mb-4 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
         <TabsTrigger value="analytics" className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4" />
           <span className="hidden sm:inline">Analíticas</span>

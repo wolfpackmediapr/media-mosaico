@@ -74,7 +74,7 @@ const NotificationAnalyticsDashboard: React.FC<NotificationAnalyticsDashboardPro
         />
 
         <Tabs defaultValue="volume" className="w-full">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
             <TabsTrigger value="volume">Volumen</TabsTrigger>
             <TabsTrigger value="keywords">Keywords</TabsTrigger>
             <TabsTrigger value="sources">Fuentes</TabsTrigger>
