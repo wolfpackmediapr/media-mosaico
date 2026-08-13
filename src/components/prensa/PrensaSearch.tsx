@@ -41,7 +41,7 @@ const PrensaSearch = ({
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Filtrar por medio:</span>
           <Select value={selectedOutlet} onValueChange={onOutletChange}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Todos los medios" />
             </SelectTrigger>
             <SelectContent>

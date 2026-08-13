@@ -68,7 +68,7 @@ export function AlertsDateRangePicker({ value, onChange }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select value={value.preset} onValueChange={(v) => handlePreset(v as AlertsDatePreset)}>
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-full sm:w-[180px]">
           <SelectValue placeholder="Seleccionar período" />
         </SelectTrigger>
         <SelectContent>
@@ -88,7 +88,7 @@ export function AlertsDateRangePicker({ value, onChange }: Props) {
               <Button
                 variant="outline"
                 className={cn(
-                  "w-[140px] justify-start text-left font-normal",
+                  "w-full sm:w-[140px] justify-start text-left font-normal",
                   !value.from && "text-muted-foreground"
                 )}
               >
@@ -116,7 +116,7 @@ export function AlertsDateRangePicker({ value, onChange }: Props) {
               <Button
                 variant="outline"
                 className={cn(
-                  "w-[140px] justify-start text-left font-normal",
+                  "w-full sm:w-[140px] justify-start text-left font-normal",
                   !value.to && "text-muted-foreground"
                 )}
               >

@@ -87,7 +87,7 @@ const ProcessingJobsTable = ({
             value={activeFilter || "all"}
             onValueChange={handleFilterChange}
           >
-            <SelectTrigger id="status-filter" className="w-[180px]">
+            <SelectTrigger id="status-filter" className="w-full sm:w-[180px]">
               <SelectValue placeholder="Todos los estados" />
             </SelectTrigger>
             <SelectContent>
