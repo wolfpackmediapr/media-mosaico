@@ -83,6 +83,7 @@ const Sidebar = ({ mobile = false, onNavigate }: SidebarProps) => {
 
   return (
     <div 
+      data-sidebar-desktop={mobile ? undefined : "true"}
       className={cn(
         "bg-white border-gray-200 flex flex-col z-10 transition-all duration-300",
         mobile ? "w-full h-full border-r-0" : "hidden md:flex border-r",
