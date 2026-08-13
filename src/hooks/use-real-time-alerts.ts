@@ -31,7 +31,7 @@ export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
   // Show browser notification
   const showBrowserNotification = useCallback((title: string, body: string) => {
     try {
-      if ("Notification" in window) {
+      if (typeof Notification !== "undefined") {
         if (Notification.permission === "granted") {
           new Notification(title, { body });
         } else if (Notification.permission !== "denied") {
@@ -52,8 +52,8 @@ export function useRealTimeAlerts(options: NotificationAlertsOptions = {}) {
     if (!enableRealtime) return;
 
     // Request browser notification permission
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission()?.catch?.(() => {});
     }
 
     const channel = supabase
