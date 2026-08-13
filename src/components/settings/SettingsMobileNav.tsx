@@ -17,12 +17,12 @@ interface SettingsMobileNavProps {
 export function SettingsMobileNav({ currentPath }: SettingsMobileNavProps) {
   const navigate = useNavigate();
 
-  const allItems = settingsSections.flatMap((section) =>
-    section.subsections.map((sub) => ({ ...sub, section: section.label }))
-  );
+  // Longest match first so a subsection wins over its section root.
+  const allPaths = settingsSections
+    .flatMap((section) => [section.path, ...section.subsections.map((sub) => sub.path)])
+    .sort((a, b) => b.length - a.length);
 
-  const current =
-    allItems.find((item) => currentPath.startsWith(item.path))?.path ?? "";
+  const current = allPaths.find((path) => currentPath.startsWith(path)) ?? "";
 
   return (
     <div className="lg:hidden">
@@ -34,6 +34,7 @@ export function SettingsMobileNav({ currentPath }: SettingsMobileNavProps) {
           {settingsSections.map((section) => (
             <SelectGroup key={section.path}>
               <SelectLabel>{section.label}</SelectLabel>
+              <SelectItem value={section.path}>{section.label}: general</SelectItem>
               {section.subsections.map((sub) => (
                 <SelectItem key={sub.path} value={sub.path}>
                   {sub.label}
