@@ -61,18 +61,18 @@ export function ClientsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[250px]">
+            <TableHead className="min-w-[140px] md:w-[250px]">
               Nombre
               <SortButton field="name" />
             </TableHead>
-            <TableHead>
+            <TableHead className="hidden md:table-cell">
               Categoría
               <SortButton field="category" />
             </TableHead>
-            <TableHead>Subcategorías</TableHead>
-            <TableHead>Palabras clave</TableHead>
+            <TableHead className="hidden lg:table-cell">Subcategorías</TableHead>
+            <TableHead className="hidden lg:table-cell">Palabras clave</TableHead>
             <TableHead>Estado</TableHead>
-            <TableHead>
+            <TableHead className="hidden lg:table-cell">
               Fecha de creación
               <SortButton field="created_at" />
             </TableHead>
@@ -92,12 +92,12 @@ export function ClientsTable({
               return (
               <TableRow key={client.id} className={cn(!isActive && "opacity-60", "align-top")}>
                 <TableCell className="font-medium align-top">{client.name}</TableCell>
-                <TableCell className="align-top">
+                <TableCell className="align-top hidden md:table-cell">
                   <Badge variant={client.client_category ? "secondary" : "outline"}>
                     {formatCategory(client)}
                   </Badge>
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell className="align-top hidden lg:table-cell">
                   {(() => {
                     const subs =
                       client.client_subcategories && client.client_subcategories.length > 0
@@ -137,7 +137,7 @@ export function ClientsTable({
                     );
                   })()}
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell className="align-top hidden lg:table-cell">
               {client.keywords && client.keywords.length > 0 ? (
                     <div className="flex flex-wrap items-center gap-1 max-w-[320px]">
                       {client.keywords.slice(0, 4).map((keyword, idx) => (
@@ -189,7 +189,7 @@ export function ClientsTable({
                     </Badge>
                   </div>
                 </TableCell>
-                <TableCell className="align-top">{formatDate(client.created_at)}</TableCell>
+                <TableCell className="align-top hidden lg:table-cell">{formatDate(client.created_at)}</TableCell>
                 <TableCell className="text-right align-top whitespace-nowrap sticky right-0 bg-background shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.1)]">
                   <Button
                     variant="ghost"
