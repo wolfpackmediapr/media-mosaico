@@ -19,7 +19,7 @@ interface ChannelsTableProps {
 
 export function ChannelsTable({ channels, onEdit, onDelete }: ChannelsTableProps) {
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>

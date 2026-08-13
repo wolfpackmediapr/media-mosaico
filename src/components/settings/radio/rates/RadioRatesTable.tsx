@@ -55,7 +55,7 @@ export function RadioRatesTable({
   };
 
   return (
-    <div className="border rounded-md overflow-hidden">
+    <div className="border rounded-md overflow-hidden overflow-x-auto">
       <Table>
         <RateTableHeader />
         <TableBody>

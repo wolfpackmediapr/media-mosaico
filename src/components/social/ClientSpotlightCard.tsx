@@ -19,7 +19,7 @@ export const ClientSpotlightCard = ({ spotlight, onSelect }: Props) => {
   return (
     <>
     <Card
-      className="min-w-[320px] max-w-[360px] flex-shrink-0 flex flex-col hover:border-primary/50 transition-colors"
+      className="min-w-[260px] sm:min-w-[320px] max-w-[360px] flex-shrink-0 flex flex-col hover:border-primary/50 transition-colors"
       aria-label={`Menciones de ${spotlight.clientName}`}
     >
       <CardHeader className="pb-3">

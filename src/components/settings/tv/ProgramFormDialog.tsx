@@ -156,7 +156,7 @@ export function ProgramFormDialog({
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="start_time"
@@ -218,7 +218,7 @@ export function ProgramFormDialog({
                       </Button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {weekdays.map((day) => (
                       <FormField
                         key={day.id}

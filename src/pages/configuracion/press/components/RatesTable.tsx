@@ -37,7 +37,7 @@ export function RatesTable({
   const displayRates = paginatedRates || rates || [];
 
   return (
-    <div className="border rounded-md">
+    <div className="border rounded-md overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>

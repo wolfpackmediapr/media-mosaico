@@ -69,7 +69,7 @@ const ClientFilterDropdown = ({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[250px] p-0">
+      <PopoverContent className="w-[min(250px,calc(100vw-2rem))] p-0">
         <Command className="w-full bg-white dark:bg-gray-800 border-0">
           <CommandInput placeholder="Buscar cliente..." className="h-9" />
           <CommandEmpty className="py-2 text-center text-sm">No se encontraron clientes.</CommandEmpty>

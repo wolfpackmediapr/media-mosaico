@@ -109,7 +109,7 @@ const NotificationPreferenceForm = ({
               <div className="mb-2">
                 <FormLabel>Canales de notificación</FormLabel>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
                   { id: "in_app", label: "En App" },
                   { id: "email", label: "Correo" },
@@ -205,7 +205,7 @@ const NotificationPreferenceForm = ({
               <div className="mb-2">
                 <FormLabel>Fuentes a monitorear</FormLabel>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
                   { id: "news", label: "Noticias" },
                   { id: "social", label: "Redes Sociales" },

@@ -22,7 +22,7 @@ export function TvRatesLoadingState() {
         <Skeleton className="h-10 w-full sm:w-1/3" />
       </div>
       
-      <div className="border rounded-md mt-6">
+      <div className="border rounded-md mt-6 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

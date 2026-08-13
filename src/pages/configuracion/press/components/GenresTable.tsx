@@ -37,7 +37,7 @@ export function GenresTable({
   const displayGenres = paginatedGenres || genres || [];
 
   return (
-    <div className="border rounded-md">
+    <div className="border rounded-md overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
