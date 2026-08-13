@@ -1,11 +1,25 @@
 import { createLovableConfig } from "lovable-agent-playwright-config/config";
+import { devices } from "@playwright/test";
+
+const STORAGE_STATE = "e2e/.auth/user.json";
 
 export default createLovableConfig({
-	// Tests should be placed in the 'e2e' folder (default)
-	// Add your custom playwright configuration overrides here
-	// Example:
-	// timeout: 60000,
-	// use: {
-	//   baseURL: 'http://localhost:3000',
-	// },
+  projects: [
+    {
+      name: "public",
+      testMatch: /public-responsive\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "authenticated",
+      testMatch: /responsive\.spec\.ts/,
+      dependencies: ["setup"],
+      use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
+    },
+  ],
 });
