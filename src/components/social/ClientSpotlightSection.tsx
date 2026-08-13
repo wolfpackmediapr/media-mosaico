@@ -54,7 +54,7 @@ const ClientSpotlightSection = ({ onClientSelect, scope = "all" }: Props) => {
           {isLoading ? (
             <div className="flex gap-3 overflow-hidden">
               {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-48 min-w-[320px] flex-shrink-0" />
+                <Skeleton key={i} className="h-48 min-w-[260px] sm:min-w-[320px] flex-shrink-0" />
               ))}
             </div>
           ) : spotlights.length === 0 ? (

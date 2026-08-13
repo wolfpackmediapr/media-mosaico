@@ -116,7 +116,7 @@ export const RadioTranscriptionHeader = ({ metadata, onMetadataChange }: RadioTr
           />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mt-3 text-sm">
           <MetadataDisplay 
             emisora={localMetadata.emisora}
             programa={localMetadata.programa}
