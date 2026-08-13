@@ -27,8 +27,10 @@ export function useRealTimeSubscriptions() {
   useEffect(() => {
     console.log("Setting up real-time notification listeners");
     
-    // Request browser notification permission
-    requestNotificationPermission();
+    // Request browser notification permission (never let this break rendering)
+    requestNotificationPermission().catch((error) => {
+      console.error("Notification permission request failed:", error);
+    });
     
     // Set up notification listeners for the client_alerts table
     const channel = supabase
