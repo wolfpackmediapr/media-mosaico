@@ -15,22 +15,29 @@ return Promise.resolve(Notification.permission === "granted");   // <-- unguarde
 
 When the browser has no Notification API, the guarded branch is skipped and the final `return` reads `Notification.permission` on a variable that does not exist, throwing a ReferenceError. It is called on mount from `src/components/notifications/hooks/use-real-time-subscriptions.ts` (line 31), which runs inside the app shell, so the whole app is replaced by the ErrorBoundary fallback on any browser without the API — every iOS Safari without web push, plus Safari on iPad.
 
-## Fix
+## Fix (four source files)
 
-1. `notification-utils.ts` — make both helpers fully API-safe:
-   - add a single `hasNotificationApi()` check using `typeof window !== "undefined" && typeof Notification !== "undefined"`;
-   - `requestNotificationPermission()` returns `Promise.resolve(false)` when the API is absent, and never touches `Notification.permission` outside the guard;
-   - keep the existing behaviour unchanged on browsers that do support it.
-2. Apply the same `typeof Notification !== "undefined"` guard style in the two other places that use bare `Notification` — `src/hooks/use-real-time-alerts.ts` and `src/hooks/notifications/use-notification-alerts.ts`. They are currently guarded by `"Notification" in window`, which is correct but inconsistent; making it uniform prevents this class of bug returning.
-3. `use-real-time-subscriptions.ts` — wrap the permission request in a `.catch()` so a rejected permission promise can never bubble into a render crash.
-4. `ErrorBoundary` — no behaviour change requested, but note that it currently swallows the error without a console trace; leaving it as is.
+1. `src/components/notifications/utils/notification-utils.ts`
+   - add a shared `hasNotificationApi()` helper: `typeof window !== "undefined" && typeof Notification !== "undefined"`;
+   - `requestNotificationPermission()` returns `Promise.resolve(false)` immediately when the API is absent, before any reference to the global `Notification`;
+   - `showBrowserNotification()` uses the same helper and returns `false` when unsupported;
+   - behaviour on supported browsers is unchanged.
+2. `src/components/notifications/hooks/use-real-time-subscriptions.ts` — call the permission request with a `.catch()` on the mount path so a rejection can never bubble into a render crash.
+3. `src/hooks/use-real-time-alerts.ts` — replace the `"Notification" in window` guards with `typeof Notification !== "undefined"` so no bare reference is ever evaluated on unsupported browsers.
+4. `src/hooks/notifications/use-notification-alerts.ts` — same guard change.
 
-No backend, auth, RLS, permissions, API or business-logic files are touched. Only the three notification files above.
+`ErrorBoundary` is not modified. No Supabase, backend, RLS, auth, permission, API, schema or business-logic changes.
+
+## Regression test
+
+Add a unit test for `requestNotificationPermission()` run with the global `Notification` unavailable, asserting it resolves `false` and does not throw, plus a supported-browser case asserting the existing permission behaviour is preserved.
 
 ## Verification
 
-- Re-run the WebKit (iOS Safari engine) load of the app and confirm it reaches the login screen instead of the error card, at 390px and 820px viewports.
-- Re-check Chromium to confirm no regression.
-- Then publish, and re-verify the live URL in WebKit.
+- WebKit (iOS Safari engine) at 390px: the login UI renders instead of "Can't find variable: Notification".
+- WebKit at ~820px (iPad).
+- Chromium regression check, confirming the normal permission flow still runs.
+- After publishing, repeat the WebKit check against the live app.publitecapr.com.
+- Run the new regression test.
 
-Note: the fix only takes effect on your phone/tablet after re-publishing, and iOS Safari may need a hard reload to drop the cached bundle.
+Note: the fix only reaches your phone/tablet after re-publishing, and iOS Safari may need a hard reload to drop the cached bundle.
