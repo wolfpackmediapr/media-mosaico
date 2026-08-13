@@ -19,7 +19,7 @@ const PrensaHeader = ({
   return (
     <div className="flex items-center justify-between">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
           <Newspaper className="h-8 w-8 text-blue-600" />
           Prensa
         </h1>

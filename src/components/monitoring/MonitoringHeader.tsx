@@ -10,7 +10,7 @@ const MonitoringHeader = ({ title, description }: MonitoringHeaderProps) => {
   return (
     <div className="flex justify-between items-center">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{title}</h1>
         <p className="text-muted-foreground">
           {description}
         </p>

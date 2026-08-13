@@ -84,7 +84,7 @@ export default function PrensaEscrita() {
     <ErrorBoundary>
     <div className="w-full space-y-6">
       <div className="flex flex-col space-y-1.5">
-        <h2 className="text-3xl font-bold tracking-tight">Prensa Escrita</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Prensa Escrita</h2>
         <p className="text-muted-foreground">
           Gestión de recortes de prensa y documentos PDF
         </p>
