@@ -40,7 +40,7 @@ const PressTabsContainer = ({
 }: PressTabsContainerProps) => {
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
-      <TabsList className="grid w-full md:w-[500px] grid-cols-3">
+      <TabsList className="flex w-full justify-start md:grid md:w-[500px] md:grid-cols-3">
         <TabsTrigger value="upload">
           <FileText className="h-4 w-4 mr-2" />
           Subir PDF

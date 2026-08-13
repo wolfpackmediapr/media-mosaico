@@ -22,7 +22,7 @@ export default function Tv() {
         onValueChange={setActiveTab} 
         className="w-full"
       >
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="flex w-full justify-start sm:grid sm:grid-cols-3">
           <TabsTrigger value="noticias">Noticias</TabsTrigger>
           <TabsTrigger value="anuncios">Anuncios</TabsTrigger>
           <TabsTrigger value="publicity">Publicity</TabsTrigger>

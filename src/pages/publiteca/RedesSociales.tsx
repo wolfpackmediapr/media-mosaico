@@ -20,7 +20,7 @@ export default function RedesSociales() {
         onValueChange={setActiveTab} 
         className="w-full"
       >
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="flex w-full justify-start sm:grid sm:grid-cols-4">
           <TabsTrigger value="publicaciones">Publicaciones</TabsTrigger>
           <TabsTrigger value="anuncios">Anuncios</TabsTrigger>
           <TabsTrigger value="influencers">Influencers</TabsTrigger>
