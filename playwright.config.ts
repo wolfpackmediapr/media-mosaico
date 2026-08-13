@@ -10,7 +10,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 2,
   reporter: [["line"]],
-  use: { baseURL, trace: "retain-on-failure" },
+  use: { baseURL, trace: "retain-on-failure", channel: "chromium" },
   projects: [
     {
       name: "public",
