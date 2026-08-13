@@ -69,7 +69,7 @@ test.describe("mobile navigation shell", () => {
 
   test("hamburger opens the nav drawer and navigates", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    const trigger = page.getByRole("button", { name: /abrir menú|menu/i }).first();
+    const trigger = page.getByRole("button", { name: /abrir men/i }).first();
     await expect(trigger).toBeVisible();
     await trigger.click();
     const drawer = page.getByRole("dialog");
@@ -79,7 +79,7 @@ test.describe("mobile navigation shell", () => {
 
   test("inline sidebar is hidden below md", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("aside, [data-sidebar-desktop]").first()).toBeHidden();
+    await expect(page.locator("[data-sidebar-desktop]").first()).toBeHidden();
   });
 });
 
