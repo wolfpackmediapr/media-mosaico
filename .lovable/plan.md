@@ -36,3 +36,13 @@ The external review is accurate on all points. Each item below was re-verified a
 Files touched: `e2e/responsive.spec.ts`, new `e2e/interactions.spec.ts`, `src/components/ui/tabs.tsx` (revert), the tab-strip consumers listed above, `src/components/settings/SettingsMobileNav.tsx`, `src/components/layout/Header.tsx`. No backend, auth, RLS or data changes. The Dialog primitive change stays as-is and gets covered by the new dialog interaction test rather than being reverted.
 
 To unblock authenticated verification, a dedicated administrator E2E account is needed with its credentials supplied as `E2E_EMAIL` and `E2E_PASSWORD` secrets.
+
+## Restricted-user E2E profile (future/optional)
+
+Keep the administrator profile as the driver of the full protected route matrix. Additionally document a second, optional Playwright profile for a restricted `data_entry` account holding only a subset of `user_section_permissions`. When its credentials exist, it verifies that the desktop Sidebar and the mobile drawer expose exactly the same authorized section list, and that Publiteca media tabs honor the same restrictions.
+
+This profile is documented and scaffolded only. It does not block the correction pass, and permission-specific verification is reported as BLOCKED until `E2E_RESTRICTED_EMAIL` / `E2E_RESTRICTED_PASSWORD` are provided.
+
+## Final deliverable
+
+A report containing: exact files changed; route x viewport matrix; interaction matrix; admin-auth E2E status; restricted-permission E2E status; confirmation that `src/components/ui/tabs.tsx` is back to its pre-refactor behavior; and confirmation that no `supabase/`, auth, RLS, permission, API or business-logic files were touched.
