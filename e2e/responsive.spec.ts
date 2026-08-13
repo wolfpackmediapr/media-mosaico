@@ -19,10 +19,16 @@ const ROUTES = [
   { path: "/envio-alertas", name: "Alertas Enviadas" },
   { path: "/reportes", name: "Reportes" },
   { path: "/media-monitoring", name: "Media Monitoring" },
+  { path: "/admin", name: "Admin" },
   { path: "/ajustes", name: "Ajustes" },
-  { path: "/ajustes/clientes", name: "Ajustes Clientes" },
-  { path: "/ajustes/medios", name: "Ajustes Medios" },
-  { path: "/ajustes/usuarios", name: "Ajustes Usuarios" },
+  { path: "/ajustes/general/medios", name: "Ajustes General / Medios" },
+  { path: "/ajustes/usuarios/administradores", name: "Ajustes Usuarios / Administradores" },
+  { path: "/ajustes/clientes/gestion", name: "Ajustes Clientes / Gestion" },
+  { path: "/ajustes/prensa/fuentes", name: "Ajustes Prensa / Fuentes" },
+  { path: "/ajustes/radio/programas", name: "Ajustes Radio / Programas" },
+  { path: "/ajustes/tv/canales", name: "Ajustes TV / Canales" },
+  { path: "/ajustes/participantes/gestion", name: "Ajustes Participantes / Gestion" },
+  { path: "/ajustes/instituciones/gestion", name: "Ajustes Instituciones / Gestion" },
 ];
 
 const VIEWPORTS = [
