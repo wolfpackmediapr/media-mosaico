@@ -63,7 +63,7 @@ export function MediaFilter({
               value={filterType} 
               onValueChange={onFilterChange}
             >
-              <SelectTrigger id="filter-type" className="w-[180px]">
+              <SelectTrigger id="filter-type" className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Seleccionar tipo" />
               </SelectTrigger>
               <SelectContent>

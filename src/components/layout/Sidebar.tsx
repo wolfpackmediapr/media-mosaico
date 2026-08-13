@@ -27,12 +27,18 @@ const bottomMenuItems = [
   { icon: HelpCircle, label: "Ayuda", path: "/ayuda" },
 ];
 
-const Sidebar = () => {
+interface SidebarProps {
+  mobile?: boolean;
+  onNavigate?: () => void;
+}
+
+const Sidebar = ({ mobile = false, onNavigate }: SidebarProps) => {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
   const { canAccess } = useSectionPermissions();
+  const collapsed = mobile ? false : isCollapsed;
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -59,17 +65,18 @@ const Sidebar = () => {
     return (
       <Link
         to={item.path}
+        onClick={onNavigate}
         className={cn(
-          "flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors",
+          "flex items-center space-x-3 px-4 py-2.5 min-h-[44px] rounded-lg transition-colors",
           isActive
             ? "bg-primary-50 text-primary-800"
             : "text-gray-600 hover:bg-gray-50",
-          isCollapsed && "justify-center px-2"
+          collapsed && "justify-center px-2"
         )}
-        title={isCollapsed ? item.label : undefined}
+        title={collapsed ? item.label : undefined}
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
-        {!isCollapsed && <span className="font-medium truncate">{item.label}</span>}
+        {!collapsed && <span className="font-medium truncate">{item.label}</span>}
       </Link>
     );
   };
@@ -77,26 +84,30 @@ const Sidebar = () => {
   return (
     <div 
       className={cn(
-        "bg-white border-r border-gray-200 flex flex-col z-10 transition-all duration-300",
-        isCollapsed ? "w-16" : "w-64"
+        "bg-white border-gray-200 flex flex-col z-10 transition-all duration-300",
+        mobile ? "w-full h-full border-r-0" : "hidden md:flex border-r",
+        !mobile && (collapsed ? "w-16" : "w-64")
       )}
     >
       <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-        {!isCollapsed && (
+        {!collapsed && (
           <Image
             src="/lovable-uploads/da0f30a7-c379-42a2-95ed-ce8b4c40abd4.png"
             alt="Publimedia"
             className="h-8 w-auto"
           />
         )}
-        <Button 
-          variant="ghost" 
-          size="sm"
-          onClick={toggleSidebar}
-          className={cn("p-1", isCollapsed && "mx-auto")}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
+        {!mobile && (
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={toggleSidebar}
+            className={cn("p-1", collapsed && "mx-auto")}
+            aria-label="Alternar menú lateral"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
       </div>
       <nav className="flex-1 overflow-y-auto py-4 px-2">
         <ul className="space-y-1">

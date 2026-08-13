@@ -114,7 +114,7 @@ const TvMainContent = ({
   // NEW: Show loading state while restoring session
   if (isRestoring) {
     return (
-      <div className="container mx-auto p-6 flex items-center justify-center min-h-[400px]">
+      <div className="container mx-auto p-4 sm:p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="text-muted-foreground">Restaurando sesión...</p>
@@ -203,7 +203,7 @@ const TvMainContent = ({
   const typeformSection = <TvTypeformEmbed />;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 sm:p-6 space-y-6">
       <TvLayout
         isAuthenticated={true}
         topSection={topSection}

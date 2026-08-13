@@ -41,7 +41,7 @@ export function GenresTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[80%]">GÉNERO</TableHead>
+            <TableHead className="w-auto md:w-[60%]">GÉNERO</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>

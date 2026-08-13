@@ -14,7 +14,7 @@ interface RadioSettingsTabsProps {
 export function RadioSettingsTabs({ activeTab, onTabChange, loading = false }: RadioSettingsTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className="w-full grid grid-cols-3">
+      <TabsList className="flex w-full justify-start sm:grid sm:grid-cols-3">
         <TabsTrigger value="stations">Estaciones</TabsTrigger>
         <TabsTrigger value="programs">Programas</TabsTrigger>
         <TabsTrigger value="rates">Tarifas</TabsTrigger>

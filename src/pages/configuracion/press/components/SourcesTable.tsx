@@ -40,7 +40,7 @@ export function SourcesTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[80%]">FUENTE</TableHead>
+            <TableHead className="w-auto md:w-[60%]">FUENTE</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>

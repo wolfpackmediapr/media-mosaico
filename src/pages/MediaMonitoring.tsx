@@ -29,7 +29,7 @@ export default function MediaMonitoring() {
 
   return (
     <ErrorBoundary>
-    <div className="container mx-auto py-8 space-y-8">
+    <div className="container mx-auto px-3 sm:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Monitoreo de Medios</h1>
         <p className="text-muted-foreground">

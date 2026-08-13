@@ -41,7 +41,7 @@ export function RatesTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[80%]">TARIFA</TableHead>
+            <TableHead className="w-auto md:w-[60%]">TARIFA</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>

@@ -83,7 +83,7 @@ export const NotificationPopover = ({
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              "notification-popover-content absolute right-0 mt-2 w-80 max-h-[400px] overflow-y-auto rounded-lg shadow-lg z-50",
+              "notification-popover-content absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-[20rem] sm:w-80 max-h-[400px] overflow-y-auto rounded-lg shadow-lg z-50",
               popoverClassName
             )}
           >

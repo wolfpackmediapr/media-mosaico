@@ -149,3 +149,12 @@
 .notification-dot {
   animation: pulse-dot 1.5s ease-in-out infinite;
 }
+
+/* Hide scrollbars for horizontally scrollable strips (tabs, toolbars) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
