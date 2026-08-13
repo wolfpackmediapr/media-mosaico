@@ -17,7 +17,7 @@ const NotificationStats = ({ selectedClientId, notifications, unreadCount }: Not
           <CardDescription>Todas las notificaciones</CardDescription>
         </CardHeader>
         <CardContent>
-          <span className="text-3xl font-bold">
+          <span className="text-2xl sm:text-3xl font-bold">
             {selectedClientId 
               ? notifications.filter(n => n.clientId === selectedClientId).length 
               : notifications.length}
@@ -31,7 +31,7 @@ const NotificationStats = ({ selectedClientId, notifications, unreadCount }: Not
           <CardDescription>Notificaciones pendientes</CardDescription>
         </CardHeader>
         <CardContent>
-          <span className="text-3xl font-bold">
+          <span className="text-2xl sm:text-3xl font-bold">
             {selectedClientId 
               ? notifications.filter(n => n.status === "unread" && n.clientId === selectedClientId).length 
               : unreadCount}
@@ -45,7 +45,7 @@ const NotificationStats = ({ selectedClientId, notifications, unreadCount }: Not
           <CardDescription>Notificaciones archivadas</CardDescription>
         </CardHeader>
         <CardContent>
-          <span className="text-3xl font-bold">
+          <span className="text-2xl sm:text-3xl font-bold">
             {selectedClientId 
               ? notifications.filter(n => n.status === "archived" && n.clientId === selectedClientId).length 
               : notifications.filter(n => n.status === "archived").length}

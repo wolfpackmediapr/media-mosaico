@@ -88,7 +88,7 @@ const Ajustes = () => {
     <ErrorBoundary>
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
           <Settings2 className="h-8 w-8" />
           Configuración
         </h1>

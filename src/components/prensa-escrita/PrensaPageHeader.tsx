@@ -9,7 +9,7 @@ const PrensaPageHeader = () => {
     <>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">Prensa Escrita</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Prensa Escrita</h1>
           <p className="text-muted-foreground">
             Analiza periódicos y revistas en formato PDF
           </p>

@@ -13,7 +13,7 @@ const NotificationSettingsHeader = ({
 }: NotificationSettingsHeaderProps) => {
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
         <Settings className="h-6 w-6 text-blue-600" />
         {title}
       </h1>

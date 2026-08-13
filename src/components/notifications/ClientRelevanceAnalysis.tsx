@@ -153,7 +153,7 @@ const ClientRelevanceAnalysis = ({
               <CardTitle className="text-base">Notificaciones analizadas</CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-2">
-              <span className="text-3xl font-bold">{analysis.analyzed_count}</span>
+              <span className="text-2xl sm:text-3xl font-bold">{analysis.analyzed_count}</span>
               <p className="text-sm text-muted-foreground mt-1">
                 Notificaciones de los últimos 30 días
               </p>
