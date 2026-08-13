@@ -5,6 +5,7 @@ import { useLocation } from "react-router-dom";
 import { SettingsBreadcrumb } from "./SettingsBreadcrumb";
 import { SettingsHeader } from "./SettingsHeader";
 import { SettingsNav } from "./SettingsNav";
+import { SettingsMobileNav } from "./SettingsMobileNav";
 
 interface SettingsLayoutProps {
   children: ReactNode;
@@ -21,8 +22,10 @@ export function SettingsLayout({ children, title, description, action }: Setting
       <SettingsBreadcrumb title={title} />
       <SettingsHeader title={title} description={description} action={action} />
       
+      <SettingsMobileNav currentPath={location.pathname} />
+
       <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-8 lg:space-y-0">
-        <aside className="lg:w-1/5">
+        <aside className="hidden lg:block lg:w-1/5">
           <SettingsNav currentPath={location.pathname} />
         </aside>
         <div className="flex-1 lg:max-w-4xl">
