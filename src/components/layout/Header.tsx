@@ -1,5 +1,6 @@
 
 import { Menu, User } from "lucide-react";
+import { Image } from "@/components/ui/image";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +37,11 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             <Menu className="h-5 w-5" />
           </Button>
         )}
+        <Image
+          src="/lovable-uploads/da0f30a7-c379-42a2-95ed-ce8b4c40abd4.png"
+          alt="Publimedia"
+          className="h-7 w-auto shrink-0 md:hidden"
+        />
         <h2 className="text-base sm:text-lg md:text-xl font-semibold text-foreground truncate">Dashboard de Monitoreo</h2>
       </div>
       <div className="flex items-center space-x-2 md:space-x-4">
