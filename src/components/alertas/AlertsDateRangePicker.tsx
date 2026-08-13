@@ -82,7 +82,7 @@ export function AlertsDateRangePicker({ value, onChange }: Props) {
       </Select>
 
       {value.preset === "custom" && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
               <Button

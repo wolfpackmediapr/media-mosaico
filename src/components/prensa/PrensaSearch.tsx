@@ -38,7 +38,7 @@ const PrensaSearch = ({
       </div>
       
       {outlets.length > 0 && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">Filtrar por medio:</span>
           <Select value={selectedOutlet} onValueChange={onOutletChange}>
             <SelectTrigger className="w-full sm:w-[200px]">
