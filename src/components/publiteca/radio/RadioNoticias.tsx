@@ -57,7 +57,7 @@ export function RadioNoticias() {
       </div>
 
       {noticias.length > 0 ? (
-        <Table>
+        <div className="overflow-x-auto"><Table>
           <TableHeader>
             <TableRow>
               <TableHead>Título</TableHead>
@@ -70,7 +70,7 @@ export function RadioNoticias() {
           <TableBody>
             {/* Table rows will go here */}
           </TableBody>
-        </Table>
+        </Table></div>
       ) : (
         <div className="bg-gray-50 p-10 text-center rounded-md border border-dashed border-gray-300">
           <h3 className="font-medium text-gray-900 mb-1">No hay noticias registradas</h3>

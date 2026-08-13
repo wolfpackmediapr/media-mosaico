@@ -27,7 +27,7 @@ const RecentReportsList = ({ reports }: RecentReportsListProps) => {
         </Button>
       </CardHeader>
       <CardContent>
-        <Table>
+        <div className="overflow-x-auto"><Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nombre</TableHead>
@@ -52,7 +52,7 @@ const RecentReportsList = ({ reports }: RecentReportsListProps) => {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </Table></div>
       </CardContent>
     </Card>
   );

@@ -42,7 +42,7 @@ export function ProgramsTable({ programs, stations, onEdit, onDelete }: Programs
   };
   
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>

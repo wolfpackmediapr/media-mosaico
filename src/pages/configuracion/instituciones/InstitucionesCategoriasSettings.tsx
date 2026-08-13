@@ -72,7 +72,7 @@ export function InstitucionesCategoriasSettings() {
 
         {paginatedCategorias.length > 0 ? (
           <>
-            <div className="border rounded-md">
+            <div className="border rounded-md overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

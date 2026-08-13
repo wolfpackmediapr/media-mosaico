@@ -20,7 +20,7 @@ interface CategoriesTableProps {
 
 export function CategoriesTable({ categories, onEdit, onDelete }: CategoriesTableProps) {
   return (
-    <Table>
+    <div className="overflow-x-auto"><Table>
       <TableHeader>
         <TableRow>
           <TableHead className="w-[40%]">CATEGORIA</TableHead>
@@ -52,6 +52,6 @@ export function CategoriesTable({ categories, onEdit, onDelete }: CategoriesTabl
           </TableRow>
         ))}
       </TableBody>
-    </Table>
+    </Table></div>
   );
 }

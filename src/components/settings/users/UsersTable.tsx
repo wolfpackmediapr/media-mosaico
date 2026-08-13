@@ -64,7 +64,7 @@ export function UsersTable({
 
   return (
     <>
-      <Table>
+      <div className="overflow-x-auto"><Table>
         <TableHeader>
           <TableRow>
             <TableHead 
@@ -131,7 +131,7 @@ export function UsersTable({
             </TableRow>
           ))}
         </TableBody>
-      </Table>
+      </Table></div>
 
       <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && cancelDelete()}>
         <AlertDialogContent>
