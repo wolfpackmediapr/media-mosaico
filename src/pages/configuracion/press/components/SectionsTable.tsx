@@ -41,7 +41,7 @@ export function SectionsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[80%]">SECCIÓN</TableHead>
+            <TableHead className="w-auto md:w-[60%]">SECCIÓN</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
