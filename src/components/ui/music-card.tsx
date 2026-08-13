@@ -244,13 +244,13 @@ export function MusicCard({
           </div>
         )}
         
-        <div className="flex-1 w-full">
-          <div className="flex justify-between items-center mb-2">
-            <div>
-              {title && <h3 className="font-medium leading-none text-lg">{title}</h3>}
-              {artist && <p className="text-sm text-muted-foreground mt-1">{artist}</p>}
+        <div className="flex-1 w-full min-w-0">
+          <div className="flex justify-between items-center gap-2 mb-2">
+            <div className="min-w-0">
+              {title && <h3 className="font-medium leading-none text-base sm:text-lg truncate" title={title}>{title}</h3>}
+              {artist && <p className="text-sm text-muted-foreground mt-1 truncate">{artist}</p>}
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center shrink-0">
               {onPlaybackRateChange && (
                 <button 
                   onClick={onPlaybackRateChange}
