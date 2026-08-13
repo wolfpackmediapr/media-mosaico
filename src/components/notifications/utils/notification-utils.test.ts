@@ -40,7 +40,7 @@ describe("showBrowserNotification", () => {
   });
 
   it("creates a notification when permission is granted", () => {
-    const ctor = vi.fn();
+    const ctor = vi.fn() as unknown as ReturnType<typeof vi.fn> & { permission: string };
     ctor.permission = "granted";
     g.Notification = ctor;
 
