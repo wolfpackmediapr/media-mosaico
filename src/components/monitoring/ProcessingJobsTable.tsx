@@ -123,15 +123,15 @@ const ProcessingJobsTable = ({
         </div>
       </div>
       
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead>
+              <TableHead className="hidden sm:table-cell">ID</TableHead>
               <TableHead>Tipo de Contenido</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead>Creado</TableHead>
-              <TableHead>Procesado</TableHead>
+              <TableHead className="hidden md:table-cell">Creado</TableHead>
+              <TableHead className="hidden md:table-cell">Procesado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -152,11 +152,11 @@ const ProcessingJobsTable = ({
             ) : (
               jobs.map((job) => (
                 <TableRow key={job.id}>
-                  <TableCell className="font-mono text-xs">{job.id.substring(0, 8)}...</TableCell>
+                  <TableCell className="font-mono text-xs hidden sm:table-cell">{job.id.substring(0, 8)}...</TableCell>
                   <TableCell>{getContentTypeDisplay(job.content_type)}</TableCell>
                   <TableCell>{getStatusBadge(job.status)}</TableCell>
-                  <TableCell>{formatDate(job.created_at)}</TableCell>
-                  <TableCell>{job.processed_at ? formatDate(job.processed_at) : '-'}</TableCell>
+                  <TableCell className="hidden md:table-cell">{formatDate(job.created_at)}</TableCell>
+                  <TableCell className="hidden md:table-cell">{job.processed_at ? formatDate(job.processed_at) : '-'}</TableCell>
                 </TableRow>
               ))
             )}

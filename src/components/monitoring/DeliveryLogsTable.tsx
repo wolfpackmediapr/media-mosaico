@@ -89,15 +89,15 @@ const DeliveryLogsTable = ({
         </div>
       </div>
       
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Notificación</TableHead>
-              <TableHead>Canal</TableHead>
+              <TableHead className="hidden sm:table-cell">Canal</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead>Creado</TableHead>
-              <TableHead>Enviado</TableHead>
+              <TableHead className="hidden md:table-cell">Creado</TableHead>
+              <TableHead className="hidden md:table-cell">Enviado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -121,10 +121,10 @@ const DeliveryLogsTable = ({
                   <TableCell className="max-w-xs truncate" title={log.client_alerts?.title || ""}>
                     {log.client_alerts?.title || ""}
                   </TableCell>
-                  <TableCell>{getChannelDisplay(log.channel)}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{getChannelDisplay(log.channel)}</TableCell>
                   <TableCell>{getStatusBadge(log.status)}</TableCell>
-                  <TableCell>{formatDate(log.created_at)}</TableCell>
-                  <TableCell>{log.sent_at ? formatDate(log.sent_at) : '-'}</TableCell>
+                  <TableCell className="hidden md:table-cell">{formatDate(log.created_at)}</TableCell>
+                  <TableCell className="hidden md:table-cell">{log.sent_at ? formatDate(log.sent_at) : '-'}</TableCell>
                 </TableRow>
               ))
             )}
