@@ -39,7 +39,7 @@ const TvVideoControls = ({
   const isMuted = volume[0] === 0;
 
   return (
-    <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+    <div className="flex flex-wrap items-center gap-2 sm:gap-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
       {/* Play/Pause Button */}
       <Button
         variant="outline"
@@ -56,7 +56,7 @@ const TvVideoControls = ({
 
       {/* Progress Bar */}
       {duration > 0 && (
-        <div className="flex-1 flex items-center gap-2">
+        <div className="flex-1 min-w-[180px] flex items-center gap-2">
           <span className="text-sm text-gray-500 min-w-[40px]">
             {formatTime(currentTime)}
           </span>
@@ -74,7 +74,7 @@ const TvVideoControls = ({
       )}
 
       {/* Volume Control */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 ml-auto">
         <Button
           variant="ghost"
           size="icon"
@@ -86,7 +86,7 @@ const TvVideoControls = ({
             <Volume2 className="h-4 w-4" />
           )}
         </Button>
-        <div className="w-20">
+        <div className="hidden sm:block w-20">
           <Slider
             value={volume}
             onValueChange={onVolumeChange}
