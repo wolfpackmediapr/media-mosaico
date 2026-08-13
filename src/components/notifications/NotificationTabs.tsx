@@ -34,7 +34,7 @@ const NotificationTabs = ({
   return (
     <CardContent className="pb-4 pt-2">
       <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
           <TabsTrigger value="all">
             Todas
             <Badge variant="secondary" className="ml-2">

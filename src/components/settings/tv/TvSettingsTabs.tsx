@@ -13,7 +13,7 @@ interface TvSettingsTabsProps {
 export function TvSettingsTabs({ activeTab, onTabChange, loading = false }: TvSettingsTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className="w-full justify-start border-b bg-transparent p-0">
+      <TabsList className="w-full justify-start border-b bg-transparent p-0 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
         <TabsTrigger
           value="channels"
           className="data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent px-4 py-2"

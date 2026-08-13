@@ -32,7 +32,7 @@ const ClientSpotlightSection = ({ onClientSelect, scope = "all" }: Props) => {
         </div>
         <div className="flex items-center gap-2">
           <Tabs value={activeScope} onValueChange={(v) => setActiveScope(v as SpotlightScope)}>
-            <TabsList className="h-8">
+            <TabsList className="h-8 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
               <TabsTrigger value="all" className="text-xs px-2 h-6">Todos</TabsTrigger>
               <TabsTrigger value="news" className="text-xs px-2 h-6">Prensa</TabsTrigger>
               <TabsTrigger value="social" className="text-xs px-2 h-6">Social</TabsTrigger>

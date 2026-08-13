@@ -112,7 +112,7 @@ export function RadioRatesImport({
         </DialogHeader>
 
         <Tabs defaultValue="file" className="mt-4">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
             <TabsTrigger value="file">Archivo CSV</TabsTrigger>
             <TabsTrigger value="paste">Pegar Contenido</TabsTrigger>
           </TabsList>

@@ -27,7 +27,7 @@ export function PressSettingsTabs({
               Gestiona todos los aspectos relacionados con los medios de prensa
             </CardDescription>
           </div>
-          <TabsList className="mt-2 sm:mt-0">
+          <TabsList className="mt-2 sm:mt-0 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
             <TabsTrigger value="genres">Géneros</TabsTrigger>
             <TabsTrigger value="sources">Fuentes</TabsTrigger>
             <TabsTrigger value="sections">Secciones</TabsTrigger>

@@ -26,7 +26,7 @@ export function InstitucionesTabs({
               Gestiona instituciones, categorías y agencias
             </CardDescription>
           </div>
-          <TabsList className="mt-2 sm:mt-0">
+          <TabsList className="mt-2 sm:mt-0 max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
             <TabsTrigger value="gestion">Instituciones</TabsTrigger>
             <TabsTrigger value="categorias">Categorías</TabsTrigger>
             <TabsTrigger value="agencias">Agencias</TabsTrigger>

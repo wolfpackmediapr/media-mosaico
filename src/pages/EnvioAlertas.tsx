@@ -92,7 +92,7 @@ const EnvioAlertas = () => {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Tabs value={form} onValueChange={(v) => setForm(v as AlertFormFilter)}>
-            <TabsList>
+            <TabsList className="max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
               <TabsTrigger value="all">Todos</TabsTrigger>
               <TabsTrigger value="tv">TV</TabsTrigger>
               <TabsTrigger value="radio">Radio</TabsTrigger>

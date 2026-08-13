@@ -47,7 +47,7 @@ export function PublitecaLayout({ children, title, description }: PublitecaLayou
           onValueChange={handleMediaChange}
           className="w-full"
         >
-          <TabsList className="flex w-full justify-start md:inline-flex md:w-auto">
+          <TabsList className="flex w-full justify-start md:inline-flex md:w-auto max-w-full overflow-x-auto no-scrollbar [&>*]:shrink-0">
             {tabs.map((t) => (
               <TabsTrigger key={t.value} value={t.value}>
                 {t.label}
