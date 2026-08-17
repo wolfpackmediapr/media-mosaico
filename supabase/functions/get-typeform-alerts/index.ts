@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
 
     const items: NormalizedAlert[] = (data ?? []).map((r: any) => {
       const clients: string[] = r.clients ?? []
-      const activeClients = clients.filter((c: string) =>
+      const matchedClients = clients.filter((c: string) =>
         activeClients.normalized.has(normalizeText(c)),
       )
       return {
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
         category: r.category ?? undefined,
         tags: r.tags ?? [],
         clients,
-        activeClients,
+        activeClients: matchedClients,
         rawAnswers: r.raw_answers ?? {},
       }
     })
