@@ -7,6 +7,13 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { TypeformAlert } from "@/hooks/use-typeform-alerts";
 import { AlertResponseDialog } from "./AlertResponseDialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface Props {
   alert: TypeformAlert;
@@ -16,8 +23,9 @@ export const AlertResponseCard = ({ alert }: Props) => {
   const [open, setOpen] = useState(false);
   const isTv = alert.formType === "tv";
   const Icon = isTv ? Tv : Radio;
-  const visibleClients = alert.clients.slice(0, 3);
-  const extraClients = Math.max(0, alert.clients.length - visibleClients.length);
+  const activeSet = new Set(alert.activeClients ?? alert.clients);
+  const visibleClients = alert.clients.slice(0, 4);
+  const hiddenClients = alert.clients.slice(4);
 
   return (
     <>
@@ -52,22 +60,56 @@ export const AlertResponseCard = ({ alert }: Props) => {
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-1.5 mt-auto pt-2">
+          <div className="mt-auto pt-2 space-y-2">
             {alert.category && (
-              <Badge variant="outline" className="text-xs">
-                {alert.category}
-              </Badge>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant="outline" className="text-xs">
+                  {alert.category}
+                </Badge>
+              </div>
             )}
-            {visibleClients.map((c) => (
-              <Badge key={c} variant="outline" className="text-xs border-primary/40 text-primary">
-                {c}
-              </Badge>
-            ))}
-            {extraClients > 0 && (
-              <Badge variant="outline" className="text-xs">
-                +{extraClients}
-              </Badge>
-            )}
+
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Enviada a
+              </p>
+              {alert.clients.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">
+                  Sin destinatarios registrados
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {visibleClients.map((c) => (
+                    <Badge
+                      key={c}
+                      variant="outline"
+                      className={cn(
+                        "text-xs",
+                        activeSet.has(c)
+                          ? "border-primary/40 text-primary"
+                          : "border-muted-foreground/30 text-muted-foreground",
+                      )}
+                    >
+                      {c}
+                    </Badge>
+                  ))}
+                  {hiddenClients.length > 0 && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="text-xs cursor-help">
+                            +{hiddenClients.length}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[240px]">
+                          <span className="text-xs">{hiddenClients.join(", ")}</span>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {alert.tags.length > 0 && (

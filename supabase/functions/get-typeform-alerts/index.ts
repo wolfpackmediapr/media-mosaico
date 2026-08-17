@@ -22,6 +22,7 @@ interface NormalizedAlert {
   category?: string
   tags: string[]
   clients: string[]
+  activeClients: string[]
   rawAnswers: Record<string, string | string[]>
 }
 
@@ -120,7 +121,8 @@ Deno.serve(async (req) => {
     }
 
     const items: NormalizedAlert[] = (data ?? []).map((r: any) => {
-      const clients = (r.clients ?? []).filter((c: string) =>
+      const clients: string[] = r.clients ?? []
+      const matchedClients = clients.filter((c: string) =>
         activeClients.normalized.has(normalizeText(c)),
       )
       return {
@@ -134,6 +136,7 @@ Deno.serve(async (req) => {
         category: r.category ?? undefined,
         tags: r.tags ?? [],
         clients,
+        activeClients: matchedClients,
         rawAnswers: r.raw_answers ?? {},
       }
     })

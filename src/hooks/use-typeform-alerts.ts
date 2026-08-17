@@ -15,6 +15,7 @@ export interface TypeformAlert {
   category?: string;
   tags: string[];
   clients: string[];
+  activeClients?: string[];
   rawAnswers: Record<string, string | string[]>;
 }
 

@@ -81,18 +81,33 @@ export const AlertResponseDialog = ({ alert, open, onOpenChange }: Props) => {
               </section>
             )}
 
-            {alert.clients.length > 0 && (
-              <section>
-                <h4 className="text-sm font-semibold mb-1">Clientes</h4>
+            <section>
+              <h4 className="text-sm font-semibold mb-1">Enviada a (Lista de Emails)</h4>
+              {alert.clients.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">
+                  Sin destinatarios registrados
+                </p>
+              ) : (
                 <div className="flex flex-wrap gap-1.5">
-                  {alert.clients.map((c) => (
-                    <Badge key={c} variant="outline" className="border-primary/40 text-primary">
-                      {c}
-                    </Badge>
-                  ))}
+                  {alert.clients.map((c) => {
+                    const isActive = (alert.activeClients ?? alert.clients).includes(c);
+                    return (
+                      <Badge
+                        key={c}
+                        variant="outline"
+                        className={
+                          isActive
+                            ? "border-primary/40 text-primary"
+                            : "border-muted-foreground/30 text-muted-foreground"
+                        }
+                      >
+                        {c}
+                      </Badge>
+                    );
+                  })}
                 </div>
-              </section>
-            )}
+              )}
+            </section>
 
             {alert.tags.length > 0 && (
               <section>
