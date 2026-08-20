@@ -1,14 +1,28 @@
 # Transcription reliability fix (Radio + TV)
 
-## What the logs actually show
+## This is not new, and not an outage
 
-There is **no AssemblyAI or Gemini outage**. Verified today:
+There is no AssemblyAI or Gemini outage. AssemblyAI completed every radio job it received today (15:14, 15:16, 15:18 UTC) and the rows landed in `radio_transcriptions`.
 
-- AssemblyAI accepted and completed every radio job it received (15:14, 15:16, 15:18 UTC), and rows landed in `radio_transcriptions`.
-- TV, last 24h: 90 completed, 2 `failed:timeout`, 2 `failed:stale`, 11 still stuck at `uploaded`.
-- TV, last 7 days: 510 completed, 11 `failed:stale`, 4 `failed:timeout`, 4 `failed:assemblyai_error`, 90 left at `uploaded`.
+More importantly, the failure rate is not a today-only regression. TV job outcomes per day over the last 30 days:
 
-That pattern matches what you describe: intermittent, different users, different symptoms — not an outage. The failures are structural, in how the platform runs the job.
+```text
+Day      Total   Failed   Stuck at "uploaded"
+Aug 20      52        4         4
+Aug 19     102        3        10
+Aug 18     137        5        28
+Aug 17     136        5        22
+Aug 14     131       13        18
+Aug 12     156       32        21
+Aug 06     155       10        29
+Jul 28     171        7        47
+Jul 23     106        1        37
+```
+
+Every day for a month has 6-47 jobs stranded at `uploaded` and 1-32 outright failures: roughly 10-25% of TV jobs never reach a terminal state. Radio shows the same pattern with occasional empty transcripts (5 on Jul 24, 3 on Aug 14, 1 today). Today is actually one of the better days.
+
+The reason it feels like it started now: a failed job produces no error and no terminal status, it just hangs. So a chronic failure rate reads to users as random intermittency instead of a bug, and as daily volume rose (roughly 50 to 150+ TV jobs/day) more users hit it more often.
+
 
 ## Confirmed root causes
 
