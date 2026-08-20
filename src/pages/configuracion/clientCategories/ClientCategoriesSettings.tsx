@@ -34,6 +34,35 @@ type EditTarget =
   | { kind: "category"; record?: ClientCategory }
   | { kind: "subcategory"; category: ClientCategory; record?: ClientSubcategory };
 
+function ClientUsageBadge({ count, names }: { count: number; names: string[] }) {
+  if (count === 0) return <Badge variant="outline">0 cliente(s)</Badge>;
+  const shown = names.slice(0, 15);
+  const rest = names.length - shown.length;
+  return (
+    <HoverCard openDelay={100} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <Badge
+          variant="outline"
+          className="cursor-help"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {count} cliente(s)
+        </Badge>
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="max-h-64 w-64 overflow-y-auto">
+        <p className="mb-1 text-xs font-medium text-muted-foreground">Clientes asignados</p>
+        <ul className="space-y-0.5 text-sm">
+          {shown.map((n, i) => (
+            <li key={`${n}-${i}`}>{n}</li>
+          ))}
+        </ul>
+        {rest > 0 && <p className="mt-1 text-xs text-muted-foreground">+{rest} más</p>}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+
 export default function ClientCategoriesSettings() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
