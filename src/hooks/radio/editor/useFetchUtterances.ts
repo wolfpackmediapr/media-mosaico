@@ -63,7 +63,10 @@ export const useFetchUtterances = ({
           }
         } catch (error) {
           console.error('[useFetchUtterances] Error fetching utterances:', error);
-          toast.error("No se pudieron cargar los datos de hablantes");
+          // Non-fatal: speaker data is an enhancement. Degrade to the plain
+          // transcript instead of leaving the editor empty.
+          toast.warning("No se pudieron cargar los hablantes; se muestra el texto sin separar.");
+
           
           if (transcriptionText) {
             const formattedText = formatPlainTextAsSpeaker(transcriptionText);
