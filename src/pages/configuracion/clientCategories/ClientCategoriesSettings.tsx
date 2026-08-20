@@ -268,7 +268,13 @@ export default function ClientCategoriesSettings() {
                                   <span className={sub.is_active ? "" : "text-muted-foreground line-through"}>
                                     {sub.name}
                                   </span>
-                                  {subUsage > 0 && <Badge variant="outline">{subUsage} cliente(s)</Badge>}
+                                  {subUsage > 0 && (
+                                    <ClientUsageBadge
+                                      count={subUsage}
+                                      names={usage?.namesBySubcategory[sub.id] ?? []}
+                                    />
+                                  )}
+
                                 </span>
                                 <span className="flex items-center gap-2">
                                   <Switch
