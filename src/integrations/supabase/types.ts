@@ -1477,9 +1477,12 @@ export type Database = {
           analysis_result: Json | null
           created_at: string | null
           emisora: string | null
+          error_message: string | null
           horario: string | null
           id: string
           programa: string | null
+          progress: number | null
+          status: string | null
           transcription_text: string | null
           updated_at: string | null
           user_id: string
@@ -1488,9 +1491,12 @@ export type Database = {
           analysis_result?: Json | null
           created_at?: string | null
           emisora?: string | null
+          error_message?: string | null
           horario?: string | null
           id?: string
           programa?: string | null
+          progress?: number | null
+          status?: string | null
           transcription_text?: string | null
           updated_at?: string | null
           user_id: string
@@ -1499,9 +1505,12 @@ export type Database = {
           analysis_result?: Json | null
           created_at?: string | null
           emisora?: string | null
+          error_message?: string | null
           horario?: string | null
           id?: string
           programa?: string | null
+          progress?: number | null
+          status?: string | null
           transcription_text?: string | null
           updated_at?: string | null
           user_id?: string
@@ -2473,6 +2482,10 @@ export type Database = {
         Returns: undefined
       }
       slugify: { Args: { _txt: string }; Returns: string }
+      sweep_stale_tv_transcriptions: {
+        Args: { p_stale_minutes?: number }
+        Returns: number
+      }
       update_client_classification: {
         Args: {
           p_client_category_id: string
