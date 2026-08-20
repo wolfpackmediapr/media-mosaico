@@ -52,12 +52,38 @@ The reason it feels like it started now: a failed job produces no error and no t
 - Make the utterances fetch non-fatal: on failure fall back to plain formatted text instead of an empty view.
 - Surface the failure reason in the UI in Spanish so users report "timeout" rather than "it didn't work".
 
+## How invasive is this (live users)
+
+Ordered from safest to riskiest. Each phase ships independently, so you can stop after any of them.
+
+**Phase 3 (TV orphan cleanup) - lowest risk, recommended first.**
+Additive only. The sweeper touches rows that are already stuck and already useless to the user; adding terminal-status writes to TV exit paths only fills in a status where today nothing is written. No UI change, no schema change, nothing that currently works changes behavior. Worst case a stuck row gets marked `failed` slightly early, which is fixed by tuning the threshold.
+
+**Phase 2 (stop silent data loss) - low risk, small behavior change.**
+The only visible change: a job that today reports success while saving nothing will now report a failure. That is the correct behavior but it will make the failure rate *look* worse in the UI, because failures that were previously invisible become visible. Nothing that currently succeeds starts failing.
+
+**Phase 4 (speaker data + Spanish error messages) - low risk.**
+Presentation and fallback only. Makes an existing failure degrade to plain text instead of an empty view.
+
+**Phase 1 (async radio jobs) - the invasive one.**
+This is the real change and it touches the path every radio user uses daily (~230 transcriptions/day). It changes the contract between `transcribe-audio` and the frontend: the function returns a job id immediately instead of the finished transcript, so the upload UI, the transcript editor handoff, and anything reading the response shape all have to change together. The migration adds three nullable columns to `radio_transcriptions` (`status`, `progress`, `error_message`) - additive, existing rows and existing reads are unaffected.
+
+Risk controls for Phase 1:
+- Keep the old synchronous response path intact and have the function return both the job id and, when the work finishes inside the request window, the transcript as it does today. The frontend uses the transcript if present and falls back to polling the job row otherwise. Nothing breaks if a client is on a stale bundle.
+- Columns are nullable with defaults, so no backfill and no read path changes for the 6,000+ existing rows.
+- Deploy Phase 1 outside peak hours and watch the first few live jobs before moving on.
+
+**Not touched in any phase:** auth, RLS, roles, section permissions, clients/taxonomy, alerts, Typeform, Prensa, Redes Sociales. No existing table columns are altered or dropped, no data is deleted.
+
+**Suggested sequencing:** ship Phases 3, 2 and 4 first (safe, and 3 alone stops the hanging-spinner complaints for TV), confirm for a day, then do Phase 1 on its own.
+
 ## Technical notes
 
 - Files touched: `supabase/functions/transcribe-audio/index.ts`, `supabase/functions/process-tv-with-gemini/index.ts`, `src/hooks/useAudioTranscription.ts`, `src/hooks/radio/editor/useFetchUtterances.ts`, plus the radio processing UI components.
-- Migration: add `status`, `progress`, `error_message` to `radio_transcriptions` if absent; enable Realtime on the table for live progress.
+- Migration: add nullable `status`, `progress`, `error_message` to `radio_transcriptions` (the table has none of them today); enable Realtime on the table for live progress.
 - No auth, RLS, permission, or client/taxonomy logic changes.
 - Background work uses `EdgeRuntime.waitUntil` with a `finally` terminal-status write, per existing project convention.
+
 
 ## Verification
 
