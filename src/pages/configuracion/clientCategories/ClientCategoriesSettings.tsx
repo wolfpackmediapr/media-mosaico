@@ -16,6 +16,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+
 import { Plus, Search, Trash2, Pencil } from "lucide-react";
 import {
   ClientCategory,
@@ -33,6 +35,35 @@ import {
 type EditTarget =
   | { kind: "category"; record?: ClientCategory }
   | { kind: "subcategory"; category: ClientCategory; record?: ClientSubcategory };
+
+function ClientUsageBadge({ count, names }: { count: number; names: string[] }) {
+  if (count === 0) return <Badge variant="outline">0 cliente(s)</Badge>;
+  const shown = names.slice(0, 15);
+  const rest = names.length - shown.length;
+  return (
+    <HoverCard openDelay={100} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <Badge
+          variant="outline"
+          className="cursor-help"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {count} cliente(s)
+        </Badge>
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="max-h-64 w-64 overflow-y-auto">
+        <p className="mb-1 text-xs font-medium text-muted-foreground">Clientes asignados</p>
+        <ul className="space-y-0.5 text-sm">
+          {shown.map((n, i) => (
+            <li key={`${n}-${i}`}>{n}</li>
+          ))}
+        </ul>
+        {rest > 0 && <p className="mt-1 text-xs text-muted-foreground">+{rest} más</p>}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
 
 export default function ClientCategoriesSettings() {
   const queryClient = useQueryClient();
@@ -189,7 +220,7 @@ export default function ClientCategoriesSettings() {
                             {cat.name}
                           </span>
                           <Badge variant="secondary">{cat.subcategories?.length ?? 0} subcat.</Badge>
-                          <Badge variant="outline">{catUsage} cliente(s)</Badge>
+                          <ClientUsageBadge count={catUsage} names={usage?.namesByCategory[cat.id] ?? []} />
                         </span>
                       </AccordionTrigger>
                       <Switch
@@ -237,7 +268,13 @@ export default function ClientCategoriesSettings() {
                                   <span className={sub.is_active ? "" : "text-muted-foreground line-through"}>
                                     {sub.name}
                                   </span>
-                                  {subUsage > 0 && <Badge variant="outline">{subUsage} cliente(s)</Badge>}
+                                  {subUsage > 0 && (
+                                    <ClientUsageBadge
+                                      count={subUsage}
+                                      names={usage?.namesBySubcategory[sub.id] ?? []}
+                                    />
+                                  )}
+
                                 </span>
                                 <span className="flex items-center gap-2">
                                   <Switch

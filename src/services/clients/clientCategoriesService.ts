@@ -52,23 +52,31 @@ export async function fetchClientCategories(): Promise<ClientCategory[]> {
   }));
 }
 
-/** How many clients use each category / subcategory. */
+/** How many clients use each category / subcategory (plus their names). */
 export async function fetchClientCategoryUsage(): Promise<{
   byCategory: Record<string, number>;
   bySubcategory: Record<string, number>;
+  namesByCategory: Record<string, string[]>;
+  namesBySubcategory: Record<string, string[]>;
 }> {
   const [{ data, error }, { data: assignments, error: assignError }] = await Promise.all([
-    supabase.from("clients").select("client_category_id"),
-    supabase.from("client_subcategory_assignments").select("client_id, client_subcategory_id"),
+    supabase.from("clients").select("id, name, client_category_id"),
+    supabase
+      .from("client_subcategory_assignments")
+      .select("client_id, client_subcategory_id, clients(name)"),
   ]);
   if (error) throw error;
   if (assignError) throw assignError;
 
   const byCategory: Record<string, number> = {};
   const bySubcategory: Record<string, number> = {};
+  const namesByCategory: Record<string, string[]> = {};
+  const namesBySubcategory: Record<string, string[]> = {};
+
   (data || []).forEach((row: any) => {
     if (row.client_category_id) {
       byCategory[row.client_category_id] = (byCategory[row.client_category_id] || 0) + 1;
+      (namesByCategory[row.client_category_id] ||= []).push(row.name);
     }
   });
   // Subcategory usage now comes from the junction table (multi-subcategory).
@@ -78,9 +86,18 @@ export async function fetchClientCategoryUsage(): Promise<{
     if (seen.has(key)) return;
     seen.add(key);
     bySubcategory[row.client_subcategory_id] = (bySubcategory[row.client_subcategory_id] || 0) + 1;
+    const name = row.clients?.name;
+    if (name) (namesBySubcategory[row.client_subcategory_id] ||= []).push(name);
   });
-  return { byCategory, bySubcategory };
+
+  const sortAll = (map: Record<string, string[]>) =>
+    Object.values(map).forEach((list) => list.sort((a, b) => a.localeCompare(b, "es")));
+  sortAll(namesByCategory);
+  sortAll(namesBySubcategory);
+
+  return { byCategory, bySubcategory, namesByCategory, namesBySubcategory };
 }
+
 
 export async function createClientCategory(input: {
   name: string;
