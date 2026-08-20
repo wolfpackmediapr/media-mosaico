@@ -220,7 +220,7 @@ export default function ClientCategoriesSettings() {
                             {cat.name}
                           </span>
                           <Badge variant="secondary">{cat.subcategories?.length ?? 0} subcat.</Badge>
-                          <Badge variant="outline">{catUsage} cliente(s)</Badge>
+                          <ClientUsageBadge count={catUsage} names={usage?.namesByCategory[cat.id] ?? []} />
                         </span>
                       </AccordionTrigger>
                       <Switch
