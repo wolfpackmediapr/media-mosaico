@@ -43,14 +43,22 @@ function ClientUsageBadge({ count, names }: { count: number; names: string[] }) 
   return (
     <HoverCard openDelay={100} closeDelay={80}>
       <HoverCardTrigger asChild>
-        <Badge
-          variant="outline"
-          className="cursor-help"
+        <span
+          tabIndex={0}
+          role="button"
+          className="inline-flex cursor-help outline-none"
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === " " || e.key === "Enter") e.stopPropagation();
+          }}
         >
-          {count} cliente(s)
-        </Badge>
+          <Badge variant="outline" className="cursor-help">
+            {count} cliente(s)
+          </Badge>
+        </span>
       </HoverCardTrigger>
+
       <HoverCardContent align="start" className="max-h-64 w-64 overflow-y-auto">
         <p className="mb-1 text-xs font-medium text-muted-foreground">Clientes asignados</p>
         <ul className="space-y-0.5 text-sm">
