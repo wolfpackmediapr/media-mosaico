@@ -96,10 +96,54 @@ serve(async (req) => {
     }
     console.log(`Analysis generated successfully via openai (${analysis.length} chars)`);
 
+    // Persist the analysis so it survives the session and stays queryable
+    // alongside TV. A storage failure must not lose the user's analysis, so it
+    // is reported but the analysis text is still returned.
+    let saved = false;
+    let saveError: string | null = null;
+
+    if (rowId && analysis !== 'No se pudo generar análisis') {
+      try {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        );
+
+        const knownClients = (clients as any[])
+          .map((c) => (typeof c === 'string' ? c : c?.name))
+          .filter((n: unknown): n is string => typeof n === 'string' && n.length > 0);
+
+        const updatePayload: Record<string, unknown> = {
+          full_analysis: analysis,
+          updated_at: new Date().toISOString(),
+          ...extractAnalysisFields(analysis, knownClients),
+        };
+
+        const { error: updateError } = await supabase
+          .from('radio_transcriptions')
+          .update(updatePayload)
+          .eq('id', rowId);
+
+        if (updateError) {
+          saveError = updateError.message;
+          console.error('[analyze-radio-content] Failed to save analysis:', updateError);
+        } else {
+          saved = true;
+          console.log(`[analyze-radio-content] Analysis saved to radio_transcriptions ${rowId}`);
+        }
+      } catch (persistError) {
+        saveError = persistError instanceof Error ? persistError.message : String(persistError);
+        console.error('[analyze-radio-content] Persistence error:', persistError);
+      }
+    } else if (!rowId) {
+      console.warn('[analyze-radio-content] No transcription row id provided; analysis not persisted');
+    }
+
     return new Response(
-      JSON.stringify({ analysis }),
+      JSON.stringify({ analysis, saved, saveError }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
+
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
