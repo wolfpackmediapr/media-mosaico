@@ -1474,10 +1474,20 @@ export type Database = {
       }
       radio_transcriptions: {
         Row: {
+          analysis_category: string | null
+          analysis_client_relevance: Json | null
+          analysis_cuando: string | null
+          analysis_donde: string | null
+          analysis_keywords: string[] | null
+          analysis_porque: string | null
+          analysis_que: string | null
+          analysis_quien: string | null
           analysis_result: Json | null
+          analysis_summary: string | null
           created_at: string | null
           emisora: string | null
           error_message: string | null
+          full_analysis: string | null
           horario: string | null
           id: string
           programa: string | null
@@ -1488,10 +1498,20 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          analysis_category?: string | null
+          analysis_client_relevance?: Json | null
+          analysis_cuando?: string | null
+          analysis_donde?: string | null
+          analysis_keywords?: string[] | null
+          analysis_porque?: string | null
+          analysis_que?: string | null
+          analysis_quien?: string | null
           analysis_result?: Json | null
+          analysis_summary?: string | null
           created_at?: string | null
           emisora?: string | null
           error_message?: string | null
+          full_analysis?: string | null
           horario?: string | null
           id?: string
           programa?: string | null
@@ -1502,10 +1522,20 @@ export type Database = {
           user_id: string
         }
         Update: {
+          analysis_category?: string | null
+          analysis_client_relevance?: Json | null
+          analysis_cuando?: string | null
+          analysis_donde?: string | null
+          analysis_keywords?: string[] | null
+          analysis_porque?: string | null
+          analysis_que?: string | null
+          analysis_quien?: string | null
           analysis_result?: Json | null
+          analysis_summary?: string | null
           created_at?: string | null
           emisora?: string | null
           error_message?: string | null
+          full_analysis?: string | null
           horario?: string | null
           id?: string
           programa?: string | null
