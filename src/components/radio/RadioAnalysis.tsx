@@ -238,6 +238,14 @@ const RadioAnalysis = ({
           : "El contenido ha sido analizado exitosamente.";
         
         toast.success(message);
+
+        // Surface a storage failure: the analysis is on screen but would be
+        // lost on reload, so the user needs to know.
+        if (transcriptionId && data.saved === false) {
+          console.error('[RadioAnalysis] Analysis not persisted:', data.saveError);
+          toast.warning("El análisis no se pudo guardar en la base de datos; se perderá al recargar.");
+        }
+
         
         // Generate segments if callback provided
         if (onSegmentsGenerated) {
