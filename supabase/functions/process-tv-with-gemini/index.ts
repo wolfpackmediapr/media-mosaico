@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { extractRelevantClients } from '../_shared/analysisFieldExtractor.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -2584,6 +2585,7 @@ async function processVideoInBackground(
         analysis_category: parsedAnalysis.category,
         analysis_content_summary: parsedAnalysis.content_summary,
         full_analysis: result.full_analysis,
+
         was_compressed: wasCompressed,
         compressed_path: wasCompressed ? compressedVideoPath : null,
         status: 'completed',
@@ -2591,6 +2593,19 @@ async function processVideoInBackground(
         provider_used: getKeyLabel(),
         provider_fallback_reason: rotationCount > 0 ? '429_rate_limit_exhausted' : null
       };
+
+      // Persist the clients the analysis flagged (matched against the real
+      // client list) so reporting can query the column instead of the text.
+      const knownClientNames = (clients || [])
+        .map((c: any) => (typeof c === 'string' ? c : c?.name))
+        .filter((n: unknown): n is string => typeof n === 'string' && n.length > 0);
+      const relevantClients = extractRelevantClients(result.full_analysis || '', knownClientNames);
+      if (relevantClients.length > 0) {
+        updateData.analysis_client_relevance = relevantClients.map((name) => ({ name, source: 'analysis' }));
+        updateData.relevant_clients = relevantClients;
+      }
+
+
       
       await supabase
         .from('tv_transcriptions')
