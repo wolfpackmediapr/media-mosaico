@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { buildTvAnalysisPrompt } from '../_shared/tvAnalysisPrompt.ts';
+import { extractRelevantClients } from '../_shared/analysisFieldExtractor.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -224,6 +225,18 @@ serve(async (req) => {
       updated_at: new Date().toISOString(),
     };
     extractAnalysisFieldsFromText(analysisText, updatePayload);
+
+    // Persist which clients the analysis flagged, restricted to real clients,
+    // so client reporting can query the column instead of re-parsing text.
+    const knownClientNames = clients
+      .map((c: any) => (typeof c === 'string' ? c : c?.name))
+      .filter((n: unknown): n is string => typeof n === 'string' && n.length > 0);
+    const relevantClients = extractRelevantClients(analysisText, knownClientNames);
+    if (relevantClients.length > 0) {
+      updatePayload.analysis_client_relevance = relevantClients.map((name) => ({ name, source: 'analysis' }));
+      updatePayload.relevant_clients = relevantClients;
+    }
+
 
     const { error: upErr } = await supabase
       .from('tv_transcriptions')
