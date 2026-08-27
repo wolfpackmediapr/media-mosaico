@@ -2592,6 +2592,19 @@ async function processVideoInBackground(
         provider_used: getKeyLabel(),
         provider_fallback_reason: rotationCount > 0 ? '429_rate_limit_exhausted' : null
       };
+
+      // Persist the clients the analysis flagged (matched against the real
+      // client list) so reporting can query the column instead of the text.
+      const knownClientNames = (clients || [])
+        .map((c: any) => (typeof c === 'string' ? c : c?.name))
+        .filter((n: unknown): n is string => typeof n === 'string' && n.length > 0);
+      const relevantClients = extractRelevantClients(result.full_analysis || '', knownClientNames);
+      if (relevantClients.length > 0) {
+        updateData.analysis_client_relevance = relevantClients.map((name) => ({ name, source: 'analysis' }));
+        updateData.relevant_clients = relevantClients;
+      }
+
+
       
       await supabase
         .from('tv_transcriptions')
