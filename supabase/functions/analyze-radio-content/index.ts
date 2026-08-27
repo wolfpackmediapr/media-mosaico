@@ -1,8 +1,10 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 import { constructDynamicPrompt } from "./promptBuilder.ts"
 import { fetchTranscriptMetadata } from "./assemblyAIUtils.ts"
+import { extractAnalysisFields } from "../_shared/analysisFieldExtractor.ts"
 import type { AnalysisRequest } from "./types.ts"
 
 const corsHeaders = {
@@ -10,25 +12,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { 
-      transcriptionText, 
+    const body = await req.json() as AnalysisRequest & { transcriptionId?: string };
+    const {
+      transcriptionText,
       transcriptId,
       categories = [],
-      clients = [] 
-    } = await req.json() as AnalysisRequest;
+      clients = []
+    } = body;
+
+    // The radio UI holds the radio_transcriptions row id; accept it under
+    // either key so older bundles keep working.
+    const rowId = [body.transcriptionId, transcriptId].find(
+      (v): v is string => typeof v === 'string' && UUID_RE.test(v),
+    );
 
     if (!transcriptionText || transcriptionText.length < 10) {
       throw new Error('Texto de transcripción demasiado corto o vacío');
     }
 
-    console.log(`Analyzing transcription text (${transcriptionText.length} chars)${transcriptId ? ' with ID: ' + transcriptId : ''}`);
+    console.log(`Analyzing transcription text (${transcriptionText.length} chars)${rowId ? ' for row: ' + rowId : ''}`);
     console.log(`Using ${categories.length} categories and ${clients.length} clients for analysis`);
+
     
     let additionalContext = '';
     let hasSpeakerLabels = false;
