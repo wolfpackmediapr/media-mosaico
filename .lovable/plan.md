@@ -1,74 +1,87 @@
-# Data persistence audit — readiness for a Client Portal
+# Phase 0 — Portal Foundation (design only, no implementation)
 
-Findings below come from live queries against the production database today. The short version: transcripts and analyses are now saved (Radio and TV), but **almost nothing is stored in a shape a client-facing portal can query by client**, and several high-volume sources are saved raw with no analysis at all.
+This is the verified Phase 0 architecture for the Client Portal. Nothing is built or migrated until you and your reviewer sign off. Existing Publiteca behavior is untouched: no legacy table is dropped, altered, or renamed, and no current UI, edge function, or permission path changes.
 
-## What is already fine
+## Verified production baseline (queried live, Aug 27 2026)
 
-- Radio transcripts: 49,050 of 49,061 rows have text; analysis columns now persist.
-- TV transcripts: 9,896 rows, analysis text on ~7.5k, category/summary backfilled.
-- Typeform alerts mirror: 51,428 rows, fully populated (clients, category, channel, tags).
-- Digital news from the "news" feeds: 46,902 articles with 46,648 summaries and 42,772 sentiment values.
+| Fact | Value |
+|---|---|
+| clients | 28 total, 23 active |
+| clients with aliases populated | **0** (column exists, unused) |
+| news_articles | 146,543 rows; 24,077 carry client matches |
+| news client mention objects | 61,859 total, 48 distinct names |
+| → resolvable by embedded UUID | 43,941 |
+| → resolvable by exact lowercased name | 58,579 (superset of UUID path) |
+| → unresolved | ~3,280 (top: "NF Energía" 2,167, "Coop de Seguros Múltiples" 1,072, 17 nulls) |
+| typeform_responses | 51,517 rows; 93,034 client values, 36 distinct |
+| → resolvable by name | 77,434; unresolved ~15,600 (top: "NF Energía" 7,531, "Pavia" 4,663, "Seguros Múltiples" 750) |
+| radio_transcriptions / tv_transcriptions | 49,133 / 9,941 |
+| press_clippings | 72 (frozen since Nov 2025) |
 
-## Gap 1 — There is no client-to-content link table (biggest blocker)
+Note the mention shape is `{id, name, relevance}` with `relevance` in lowercase Spanish (`alta|media|baja`). Unresolved values are mostly **alias drift** ("Pavia" vs "Pavía", "Seguros Múltiples" vs "Coop de Seguros Múltiples") plus a handful of junk ("María", "Sonia", "AGENCIAS DE GOBIERNO", test clients) — which confirms the alias table + quarantine design.
 
-Client matches are stored five different ways and never as a foreign key:
+## Checkpoint 1 — Schema only
 
-| Source | Where the client match lives | Rows matched |
-|---|---|---|
-| news_articles | `clients` jsonb | 24,017 of 146,235 |
-| press_clippings | `client_relevance` text[] | 51 of 72 |
-| tv_transcriptions | `relevant_clients` / `analysis_client_relevance` | 1 of 9,896 (fixed going forward) |
-| radio_transcriptions | nothing exists | 0 of 49,061 |
-| typeform_responses | `clients` text[] | 51,424 of 51,428 |
+Tables created in `public`, each with GRANTs, RLS enabled, and policies (Postgres does not grant `public` schema privileges by default).
 
-A portal's core query is "everything about client X between two dates, across all media." Today that requires five different text/JSON scans with no `client_id`, so renaming a client silently breaks history.
+1. **content_items** — canonical projection. Columns as you specified. `source_type` is a new enum `portal_source_type` (`digital|social|radio|tv|press|typeform`). `source_id text NOT NULL` (not uuid — typeform uses `response_id` strings). `sentiment_source text`, `metadata jsonb NOT NULL DEFAULT '{}'`. Unique `(source_type, source_id)`.
+2. **content_client_mentions** — FKs to `content_items(id) ON DELETE CASCADE` and `clients(id) ON DELETE RESTRICT`. Unique `(content_item_id, client_id)`. `relevance` enum `alta|media|baja` (matches existing data). `matched_keywords text[]`, `client_name_snapshot`, `keyword_snapshot`.
+3. **client_aliases** — `normalized_alias` is a generated column using the existing `public.slugify`-style normalization (unaccent + lower + trim), unique on `(client_id, normalized_alias)` plus a global unique on `normalized_alias` to prevent one alias mapping to two clients.
+4. **portal_client_access** — `user_id uuid` (no FK to `auth.users` per project rule), `client_id → clients.id`, `role` enum `portal_role` (`viewer|manager`), `is_active`. Unique `(user_id, client_id)`. Deliberately separate from `user_roles`/`user_profiles`; staff roles are never reused.
+5. **portal_alerts** + **portal_alert_reads** — as specified; reads unique `(user_id, alert_id)`.
+6. **portal_reports**, **portal_activity_log** — contract only, no generation logic.
+7. **unresolved_client_matches** — quarantine, `status` enum `pending|resolved|rejected`.
+8. Indexes exactly as your 0I list, plus `content_items(effective_at DESC)` and a GIN on `content_client_mentions(matched_keywords)`.
+9. `updated_at` triggers reusing the existing `public.update_updated_at_column()`.
 
-**Fix:** one `content_client_mentions` table (`client_id`, `content_type`, `content_id`, `matched_at`, `matched_keywords`, `relevance`, `sentiment`), written by every pipeline and backfilled from the five existing fields.
+### RLS (0E)
 
-## Gap 2 — Social media posts are stored but never analyzed
+Security-definer helper, `SET search_path = public`, mirroring the existing `has_role` pattern:
 
-- Twitter/X: 97,122 posts — only 2,061 summaries, 737 sentiment, 533 client matches.
-- Instagram: 1,775 posts — zero summaries, zero sentiment, zero client matches.
+```sql
+public.portal_has_client_access(_client_id uuid) returns boolean
+-- exists(select 1 from portal_client_access a
+--        join clients c on c.id = a.client_id
+--        where a.user_id = auth.uid() and a.client_id = _client_id
+--          and a.is_active and c.is_active)
+```
 
-So ~99k social posts exist as raw text a client portal cannot filter, tag, or report on.
+- `content_items` SELECT: `exists (select 1 from content_client_mentions m where m.content_item_id = id and portal_has_client_access(m.client_id))` **OR** staff (`has_role(auth.uid(),'administrator')`). No blanket-read policy exists, so a direct fetch by ID of another client's item returns empty.
+- `content_client_mentions`, `portal_alerts`, `portal_reports`: SELECT gated by `portal_has_client_access(client_id)`.
+- `portal_alert_reads`: user sees/writes only `user_id = auth.uid()`, and only for alerts on a client they can access.
+- `portal_activity_log`: insert own rows; read restricted to administrators.
+- `unresolved_client_matches`, `client_aliases`, `portal_client_access`: administrator-only via `has_role`. Writes to portal tables are service-role/admin only — portal users never insert content.
+- GRANTs: `authenticated` gets SELECT on portal-readable tables (+ INSERT/UPDATE on `portal_alert_reads` and `portal_activity_log`); `service_role` gets ALL; **no `anon` grants anywhere**.
 
-## Gap 3 — Broadcast dates are missing for TV and Radio
+## Checkpoint 2 — Resolver + dry-run tooling (no writes)
 
-`tv_transcriptions.broadcast_time` is populated on **0 of 9,896** rows; Radio only has a free-text `horario`. Every date filter in a portal would silently fall back to upload time, which is wrong for material processed days later.
+- `public.resolve_client_identity(_raw_id text, _raw_name text)` — stable SQL function returning `(client_id uuid, method text)` following your order: valid `clients.id` → normalized exact `clients.name` → `client_aliases.normalized_alias` → `null`. Normalization: trim, collapse whitespace, lower, strip accents.
+- Alias seeding migration from the observed drift (`Pavia→Pavía`, `Seguros Múltiples`/`Coop de Seguros Múltiples`→ the canonical Coop client, `Cruz Roja→Cruz Roja Americana`, etc.). Names with no plausible client ("María", "Sonia", "AGENCIAS DE GOBIERNO", `Publimedia Test*`) go straight to quarantine — never silently dropped. **You approve the alias seed list before it runs.**
+- Edge function `normalize-content-batch` (`{source, cursor, batch_size, dry_run}`): idempotent, restartable, cursor-based on `created_at,id`, upserts on `(source_type, source_id)` and `(content_item_id, client_id)`. `dry_run: true` writes nothing and returns the counters you listed (scanned / mentions / by_id / by_name / by_alias / unresolved / duplicates / malformed).
 
-## Gap 4 — Prensa Escrita no longer saves individual clippings
+## Checkpoints 3–6
 
-The current Gemini File Search pipeline writes 23 document rows holding 113 detected clippings inside a summary field. `press_clippings` (the per-article table with embeddings) has been frozen at 72 rows since Nov 2025. A portal cannot show, link, or count individual press articles.
+3. Digital Press: dry-run report → 100 rows → 1,000 → full 146k, paged.
+4. Typeform: same flow; feeds `portal_alerts` later.
+5. RLS penetration tests (Client A/B, User A/B, cross-read + direct-ID fetch must return zero rows) run as a scripted SQL/Deno suite you can re-run.
+6. Sign-off against your twelve exit criteria.
 
-## Gap 5 — Semantic search infrastructure is dead
+Radio / TV / Social / Press are **not** normalized in Phase 0; they only get their column mapping documented (`docs/portal/source-mapping.md`) as the contract for Phase 1+.
 
-`tv_news_segments` has 4,112 rows with **0 embeddings**; `news_segments` is empty. The `match_news_segments` function has nothing to search. Only `press_clippings` (72 rows) has vectors.
+## Files touched
 
-## Gap 6 — Alerts and reports are incomplete records
+- New migrations (schema, helpers, alias seed) — one per checkpoint, never combined with backfill.
+- New: `supabase/functions/normalize-content-batch/`, `supabase/functions/_shared/clientResolver.ts`, `docs/portal/source-mapping.md`, `docs/portal/phase0-dryrun-reports/`.
+- Tests: `supabase/functions/normalize-content-batch/*_test.ts` (resolver + idempotency), SQL RLS suite.
+- **Zero changes** to existing `src/` code or existing edge functions in Phase 0.
 
-- `client_alerts`: 1,582 rows, **all radio**, spanning only May–Aug 2026, `read_at` never set. No TV, press, or digital alerts are recorded, and there is no read/unread state for a portal inbox.
-- `reports`: 106 rows with **0** `file_path` values — generated reports are not retrievable afterward.
+## Risks
 
-## Gap 7 — Smaller items
+- `press_clippings` is effectively dead (72 rows); Phase 1 must decide whether to restore per-clipping writes before Press can be portal-visible.
+- TV `broadcast_time` is unreliable and Radio has no structured timestamp — `effective_at_estimated` flags these; Radio/TV normalization is deliberately deferred.
+- Junk client values in Typeform (person first names, test clients) will inflate quarantine on first run; expected, not a failure.
+- Adding `portal_has_client_access` to `content_items` RLS makes unindexed portal queries expensive at 146k+ rows; the `(client_id, content_item_id)` index is required, not optional.
 
-- Client `aliases` is empty on all 28 clients although the field and prompts support it.
-- No trigram or full-text index on transcripts (Radio/TV) — portal keyword search would table-scan 59k long-text rows.
-- No monetary value per mention, even though `tv_rates` / `radio_rates` / `press_rates` exist — client reporting normally expects an equivalent-value figure.
-- No per-client user accounts or audit trail; portal login and "who viewed what" have no home yet.
+## Deliverable of this step
 
-## Suggested sequencing (for a follow-up plan)
-
-1. **Foundation**: `content_client_mentions` table + backfill from all five sources; write it from every pipeline.
-2. **Coverage**: analyze the social backlog (Twitter/Instagram) and add client matching to Radio.
-3. **Time correctness**: populate `broadcast_time` for TV/Radio at capture, backfill where derivable.
-4. **Press**: restore per-clipping rows from the File Search pipeline.
-5. **Search**: re-enable segment embeddings + trigram indexes on transcript text.
-6. **Portal surface**: alerts inbox with read state, stored report files, per-client accounts, optional media value.
-
-## Technical notes
-
-- Steps 1–5 are backend-only (migrations + edge function writes) and do not change the current UI.
-- Backfills are large (146k articles, 99k social posts) and should run in batches through a scheduled edge function, not a single migration.
-- Client matching should key on `clients.id` with `keywords` + `aliases` snapshots stored on the mention row, so historical matches survive later keyword edits.
-
-Tell me which gaps to prioritise and I will turn the chosen ones into an implementation plan.
+This document only. On approval I implement **Checkpoint 1 (schema) alone** and stop for your independent production audit.
