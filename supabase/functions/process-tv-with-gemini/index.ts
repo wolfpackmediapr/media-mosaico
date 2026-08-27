@@ -2584,6 +2584,7 @@ async function processVideoInBackground(
         analysis_category: parsedAnalysis.category,
         analysis_content_summary: parsedAnalysis.content_summary,
         full_analysis: result.full_analysis,
+
         was_compressed: wasCompressed,
         compressed_path: wasCompressed ? compressedVideoPath : null,
         status: 'completed',
