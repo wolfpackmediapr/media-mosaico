@@ -213,10 +213,12 @@ const RadioAnalysis = ({
         body: { 
           transcriptionText: textForAnalysis, // Use formatted text with custom speaker names
           transcriptId: transcriptionId || null,
+          transcriptionId: transcriptionId || null, // radio_transcriptions row id for persistence
           categories: formattedCategories,
           clients: formattedClients
         }
       });
+
 
       console.log('[RadioAnalysis] Edge function response:', { data, error });
 
