@@ -54,9 +54,13 @@ Consequences today:
 - Run the existing field extractor over the TV rows that have `full_analysis` but no `analysis_summary`/`analysis_category`, so historical rows become queryable.
 - Persist relevant clients for TV into `analysis_client_relevance` on new runs (currently 1 row) so client reporting works off the database rather than re-parsing text.
 
-### Phase 3 - Radio segments and cleanup
-- Point radio segment storage at `radio_transcriptions` (new `radio_news_segments` table, or repoint `news_segments`) so segments survive the session as TV's already do.
+### Phase 3 - Cleanup (no radio segments)
+- Radio news segments are explicitly out of scope; no segment storage is added.
 - Decide the fate of the legacy `transcriptions` table (408 rows, dead since Jul 2025): archive or drop. No deletion happens without your confirmation.
+
+### Goal this enables
+With Phases 1 and 2 done, both `radio_transcriptions` and `tv_transcriptions` carry transcript text plus the same named analysis columns, so a single query can search and report across Radio and TV transcripts and analyses.
+
 
 ### Not touched
 Auth, RLS, roles, section permissions, clients/taxonomy, Typeform, Prensa, Redes Sociales. No existing columns altered or dropped, no rows deleted.
