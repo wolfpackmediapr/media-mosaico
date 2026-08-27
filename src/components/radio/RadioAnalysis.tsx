@@ -107,6 +107,42 @@ const RadioAnalysis = ({
     }
   }, [transcriptionId, transcriptionText, setAnalysis]);
 
+  // Load a previously saved analysis from the database so users can review it
+  // later without paying for a second AI run.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSavedAnalysis = async () => {
+      if (!transcriptionId || analysis || forceReset) return;
+
+      const { data, error } = await supabase
+        .from('radio_transcriptions')
+        .select('full_analysis')
+        .eq('id', transcriptionId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[RadioAnalysis] Error loading saved analysis:', error);
+        return;
+      }
+
+      if (!cancelled && mountedRef.current && data?.full_analysis) {
+        console.log('[RadioAnalysis] Loaded saved analysis from database');
+        setAnalysis(data.full_analysis);
+      }
+    };
+
+    loadSavedAnalysis();
+
+    return () => {
+      cancelled = true;
+    };
+    // `analysis` is intentionally excluded: this should only run when the
+    // transcription changes, not every time the analysis text updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcriptionId, forceReset]);
+
+
   const analyzeContent = async () => {
     if (!transcriptionText) {
       toast.error("No hay texto para analizar");
