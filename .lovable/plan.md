@@ -1,19 +1,17 @@
 # CP3 Step 2 — Install approved `portal-sender` + Phase A dry run
 
-## Blocker: the four source files still have not been provided
+## Blocker cleared — all four sources received and pre-verified
 
-Only checksums have arrived — no file bodies. Byte-for-byte install is impossible without the actual text, and I will not author substitutes.
+The uploaded sources were hashed read-only on the sandbox and every value matches the superseding expected set exactly:
 
-Superseding expected values (authoritative, replacing the earlier `index.ts` checksum):
-
-| File | SHA-256 | Bytes |
+| File | SHA-256 (actual = expected) | Bytes |
 |---|---|---|
-| index.ts | `015e74711179eb0e08f11a36f6285f2c37f3547ccf83474b232e4fabfe18f164` | 10848 |
-| signing.ts | `93cb56aa76a569efcc9b44462b524dd6003bb8be9fb07a7c5645e77b64b9d4d8` | 6510 |
-| clients.ts | `ff968cbb9a9de73158bb4b4d521fedca7aa7f8ba9391c85ccfe2e5843299c530` | 2943 |
-| deno.json | `4a6c1c4b96c387096016efe0d22052392a9135abcc01b59d4196f3c1913b2525` | 376 |
+| index.ts | `015e74711179eb0e08f11a36f6285f2c37f3547ccf83474b232e4fabfe18f164` | 10848 — MATCH |
+| signing.ts | `93cb56aa76a569efcc9b44462b524dd6003bb8be9fb07a7c5645e77b64b9d4d8` | 6510 — MATCH |
+| clients.ts | `ff968cbb9a9de73158bb4b4d521fedca7aa7f8ba9391c85ccfe2e5843299c530` | 2943 — MATCH |
+| deno.json | `4a6c1c4b96c387096016efe0d22052392a9135abcc01b59d4196f3c1913b2525` | 376 — MATCH |
 
-Paste the four files verbatim (or give a URL to fetch them from); everything below then runs without further questions, keeping `PORTAL_SENDER_ALLOW_APPLY=false`, `PORTAL_SENDER_TEST_MODE=false`, Phase A only with `run_key: cp3-step2-connectivity-001`, no diagnostics, no Phase B.
+On approval the files are copied byte-for-byte from the upload mount into `supabase/functions/portal-sender/` and re-hashed in place, keeping `PORTAL_SENDER_ALLOW_APPLY=false`, `PORTAL_SENDER_TEST_MODE=false`, Phase A only with `run_key: cp3-step2-connectivity-001`, no diagnostics, no Phase B.
 
 ## Pre-flight checks (already done, read-only)
 
