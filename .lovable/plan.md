@@ -1,113 +1,82 @@
-# Phase 0 (Revised) — Two-Project Portal Foundation, design only
+# CP3 Step 2 — Internal `portal-sender` deployment + Phase A dry run
 
-Review accepted. Checkpoint 1 as previously written is withdrawn. Nothing is migrated or deployed in this step.
+## Pre-flight checks (already run, read-only)
 
-## Independent re-verification of the review (queried live)
-
-| Claim | Verdict |
+| Check | Result |
 |---|---|
-| `unaccent` not installed; `public.slugify()` is IMMUTABLE, lowercases, strips accents via `translate`, collapses punctuation | Confirmed — `Pavia`/`Pavía` both slugify to `pavia`, so that alias is redundant |
-| Default ACLs grant `anon`/`authenticated` `arwdDxt` on new `public` tables and `EXECUTE` on new functions | **Confirmed** — `pg_default_acl` shows exactly that for the `postgres` and `supabase_admin` owners. My earlier "Postgres grants nothing by default" statement was wrong for this project. Explicit `REVOKE` before `GRANT` is mandatory |
-| Digital mentions via slugify | 61,899 total, 43,981 by valid UUID, **58,619** by slugify name → **3,280 unresolved** |
-| Typeform values via slugify | 93,055 total, **82,115** resolved → **10,940 unresolved** (matches your 82,097 / 10,937) |
+| Connected Supabase project ref | `qpozetnbnzdinqkrafze` — matches |
+| `supabase/functions/portal-sender` exists | No — clean install |
+| `public.clients` has `id`, `name`, `is_active`, `updated_at` | Yes (all four present) |
+| `public.has_role(uuid, user_role)` exists | Yes — signature `(_user_id uuid, _role user_role)` |
+| Admin enum value | `user_role` = `administrator` \| `data_entry`; exact value is `administrator` |
 
-All twelve required revisions are adopted. No counter-proposals.
+Note: the enum type is `user_role` (not `app_role`), matching the prompt.
 
-## The one thing you need to decide before I can build anything
+## What gets built
 
-This Lovable project is bound to exactly one Supabase project (`qpozetnbnzdinqkrafze`). I cannot create or attach a second Supabase project from inside this repo. So the two-project architecture requires:
+New function `supabase/functions/portal-sender/` with exactly four files:
 
-- **You create the new Portal Supabase project** (or approve me creating a *separate Lovable project* whose Cloud backend is that new project).
-- The portal schema, portal Auth, and portal RLS live entirely there. I never create a portal Auth user in Publiteca.
-- **This** repo only gains the export/sync side: read from Publiteca, resolve identity, push normalized rows into the Portal project over the service-role key held as a secret here (`PORTAL_SUPABASE_URL`, `PORTAL_SUPABASE_SERVICE_ROLE_KEY`).
-
-Everything below is split along that boundary.
-
-```text
-PUBLITECA SUPABASE (internal, unchanged)      PORTAL SUPABASE (new)
-news_articles / tv_ / radio_ / press_    ─┐   portal_clients
-typeform_responses                        │   client_aliases  (mirror)
-clients / user_roles / storage buckets    │   portal_client_access → auth.users
-                                          │   content_items
-  normalize-content-batch (edge fn) ──────┘→  content_client_mentions
-  service-role push, outbound only            content_media_sources (internal only)
-  no inbound path from portal                 portal_alerts / portal_alert_reads
-                                              portal_reports / portal_activity_log
-                                              unresolved_client_matches
-```
-
-Sync is **one-way, outbound, service-role only**. The Portal project has no credentials for Publiteca and no network path back.
-
-## Phase 0A — Security boundary
-
-- New Portal Supabase project; portal users exist only in its `auth.users`.
-- `portal_clients` in the portal project is a slim mirror of Publiteca `clients`: `id` (same UUID, so identity is stable across projects), `name`, `slug`, `is_active`, `synced_at`. No keywords, no internal taxonomy.
-- Publiteca's existing RLS, storage policies, and staff auth are **not touched**. The 40 broadly-readable tables stay as they are, because no client account will ever exist in that project.
-
-## Phase 0B — Portal schema (portal project)
-
-- `content_items` — enum `portal_media_type` = `digital | social | radio | tv | press`. **No `typeform`.** No `media_locator`. Fields: `source_type`, `source_id text`, `effective_at`, `effective_at_estimated`, `title`, `summary`, `sentiment`, `sentiment_score`, `sentiment_source`, `category`, `media_outlet`, `program_or_section`, `article_url`, `image_url`, `page_number`, `has_media bool`, `media_kind`, `metadata jsonb` (portal-safe values only, validated by a whitelist in the sync function), timestamps. Unique `(source_type, source_id)`.
-- `content_media_sources` — internal only: `content_item_id`, `source_bucket`, `source_path`, `manifest_id`, `metadata`. RLS: **no policy for `authenticated` at all**; service-role only. Media is served by a portal edge function that walks user → access → mention → item before minting a short-lived signed URL.
-- `content_client_mentions` — `+ sentiment`, `sentiment_score`, `sentiment_source`, `relevance`, `matched_keywords`, `match_method`, `client_name_snapshot`, `keyword_snapshot`. Unique `(content_item_id, client_id)`.
-- `client_aliases` — `normalized_alias` generated by a port of production `slugify()` (same body, no `unaccent`). Semantic aliases only.
-- `portal_client_access` — `user_id → auth.users(id) ON DELETE CASCADE`, `client_id → portal_clients(id)`, `role portal_role (viewer|manager)`, `is_active`. Unique `(user_id, client_id)`. **Portal users may SELECT their own rows** (`user_id = auth.uid()`); no writes.
-- `portal_alerts` — `client_id`, `content_item_id` **nullable**, `source_type` (`typeform` today), `source_id`, `title`, `summary`, `priority`, `alerted_at`, `metadata`. This is where Typeform lands.
-- `portal_alert_reads` — `alert_id`, `user_id → auth.users ON DELETE CASCADE`, `read_at`; unique `(user_id, alert_id)`.
-- `portal_reports` — `requested_by → auth.users`; `portal_activity_log` — `user_id → auth.users`.
-- `unresolved_client_matches` — quarantine, service-role/admin only.
-- Indexes exactly as your 0I list, minus the typeform variants, plus `portal_alerts(client_id, alerted_at DESC)`.
-
-## Phase 0C — Grants, RLS, tests
-
-Every portal migration, per object:
-
-```sql
-REVOKE ALL ON public.<t> FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.<t> TO authenticated;      -- only where portal-readable
-GRANT ALL ON public.<t> TO service_role;
--- functions:
-REVOKE EXECUTE ON FUNCTION public.<f>(...) FROM PUBLIC, anon;
-```
-
-- `portal_has_client_access(_client_id uuid)` — SECURITY DEFINER, `STABLE`, `SET search_path = public`; requires the access row active **and** `portal_clients.is_active`.
-- `content_items` SELECT: `exists(select 1 from content_client_mentions m where m.content_item_id = id and portal_has_client_access(m.client_id))`. No staff bypass policy in the portal project.
-- `content_media_sources`: no `authenticated` grant, no policy.
-- `portal_activity_log` INSERT: `user_id = auth.uid() AND portal_has_client_access(client_id)`. SELECT: own rows only.
-- `portal_alert_reads`: own rows, and only for alerts whose `client_id` the user can access.
-- Penetration suite (Client A/B, User A/B): cross-client list must be empty, direct fetch by a known B-owned `content_item.id` must return zero rows, inactive access and inactive client must both deny, and `content_media_sources` must be unreachable with an `authenticated` JWT.
-
-## Phase 0D — Resolver
-
-Order: valid `clients.id` → `slugify(clients.name)` → `slugify(client_aliases.alias)` → quarantine. Never silently drop.
-
-Seed list for your approval (nothing else):
+- `index.ts` — HTTP entry. Validates caller JWT, requires `has_role(auth.uid(), 'administrator')`, parses/validates body with a strict schema (`mode` in `dry_run|apply`, `run_key`, `limit`, `batch_size`), reads clients, batches, signs, posts to the Portal, returns a per-batch report.
+- `clients.ts` — reads `public.clients` via the **internal** `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`, projecting only `id`, `name`, `is_active`, `updated_at`; deterministic ordering (`created_at, id`) so `limit` is stable.
+- `signing.ts` — HMAC-SHA256 over the approved eight-line canonical request:
 
 ```text
-NF Energía                 → NF Energy
-Coop de Seguros Múltiples  → Cooperativa Seguros Múltiples
-Seguros Múltiples          → Cooperativa Seguros Múltiples
-Cruz Roja                  → Cruz Roja Americana
+METHOD
+PATH
+CANONICAL_QUERY
+SCHEMA_VERSION
+KEY_ID
+TIMESTAMP
+BATCH_ID
+SHA256_HEX(raw_body)
 ```
 
-`HOLICOM`, `DACO`, `María`, `Sonia`, `HORNER`, `ABBVIE`, `VANDERBILT`, `Publimedia Test*` etc. → quarantine pending your ruling. Redundant accent pairs are explicitly excluded.
+  Emits key id, timestamp, batch id and signature headers alongside the raw body that was hashed (byte-identical body is sent).
+- `deno.json` — pinned imports only.
 
-## Phase 0E–0F — Backfill
+Guardrails inside the function:
+- `mode: "apply"` is rejected with 403 unless `PORTAL_SENDER_ALLOW_APPLY === "true"`.
+- `PORTAL_SENDER_TEST_MODE` read but stays `false`.
+- Schema version `1` in payload and canonical string.
+- Secrets are never logged or echoed in responses.
 
-- `normalize-content-batch` lives in **this** repo. `verify_jwt = true`, plus in-code check that the caller is a Publiteca `administrator` (or a service-role key); no anon path. Write mode requires **both** `dry_run: false` and `confirm_write: true`.
-- Digital Press: scan all ~146k rows; **create a `content_item` only when at least one mention resolves**. Unresolved-only articles produce quarantine rows and no portal content. Sequence: full dry-run report → 100 → audit → 1,000 → audit → remainder.
-- Typeform: dry-run → resolve identity → write `portal_alerts` with `content_item_id = null`. Never `content_items`.
-- Idempotency proven by running each batch twice and asserting zero new rows.
+`supabase/config.toml` gains:
 
-## Phase 0G — Exit
+```toml
+[functions.portal-sender]
+verify_jwt = true
+```
 
-Your twelve exit criteria, amended: "Typeform normalized into `portal_alerts`", "no portal user can reach `content_media_sources` or any Publiteca table", and "Publiteca schema, RLS, storage, and grants byte-identical before and after".
+No database migration, no RLS change, no other function touched, nothing deployed to the Portal project.
 
-## Deliverables and risks
+## Secrets
 
-- Files in this repo: `supabase/functions/normalize-content-batch/`, `supabase/functions/_shared/clientResolver.ts`, `docs/portal/source-mapping.md`, `docs/portal/phase0-dryrun-reports/`. Zero changes to `src/` or existing functions.
-- Files in the portal project: all migrations above + the media-access edge function.
-- Risk: the two-project split means `clients` identity must be mirrored; drift is handled by a `sync-portal-clients` job run before every normalization batch.
-- Risk: cross-project writes need the portal service-role key stored as a Publiteca secret — it must never be referenced from `src/`.
-- Blocked on you: (1) create/authorize the Portal Supabase project, (2) approve the four semantic aliases, (3) rule on the quarantine list.
+Set on the internal project only:
 
-Nothing proceeds until you sign off on this revision.
+- `PORTAL_INGEST_URL=https://publiteca-client-sync.lovable.app`
+- `PORTAL_INGEST_KEY_ID=portal-ingest-2026-09`
+- `PORTAL_SENDER_ALLOW_APPLY=false`
+- `PORTAL_SENDER_TEST_MODE=false`
+- `PORTAL_INGEST_SECRET` — **requested via the secure secret form**, so you paste it directly; it is never printed, logged, or returned. It must match the value already configured on the Portal.
+
+No Portal service-role key, DB password, or PostgREST credential is stored here.
+
+## Phase A — dry run only
+
+After deploy, verify status ACTIVE, `verify_jwt = true`, `PORTAL_SENDER_ALLOW_APPLY` still `false`, then invoke once as an administrator:
+
+```json
+{ "mode": "dry_run", "run_key": "cp3-step2-connectivity-001", "limit": 5, "batch_size": 5 }
+```
+
+Expected: sender 200, Portal 200, schema version 1 accepted, HMAC verified end-to-end, 5 clients read, 1 batch sent, zero `portal_clients` projection rows.
+
+Then STOP. No test mode, no negative tests, no apply, no Portal users, no other content types, no backfill.
+
+## Report returned to you
+
+Project ref, exact files deployed, function version/status, `verify_jwt=true`, `apply=false`, Phase A request shape, sender response, Portal HTTP status/code/body, clients read, batches sent. No secret values.
+
+## Open question
+
+The "approved sender source" was not included in this message, so I will author the three TypeScript files to the spec above (eight-line canonical string, `administrator` role check, schema version 1). If you have exact approved source text, paste it and I will install it verbatim instead.
