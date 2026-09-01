@@ -1,0 +1,15 @@
+{
+  "name": "portal-sender",
+  "version": "0.1.0",
+  "exports": "./index.ts",
+  "imports": {
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["deno.window", "dom"]
+  },
+  "tasks": {
+    "vector": "deno eval \"import { verifyTestVector } from './signing.ts'; console.log(await verifyTestVector());\""
+  }
+}
