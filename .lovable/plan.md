@@ -2,16 +2,18 @@
 
 ## Blocker: the four source files still have not been provided
 
-I can only install the sender byte-for-byte if I receive the actual file contents. So far I have received hashes only. The expected values also changed between your two messages for `index.ts`:
+Only checksums have arrived — no file bodies. Byte-for-byte install is impossible without the actual text, and I will not author substitutes.
 
-| File | Message 1 | Message 2 |
+Superseding expected values (authoritative, replacing the earlier `index.ts` checksum):
+
+| File | SHA-256 | Bytes |
 |---|---|---|
-| index.ts | `160dd40c…9eb10f` / 9154 bytes | `015e7471…18f164` / 10848 bytes |
-| signing.ts | `93cb56aa…b9d4d8` / 6510 bytes | same |
-| clients.ts | `ff968cbb…99c530` / 2943 bytes | same |
-| deno.json | `4a6c1c4b…3b2525` / 376 bytes | same |
+| index.ts | `015e74711179eb0e08f11a36f6285f2c37f3547ccf83474b232e4fabfe18f164` | 10848 |
+| signing.ts | `93cb56aa76a569efcc9b44462b524dd6003bb8be9fb07a7c5645e77b64b9d4d8` | 6510 |
+| clients.ts | `ff968cbb9a9de73158bb4b4d521fedca7aa7f8ba9391c85ccfe2e5843299c530` | 2943 |
+| deno.json | `4a6c1c4b96c387096016efe0d22052392a9135abcc01b59d4196f3c1913b2525` | 376 |
 
-I will treat the **message-2** set as authoritative (`index.ts` = `015e7471…`, 10848 bytes) unless you say otherwise. Please paste the four files verbatim; then everything below runs without further questions.
+Paste the four files verbatim (or give a URL to fetch them from); everything below then runs without further questions, keeping `PORTAL_SENDER_ALLOW_APPLY=false`, `PORTAL_SENDER_TEST_MODE=false`, Phase A only with `run_key: cp3-step2-connectivity-001`, no diagnostics, no Phase B.
 
 ## Pre-flight checks (already done, read-only)
 
