@@ -25,8 +25,21 @@ authorize(request, dependencies?)
 
 Invariants held: no unverified decoding, no comparison to `SUPABASE_SERVICE_ROLE_KEY`, `authenticated` alone never sufficient, fallback cannot bypass `has_role`, no token/claims logged or returned, role literal stays `"administrator"`.
 
-## Tests
-Eight Deno tests against a stub client that counts `getClaims` / `getUser` / `rpc` calls: missing header 401; both verifications fail 401; verified service_role allowed; getClaims admin allowed; getClaims fail + getUser admin allowed; getClaims fail + getUser non-admin 403; getClaims fail + getUser fail 401; **verified non-admin via getClaims → 403 with `getUser` call count asserted 0**. Plus verified-claims-without-sub → 403. Signing/canonical-request/test-vector behavior untouched and re-run.
+## Tests — 9 cases (`auth_test.ts`, stub client counting `getClaims` / `getUser` / `rpc`)
+1. missing Bearer → 401 MISSING_AUTHORIZATION
+2. `getClaims` returns `{ error }` + `getUser` fails → 401 INVALID_TOKEN
+3. verified `service_role` → allow, getUser and rpc counts = 0
+4. verified `getClaims` admin → allow `admin:<uuid>`
+5. `getClaims` throws + `getUser` admin → allow `admin:<uuid>`
+6. `getClaims` failure + `getUser` non-admin → 403 FORBIDDEN
+7. `getClaims` throws + `getUser` failure → 401 INVALID_TOKEN
+8. verified `getClaims` non-admin → 403, getUser count = 0
+9. verified claims with no `sub` → 403, getUser count = 0
+
+Cases 2 and 7 cover the two distinct verification-failure shapes (returned error vs thrown). Verification failure (throw / error / no claims) falls back to `getUser`; a verified claim set missing `sub` is an authorization denial and must NOT reach `getUser`. Signing/canonical-request/test-vector/replay/verifier behavior is untouched and re-run.
+
+`auth_test.ts` is test material only and is not part of the deployment bundle (runtime files: `index.ts`, `auth.ts`, `signing.ts`, `clients.ts`, `deno.json`).
+
 
 ## Return, then STOP
 Complete `auth.ts`, exact `index.ts` diff, SHA-256 + byte count for the new `index.ts` and for `auth.ts`, the three unchanged hashes, and full test output. No deployment until you approve the reviewed source.
