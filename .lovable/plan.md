@@ -6,10 +6,14 @@ Add automatic lifecycle finalization to the internal `portal-sender`. No deploym
 
 Add:
 - `supabase/functions/portal-sender/finalize.ts`
+- `supabase/functions/portal-sender/handler.ts` (holds the exported testable `handleRequest`)
 - `supabase/functions/portal-sender/finalize_test.ts` (test-only)
 
 Modify:
-- `supabase/functions/portal-sender/index.ts`
+- `supabase/functions/portal-sender/index.ts` — reduced to the production entrypoint only:
+  `import { handleRequest } from "./handler.ts";` + `Deno.serve((request) => handleRequest(request));`
+
+Runtime files after the pass: `index.ts`, `handler.ts`, `finalize.ts`, `auth.ts`, `signing.ts`, `clients.ts`, `deno.json`. Test-only: `auth_test.ts`, `finalize_test.ts`. Tests import `handleRequest` from `handler.ts`, so `Deno.serve` never executes during tests and is never stubbed.
 
 Unchanged (byte-identical, hashes re-verified after the pass):
 - `auth.ts` `b312731728afb65eb6f2508e63686298cc8e114a550b3a5d458da90429cda07c`
