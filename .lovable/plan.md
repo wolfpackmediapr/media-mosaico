@@ -6,10 +6,14 @@ Add automatic lifecycle finalization to the internal `portal-sender`. No deploym
 
 Add:
 - `supabase/functions/portal-sender/finalize.ts`
+- `supabase/functions/portal-sender/handler.ts` (holds the exported testable `handleRequest`)
 - `supabase/functions/portal-sender/finalize_test.ts` (test-only)
 
 Modify:
-- `supabase/functions/portal-sender/index.ts`
+- `supabase/functions/portal-sender/index.ts` — reduced to the production entrypoint only:
+  `import { handleRequest } from "./handler.ts";` + `Deno.serve((request) => handleRequest(request));`
+
+Runtime files after the pass: `index.ts`, `handler.ts`, `finalize.ts`, `auth.ts`, `signing.ts`, `clients.ts`, `deno.json`. Test-only: `auth_test.ts`, `finalize_test.ts`. Tests import `handleRequest` from `handler.ts`, so `Deno.serve` never executes during tests and is never stubbed.
 
 Unchanged (byte-identical, hashes re-verified after the pass):
 - `auth.ts` `b312731728afb65eb6f2508e63686298cc8e114a550b3a5d458da90429cda07c`
@@ -31,22 +35,23 @@ Unchanged (byte-identical, hashes re-verified after the pass):
 
 `fetchImpl` defaults to global `fetch` and exists only as an in-process test seam; production calls the helper without it.
 
-## index.ts changes
+## handler.ts (moved from index.ts, plus finalize logic)
 
+- Holds the existing request handling verbatim, now exported as `handleRequest(request, deps?: HandlerDependencies)` with `deps = { fetchImpl?, finalizeImpl? }`. `index.ts` keeps only the entrypoint wrapper `Deno.serve((request) => handleRequest(request));` — never `Deno.serve(handleRequest)` — so Deno's `ServeHandlerInfo` second argument can never be mistaken for injected dependencies.
 - Import `finalizePortalRun`.
 - Before sending, record `intendedBatchCount = batches.length`. Inside the loop track `acceptedBatchCount` (incremented only when the batch is genuinely accepted: HTTP `>= 200 && < 300` **and** a parsed JSON body exists **and** `body.ok === true`), plus `transportFailure` and `batchProtocolFailure`. A batch counts as a failure — setting `batchProtocolFailure` — on non-2xx status, 2xx with `{"ok":false}`, 2xx with malformed/non-JSON body, or 2xx with a missing/non-boolean `ok`; a fetch throw sets `transportFailure`. Each entry in `batches[]` keeps its status and parsed body or `parse_error` for debugging, with no credential material.
-- Extract the handler body into an exported `handleRequest(request, deps?: HandlerDependencies)` with `deps = { fetchImpl?, finalizeImpl? }`. Production uses an explicit arrow wrapper `Deno.serve((request) => handleRequest(request));` — never `Deno.serve(handleRequest)` — so Deno's `ServeHandlerInfo` second argument can never be mistaken for injected dependencies.
 - When `deps.fetchImpl` is supplied and `deps.finalizeImpl` is not, the default finalize helper is called with `fetchImpl: deps?.fetchImpl` so tests never make a real finalize network request.
+- Zero source batches: when `intendedBatchCount === 0` there is no Portal run to finalize. Do not call `/finalize` (it would return `RUN_NOT_FOUND`); return the explicit no-op `ok: true` response with `total_items: 0`, `batch_count: 0`, `batches: []`, `finalize: { attempted: false, reason: "no_batches" }`. Identical behavior in `dry_run` and `apply`.
 - After the loop, finalize only when all four hold: `diagnostics_requested === false`, `transportFailure === false`, `batchProtocolFailure === false`, and `acceptedBatchCount === intendedBatchCount`. Otherwise:
-  - diagnostics requested → `finalize: { attempted: false, reason: "diagnostics_active" }`
-  - any other gate failure (batch protocol failure, transport failure, aborted/partial loop) → `finalize: { attempted: false, reason: "batch_failure" }`, and no finalize request is sent
+  - diagnostics requested → diagnostic report as today with `finalize: { attempted: false, reason: "diagnostics_active" }`; intentional 401/409 diagnostic responses are not a production lifecycle failure.
+  - normal (non-diagnostic) run with `transportFailure`, `batchProtocolFailure`, or `acceptedBatchCount !== intendedBatchCount` → HTTP 502 `{ ok: false, code: "BATCH_DELIVERY_FAILED", mode, run_key, batches: [...], finalize: { attempted: false, reason: "batch_failure" }, message: "One or more data batches may already have been accepted. Do not retry the full sender run automatically." }`. No finalize request is sent, no automatic retry.
 - On a clean run (both `dry_run` and `apply`) call finalize exactly once:
   - HTTP 2xx **and** parsed `response.ok === true` → `finalize: { attempted: true, status, batch_id, response }`, HTTP 200 lifecycle success
   - anything else — non-2xx, 2xx with `{"ok":false}`, 2xx with malformed/non-JSON body, or a transport throw → HTTP 502 with `{ ok: false, code: "FINALIZE_FAILED", mode, run_key, batches: [...already-successful...], finalize: { attempted: true, status, batch_id, response|parse_error }, message: "Data batches were already accepted. Do not retry the full sender run." }`. Raw status/body context is preserved for debugging; no secret or key material is ever included. No data batch is resent; no automatic retry is implemented.
 
 ## Tests (`finalize_test.ts`)
 
-Stubbed `fetchImpl`, deterministic values, covering all 26 required checks: finalize called exactly once on clean dry_run and apply; exact URL path; blank canonical query; body has exactly the four fields; header timestamp equals body `request_timestamp`; header batch id equals body `batch_id`; schema version `1` in header and body; the exact serialized bytes are what is hashed, signed and sent; zero finalize calls for diagnostics active, batch 401, 409, 500, batch transport exception, `acceptedBatchCount !== intendedBatchCount`, batch 200 with `ok:false`, batch 200 with malformed/non-JSON body, and batch 200 with missing `ok`; finalize 200 with `ok:true` → lifecycle success; finalize 404/500, finalize 200 with `ok:false`, and finalize 200 with invalid/non-JSON body → `FINALIZE_FAILED` with no data resend; finalize transport exception → lifecycle failure with zero data-batch retries.
+Tests import `handleRequest` from `handler.ts` with a stubbed `fetchImpl` and deterministic values, covering all required checks: finalize called exactly once on clean dry_run and apply; exact URL path; blank canonical query; body has exactly the four fields; header timestamp equals body `request_timestamp`; header batch id equals body `batch_id`; schema version `1` in header and body; the exact serialized bytes are what is hashed, signed and sent; zero finalize calls for diagnostics active, batch 401, 409, 500, batch transport exception, `acceptedBatchCount !== intendedBatchCount`, batch 200 with `ok:false`, batch 200 with malformed/non-JSON body, and batch 200 with missing `ok`; normal run with batch 401, with batch 500, and with a transport failure after an earlier accepted batch → outer HTTP 502 `BATCH_DELIVERY_FAILED`; diagnostics run with an expected rejected batch → diagnostic response, no finalize; zero-item dry_run and zero-item apply → `no_batches` no-op with no finalize call; finalize 200 with `ok:true` → lifecycle success; finalize 404/500, finalize 200 with `ok:false`, and finalize 200 with invalid/non-JSON body → `FINALIZE_FAILED` with no data resend; finalize transport exception → lifecycle failure with zero data-batch retries.
 
 Regression: `auth_test.ts` (13 tests) and the signing test vector (`deno task vector`) rerun unchanged.
 
