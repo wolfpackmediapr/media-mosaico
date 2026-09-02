@@ -17,11 +17,13 @@ import { authorize, type AuthorizeResult } from "./auth.ts";
 import { chunk, fetchInternalClients, type ClientItemDTO } from "./clients.ts";
 import { SCHEMA_VERSION, SCHEMA_VERSION_HEADER, signRequest, verifyTestVector } from "./signing.ts";
 import {
+  classifyFinalizedRun,
   finalizePortalRun,
   isFinalizeAccepted,
   type FetchImpl,
   type FinalizeResult,
 } from "./finalize.ts";
+
 
 const CLIENTS_PATH = "/api/public/ingest/clients";
 const MAX_ITEMS_PER_BATCH = 500;
