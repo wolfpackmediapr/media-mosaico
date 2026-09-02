@@ -174,6 +174,19 @@ Deno.test("finalize request URL, query, body and headers are exact", async () =>
   // 8 — schema version is exactly 1 in header and body.
   assertEquals(call.headers["x-portal-schema-version"], "1");
   assertEquals(parsed.schema_version, 1);
+  // 8b — exactly the five transport headers, key id included.
+  assertEquals(call.headers["x-portal-key-id"], "cp3-test-key");
+  assertEquals(
+    Object.keys(call.headers).filter((h) => h.startsWith("x-portal-")).sort(),
+    [
+      "x-portal-batch-id",
+      "x-portal-key-id",
+      "x-portal-schema-version",
+      "x-portal-signature",
+      "x-portal-timestamp",
+    ],
+  );
+
   // 9 — the exact serialized bytes are what got hashed, signed and sent.
   const canonical = [
     "POST",
