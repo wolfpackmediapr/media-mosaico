@@ -3,4 +3,4 @@ project_id = "qpozetnbnzdinqkrafze"
 [functions.sync-typeform-responses]
 verify_jwt = false
 [functions.portal-sender]
-verify_jwt = true
+verify_jwt = false
