@@ -34,12 +34,12 @@ Unchanged (byte-identical, hashes re-verified after the pass):
 ## index.ts changes
 
 - Import `finalizePortalRun`.
-- Before sending, record `intendedBatchCount = batches.length`. Inside the loop track `sentBatchCount` (incremented only on a 2xx response), `transportFailure`, and whether any non-2xx status occurred.
+- Before sending, record `intendedBatchCount = batches.length`. Inside the loop track `acceptedBatchCount` (incremented only when the batch is genuinely accepted: HTTP `>= 200 && < 300` **and** a parsed JSON body exists **and** `body.ok === true`), plus `transportFailure` and `batchProtocolFailure`. A batch counts as a failure — setting `batchProtocolFailure` — on non-2xx status, 2xx with `{"ok":false}`, 2xx with malformed/non-JSON body, or 2xx with a missing/non-boolean `ok`; a fetch throw sets `transportFailure`. Each entry in `batches[]` keeps its status and parsed body or `parse_error` for debugging, with no credential material.
 - Extract the handler body into an exported `handleRequest(request, deps?: HandlerDependencies)` with `deps = { fetchImpl?, finalizeImpl? }`. Production uses an explicit arrow wrapper `Deno.serve((request) => handleRequest(request));` — never `Deno.serve(handleRequest)` — so Deno's `ServeHandlerInfo` second argument can never be mistaken for injected dependencies.
 - When `deps.fetchImpl` is supplied and `deps.finalizeImpl` is not, the default finalize helper is called with `fetchImpl: deps?.fetchImpl` so tests never make a real finalize network request.
-- After the loop, finalize only when all four hold: `diagnostics_requested === false`, `transportFailure === false`, every batch status is 2xx, and `sentBatchCount === intendedBatchCount`. Otherwise:
+- After the loop, finalize only when all four hold: `diagnostics_requested === false`, `transportFailure === false`, `batchProtocolFailure === false`, and `acceptedBatchCount === intendedBatchCount`. Otherwise:
   - diagnostics requested → `finalize: { attempted: false, reason: "diagnostics_active" }`
-  - any other gate failure (non-2xx, transport failure, aborted/partial loop) → `finalize: { attempted: false, reason: "batch_failure" }`
+  - any other gate failure (batch protocol failure, transport failure, aborted/partial loop) → `finalize: { attempted: false, reason: "batch_failure" }`, and no finalize request is sent
 - On a clean run (both `dry_run` and `apply`) call finalize exactly once:
   - HTTP 2xx **and** parsed `response.ok === true` → `finalize: { attempted: true, status, batch_id, response }`, HTTP 200 lifecycle success
   - anything else — non-2xx, 2xx with `{"ok":false}`, 2xx with malformed/non-JSON body, or a transport throw → HTTP 502 with `{ ok: false, code: "FINALIZE_FAILED", mode, run_key, batches: [...already-successful...], finalize: { attempted: true, status, batch_id, response|parse_error }, message: "Data batches were already accepted. Do not retry the full sender run." }`. Raw status/body context is preserved for debugging; no secret or key material is ever included. No data batch is resent; no automatic retry is implemented.
