@@ -6,7 +6,7 @@
  * service-role key, no Portal database credential, and never reads from Portal.
  */
 
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { authorize } from "./auth.ts";
 import { chunk, fetchInternalClients, type ClientItemDTO } from "./clients.ts";
 import { SCHEMA_VERSION, SCHEMA_VERSION_HEADER, signRequest, verifyTestVector } from "./signing.ts";
 
@@ -51,55 +51,13 @@ function env(name: string): string | undefined {
 }
 
 /**
- * Authorization: the bearer token is VERIFIED, never string-compared against
- * SUPABASE_SERVICE_ROLE_KEY. Accepted callers are (a) a valid JWT whose `role`
- * claim is `service_role`, or (b) a valid user JWT belonging to an internal
- * Publiteca administrator. The credential is never echoed or logged.
+ * Authorization lives in ./auth.ts: the bearer token is VERIFIED (getClaims,
+ * with a getUser fallback only when verification itself fails), never
+ * string-compared against SUPABASE_SERVICE_ROLE_KEY. Accepted callers are a
+ * verified `service_role` JWT or a verified internal Publiteca administrator.
+ * The credential is never echoed or logged.
  */
-async function authorize(request: Request): Promise<{ ok: true; actor: string } | { ok: false; response: Response }> {
-  const header = request.headers.get("authorization") ?? "";
-  const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
-  if (!token) {
-    return { ok: false, response: json({ ok: false, code: "MISSING_AUTHORIZATION" }, 401) };
-  }
 
-  const supabaseUrl = env("SUPABASE_URL");
-  const serviceRoleKey = env("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !serviceRoleKey) {
-    return { ok: false, response: json({ ok: false, code: "INTERNAL_RUNTIME_NOT_CONFIGURED" }, 500) };
-  }
-
-  let claims: Record<string, unknown> | null = null;
-  try {
-    const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
-    // Verifies signature/expiry server-side; returns the decoded claims.
-    const { data, error } = await admin.auth.getClaims(token);
-    if (error || !data?.claims) throw error ?? new Error("no claims");
-    claims = data.claims as Record<string, unknown>;
-  } catch {
-    return { ok: false, response: json({ ok: false, code: "INVALID_TOKEN" }, 401) };
-  }
-
-  if (claims["role"] === "service_role") {
-    return { ok: true, actor: "service_role" };
-  }
-
-  const userId = typeof claims["sub"] === "string" ? (claims["sub"] as string) : "";
-  if (!userId) {
-    return { ok: false, response: json({ ok: false, code: "FORBIDDEN" }, 403) };
-  }
-
-  // Internal Publiteca administrator check (read-only role lookup).
-  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
-  const { data: isAdmin, error: roleError } = await admin.rpc("has_role", {
-    _user_id: userId,
-    _role: "administrator",
-  });
-  if (roleError || isAdmin !== true) {
-    return { ok: false, response: json({ ok: false, code: "FORBIDDEN" }, 403) };
-  }
-  return { ok: true, actor: `admin:${userId}` };
-}
 
 function buildEnvelopeBody(params: {
   runKey: string;
