@@ -6,7 +6,7 @@
  * service-role key, no Portal database credential, and never reads from Portal.
  */
 
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { authorize } from "./auth.ts";
 import { chunk, fetchInternalClients, type ClientItemDTO } from "./clients.ts";
 import { SCHEMA_VERSION, SCHEMA_VERSION_HEADER, signRequest, verifyTestVector } from "./signing.ts";
 
