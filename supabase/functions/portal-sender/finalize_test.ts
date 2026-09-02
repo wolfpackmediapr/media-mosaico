@@ -346,11 +346,15 @@ Deno.test("zero items in apply is an explicit no-op without finalize", async () 
   }
 });
 
-// 15 — finalize 200 + ok:true → lifecycle success.
-Deno.test("finalize 200 with ok true is lifecycle success", async () => {
+// 15 — finalize 200 + ok:true + run.status=completed → lifecycle success.
+Deno.test("finalize 200 ok true and run completed is sender success", async () => {
   const h = harness({
     itemCount: 1,
-    finalizeResponder: () => jsonResponse(200, { ok: true, report: { items_failed: 0 } }),
+    finalizeResponder: () =>
+      jsonResponse(200, {
+        ok: true,
+        report: { run: { status: "completed" }, items_failed: 0 },
+      }),
   });
   const { status, payload } = await run({ mode: "dry_run", run_key: "t-ok" }, h);
   assertEquals(status, 200);
@@ -359,6 +363,73 @@ Deno.test("finalize 200 with ok true is lifecycle success", async () => {
   assertEquals(finalize.attempted, true);
   assertEquals((finalize.response as Record<string, unknown>).ok, true);
 });
+
+// Finalize accepted, but the Portal recorded a failed run → RUN_FINALIZED_FAILED.
+Deno.test("finalize 200 ok true with run failed is RUN_FINALIZED_FAILED", async () => {
+  const h = harness({
+    itemCount: 2,
+    finalizeResponder: () =>
+      jsonResponse(200, {
+        ok: true,
+        report: { run: { status: "failed" }, items_failed: 3 },
+      }),
+  });
+  const { status, payload } = await run(
+    { mode: "dry_run", run_key: "t-run-failed", batch_size: 1 },
+    h,
+  );
+  assertEquals(status, 502);
+  assertEquals(payload.ok, false);
+  assertEquals(payload.code, "RUN_FINALIZED_FAILED");
+  assertEquals(h.batchCalls.length, 2, "no data batch may be resent");
+  assertEquals(h.finalizeCalls.length, 1);
+  const finalize = payload.finalize as Record<string, unknown>;
+  assertEquals(finalize.attempted, true);
+  assertEquals(finalize.status, 200);
+  assert(String(finalize.batch_id).startsWith("finalize:"));
+  assertEquals(
+    payload.message,
+    "The Portal finalized this sync run with status=failed. Do not retry the full sender run automatically.",
+  );
+});
+
+// Fail closed on a finalize body that omits the run status.
+for (
+  const [label, body] of [
+    ["missing report", { ok: true }],
+    ["missing report.run", { ok: true, report: { items_failed: 0 } }],
+    ["missing report.run.status", { ok: true, report: { run: {} } }],
+  ] as Array<[string, unknown]>
+) {
+  Deno.test(`finalize 200 ok true with ${label} is FINALIZE_PROTOCOL_ERROR`, async () => {
+    const h = harness({ itemCount: 2, finalizeResponder: () => jsonResponse(200, body) });
+    const { status, payload } = await run(
+      { mode: "dry_run", run_key: `t-proto-${label}`, batch_size: 1 },
+      h,
+    );
+    assertEquals(status, 502);
+    assertEquals(payload.ok, false);
+    assertEquals(payload.code, "FINALIZE_PROTOCOL_ERROR");
+    assertEquals(h.batchCalls.length, 2, "no data batch may be resent");
+    assertEquals(h.finalizeCalls.length, 1);
+  });
+}
+
+Deno.test("finalize 200 ok true with unknown run status is FINALIZE_PROTOCOL_ERROR", async () => {
+  const h = harness({
+    itemCount: 2,
+    finalizeResponder: () =>
+      jsonResponse(200, { ok: true, report: { run: { status: "in_progress" } } }),
+  });
+  const { status, payload } = await run(
+    { mode: "dry_run", run_key: "t-proto-unknown", batch_size: 1 },
+    h,
+  );
+  assertEquals(status, 502);
+  assertEquals(payload.code, "FINALIZE_PROTOCOL_ERROR");
+  assertEquals(h.batchCalls.length, 2, "no data batch may be resent");
+});
+
 
 // 16,22,23 — finalize failures.
 for (
