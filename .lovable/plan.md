@@ -1,30 +1,32 @@
-# CP3 Auth Corrective Pass 2 — getUser() fallback (source only, no deploy)
+# CP3 Auth Corrective Pass 2 — Option A (auth.ts + narrow test seam), source only
 
-## Scope
-Change the authorization logic used by `portal-sender` only. No deploy in this pass, no Phase A, no diagnostics, no apply.
+No deploy, no Phase A, no diagnostics, no apply in this pass.
 
-Untouched: `signing.ts`, `clients.ts`, `deno.json`, HMAC canonicalization, batching, diagnostics gates, apply triple gate, Portal config, secrets, database objects, `verify_jwt=false`.
+## Files
+- **New:** `supabase/functions/portal-sender/auth.ts` — authorization implementation.
+- **New:** `supabase/functions/portal-sender/auth_test.ts` — the eight authorization tests.
+- **Changed:** `index.ts` — imports `authorize` from `auth.ts`, deletes its local `authorize` body, calls `await authorize(request)`. No other change.
+- **Byte-identical:** `signing.ts` (`93cb56aa…d4d8`), `clients.ts` (`ff968cbb…c530`), `deno.json` (`4a6c1c4b…2525`).
 
-## New authorization ladder
-1. No `Authorization: Bearer` → `401 MISSING_AUTHORIZATION`.
-2. `admin.auth.getClaims(token)`:
-   - success and `claims.role === "service_role"` → allow, `actor = "service_role"`.
-   - success with `claims.sub` → `has_role(sub, "administrator")`; true → allow `actor = admin:<uuid>`, else `403 FORBIDDEN`.
-   - success but no `sub` → `403 FORBIDDEN`.
-3. `getClaims` throws / returns error / no claims → fallback `admin.auth.getUser(token)`:
-   - error or no user → `401 INVALID_TOKEN`.
-   - user present → `has_role(user.id, "administrator")`; true → allow `actor = admin:<uuid>`, else `403 FORBIDDEN`.
+## Shape
+```
+authorize(request, dependencies?)
+```
+`dependencies` is an in-process test seam only; production calls `await authorize(request)` and the real admin client (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, `persistSession: false`) is built internally and reused for all three calls. Typed surface: `auth.getClaims(token)`, `auth.getUser(token)`, `rpc("has_role", { _user_id, _role: "administrator" })`.
 
-No unverified JWT decoding, no string comparison against `SUPABASE_SERVICE_ROLE_KEY`. One `admin` client created once and reused for `getClaims`, `getUser`, and the `has_role` RPC (today the file builds it twice — that duplication is removed as part of the same function).
+## Semantics
+1. No Bearer → `401 MISSING_AUTHORIZATION`.
+2. `getClaims` verified + `role === "service_role"` → allow `service_role` (no getUser, no rpc).
+3. `getClaims` verified + `sub` → `has_role`; true → `admin:<uuid>`; false/error → `403 FORBIDDEN`. **No getUser retry** — authorization denial never re-enters authentication.
+4. `getClaims` verified but no `sub` → `403 FORBIDDEN`.
+5. `getClaims` verification fails (error or throw) → `getUser(token)`.
+6. `getUser` fails / no user → `401 INVALID_TOKEN`.
+7. `getUser` succeeds → `has_role(user.id, "administrator")`; true → `admin:<uuid>`; false/error → `403 FORBIDDEN`.
 
-## Testability decision (needs your call)
-`index.ts` calls `Deno.serve(...)` at module load, so a Deno test cannot import `authorize` from it without starting a listener.
+Invariants held: no unverified decoding, no comparison to `SUPABASE_SERVICE_ROLE_KEY`, `authenticated` alone never sufficient, fallback cannot bypass `has_role`, no token/claims logged or returned, role literal stays `"administrator"`.
 
-- **Option A (recommended):** move `authorize` into a new `supabase/functions/portal-sender/auth.ts`, exported and accepting an injectable admin-client factory (default = real `createClient`). `index.ts` then imports and calls it. Adds a fifth file; the other three approved hashes stay unchanged; `index.ts` diff stays small (import line + one call site removed body).
-- **Option B:** keep `authorize` inside `index.ts` and test it by booting the served function over HTTP with stubbed env/network. Zero new files, but heavier and less precise tests.
+## Tests
+Eight Deno tests against a stub client that counts `getClaims` / `getUser` / `rpc` calls: missing header 401; both verifications fail 401; verified service_role allowed; getClaims admin allowed; getClaims fail + getUser admin allowed; getClaims fail + getUser non-admin 403; getClaims fail + getUser fail 401; **verified non-admin via getClaims → 403 with `getUser` call count asserted 0**. Plus verified-claims-without-sub → 403. Signing/canonical-request/test-vector behavior untouched and re-run.
 
-## Tests (`*_test.ts`, Deno)
-Stubbed admin client covering: missing header → 401 MISSING_AUTHORIZATION; both verifications fail → 401 INVALID_TOKEN; verified `service_role` claims → allowed; getClaims + administrator → allowed; getClaims failure + getUser success + administrator → allowed; getClaims failure + getUser success + non-admin → 403 FORBIDDEN; getClaims failure + getUser failure → 401 INVALID_TOKEN. Plus the existing signing/test-vector behavior re-verified via `verifyTestVector()` and a canonical-request assertion.
-
-## Report returned, then STOP
-Exact `index.ts` diff, new byte count and SHA-256 for `index.ts`, confirmation `signing.ts` / `clients.ts` / `deno.json` hashes are unchanged, and full test output. No deployment until you approve the reviewed source.
+## Return, then STOP
+Complete `auth.ts`, exact `index.ts` diff, SHA-256 + byte count for the new `index.ts` and for `auth.ts`, the three unchanged hashes, and full test output. No deployment until you approve the reviewed source.
