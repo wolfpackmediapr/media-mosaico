@@ -81,7 +81,8 @@ function harness(options: {
       if (new URL(call.url).pathname === FINALIZE_PATH) {
         finalizeCalls.push(call);
         const responder = options.finalizeResponder ??
-          (() => jsonResponse(200, { ok: true, report: {} }));
+          (() => jsonResponse(200, { ok: true, report: { run: { status: "completed" } } }));
+
         return Promise.resolve(responder(call));
       }
       batchCalls.push(call);
