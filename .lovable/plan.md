@@ -1,36 +1,32 @@
-# CP3 Step 2 — Sender installed, verified, deployed; Phase A pending two user inputs
+# CP3 Phase A — Browser-Console Connectivity Dry Run (Awaiting Execution)
 
-## Status: complete except Phase A invocation
+## Status
+- Internal project `qpozetnbnzdinqkrafze`: `portal-sender` ACTIVE (version 2, `verify_jwt=true`), approved sender source installed byte-for-byte, checksums verified.
+- Secrets configured: `PORTAL_INGEST_URL`, `PORTAL_INGEST_KEY_ID`, `PORTAL_INGEST_SECRET`, `PORTAL_SENDER_ALLOW_APPLY=false`, `PORTAL_SENDER_TEST_MODE=false`.
+- Blocker: this environment's Supabase connection is external/unmanaged — no service-role token can be minted here, and the server-side invocation returned `401 UNAUTHORIZED_NO_AUTH_HEADER` (rejected before the sender ran; no HMAC request reached the Portal). Authorization must come from the signed-in administrator browser session.
+- No source changes will be made; no temporary UI control will be added.
 
-### Checksum comparison — all MATCH (recomputed in place after writing)
+## Next step (user-side, run exactly once)
+In the signed-in internal Publiteca preview tab, DevTools → Console:
 
-| File | Bytes | SHA-256 |
-|---|---|---|
-| index.ts | 10848 ✓ | `015e7471…18f164` ✓ |
-| signing.ts | 6510 ✓ | `93cb56aa…b9d4d8` ✓ |
-| clients.ts | 2943 ✓ | `ff968cbb…99c530` ✓ |
-| deno.json | 376 ✓ | `4a6c1c4b…3b2525` ✓ |
+1. Try the primary snippet:
+   ```js
+   const { data, error } = await window.supabase.functions.invoke('portal-sender', {
+     body: { mode: 'dry_run', run_key: 'cp3-step2-connectivity-001', limit: 5, batch_size: 5 }
+   });
+   console.log(JSON.stringify({ data, error }, null, 2));
+   ```
+2. If `window.supabase` is undefined, use the fallback snippet (provided in chat) that reads the Supabase session from localStorage and POSTs with `Authorization: Bearer <accessToken>` — it never prints the token.
+3. Paste only the JSON output here (never any JWT/session token). Do not run it a second time.
 
-Files copied byte-for-byte from the uploaded sources into `supabase/functions/portal-sender/` — no edits, no reformatting.
+## Success criteria for Phase A
+- Sender HTTP 200; `actor: admin:<uuid>`; `mode: dry_run`; `run_key: cp3-step2-connectivity-001`; `schema_version: 1`; `total_items: 5`; `batch_count: 1`; `test_vector_ok: true`.
+- `batches[0]` Portal response HTTP 200 (HMAC accepted).
+- Portal: CP2 dry-run observability/staging rows may be created; `portal_clients` must remain 0.
 
-### Configuration and deployment
+## After the single invocation — STOP
+No: test mode, replay/collision tests, tamper tests, schema-v2 probe, enabling apply, Portal user creation, backfill, or any content sync. I will audit the pasted Phase A response against the criteria above and report; anything further requires new authorization.
 
-- `[functions.portal-sender] verify_jwt = true` appended to `supabase/config.toml`.
-- Secrets configured on the internal project: `PORTAL_INGEST_URL`, `PORTAL_INGEST_KEY_ID`, `PORTAL_SENDER_ALLOW_APPLY=false`, `PORTAL_SENDER_TEST_MODE=false`. No Portal service-role or DB credential stored. No secret values printed.
-- Source invariants verified read-only: `_role: "administrator"`, service-role authorization path, apply triple gate, schema version 1, six diagnostics gated behind `PORTAL_SENDER_TEST_MODE`.
-- `portal-sender` deployed to `qpozetnbnzdinqkrafze` — only this function. No schema, RLS, cron, or other-function changes.
-
-## Phase A blocker — two inputs only you can provide
-
-1. **`PORTAL_INGEST_SECRET`** — not yet in the secret store (the secure form was interrupted). Without it the sender cannot sign requests; I will not mint or substitute it.
-2. **An administrator preview sign-in** — this project's Supabase is externally managed, so no session token can be minted in the sandbox; the dry-run call returned 401 with no auth header.
-
-## Remaining step (on approval, after inputs arrive)
-
-One invocation only:
-
-```json
-{ "mode": "dry_run", "run_key": "cp3-step2-connectivity-001", "limit": 5, "batch_size": 5 }
-```
-
-Then STOP and report: deployment status, verify_jwt status, checksum table, sender response, Portal response. No diagnostics, Phase B, replay, collision, apply, backfill, auth-user creation, or media sync.
+## Technical details
+- Sender expects `Authorization: Bearer <admin user JWT>`; admin check via `user_roles` (`administrator`).
+- Dry run sends one HMAC-signed batch (5 clients) to `PORTAL_INGEST_URL` with key id `PORTAL_INGEST_KEY_ID`; apply path stays disabled via `PORTAL_SENDER_ALLOW_APPLY=false`.
