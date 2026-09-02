@@ -17,11 +17,13 @@ import { authorize, type AuthorizeResult } from "./auth.ts";
 import { chunk, fetchInternalClients, type ClientItemDTO } from "./clients.ts";
 import { SCHEMA_VERSION, SCHEMA_VERSION_HEADER, signRequest, verifyTestVector } from "./signing.ts";
 import {
+  classifyFinalizedRun,
   finalizePortalRun,
   isFinalizeAccepted,
   type FetchImpl,
   type FinalizeResult,
 } from "./finalize.ts";
+
 
 const CLIENTS_PATH = "/api/public/ingest/clients";
 const MAX_ITEMS_PER_BATCH = 500;
@@ -395,16 +397,42 @@ export async function handleRequest(
   }
 
   if (finalizeResult && isFinalizeAccepted(finalizeResult)) {
+    const finalizeEnvelope = {
+      attempted: true,
+      status: finalizeResult.status,
+      batch_id: finalizeResult.batch_id,
+      response: finalizeResult.response,
+    };
+    const { outcome } = classifyFinalizedRun(finalizeResult);
+
+    // Finalize was accepted AND the Portal recorded a completed run.
+    if (outcome === "completed") {
+      return json({ ...base, finalize: finalizeEnvelope });
+    }
+
+    // Finalize succeeded, but the run itself failed (items_failed > 0).
+    if (outcome === "failed") {
+      return json({
+        ...base,
+        ok: false,
+        code: "RUN_FINALIZED_FAILED",
+        finalize: finalizeEnvelope,
+        message:
+          "The Portal finalized this sync run with status=failed. Do not retry the full sender run automatically.",
+      }, 502);
+    }
+
+    // Fail closed: missing report / run / status, or an undefined status value.
     return json({
       ...base,
-      finalize: {
-        attempted: true,
-        status: finalizeResult.status,
-        batch_id: finalizeResult.batch_id,
-        response: finalizeResult.response,
-      },
-    });
+      ok: false,
+      code: "FINALIZE_PROTOCOL_ERROR",
+      finalize: finalizeEnvelope,
+      message:
+        "The Portal finalize response did not contain a recognized report.run.status. Do not retry the full sender run automatically.",
+    }, 502);
   }
+
 
   return json({
     ...base,
