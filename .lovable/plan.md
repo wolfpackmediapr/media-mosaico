@@ -50,3 +50,4 @@ Existing 9 authorization cases remain, re-stubbed against the split clients, plu
 ## Technical details
 - Root cause addressed: the internal project's Auth server accepts the browser admin JWT on `/auth/v1/user` when the request carries the anon key with the caller's `Authorization` header; verification via a service-role-keyed client is what produced `INVALID_TOKEN`. Splitting caller-verification (anon + caller token) from privileged role lookup (service role) matches the platform's expectations.
 - Client routing is proven by per-client call counters in the test stubs.
+- After a later deployment, Phase A is still not run first: an auth-only probe `{"mode":"AUTH_PROBE_ONLY"}` is expected to return `400 INVALID_MODE`, proving authentication + administrator authorization succeeded before any client rows are read or any Portal request is made.
