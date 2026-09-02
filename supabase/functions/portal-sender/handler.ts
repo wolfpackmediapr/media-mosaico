@@ -13,7 +13,7 @@
  * dependencies.
  */
 
-import { authorize } from "./auth.ts";
+import { authorize, type AuthorizeResult } from "./auth.ts";
 import { chunk, fetchInternalClients, type ClientItemDTO } from "./clients.ts";
 import { SCHEMA_VERSION, SCHEMA_VERSION_HEADER, signRequest, verifyTestVector } from "./signing.ts";
 import {
@@ -48,6 +48,7 @@ interface SenderRequest {
  */
 export interface HandlerDependencies {
   fetchImpl?: FetchImpl;
+  authorizeImpl?: (request: Request) => Promise<AuthorizeResult>;
   finalizeImpl?: (params: {
     portalBaseUrl: string;
     runKey: string;
@@ -138,7 +139,7 @@ export async function handleRequest(
     return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   }
 
-  const auth = await authorize(request);
+  const auth = await (deps?.authorizeImpl ?? authorize)(request);
   if (!auth.ok) return auth.response;
 
   let body: SenderRequest = {};
