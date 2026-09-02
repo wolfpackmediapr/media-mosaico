@@ -56,7 +56,7 @@ Regression: `auth_test.ts` (13 tests) and the signing test vector (`deno task ve
 - Exact `index.ts` diff
 - SHA-256 hashes and byte counts for all runtime files
 - Confirmation the unchanged files still match the approved hashes above
-- Full `deno check` output for all runtime files and full test output
+- Full `deno check` output for all runtime files (including proof that the production `Deno.serve((request) => handleRequest(request))` wrapper type-checks) and full test output
 - Explicit statement that no deployment or sender invocation occurred
 
 Then STOP for independent source review.
