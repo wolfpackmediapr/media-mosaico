@@ -102,3 +102,25 @@ export function isFinalizeAccepted(result: FinalizeResult): boolean {
   const body = result.response as { ok?: unknown } | null;
   return !!body && body.ok === true;
 }
+
+/** Terminal lifecycle status the Portal records for a finalized sync run. */
+export type FinalizedRunStatus = "completed" | "failed";
+
+export type FinalizedRunOutcome = "completed" | "failed" | "protocol_error";
+
+/**
+ * Endpoint acceptance is NOT run success: the Portal answers 200 / ok:true even
+ * when `portal_finalize_sync_run` recorded `status="failed"` (items_failed > 0).
+ * This reads `report.run.status` strictly and fails closed on anything the
+ * contract does not define.
+ */
+export function classifyFinalizedRun(result: FinalizeResult): { outcome: FinalizedRunOutcome } {
+  const body = result.response as
+    | { report?: { run?: { status?: unknown } | null } | null }
+    | null;
+  const status = body?.report?.run?.status;
+  if (status === "completed") return { outcome: "completed" };
+  if (status === "failed") return { outcome: "failed" };
+  return { outcome: "protocol_error" };
+}
+
