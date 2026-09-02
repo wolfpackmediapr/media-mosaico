@@ -22,4 +22,4 @@ The diagnostic cases (`corrupt_signature`, `tamper_path`, `tamper_query`, `tampe
 - No backfill.
 
 ## Next step
-Authenticated administrator invokes individual diagnostic cases manually and reports results for audit before any apply mode is considered.
+Await further instruction before any `mode=apply` or diagnostic invocation is considered.
