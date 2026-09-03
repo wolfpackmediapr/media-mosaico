@@ -103,20 +103,21 @@ The idempotency test is only meaningful in **apply** mode, so it requires a seco
 
 Steps that change production state are marked **[STATE CHANGE]**.
 
-**PRE-FLIGHT**
-1. WolfPack supplies a fresh Portal read-only baseline for the six CP1 tables and the four staging tables, confirming source key `digital / bd4d1c76-…` is still absent.
+**PRE-FLIGHT** (gate still `false` — no apply capability exists yet)
+1. WolfPack supplies a fresh Portal read-only baseline. Note that the C3B dry-run added staging records, so the baseline is no longer the original zero-staging snapshot. Expected starting point: `content_items` 0, `content_client_mentions` 0, `content_media_sources` 0, `unresolved_client_matches` 0, `portal_projection_state` 28, `portal_projection_journal` 28, plus the C3B staging/run records. Confirm the source key `digital / bd4d1c76-…` has no applied content item or projection state.
 2. Confirm deployed runtime hashes unchanged (section 5).
 3. Re-run the portal-sender test suite (expect 72/72) and `deno check`.
-4. Confirm `PORTAL_SENDER_TEST_MODE=false` and `PORTAL_SENDER_ALLOW_APPLY=false` by behavior: one `mode=apply, allow_apply=true` request must return 403 `APPLY_DISABLED`.
+4. Confirm `PORTAL_SENDER_TEST_MODE=false` and `PORTAL_SENDER_ALLOW_APPLY=false` by control-plane configuration state. Any behavioral probe, if performed at all, happens only here while the gate is closed — never once it is open.
 5. Confirm an authorized caller credential (service_role JWT or administrator JWT) is available in advance — C3B stopped precisely because none was present. Do not start the window without it.
-6. Announce the window; no other administrator invokes portal-sender during it.
+6. Agree the predetermined propagation wait interval before opening the window.
+7. Announce the window; no other administrator invokes portal-sender during it.
 
 **ENABLE APPLY** — **[STATE CHANGE]**
-7. Set `PORTAL_SENDER_ALLOW_APPLY=true`. Record wall-clock time. GLOBAL APPLY WINDOW opens.
-8. Confirm propagation with a single harmless probe only if needed; otherwise proceed directly to step 9 to keep the window minimal.
+8. Set `PORTAL_SENDER_ALLOW_APPLY=true`. Record wall-clock time. GLOBAL APPLY WINDOW opens.
+9. Wait the predetermined propagation interval. **No probes of any kind** — no propagation probe, no harmless apply probe, no gate-status probe — while the gate is enabled. Exactly one call to portal-sender may occur in this window, and it is step 10.
 
 **ONE INVOCATION** — **[STATE CHANGE]**
-9. Invoke portal-sender exactly once with:
+10. Invoke portal-sender exactly once with:
 
 ```json
 {
@@ -130,11 +131,12 @@ Steps that change production state are marked **[STATE CHANGE]**.
 }
 ```
 
-10. Capture the complete response verbatim: `ok`, `run_key`, `total_items`, `batch_count`, `source_id_report`, per-batch status/response, and the `finalize` envelope.
+11. Capture the complete response verbatim: `ok`, `run_key`, `total_items`, `batch_count`, `source_id_report`, per-batch status/response, and the `finalize` envelope.
 
 **IMMEDIATE DISABLE** — **[STATE CHANGE]**
-11. Regardless of outcome — success, failure, timeout, or ambiguity — set `PORTAL_SENDER_ALLOW_APPLY=false` immediately. Record wall-clock time; report the total window duration.
-12. Verify closed: one `mode=apply, allow_apply=true` request returns 403 `APPLY_DISABLED`.
+12. Regardless of outcome — success, failure, timeout, ambiguity, or 403 — set `PORTAL_SENDER_ALLOW_APPLY=false` immediately. Record wall-clock time; report the total window duration.
+13. Closure evidence is: the successful control-plane secret update to `false`, its timestamp, and the confirmed absence of any further sender invocation. **Do not** issue a verification request in apply mode.
+
 
 **PORTAL POST-FLIGHT** (WolfPack, read-only)
 13. Re-count the six CP1 tables and four staging tables; compare against the pre-flight baseline and the expected deltas in section 6.
