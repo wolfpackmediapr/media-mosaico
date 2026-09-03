@@ -23,12 +23,28 @@ import {
   type FetchImpl,
   type FinalizeResult,
 } from "./finalize.ts";
+import {
+  CONTENT_PATH,
+  MAX_CONTENT_ITEMS_PER_BATCH,
+  MAX_SOURCE_IDS,
+  type ContentItemDTO,
+  type SourceIdReportEntry,
+} from "./content/types.ts";
+import { fetchDigitalContent, isUuid, type DigitalFetchResult } from "./content/digital.ts";
 
 
 const CLIENTS_PATH = "/api/public/ingest/clients";
 const MAX_ITEMS_PER_BATCH = 500;
 
+type ItemDTO = ClientItemDTO | ContentItemDTO;
+
 interface SenderRequest {
+  /** Absent means `clients`: existing behavior is preserved byte-for-byte. */
+  kind?: "clients" | "content";
+  /** Required for kind=content. Only "digital" is supported in CP5 C3A. */
+  media?: string;
+  /** UUID-only pilot selector for kind=content. */
+  source_ids?: string[];
   mode?: "dry_run" | "apply";
   allow_apply?: boolean;
   run_key?: string;
@@ -63,6 +79,12 @@ export interface HandlerDependencies {
     serviceRoleKey: string;
     limit?: number;
   }) => Promise<ClientItemDTO[]>;
+  fetchDigitalImpl?: (params: {
+    supabaseUrl: string;
+    serviceRoleKey: string;
+    limit?: number;
+    sourceIds?: string[];
+  }) => Promise<DigitalFetchResult>;
 }
 
 const ALLOWED_DIAGNOSTICS = [
@@ -100,7 +122,7 @@ function buildEnvelopeBody(params: {
   sequenceNo: number;
   mode: "dry_run" | "apply";
   requestTimestamp: string;
-  items: ClientItemDTO[];
+  items: ItemDTO[];
 }): string {
   // Serialized exactly once; these bytes are hashed, signed and transmitted.
   return JSON.stringify({
@@ -158,6 +180,48 @@ export async function handleRequest(
     return json({ ok: false, code: "INVALID_MODE" }, 400);
   }
 
+  // Strict request combinations: contradictory parameters are rejected, never
+  // silently ignored. `kind` absent keeps the legacy clients behavior exactly.
+  const kind = body.kind ?? "clients";
+  if (kind !== "clients" && kind !== "content") {
+    return json({ ok: false, code: "INVALID_KIND" }, 400);
+  }
+  if (kind === "clients") {
+    if (body.media !== undefined) {
+      return json({ ok: false, code: "MEDIA_NOT_ALLOWED_FOR_CLIENTS" }, 400);
+    }
+    if (body.source_ids !== undefined) {
+      return json({ ok: false, code: "SOURCE_IDS_NOT_ALLOWED_FOR_CLIENTS" }, 400);
+    }
+  }
+  let sourceIds: string[] | undefined;
+  if (kind === "content") {
+    if (body.media === undefined) {
+      return json({ ok: false, code: "MEDIA_REQUIRED" }, 400);
+    }
+    if (body.media !== "digital") {
+      return json({ ok: false, code: "UNSUPPORTED_MEDIA", media: body.media }, 400);
+    }
+    if (body.source_ids !== undefined) {
+      if (!Array.isArray(body.source_ids)) {
+        return json({ ok: false, code: "INVALID_SOURCE_ID" }, 400);
+      }
+      const invalid = body.source_ids.filter((id) => !isUuid(id));
+      if (invalid.length > 0) {
+        return json({ ok: false, code: "INVALID_SOURCE_ID", invalid }, 400);
+      }
+      sourceIds = [...new Set(body.source_ids.map((id) => id.trim().toLowerCase()))];
+      if (sourceIds.length > MAX_SOURCE_IDS) {
+        return json({ ok: false, code: "TOO_MANY_SOURCE_IDS", max: MAX_SOURCE_IDS }, 400);
+      }
+    }
+  }
+  const ingestPath = kind === "content" ? CONTENT_PATH : CLIENTS_PATH;
+  const maxBatchItems = kind === "content" ? MAX_CONTENT_ITEMS_PER_BATCH : MAX_ITEMS_PER_BATCH;
+  if (body.batch_size !== undefined && body.batch_size > maxBatchItems) {
+    return json({ ok: false, code: "BATCH_SIZE_TOO_LARGE", max: maxBatchItems }, 400);
+  }
+
   // Triple gate: request mode + explicit allow_apply + server env flag.
   if (mode === "apply") {
     const envAllows = env("PORTAL_SENDER_ALLOW_APPLY") === "true";
@@ -189,21 +253,35 @@ export async function handleRequest(
   const vector = await verifyTestVector();
   const doFetch: FetchImpl = deps?.fetchImpl ?? ((input, init) => fetch(input, init));
 
-  let items: ClientItemDTO[];
+  let items: ItemDTO[];
+  let sourceIdReport: SourceIdReportEntry[] | undefined;
   try {
-    const readClients = deps?.fetchClientsImpl ?? fetchInternalClients;
-    items = await readClients({
-      supabaseUrl,
-      serviceRoleKey,
-      ...(body.limit ? { limit: body.limit } : {}),
-    });
+    if (kind === "content") {
+      const readDigital = deps?.fetchDigitalImpl ?? fetchDigitalContent;
+      const result = await readDigital({
+        supabaseUrl,
+        serviceRoleKey,
+        ...(body.limit ? { limit: body.limit } : {}),
+        ...(sourceIds ? { sourceIds } : {}),
+      });
+      items = result.items;
+      sourceIdReport = result.source_id_report;
+    } else {
+      const readClients = deps?.fetchClientsImpl ?? fetchInternalClients;
+      items = await readClients({
+        supabaseUrl,
+        serviceRoleKey,
+        ...(body.limit ? { limit: body.limit } : {}),
+      });
+    }
   } catch (error) {
     return json({ ok: false, code: "SOURCE_READ_FAILED", message: (error as Error).message }, 500);
   }
 
-  const batchSize = Math.min(Math.max(body.batch_size ?? MAX_ITEMS_PER_BATCH, 1), MAX_ITEMS_PER_BATCH);
+  const batchSize = Math.min(Math.max(body.batch_size ?? maxBatchItems, 1), maxBatchItems);
   // New per invocation. Retry/resume/replay tests MUST pass the original value.
-  const runKey = body.run_key ?? `clients-${crypto.randomUUID()}`;
+  const runKey = body.run_key ??
+    `${kind === "content" ? "content-digital" : "clients"}-${crypto.randomUUID()}`;
   const batches = chunk(items, batchSize);
   const intendedBatchCount = batches.length;
 
@@ -285,7 +363,7 @@ export async function handleRequest(
 
     const signed = await signRequest({
       baseUrl: portalUrl,
-      path: CLIENTS_PATH,
+      path: ingestPath,
       keyId,
       secret,
       timestamp,
@@ -347,6 +425,8 @@ export async function handleRequest(
   const base = {
     ok: true,
     actor: auth.actor,
+    kind,
+    ...(kind === "content" ? { media: "digital" } : {}),
     mode,
     run_key: runKey,
     schema_version: SCHEMA_VERSION,
@@ -354,6 +434,7 @@ export async function handleRequest(
     batch_count: intendedBatchCount,
     test_vector_ok: vector.ok,
     diagnostics_applied: requested,
+    ...(sourceIdReport ? { source_id_report: sourceIdReport } : {}),
     batches: report,
   };
 
