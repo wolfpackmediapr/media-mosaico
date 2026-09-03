@@ -398,3 +398,32 @@ export function computeProposedClients(
 
   return { clients, rejected };
 }
+
+/* ------------------------------------------------------------------ *
+ * 8. Policy construction from the live roster (no client-specific rules)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Builds per-client policies straight from the configured roster data.
+ * Keywords that canonicalize as PR route identifiers are routed to the route
+ * matcher; everything else stays an ordinary keyword. No term is removed here
+ * — proposed removals live only in test/simulation fixtures until a keyword
+ * configuration change is separately reviewed.
+ */
+export function buildPoliciesFromRoster(
+  clients: RosterClient[],
+): Map<string, ClientPolicy> {
+  const policies = new Map<string, ClientPolicy>();
+  for (const client of clients) {
+    if (!client?.id) continue;
+    const keywords: string[] = [];
+    const routes: string[] = [];
+    for (const keyword of client.keywords ?? []) {
+      if (typeof keyword !== "string" || !keyword.trim()) continue;
+      if (canonicalizeRouteToken(keyword)) routes.push(keyword);
+      else keywords.push(keyword);
+    }
+    policies.set(client.id, { keywords, routes });
+  }
+  return policies;
+}
