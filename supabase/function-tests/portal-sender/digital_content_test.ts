@@ -292,32 +292,28 @@ Deno.test("kind=content/media=digital posts to the content ingest path", async (
 
 Deno.test("kind absent keeps the pre-C3A legacy clients response contract", async () => {
   calls = [];
-  const response = await handleRequest(
-    post({}),
-    deps({ fetchClientsImpl: () => Promise.resolve([]) }),
-  );
-  const payload = await response.json();
-  assertEquals(payload.kind, undefined);
-  assertEquals(payload.media, undefined);
-  assertEquals(payload.source_id_report, undefined);
+  const legacyDeps = () => deps({ fetchClientsImpl: () => Promise.resolve([]) });
+
+  // Expected shape is derived from the real pre-C3A handler revision
+  // (git 7324b65a), not from a hand-written fixture.
+  const before = await preC3AHandleRequest(post({}), legacyDeps() as never);
+  const beforePayload = await before.json();
+
+  const after = await handleRequest(post({}), legacyDeps());
+  const afterPayload = await after.json();
+
+  assertEquals(after.status, before.status);
+  assertEquals(afterPayload.kind, undefined);
+  assertEquals(afterPayload.media, undefined);
+  assertEquals(afterPayload.source_id_report, undefined);
   assertEquals(calls.length, 0);
+  assertEquals(Object.keys(afterPayload).sort(), Object.keys(beforePayload).sort());
   assertEquals(
-    Object.keys(payload).sort(),
-    [
-      "actor",
-      "batch_count",
-      "batches",
-      "diagnostics_applied",
-      "finalize",
-      "mode",
-      "ok",
-      "run_key",
-      "schema_version",
-      "test_vector_ok",
-      "total_items",
-    ],
+    Object.keys(afterPayload.finalize).sort(),
+    Object.keys(beforePayload.finalize).sort(),
   );
 });
+
 
 Deno.test("explicit kind=clients emits no content diagnostics", async () => {
   const response = await handleRequest(
