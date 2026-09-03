@@ -78,3 +78,106 @@ Usable pilot volume today is Digital only, roughly 100–200 genuinely enriched 
 6. Populate client aliases.
 
 No implementation, ingestion, or state change is included in this phase.
+
+---
+
+# CP5-C2B Closeout Addendum (read-only)
+
+## 1. Digital identity resolution — quantified
+
+Scope: `news_articles` joined to `feed_sources` where `platform='news'`, expanding `clients` array elements.
+
+| Metric | Count |
+|---|---|
+| Total client objects | 63,965 |
+| Objects carrying an `id` | 63,960 |
+| UUID-shaped ids | 49,829 |
+| UUID-shaped ids that exist in `public.clients.id` | 46,198 |
+| UUID-shaped ids **not** found in `public.clients` | 3,631 |
+| Invalid / non-UUID ids (e.g. `metropistas_uuid`) | 14,131 |
+| Objects whose `name` matches a current `clients.name` (case-insensitive) | 60,489 |
+
+So 72.2% of stored ids are directly canonical; the earlier "IDs unusable" wording is corrected — ids are usable **after validation**.
+
+Adopted sender rule (as specified):
+1. `id` is UUID-shaped **and** exists in `public.clients.id` → use that canonical UUID.
+2. Otherwise ignore the stored id and resolve by `name` against current client names/aliases.
+3. Still unresolved → emit `raw_client_name` only, no client binding.
+
+Arbitrary model-supplied ids are never trusted.
+
+## 2. Digital version proof
+
+```
+CREATE TRIGGER update_news_articles_updated_at
+BEFORE UPDATE ON public.news_articles
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+ RETURNS trigger LANGUAGE plpgsql
+ SET search_path TO 'public','extensions','pg_catalog'
+AS $function$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $function$
+```
+
+The trigger is row-level `BEFORE UPDATE` with no `WHEN` clause and no column list, so it fires for **every** UPDATE regardless of which columns change — including `clients`, `sentiment`, `sentiment_score`, `keywords`, `summary`, `description`, `category`, `pub_date`, `source`, and feed fields. Inserts are covered by the column default `timezone('utc', now())` on a `NOT NULL` column.
+
+**Digital: VERSION SAFE**
+`source_updated_at = news_articles.updated_at`
+
+## 3. Digital/Social partition — confirmed and mutually exclusive
+
+| Platform (via `feed_sources.platform`) | Rows | Sender routing |
+|---|---|---|
+| `news` | 48,653 | digital |
+| `twitter` | 100,347 | social |
+| `instagram` | 1,935 | social |
+| NULL / no feed source | 436 | do not emit |
+
+No row falls into two buckets; every `news_articles` row has exactly one `feed_source_id` (or none).
+
+## 4. Edge Function security closeout
+
+`supabase/config.toml` declares `verify_jwt = false` only for `portal-sender` and `sync-typeform-responses`; the three functions below therefore keep the platform default `verify_jwt = true`.
+
+| Function | verify_jwt | Auth header required | JWT/user verification in code | Role authorization | Service-role usage | Input validation | Rate/abuse guard | Status |
+|---|---|---|---|---|---|---|---|---|
+| `analyze-radio-content` | true (default) | Yes (gateway) | None in code | None | Yes, service role client for the row update | Minimal (text length ≥ 10, UUID regex on row id) | None | PARTIAL |
+| `process-social-feeds` | true (default) | Yes (gateway) | None in code | None | Yes | None (only `forceFetch` flag) | None | PARTIAL |
+| `process-press-pdf-filesearch` | true (default) | Yes (gateway) | None in code | None | Yes | Presence checks only; **`userId` is taken from the request body** | None | OPEN |
+
+Main exposure: `process-press-pdf-filesearch` attributes rows to a caller-supplied `userId` rather than the verified JWT subject, so any authenticated user can write records owned by another user. `analyze-radio-content` and `process-social-feeds` write with the service role on behalf of any authenticated caller, but do not accept an identity claim. No fixes applied.
+
+## 5. Clarifications
+
+**Radio counts.** `radio_transcriptions` holds **50,248** total rows — the whole table including failures and blanks. **50,117** is the subset with a non-empty transcript (`transcription_text` not null and not blank). The 131 difference is 12 NULL transcripts and 119 whitespace/empty transcripts.
+
+**Aliases reclassified.** 0 of 28 internal clients have aliases populated. This is **NOT A DIGITAL C3 BLOCKER** — it is a production-scale normalization improvement, since the isolated Portal owns a tested alias-resolution layer and internal name matching already resolves 60,489 of 63,965 digital client objects.
+
+## Final C3 gate
+
+**Digital only is ready for a controlled Metropistas sender pilot.** TV, Radio, Press and Social remain out of scope for V1.
+
+| Contract element | Value |
+|---|---|
+| Source selector | `news_articles` INNER JOIN `feed_sources` ON `feed_sources.id = news_articles.feed_source_id` WHERE `feed_sources.platform = 'news'` |
+| `source_id` | `news_articles.id` (uuid) |
+| `source_updated_at` | `news_articles.updated_at` |
+| `effective_at` | `news_articles.pub_date` (NOT NULL) |
+| Metropistas pilot `source_id` | `bd4d1c76-228b-4246-a544-cac2e3d44373` ("Fitch mantiene la nota a deuda de Metropistas", `pub_date` 2026-06-21) |
+| Canonical client for the pilot | `08748447-a701-4be3-80c8-7470526e0975` (Metropistas) |
+
+Canonical mention-resolution algorithm, per element of `news_articles.clients`:
+
+```text
+1. if element.id matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+     and EXISTS (select 1 from public.clients where id = element.id::uuid)
+   -> client_id := that uuid                                  (46,198 objects)
+2. else if lower(trim(element.name)) matches lower(clients.name)
+        or lower(trim(element.name)) matches any lower(unnest(clients.aliases))
+   -> client_id := matched clients.id                          (name path)
+3. else -> client_id := null, emit raw_client_name = element.name
+4. never use element.id when step 1 fails                      (14,131 non-UUID + 3,631 orphan UUIDs)
+5. de-duplicate resolved client_ids per source_id
+```
+
+No writes, sender changes, deployments, or Portal ingestion were performed.
