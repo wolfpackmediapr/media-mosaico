@@ -36,30 +36,33 @@ The sequence explicitly sets `true → one invocation → false`.
    - Re-verify reviewed C3A.1 runtime hashes for `handler.ts`, `content/digital.ts`,
      `content/types.ts`, `finalize.ts`, `signing.ts`, `auth.ts`, `clients.ts`, `index.ts`.
    - Re-run the portal-sender test suite (expect 72/72) and `deno check`.
-   - Confirm deployment unchanged, `verify_jwt=false`, `PORTAL_SENDER_TEST_MODE=false`,
-     `PORTAL_SENDER_ALLOW_APPLY=false`.
-   - Confirm the authorized administrator session is present and that no other
+   - Confirm deployment unchanged, `verify_jwt=false`.
+   - Gate wording per amendment: report no known secret mutation since the
+     documented false steady state (no direct secret-value observation), and no
+     pre-flight sender probe performed.
+   - Confirm WolfPack has the authorized administrator JWT ready and that no other
      administrator will invoke `portal-sender` during the window.
-   - No deployment, no code change, no DB change, no probe.
+   - No deployment, no code change, no internal DB change, no probe.
 
-2. OPEN APPLY WINDOW — **STATE CHANGE**
+2. OPEN APPLY WINDOW — **STATE CHANGE (Lovable)**
    - Set `PORTAL_SENDER_ALLOW_APPLY=true` via the secret control plane.
    - Record the control-plane success timestamp (UTC).
-   - Wait the predetermined short propagation interval (60 s). No probe of any kind.
+   - Wait the 60-second propagation interval. No probe of any kind.
+   - Report "gate open — ready for invocation" and STOP.
 
-3. EXACTLY ONE INVOCATION — **STATE CHANGE (Portal ingestion)**
-   - POST once to `portal-sender` with the authorized administrator Authorization
-     header and exactly the approved payload:
+3. EXACTLY ONE INVOCATION — **STATE CHANGE (WolfPack, Portal ingestion)**
+   - WolfPack POSTs once to `portal-sender` with the authorized administrator
+     Authorization header and exactly the approved payload:
      `{"kind":"content","media":"digital","mode":"apply","allow_apply":true,
        "source_ids":["bd4d1c76-228b-4246-a544-cac2e3d44373"],"limit":1,"batch_size":1}`
-   - Capture the full non-secret response. No second request under any outcome.
+   - WolfPack captures the full non-secret response. No second request under any outcome.
 
-4. IMMEDIATELY CLOSE APPLY WINDOW — **STATE CHANGE**
+4. IMMEDIATELY CLOSE APPLY WINDOW — **STATE CHANGE (Lovable)**
    - Regardless of outcome (success, 401/403/4xx/5xx, timeout, ambiguous), set
-     `PORTAL_SENDER_ALLOW_APPLY=false` immediately.
+     `PORTAL_SENDER_ALLOW_APPLY=false` immediately upon WolfPack's go-ahead.
    - Record the control-plane success timestamp and total window duration.
-   - No closure-verification request. Control-plane success + timestamp + no further
-     invocation is the closure evidence.
+   - No closure-verification request and no post-disable sender request of any kind.
+     Control-plane success + timestamp + no further invocation is the closure evidence.
 
 5. NO-RETRY RULE
    - `403 APPLY_DISABLED`, timeout, or ambiguous transport/finalize result → close the
