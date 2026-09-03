@@ -23,6 +23,11 @@ export const DIGITAL_SENTIMENT_SOURCE = "publiteca-internal-news-analysis";
  */
 export const SUMMARY_SENTINELS: readonly string[] = [
   "error en el servicio de análisis",
+  "descripción insuficiente para análisis",
+  "título insuficiente para análisis",
+  "error al analizar el artículo",
+  "error en el formato de análisis",
+  "error en el proceso de análisis",
 ];
 
 /** True when the trimmed summary is a known internal pipeline sentinel. */
