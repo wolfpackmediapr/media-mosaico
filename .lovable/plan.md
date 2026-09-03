@@ -72,8 +72,10 @@ The sequence explicitly sets `true → one invocation → false`.
    - Report: gate-enable timestamp, invocation timestamp, HTTP status, complete
      non-secret response, `run_key`, Portal `run_id`, `batch_ref`, `source_id_report`,
      item outcome, mention counts, finalize outcome/status, gate-disable timestamp,
-     total apply-window duration, confirmation of exactly one invocation, and
-     confirmation of no deployment/code/DB changes.
+     total apply-window duration, and confirmation of exactly one invocation.
+   - Final state report wording: no internal Publiteca DB changes; no
+     schema/RLS/Auth/Storage/cron changes; no deployment/code changes; only the
+     explicitly authorized Portal projection may have changed Portal data.
 
 ## Explicitly out of scope
 
