@@ -13,6 +13,7 @@
 import {
   type ContentItemDTO,
   DIGITAL_SENTIMENT_SOURCE,
+  isSummarySentinel,
   type MentionDTO,
   normalizeSentiment,
   type SourceIdReportEntry,
