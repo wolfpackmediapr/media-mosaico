@@ -19,6 +19,7 @@ import {
   CONTENT_PATH,
   DIGITAL_SENTIMENT_SOURCE,
   SUMMARY_SENTINELS,
+  SUMMARY_SENTINELS,
 } from "../../functions/portal-sender/content/types.ts";
 
 const PORTAL_URL = "https://portal.example.test";
