@@ -28,9 +28,10 @@ Yes. There is no code path that permits apply while `PORTAL_SENDER_ALLOW_APPLY` 
 
 Operational effect:
 - Changing a Supabase Edge Function secret does not re-deploy the function bundle, but it does invalidate the running isolates; the next invocation runs on a fresh isolate with the new environment.
-- Visibility: typically within seconds, but not instantaneous or transactional. Verify by observing behavior, not by assumption.
+- Visibility: typically within seconds, but not instantaneous or transactional.
 - Rollback: set the same secret back to `false` (never delete it — absent also blocks, but `false` is the documented steady state).
-- Verification after apply: issue one authorized request with `mode: "apply"`, `allow_apply: true`, and `source_ids: []`-equivalent minimal selector, and confirm HTTP 403 `APPLY_DISABLED`. A 403 proves the gate is closed and performs no writes.
+- Verification after apply (WolfPack amendment 3): closure is evidenced by the successful control-plane secret update to `false` plus its timestamp and the absence of any subsequent sender invocation. **Do not** verify closure by issuing another `mode=apply` / `allow_apply=true` request — propagation is not instantaneous and such a probe could execute as a second real apply.
+
 
 ## 3. Exposure window analysis
 
