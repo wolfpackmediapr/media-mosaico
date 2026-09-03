@@ -425,8 +425,9 @@ export async function handleRequest(
   const base = {
     ok: true,
     actor: auth.actor,
-    kind,
-    ...(kind === "content" ? { media: "digital" } : {}),
+    // Legacy clients responses keep their exact pre-C3A field set: content
+    // diagnostics (`kind`, `media`, `source_id_report`) are content-only.
+    ...(kind === "content" ? { kind, media: "digital" } : {}),
     mode,
     run_key: runKey,
     schema_version: SCHEMA_VERSION,
