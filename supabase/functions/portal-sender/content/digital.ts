@@ -13,6 +13,7 @@
 import {
   type ContentItemDTO,
   DIGITAL_SENTIMENT_SOURCE,
+  isSummarySentinel,
   type MentionDTO,
   normalizeSentiment,
   type SourceIdReportEntry,
@@ -251,7 +252,11 @@ export function mapDigitalRow(row: DigitalRow, lookup: ClientLookup): ContentIte
     effective_at_estimated: false,
 
     title,
-    ...(text(row.summary) ? { summary: text(row.summary)! } : {}),
+    // Internal analysis-failure sentinels are omitted entirely: never emitted
+    // as client-facing copy, never replaced, never echoed into metadata.
+    ...(text(row.summary) && !isSummarySentinel(text(row.summary)!)
+      ? { summary: text(row.summary)! }
+      : {}),
     ...(text(row.description) ? { body_text: text(row.description)! } : {}),
     ...(text(row.category) ? { category: text(row.category)! } : {}),
     ...(text(row.source) ?? text(row.feed_sources?.name)

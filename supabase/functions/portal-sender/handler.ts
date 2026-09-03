@@ -425,8 +425,9 @@ export async function handleRequest(
   const base = {
     ok: true,
     actor: auth.actor,
-    kind,
-    ...(kind === "content" ? { media: "digital" } : {}),
+    // Legacy clients responses keep their exact pre-C3A field set: content
+    // diagnostics (`kind`, `media`, `source_id_report`) are content-only.
+    ...(kind === "content" ? { kind, media: "digital" } : {}),
     mode,
     run_key: runKey,
     schema_version: SCHEMA_VERSION,
@@ -434,7 +435,7 @@ export async function handleRequest(
     batch_count: intendedBatchCount,
     test_vector_ok: vector.ok,
     diagnostics_applied: requested,
-    ...(sourceIdReport ? { source_id_report: sourceIdReport } : {}),
+    ...(kind === "content" && sourceIdReport ? { source_id_report: sourceIdReport } : {}),
     batches: report,
   };
 
