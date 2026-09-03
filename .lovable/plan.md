@@ -1,133 +1,30 @@
-# CP5-C4A.3D0 — Legacy-Mode Deployment of `process-rss-feed` (plan only)
+# CP5-C4A.3D1 — Shadow Canary (execution plan)
 
-All findings below come from read-only checks run just now. Nothing was deployed, invoked, mutated or rolled back.
+Observational only. Legacy stays the sole authoritative writer. No source changes, no redeploy, no manual invocation, no DB/schema/RLS/cron changes.
 
-## Pre-flight verification results
+## Confirmed from approved source (read-only, this turn)
 
-### Source integrity — all match, zero drift
+- Configuration key: `DIGITAL_CLIENT_MATCHER_MODE`, read via `Deno.env.get` in `process-rss-feed/index.ts` (line 460). Value required to activate shadow: exactly `shadow`.
+- Gating: `parseMatcherMode` fails closed to `legacy` for missing/invalid; `loadShadowContext` only builds the roster/policy index when shadow is active; `newMatcherIsAuthoritative()` returns `false` unconditionally.
+- Shadow runs only AFTER the authoritative insert, inside a local `try/catch` that swallows errors to `console.error`. Zero extra AI calls (reuses `analysis.__rawAiClients`).
+- Current UTC 15:51, HEAD `7323b0dc` (plan-file commits only; `f8e3dc6e` is an ancestor, runtime source unchanged). Rollback source remains `7f064bb2` / `9c705088…62ff2`.
 
-```text
-_shared/clientMatcher.ts        777c41cf…f6673   MATCH
-_shared/aiClientSchema.ts       0da95958…3f45e   MATCH
-_shared/legacyAiNameAdapter.ts  3d5f55ea…eba0dc  MATCH
-_shared/shadowMatcher.ts        94bcdea0…f3a6594 MATCH
-process-rss-feed/index.ts       36b11440…19e0933 MATCH
+## Known blocker to flag before activation
 
-HEAD commit = f8e3dc6e ("Implemented matcher modules & tests")   MATCH
-working tree = clean (no uncommitted changes)
-```
+D0 established that edge-function logs for `process-rss-feed` are not retrievable through the log/analytics interfaces, and the cron `pg_net` call times out client-side at ~5s (pre-existing). Shadow diagnostics are emitted **only** as `console.log` lines. If log retrieval is still unavailable, the canary can be activated safely but Step 4 (matcher comparison) will produce no data.
 
-Portal-sender boundary re-hashed: all eight files match the approved values exactly (`content/types.ts`, `content/digital.ts`, `handler.ts`, `auth.ts`, `signing.ts`, `finalize.ts`, `clients.ts`, `index.ts`). No drift. `portal-sender` is not deployed in D0.
+Therefore the first action is a log-retrievability probe. If logs are still unreadable, the plan stops before activation and reports `C4A.3D1 HOLD — MORE SHADOW DATA REQUIRED` rather than enabling a configuration whose output cannot be observed.
 
-### Current production configuration
+## Steps
 
-```text
-CURRENT process-rss DEPLOYMENT CONFIG  no [functions.process-rss-feed] block in supabase/config.toml
-                                       (only sync-typeform-responses and portal-sender are declared)
-CURRENT verify_jwt                     platform default for Lovable-managed functions (false);
-                                       not declared, therefore not changed by this deployment
-CURRENT CRON/SCHEDULE                  pg_cron jobid 1, "process-rss-feed-every-30min",
-                                       schedule "*/30 * * * *", active = true,
-                                       pg_net HTTP POST to /functions/v1/process-rss-feed
-APPROXIMATE CADENCE                    every 30 minutes, 48 natural runs/day
-```
+1. **Pre-canary verification (read-only):** UTC timestamp, re-hash the five approved C4A.3 files plus the eight portal-sender files (any drift = STOP), confirm `DIGITAL_CLIENT_MATCHER_MODE` absent, confirm cron job 1 `*/30 * * * *` health for the last runs, and probe whether `process-rss-feed` logs are retrievable at all.
+2. **Activate shadow:** single configuration mutation — set secret `DIGITAL_CLIENT_MATCHER_MODE=shadow`. Nothing else. Record previous value (absent) and new value. No source edit, no redeploy requested by us (the platform may restart function runtimes to pick up the secret; that is not a code deployment).
+   - Note: the secret is project-wide. The currently deployed `reanalyze-articles` bundle predates C4A.3 and therefore contains no shadow code, so the flag is inert for it. This will be re-confirmed before setting.
+3. **Observe 3 natural cron runs** (~16:00, 16:30, 17:00 UTC, subject to actual schedule). No manual invocation. Per run: timestamp, result, articles processed/inserted/skipped, runtime errors, shadow diagnostic count, shadow error count, AI calls. Insert-path health is corroborated read-only via hourly `news_articles` counts if function logs stay unavailable.
+4. **Aggregate comparison** from `digital_client_matcher_shadow` log lines: articles evaluated, legacy vs shadow match counts, exact agreements, legacy-only, shadow-only, differing sets, disagreement rate, invalid-UUID drops, rejection reasons, shadow exceptions. Representative disagreements limited to id/title/old/proposed/evidence.
+5. **Safety verification and rollback rule:** confirm no authoritative change, no ingestion regression, no DB/schema/RLS/cron/unrelated-function change. On any stop condition, the only rollback is deleting the `DIGITAL_CLIENT_MATCHER_MODE` secret to restore the verified D0 state; the deployed C4A.3 code is not rolled back absent evidence it caused a regression.
+6. **Final report** in the requested format, ending with exactly one verdict.
 
-Deployment touches none of these: no `config.toml` edit, no cron edit, no `verify_jwt` change.
+## Timing
 
-### Matcher-mode environment
-
-```text
-DIGITAL_CLIENT_MATCHER_MODE PRESENT = NO
-```
-
-Verified against the project secret inventory (names only, no values read): the 11 configured secrets are CloudConvert, Gemini TV, Lovable API key, four Portal keys, the two Portal sender flags, Qwen, and the two Typeform keys. `DIGITAL_CLIENT_MATCHER_MODE` is absent.
-
-```text
-D0 EXPECTED EFFECTIVE MODE = legacy
-```
-
-`parseMatcherMode(undefined)` returns `legacy`; in legacy mode `shouldComputeShadow` is false, the roster is never loaded, and the shadow block is never entered. Shadow code is unreachable in D0.
-
-### Legacy-authority invariants (re-confirmed against the approved source)
-
-```text
-LEGACY AI PROMPT MODIFIED              NO
-LEGACY AI CONTRACT MODIFIED            NO
-LEGACY KEYWORD MATCHER MODIFIED        NO
-LEGACY MERGE MODIFIED                  NO
-LEGACY DB WRITE PAYLOAD MODIFIED       NO
-LEGACY WRITE CONDITIONS MODIFIED       NO
-```
-
-## Rollback source
-
-`f8e3dc6e` is a merge commit; its first parent carries the pre-C4A.3 file.
-
-```text
-CURRENT/PRE-C4A.3 COMMIT          7f064bb2  (first parent of f8e3dc6e)
-PRE-C4A.3 process-rss SHA-256     9c7050883f37260c87e1ff8b5cbc992bceff83789fa4939374daab3a48c62ff2
-APPROVED C4A.3 process-rss SHA-256 36b11440f9091bf6de2e76f22673a60cdc857cc84d129bac3ed534d319b0e933
-
-ROLLBACK SOURCE IDENTIFIED = YES
-```
-
-### Rollback procedure (source-only, not executed now)
-
-1. Restore the file content from `7f064bb2:supabase/functions/process-rss-feed/index.ts` into the working tree.
-2. Verify SHA-256 equals `9c7050883f…62ff2` before any deploy.
-3. Deploy exactly `function_names = ["process-rss-feed"]`.
-4. Verify one natural cron run recovers.
-
-Rollback explicitly does NOT: modify database rows, delete or replay ingested articles, touch cron, touch `verify_jwt`, touch secrets, touch any other Edge Function. The `_shared/*` matcher modules may remain on disk — the pre-C4A.3 `index.ts` does not import them, so they become dead code and require no removal.
-
-## Proposed D0 operation
-
-```text
-FUNCTIONS TO DEPLOY:
-  process-rss-feed          (its bundle naturally includes the four _shared modules it imports)
-
-FUNCTIONS NOT TO DEPLOY:
-  reanalyze-articles        (C4A.3 source stays undeployed)
-  portal-sender
-  process-social-feeds
-  all others
-
-MANUAL INVOCATION AFTER DEPLOY = NO
-NATURAL CRON VALIDATION        = YES
-SHADOW MODE ENABLED            = NO
-ENVIRONMENT MUTATION           = NO
-DB/SCHEMA/RLS MUTATION         = NO
-PORTAL INTERACTION             = NO
-```
-
-## Natural scheduled-run validation
-
-After deploy, wait for the next `*/30` cron firing (worst case ~30 minutes). Read logs only, and report:
-
-- invocation timestamp and completion status
-- boot/import success, module-resolution errors
-- runtime error count
-- feeds processed, articles inserted, duplicates/skips
-- pre-existing AI errors or fallbacks, if normally reported
-- `shadow diagnostics = 0` and `matcher shadow errors = 0` (required)
-
-No article bodies, secrets, prompts or raw AI responses will be printed. If any `digital_client_matcher_shadow` line or `[shadow]` error appears, that is **D0 FAIL** and rollback is proposed for approval.
-
-If the run inserts zero new articles, that is reported as "write behavior not observable in this run" — no manual invocation, no manufactured traffic, no rerun.
-
-## Rollback triggers vs. known behavior
-
-Propose rollback for: import/boot failure, new module-resolution error, new uncaught exception, cron invocation now failing, legacy insert failing due to instrumentation, or shadow executing in D0.
-
-Do not roll back for: pre-existing upstream feed errors, pre-existing AI provider fallbacks, duplicate-article skips, or a normal zero-new-article run. Each observed error will be compared against the pre-deploy log baseline before being called a regression.
-
-## Verdict
-
-```text
-C4A.3D0 PLAN                 PASS
-LEGACY MODE GUARANTEED       PASS
-ROLLBACK READY               YES
-SAFE TO DEPLOY process-rss   YES
-```
-
-Awaiting explicit approval before deploying. Nothing has been deployed.
+The canary spans ~90 minutes of natural cron traffic, so the final report arrives after the third observed run; interim status will be reported as runs complete.
