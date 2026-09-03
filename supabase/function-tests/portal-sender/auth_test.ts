@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { authorize, type AdminClient, type CallerAuthClient } from "./auth.ts";
-import { verifyTestVector, buildCanonicalRequest, TEST_VECTOR, sha256Hex } from "./signing.ts";
+import { authorize, type AdminClient, type CallerAuthClient } from "../../functions/portal-sender/auth.ts";
+import { verifyTestVector, buildCanonicalRequest, TEST_VECTOR, sha256Hex } from "../../functions/portal-sender/signing.ts";
 
 interface StubOptions {
   /** Claims returned by adminClient.auth.getClaims (service-role recognition only). */

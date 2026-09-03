@@ -101,7 +101,7 @@ Deno.test("invalid article_url and image_url are omitted", () => {
 });
 
 Deno.test("unsupported optional fields are never fabricated", () => {
-  const dto = mapDigitalRow(row(), lookup) as Record<string, unknown>;
+  const dto = mapDigitalRow(row(), lookup) as unknown as Record<string, unknown>;
   for (const field of ["program_or_section", "page_number", "media_kind", "author", "duration_seconds", "language"]) {
     assertEquals(dto[field], undefined);
   }
@@ -213,7 +213,7 @@ Deno.test("full authoritative mention set is emitted", () => {
 
 Deno.test("mentions carry no relevance, score or sentiment enrichment", () => {
   const dto = mapDigitalRow(row(), lookup);
-  for (const mention of dto.mentions as Record<string, unknown>[]) {
+  for (const mention of dto.mentions as unknown as Record<string, unknown>[]) {
     assertEquals(mention.relevance, undefined);
     assertEquals(mention.relevance_score, undefined);
     assertEquals(mention.sentiment, undefined);

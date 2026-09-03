@@ -8,10 +8,10 @@
  */
 
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { handleRequest, type HandlerDependencies } from "./handler.ts";
-import { buildFinalizeBatchId, FINALIZE_PATH } from "./finalize.ts";
-import { canonicalQueryFromUrl, sha256Hex } from "./signing.ts";
-import type { ClientItemDTO } from "./clients.ts";
+import { handleRequest, type HandlerDependencies } from "../../functions/portal-sender/handler.ts";
+import { buildFinalizeBatchId, FINALIZE_PATH } from "../../functions/portal-sender/finalize.ts";
+import { canonicalQueryFromUrl, sha256Hex } from "../../functions/portal-sender/signing.ts";
+import type { ClientItemDTO } from "../../functions/portal-sender/clients.ts";
 
 const PORTAL_URL = "https://portal.example.test";
 
