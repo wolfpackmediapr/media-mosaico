@@ -34,7 +34,8 @@ function integrationWrapper(rawMode: unknown, legacyAnalysisClients: unknown[]) 
       index,
       policies,
       legacyClients: legacyAnalysisClients as never[],
-      rawLegacyAiClients: legacyAnalysisClients,
+      // Legacy AI produced no nominations for this article.
+      rawLegacyAiClients: [],
     });
   } else if (mode === "new") {
     diagnostic = newModeNotEnabledDiagnostic("row-1");
