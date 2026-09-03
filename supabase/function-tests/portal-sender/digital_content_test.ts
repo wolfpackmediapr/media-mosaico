@@ -8,6 +8,7 @@
 
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@1";
 import { handleRequest, type HandlerDependencies } from "../../functions/portal-sender/handler.ts";
+import { handleRequest as preC3AHandleRequest } from "./golden/handler.pre_c3a.ts";
 import {
   buildClientLookup,
   type DigitalRow,
