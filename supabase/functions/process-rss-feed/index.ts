@@ -1,6 +1,48 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+// CP5-C4A.3 shadow matcher (non-authoritative; see _shared/shadowMatcher.ts)
+import {
+  buildPoliciesFromRoster,
+  buildRosterIndex,
+  type ClientPolicy,
+  type RosterClient,
+  type RosterIndex,
+} from '../_shared/clientMatcher.ts'
+import {
+  computeShadowDiagnostic,
+  logShadowDiagnostic,
+  newModeNotEnabledDiagnostic,
+  parseMatcherMode,
+  shouldComputeShadow,
+  type MatcherMode,
+} from '../_shared/shadowMatcher.ts'
+
+/** Shadow-only context. Never influences the authoritative legacy result. */
+interface ShadowContext {
+  mode: MatcherMode;
+  index: RosterIndex;
+  policies: Map<string, ClientPolicy>;
+}
+
+async function loadShadowContext(supabase: any, mode: MatcherMode): Promise<ShadowContext | null> {
+  if (mode === 'legacy') return null;
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, aliases, keywords')
+      .eq('is_active', true);
+    if (error) {
+      console.error('[shadow] roster load failed:', error.message);
+      return null;
+    }
+    const roster: RosterClient[] = data || [];
+    return { mode, index: buildRosterIndex(roster), policies: buildPoliciesFromRoster(roster) };
+  } catch (e) {
+    console.error('[shadow] roster load exception:', e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -56,6 +98,11 @@ interface AnalysisResult {
   keywords: string[];
   sentiment: 'positive' | 'negative' | 'neutral' | 'mixed';
   sentiment_score: number;
+  /**
+   * CP5-C4A.3: PRE-MERGE raw AI client nominations, captured for shadow
+   * comparison only. Never persisted (the DB payload lists fields explicitly).
+   */
+  __rawAiClients?: unknown;
 }
 
 function getArticleLink(item: FeedItem): string {
@@ -176,7 +223,8 @@ async function processArticle(
   feedSourceId: string,
   supabase: any,
   lovableApiKey: string,
-  clients: Client[]
+  clients: Client[],
+  shadow: ShadowContext | null = null
 ) {
   try {
     // Check for duplicates by exact link
@@ -258,6 +306,29 @@ async function processArticle(
       throw insertError;
     }
 
+    // CP5-C4A.3 shadow comparison: reuses the SAME AI response already obtained
+    // above (0 extra AI calls) and cannot influence the persisted row above.
+    if (shadow) {
+      try {
+        if (shadow.mode === 'new') {
+          logShadowDiagnostic(newModeNotEnabledDiagnostic(newArticle?.id ?? null));
+        } else if (shouldComputeShadow(shadow.mode)) {
+          logShadowDiagnostic(computeShadowDiagnostic({
+            mode: shadow.mode,
+            sourceId: newArticle?.id ?? null,
+            title: article.title,
+            description: article.description,
+            index: shadow.index,
+            policies: shadow.policies,
+            legacyClients: (analysis.clients ?? []) as any[],
+            rawLegacyAiClients: analysis.__rawAiClients,
+          }));
+        }
+      } catch (shadowError) {
+        console.error('[shadow] diagnostic failed:', shadowError instanceof Error ? shadowError.message : String(shadowError));
+      }
+    }
+
     return newArticle;
   } catch (error) {
     console.error('Error processing article:', error);
@@ -278,7 +349,8 @@ async function processFeedSource(
   feedSource: FeedSource, 
   supabase: any, 
   lovableApiKey: string,
-  clients: Client[]
+  clients: Client[],
+  shadow: ShadowContext | null = null
 ) {
   console.log(`Processing feed source: ${feedSource.name}`);
   
@@ -320,7 +392,7 @@ async function processFeedSource(
         image_url: getArticleImage(item)
       };
 
-      const result = await processArticle(article, feedSource.id, supabase, lovableApiKey, clients);
+      const result = await processArticle(article, feedSource.id, supabase, lovableApiKey, clients, shadow);
       if (result) {
         successCount++;
       } else {
@@ -384,6 +456,11 @@ serve(async (req) => {
     const clients = await fetchClients(supabase);
     console.log(`Loaded ${clients.length} clients with keywords for matching`);
 
+    // CP5-C4A.3: fail-closed matcher mode. Missing/invalid -> legacy.
+    const matcherMode = parseMatcherMode(Deno.env.get('DIGITAL_CLIENT_MATCHER_MODE'));
+    const shadow = await loadShadowContext(supabase, matcherMode);
+    console.log(`[shadow] matcher mode: ${matcherMode} (authoritative path: legacy)`);
+
     // Get active feed sources
     const { data: feedSources, error: feedSourcesError } = await supabase
       .from('feed_sources')
@@ -397,7 +474,7 @@ serve(async (req) => {
 
     const results = [];
     for (const feedSource of feedSources) {
-      const result = await processFeedSource(feedSource, supabase, lovableApiKey, clients);
+      const result = await processFeedSource(feedSource, supabase, lovableApiKey, clients, shadow);
       results.push({
         source: feedSource.name,
         ...result
@@ -674,6 +751,7 @@ Para clients: solo incluye clientes de la lista proporcionada que sean REALMENTE
         return {
           ...parsedResult,
           clients: allClients,
+          __rawAiClients: parsedResult.clients,
           category: normalizeCategory(parsedResult.category),
           sentiment: parsedResult.sentiment || 'neutral',
           sentiment_score: typeof parsedResult.sentiment_score === 'number' ? parsedResult.sentiment_score : 0
