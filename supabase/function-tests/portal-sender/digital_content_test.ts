@@ -126,18 +126,43 @@ Deno.test("null and empty summaries are omitted", () => {
   assertEquals(mapDigitalRow(row({ summary: "   " }), lookup).summary, undefined);
 });
 
-Deno.test("internal analysis-failure sentinel summary is omitted and never echoed", () => {
-  for (const raw of ["Error en el servicio de análisis", "  Error en el servicio de análisis  "]) {
-    const dto = mapDigitalRow(row({ summary: raw }), lookup);
-    assertEquals(dto.summary, undefined);
-    assertEquals(JSON.stringify(dto.metadata ?? {}).includes("servicio de análisis"), false);
+const SENTINELS = [
+  "Error en el servicio de análisis",
+  "Descripción insuficiente para análisis",
+  "Título insuficiente para análisis",
+  "Error al analizar el artículo",
+  "Error en el formato de análisis",
+  "Error en el proceso de análisis",
+];
+
+Deno.test("all six internal analysis sentinels are omitted and never echoed", () => {
+  for (const base of SENTINELS) {
+    for (const raw of [base, `  ${base}  `, base.toUpperCase(), base.toLowerCase(), `\n\t${base}\t`]) {
+      const dto = mapDigitalRow(row({ summary: raw }), lookup);
+      assertEquals(dto.summary, undefined, `expected omission for: ${JSON.stringify(raw)}`);
+      assertEquals(JSON.stringify(dto.metadata ?? {}).toLowerCase().includes("análisis"), false);
+    }
   }
 });
 
-Deno.test("legitimate journalism mentioning error keeps its summary", () => {
-  const legit = "El error humano provocó el apagón, según el informe";
-  assertEquals(mapDigitalRow(row({ summary: legit }), lookup).summary, legit);
+Deno.test("sentinel list is exactly the six audited internal strings", () => {
+  assertEquals([...SUMMARY_SENTINELS], SENTINELS.map((s) => s.toLowerCase()));
 });
+
+Deno.test("suppression is whole-value, not pattern based", () => {
+  const legits = [
+    "El error humano provocó el apagón, según el informe",
+    "Error en el servicio de agua potable de Ponce deja miles sin suministro",
+    "El análisis del economista contradice al gobierno",
+    "La agencia dijo que hubo un caso de \"Título insuficiente para análisis\" en su sistema interno",
+    "Descripción insuficiente para análisis forense, alegó la defensa en el tribunal",
+    "Error al analizar el artículo 5 de la nueva ley, según juristas",
+  ];
+  for (const legit of legits) {
+    assertEquals(mapDigitalRow(row({ summary: legit }), lookup).summary, legit);
+  }
+});
+
 
 /* ------------------------------ sentiment ------------------------------ */
 
