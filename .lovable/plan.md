@@ -94,3 +94,25 @@ Existing `auth_test.ts`, `finalize_test.ts` (signing vector, clients sender, fin
 ## Report returned at the end
 
 Files added/modified, architecture, final DTO mapping, mention-resolution implementation, exact content request interface, test counts/results, regression results, typecheck result, security invariant confirmation (gates unchanged, no secret changes, no invocation), SHA-256 of critical sender files, deployment status, and the redacted pilot DTO preview.
+
+## C3A implementation guardrails (approved addendum)
+
+media-mosaico is the live Publiteca internal production dashboard. C3A is source-code + tests only: no deployment, no publish, no `portal-sender` invocation, no Portal ingest/finalize calls, no DB/schema/RLS/Storage/secret changes, no cron or pipeline changes.
+
+1. Strict request combinations. `kind` absent → clients (exact current behavior). Contradictory parameters are rejected, never ignored: `kind=clients` with `media` → 400; `kind=clients` with `source_ids` → 400; `kind=content` without `media` → 400; `kind=content` with `media != digital` → 400.
+
+2. Bounded input. `source_ids` must be UUIDs only, deduplicated, with a hard maximum (200). `batch_size` is bounded to the Portal maximum of 200 items per content request; a larger requested value is rejected rather than emitting a Portal-invalid batch.
+
+3. Conservative name matching only. Fallback resolution uses deterministic exact matching: trimmed/case-normalized current name, then exact internal alias. No fuzzy, substring, similarity, AI, or heuristic matching. Uncertain → `raw_client_name` only, leaving resolution/quarantine to the isolated Portal.
+
+4. No silent drops. For `source_ids` requests the response reports per-ID disposition: requested, found as Digital, rejected/non-Digital, not found, mapping failed. A Twitter UUID must produce an observable diagnostic.
+
+5. Mapping errors are deterministic. Missing title, missing `updated_at`, missing `pub_date`, or malformed source identity produce a mapping failure before any transport; no partially valid DTO, no fabricated required values.
+
+6. Pilot mention set. The report for `bd4d1c76-228b-4246-a544-cac2e3d44373` must show total source client identities, total resolved canonical clients, total unresolved names, and the final deduplicated `mentions[]` — Metropistas is not assumed to be the only client, and C3C apply is not implied.
+
+7. Sentiment. The exact `sentiment_source` constant is stated in the report. Invalid scores omitted, never clamped. Article-level sentiment is never copied into mentions.
+
+8. Regression protection. Report `handler.ts` SHA-256 before and after plus the exact functional diff, and prove: auth tests green, existing clients sender tests green, signing vector unchanged, finalize tests green, Digital tests green, `deno check` clean. No unrelated refactoring.
+
+STOP after tests and report.
