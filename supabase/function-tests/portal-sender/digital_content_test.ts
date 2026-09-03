@@ -266,16 +266,44 @@ Deno.test("kind=content/media=digital posts to the content ingest path", async (
   assert(calls[0]!.endsWith(CONTENT_PATH));
 });
 
-Deno.test("kind absent keeps legacy clients behavior", async () => {
+Deno.test("kind absent keeps the pre-C3A legacy clients response contract", async () => {
   calls = [];
   const response = await handleRequest(
     post({}),
     deps({ fetchClientsImpl: () => Promise.resolve([]) }),
   );
   const payload = await response.json();
-  assertEquals(payload.kind, "clients");
+  assertEquals(payload.kind, undefined);
   assertEquals(payload.media, undefined);
+  assertEquals(payload.source_id_report, undefined);
   assertEquals(calls.length, 0);
+  assertEquals(
+    Object.keys(payload).sort(),
+    [
+      "actor",
+      "batch_count",
+      "batches",
+      "diagnostics_applied",
+      "finalize",
+      "mode",
+      "ok",
+      "run_key",
+      "schema_version",
+      "test_vector_ok",
+      "total_items",
+    ],
+  );
+});
+
+Deno.test("explicit kind=clients emits no content diagnostics", async () => {
+  const response = await handleRequest(
+    post({ kind: "clients" }),
+    deps({ fetchClientsImpl: () => Promise.resolve([]) }),
+  );
+  const payload = await response.json();
+  for (const field of ["kind", "media", "source_id_report"]) {
+    assertEquals(payload[field], undefined, field);
+  }
 });
 
 Deno.test("contradictory request combinations are rejected", async () => {
