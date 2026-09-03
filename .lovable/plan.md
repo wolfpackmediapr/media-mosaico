@@ -138,28 +138,33 @@ Steps that change production state are marked **[STATE CHANGE]**.
 13. Closure evidence is: the successful control-plane secret update to `false`, its timestamp, and the confirmed absence of any further sender invocation. **Do not** issue a verification request in apply mode.
 
 
-**PORTAL POST-FLIGHT** (WolfPack, read-only)
-13. Re-count the six CP1 tables and four staging tables; compare against the pre-flight baseline and the expected deltas in section 6.
-14. Confirm the two mentions resolved to the canonical PROMESA and Metropistas UUIDs, unresolved 0, quarantined 0.
-15. Confirm the run row for the emitted `run_key` shows status completed with `items_failed = 0`.
+**PORTAL POST-FLIGHT** (WolfPack, read-only, gate already closed)
+14. Re-count the six CP1 tables and four staging tables; compare against the pre-flight baseline and the expected deltas in section 6.
+15. Confirm the two mentions resolved to the canonical PROMESA and Metropistas UUIDs, unresolved 0, quarantined 0.
+16. Confirm the run row for the emitted `run_key` shows status completed with `items_failed = 0`.
+17. Client visibility / RLS verification on the Portal side.
 
 **FAILURE / TIMEOUT HANDLING**
-16. **Do not retry.** A timeout or ambiguous response means the batch may already have been accepted Portal-side.
-17. `BATCH_DELIVERY_FAILED` (502): batches partially accepted, no finalize attempted — close the gate, then have WolfPack inspect staging and decide on manual finalize or cleanup out-of-band.
-18. `RUN_FINALIZED_FAILED` / `FINALIZE_PROTOCOL_ERROR` / `FINALIZE_FAILED` (502): data batches were accepted; the run's terminal state is unresolved. Close the gate and escalate to Portal-side inspection.
-19. `403 APPLY_DISABLED`: secret had not propagated. Nothing was sent. This is safe to re-attempt once, still inside the same window.
-20. `401`: credential problem, nothing sent, no Portal state — close the gate and reschedule.
+18. **Do not retry, ever, inside the C3C window.** A timeout or ambiguous response means the batch may already have been accepted Portal-side.
+19. `BATCH_DELIVERY_FAILED` (502): batches partially accepted, no finalize attempted — close the gate, then have WolfPack inspect staging and decide on manual finalize or cleanup out-of-band.
+20. `RUN_FINALIZED_FAILED` / `FINALIZE_PROTOCOL_ERROR` / `FINALIZE_FAILED` (502): data batches were accepted; the run's terminal state is unresolved. Close the gate and escalate to Portal-side inspection.
+21. `403 APPLY_DISABLED`: the secret had not propagated; nothing was sent. Immediately set `PORTAL_SENDER_ALLOW_APPLY=false` and **STOP**. No retry in the same window. A new attempt requires fresh explicit WolfPack authorization.
+22. `401`: credential problem, nothing sent, no Portal state — close the gate and reschedule under fresh authorization.
 
 **ROLLBACK**
-21. Gate rollback is step 11 (`false`), verified by step 12.
-22. Data rollback is Portal-side only. media-mosaico has no ability to unwrite Portal rows and must not be given Portal credentials. Any cleanup of `content_items` / `content_client_mentions` / projection rows for the pilot source key is performed by WolfPack in the isolated Portal project.
-23. No rollback of media-mosaico state is ever needed: the sender only reads `news_articles`.
+23. Gate rollback is step 12 (`false`), evidenced per step 13 — not by a probe.
+24. Data rollback is Portal-side only. media-mosaico has no ability to unwrite Portal rows and must not be given Portal credentials. Any cleanup of `content_items` / `content_client_mentions` / projection rows for the pilot source key is performed by WolfPack in the isolated Portal project.
+25. No rollback of media-mosaico state is ever needed: the sender only reads `news_articles`.
 
-**IDEMPOTENCY TEST PLAN** (separate, later phase — C3D)
-24. Fresh Portal baseline after C3C settles.
-25. Reopen the gate for a second time-boxed window — **[STATE CHANGE]**.
-26. Invoke exactly once with the identical payload (new `run_key` generated automatically); do not modify the source article in between, so `source_updated_at` is unchanged.
-27. Close the gate immediately — **[STATE CHANGE]** — and verify 403.
-28. Expected Portal result: item disposition `skipped_idempotent`, `content_items` +0, `content_client_mentions` +0, projection version unchanged; a new sync run and batch record are still created.
+**C3C END CONDITION**
+26. C3C ends after: one pilot apply, gate disabled, Portal post-flight complete, client/RLS verification complete. No further sender activity.
+
+**IDEMPOTENCY TEST PLAN** (separate phase — C3D, requires separate WolfPack authorization; NOT part of C3C)
+27. Fresh Portal baseline after C3C is closed out and approved.
+28. Reopen the gate for a second time-boxed window — **[STATE CHANGE]**.
+29. Wait the propagation interval, then invoke exactly once with the identical payload (new `run_key` generated automatically); do not modify the source article in between, so `source_updated_at` is unchanged. No probes, no retries.
+30. Close the gate immediately — **[STATE CHANGE]** — with control-plane evidence only.
+31. Expected Portal result: item disposition `skipped_idempotent`, `content_items` +0, `content_client_mentions` +0, projection version unchanged; a new sync run and batch record are still created.
+
 
 STOP — planning only.
