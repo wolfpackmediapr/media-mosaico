@@ -17,6 +17,19 @@ export const MAX_SOURCE_IDS = 200;
 /** Single deterministic constant identifying the internal analysis producer. */
 export const DIGITAL_SENTIMENT_SOURCE = "publiteca-internal-news-analysis";
 
+/**
+ * Exact internal analysis-failure sentinels. Full-string, case-normalized
+ * comparison ONLY — never substring/fuzzy, which would drop real journalism.
+ */
+export const SUMMARY_SENTINELS: readonly string[] = [
+  "error en el servicio de análisis",
+];
+
+/** True when the trimmed summary is a known internal pipeline sentinel. */
+export function isSummarySentinel(value: string): boolean {
+  return SUMMARY_SENTINELS.includes(value.trim().toLowerCase());
+}
+
 export type PortalSentiment = "positive" | "neutral" | "negative" | "mixed";
 
 /** Case/outer-whitespace normalization only; anything else is not sentiment. */
