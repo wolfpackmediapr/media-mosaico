@@ -1,316 +1,205 @@
-# CP5-C4A.1 — Digital Mention Provenance & Metropistas Relevance Salvage Audit
+# CP5-C4A.1 CLOSEOUT + C4A.2 PRE-FLIGHT
 
-READ ONLY. No writes, no sender calls, no gate changes, no deployments were performed.
+READ ONLY. No writes, no deletions, no sender calls, no gate changes, no deployments.
 
-Note on universe definition: this audit resolves the Metropistas universe by canonical UUID
-containment on `news_articles.clients` over Digital rows (`feed_sources.platform = 'news'` /
-unmapped, excluding twitter/instagram). That yields **751 rows** (Digital total 48,714). The
-C4A figure of 900 included name-string resolution and non-Digital platforms; all counts below
-use the stricter 751-row canonical universe.
+## A. 751 vs 900 reconciliation — RESOLVED
 
-## 1. Writers of `news_articles.clients`
+Scope: `feed_sources.platform = 'news'` only. Twitter/Instagram excluded entirely.
+Mutually exclusive per-row classes:
 
-| Writer | Trigger | Active | AI | Deterministic keywords | Full roster to model | Resolves ids | Accepts model ids | Write shape | Can overwrite |
-|---|---|---|---|---|---|---|---|---|---|
-| `supabase/functions/process-rss-feed/index.ts` (`processArticle` → `analyzeArticle` → `mergeClientMatches`) | pg_cron ~30m + manual | Yes | Yes (Lovable AI Gateway) | Yes (`matchClientsToArticle`) | Yes — `clients.slice(0,50)` with keywords injected in prompt | Only for the keyword half | **Yes** — AI ids stored verbatim, no UUID/existence check | Full snapshot on insert | New rows only (insert path) |
-| `supabase/functions/reanalyze-articles/index.ts` | Manual backfill invocation | Yes (on demand) | Yes | Yes (same matcher) | Yes (same 50-client prompt) | Partial | **Yes** | Full snapshot | **Yes — overwrites existing `clients`** |
-| `supabase/functions/process-social-feeds/*` | pg_cron 60m | Yes | No | No | No | n/a | n/a | Does not write `clients` (533 twitter rows carry clients only from legacy paths) | No |
-| `process_content_notifications`, `test_notification_settings` | cron / manual | Yes | No | Reads only | No | n/a | n/a | Read-only on `clients[]` | No |
-| Frontend (`src/services/news/api.ts`, monitoring service) | UI | Yes | No | No | n/a | n/a | n/a | Read-only for `clients[]` | No |
-| Migrations / triggers | — | — | — | — | — | — | — | Only `update_updated_at_column` touches the row | No |
-
-Dominant producer of the current Metropistas assignments: the **`process-rss-feed` +
-`reanalyze-articles` family**, specifically the deterministic `matchClientsToArticle`
-substring matcher, with the AI merge layer adding a second, unvalidated entry.
-
-Matcher semantics (verbatim behaviour): `content = (title + ' ' + description).toLowerCase()`,
-match is `content.includes(keyword.toLowerCase())` — plain substring, **no word boundaries, no
-accent normalization**. Relevance is assigned purely by matched-keyword count
-(>=3 alta, >=2 media, else baja) — it encodes no semantic judgement.
-
-## 2. Stored `clients` object shapes (all Digital + all rows)
-
-Across the whole table: 50,957 rows with a JSON array, 100,654 NULL.
-Element shapes observed:
-
-| Shape | Elements | Rows |
+| Class | Definition | Rows |
 |---|---|---|
-| object `{id, name, relevance}` | 65,274 | 25,134 |
-| bare string | 17 | 9 |
+| A | valid canonical Metropistas UUID `08748447-…0975` present | **751** |
+| B | no canonical UUID, but an element's exact normalized name = `metropistas` | **149** |
+| C | alias-only resolution | **0** |
+| D | Metropistas-like but unresolved/ambiguous (name contains "metropista" yet neither A nor B) | **0** |
+| **A+B+C** | | **900** |
 
-No other variants exist. **There is no `confidence`, `score`, `reason`, `matched_keywords`,
-`keywords`, `source`, `match_method`, or any provenance field anywhere in the corpus.** The
-Metropistas 751 rows use exclusively `{id,name,relevance}`. Consequence: **P3 (stored explicit
-provenance) is structurally impossible — 0 rows.**
+**A+B+C = 900 — matches C4A exactly. PASS.**
 
-## 3. Canonical Metropistas client configuration
+Precise reason for the discrepancy: my C4A.1 statement that the 900 included non-Digital
+platforms was **incorrect**. Both audits used the same Digital scope. The 149-row gap is
+entirely class B — rows whose only Metropistas element carries a **model-generated placeholder
+id** (`metropistas`, `metropistas_uuid`, and similar non-UUID strings) instead of the canonical
+UUID. C4A resolved by name, C4A.1 resolved by UUID; nothing else differs. C = 0 because
+`clients.aliases` for Metropistas is an empty array, so alias resolution is structurally
+impossible today.
 
-`clients.id = 08748447-a701-4be3-80c8-7470526e0975`, name `Metropistas`,
-category `CARRETERAS`, subcategory `Infraestructura`, `is_active = true`,
-`aliases = []` (empty), updated 2026-08-05.
+## B. Provenance recomputed over the full 900-row resolved Digital universe
 
-Configured keywords (exact, 25 entries) classified analytically:
+Evidence fields: `title + description` (what the matcher actually saw) plus `summary`
+for P1/P2 as specified. Deterministic lowercase substring only.
 
-- Exact brand/name: `Metropistas`, `Abertis`, `AutoExpreso`
-- Highly specific entity/location: `Puente Teodoro Moscoso`, `PR-52`, `Autopista Luis A. Ferrer`,
-  `Autopista Roberto Sanchez Vilella`, `Expreso José de Diego`, `expreso Martínez Nadal`,
-  `Carril dinámico`, `Cogestión vehicular`, `Tarifas de peajes`, `Aumento de peajes`,
-  `Accidentes en autopistas`, `Asistencia en la carretera`, `CESCO` (specific agency, but not Metropistas)
-- Moderately specific: `peaje`, `autopista`, `Autopistas`
-- Broad/generic or malformed: **`carretera`**, `PR 22`, `PR 5`, `PR 20`, `PR 53`, `PR 66`
-  (the space-form `PR nn` keywords are substring-fragile and near-useless; `PR 5` matches
-  "PR 52", "PR 53", any "…PR 5x")
+| Class | 751 universe (prior) | **900 universe (authoritative)** |
+|---|---|---|
+| P1 — direct identity | 3 | **3** |
+| P2 — configured-keyword evidence | 747 | **776** |
+| P3 — stored explicit provenance | 0 | **0** (no provenance field exists in any stored element) |
+| P4 — AI-only / unreproducible | 1 | **121** |
+| P5 — bulk/suspicious (>5 clients) | 68 | **91** |
+| P4 ∩ P5 | 0 | **22** |
 
-## 4. Configured-keyword evidence in Digital source text (deterministic, lowercase substring)
+| Keyword group | 751 | **900** |
+|---|---|---|
+| K-HIGH (`Metropistas`, `AutoExpreso`, `Abertis`, `PR-52`, `Teodoro Moscoso`, `CESCO`) | 71 | **82** |
+| K-MEDIUM (`peaje`, `autopista`, not K-HIGH) | 56 | **56** |
+| K-BROAD (`carretera` only) | 623 | **623** |
 
-| Keyword | Digital matches | Metropistas-tagged | Title matches |
-|---|---|---|---|
-| carretera | 782 | **654** | 182 |
-| PR-52 | 81 | 40 | 63 |
-| CESCO | 65 | 12 | 47 |
-| autopista | 63 | 56 | 35 |
-| peaje | 33 | 26 | 23 |
-| AutoExpreso | 22 | 17 | 16 |
-| Metropistas | 9 | 3 | 5 |
-| Autopistas | 8 | 6 | 2 |
-| PR 5 / Martínez Nadal | 4 / 4 | 2 / 0 | 2 / 4 |
-| Teodoro Moscoso | 3 | 1 | 0 |
-| all remaining 14 keywords | 0–2 | 0–1 | 0–1 |
+Rows with at least one unresolved client id: **384 of 900 (43%)**.
 
-`carretera` alone explains 654 of 751 Metropistas rows (87%). It is the single contaminating term.
+| Safe corpus (0 unresolved ids, ≤5 canonical clients, non-null title/link/pub_date) | Rows | New (excl. projected pilot) |
+|---|---|---|
+| S1 — P1 only | **1** | **0** |
+| S2 — P1 or K-HIGH | **57** | **56** |
+| S3 — P1 or K-HIGH or K-MEDIUM | **92** | **91** |
 
-## 5. Reproduction of the Metropistas assignments (751 rows)
+S1/S2/S3 are unchanged from the 751 run: every class-B row fails the zero-unresolved-ids
+gate by construction. The material change is **P4: 1 → 121**. The class-B rows are exactly the
+AI-only, unreproducible population, and 22 of them are also bulk-suspicious. Restricting the
+prior analysis to canonical ids understated AI-only tagging by two orders of magnitude — the
+corrected reading is that the pipeline has **two** independent defects of comparable severity:
+an over-broad deterministic keyword (776 rows) and an unvalidated AI id path (121 rows).
 
-| Class | Count |
-|---|---|
-| P1 — direct identity (name/alias in title/description/summary) | **3** |
-| P2 — deterministic configured-keyword evidence, no P1 | **747** |
-| P3 — stored explicit provenance | **0** (field does not exist) |
-| P4 — AI-only / unreproducible | **1** |
-| P5 — bulk/suspicious (>5 clients) | **68** |
-| P4 ∩ P5 | 0 |
+## C. Historical cleanup status
 
-Every assignment is reproducible from the keyword matcher. The problem is not hallucinated
-tagging volume — it is that the deterministic rule itself is wrong.
+Invalid-ID cleanup is **PLANNING ONLY**. No `clients[]` element is to be removed from
+production in this phase. Any future mutation requires a separate dependency/rollback audit
+covering: alert generation, dashboard client filters, reports, monitoring targets, portal
+projections, and a pre-change snapshot with a defined rollback path.
 
-Model-id contamination, measured separately: of 1,991 client elements on these rows,
-**523 (26%) carry ids that do not exist in `public.clients`**, spread over 235 rows;
-**195 of those fake elements are literally named "Metropistas"** with placeholder ids such as
-`metropistas_uuid` and `metropistas`. This is why the fingerprints show `Metropistas|Metropistas`.
+## D. Metropistas keyword review table
 
-## 6. Client-set fingerprints (top 20, by name)
+Matcher behaviour for every keyword today is identical: `(title + ' ' + description)
+.toLowerCase().includes(keyword.toLowerCase())` — raw substring, **no word boundary, no accent
+folding, no field weighting**. Counts are Digital (`platform='news'`, plus 436 unmapped rows),
+matched over title+description+summary.
 
-```
-Metropistas                                                 247
-Metropistas|Serrallés                                        68
-Metropistas|Metropistas                                      30
-Cruz Roja Americana|Metropistas                              28
-Metropistas|Municipio de Naguabo                             26
-AAA|Metropistas                                              23
-Cruz Roja Americana|Metropistas|Serrallés                    17
-Metropistas|PROMESA                                          17
-Metropistas|Metropistas|Serrallés                            11
-Coop de Seguros Múltiples|Metropistas|Metropistas            10
-Coop|Cruz Roja|Metropistas|Metropistas                       10
-AAA|Metropistas|Municipio de Naguabo                          7
-Metropistas|Municipio de Naguabo|Serrallés                    7
-Ética Gubernamental|Metropistas|Metropistas                   6
-First Medical|Menonita|Metropistas|MMM|Pavía|Professional     6
-Cruz Roja Americana|Metropistas|Metropistas                   6
-Coop|Cruz Roja|Ford|Metropistas|Metropistas|Serrallés         6
-Coop|Ford|Metropistas|Metropistas                             5
-Metropistas|PROMESA|Serrallés                                 5
-Cruz Roja|Metropistas|Metropistas|Serrallés                   5
-```
+| Keyword | Classification | Matcher behaviour risk | Digital matches | Metropistas-tagged | Example evidence | Recommended action |
+|---|---|---|---|---|---|---|
+| `Metropistas` | exact brand | safe; substring also catches "Metropistas'" | 9 | 3 | "Fitch mantiene la nota a deuda de Metropistas" | **KEEP** |
+| `Abertis` | exact brand (parent co.) | safe | 1 | 0 | — | **KEEP** |
+| `AutoExpreso` | exact brand/product | safe | 22 | 17 | AutoExpreso billing/toll stories | **KEEP** |
+| `PR-52` | highly specific asset | safe; note `PR-52` ≠ `PR 52` (space form misses) | 81 | 40 | "Piden revisar planes de tráfico en la PR-52" | **REWRITE** — normalize `PR[-\s]?52` |
+| `Puente Teodoro Moscoso` | highly specific asset | safe but accent/case fragile | 3 | 1 | — | **KEEP** (add accent folding) |
+| `CESCO` | specific, but DTOP agency — **not a Metropistas asset** | fires on unrelated licensing/registry stories | 65 | 12 | CESCO appointment/licence articles | **BUSINESS DECISION REQUIRED** — is CESCO in Metropistas' monitoring brief? |
+| `autopista` | moderately broad | matches any highway story islandwide | 63 | 56 | generic highway coverage | **BUSINESS DECISION REQUIRED** — brand-adjacent but not brand-specific |
+| `peaje` | moderately broad | matches all toll policy, incl. non-Metropistas roads | 33 | 26 | toll-rate coverage | **BUSINESS DECISION REQUIRED** |
+| `carretera` | broad/generic | **dominant contaminant** — matches "Autoridad de Carreteras", any road/crash story | 782 | **654** | 87% of all Metropistas tags | **REMOVE** |
+| `PR 5` | broad/malformed | substring also matches "PR 52", "PR 53", "PR 5x" | 4 | 2 | — | **REWRITE** or REMOVE |
+| `PR 20` | broad/malformed | space form rarely present in text | 2 | 1 | — | **REWRITE** (`PR[-\s]?20` + boundary) |
+| `PR 22` | broad/malformed | 0 matches — space form never appears | 0 | 0 | — | **REWRITE** (`PR[-\s]?22`) |
+| `PR 53` | broad/malformed | 0 matches | 0 | 0 | — | **REWRITE** |
+| `PR 66` | broad/malformed | 0 matches | 0 | 0 | — | **REWRITE** |
+| `Autopistas` | moderate (plural of above) | redundant with `autopista` substring | 8 | 6 | — | REMOVE as redundant |
+| `Tarifas de peajes` / `Aumento de peajes` | specific phrase | phrase-fragile, near-zero recall | 1 / 0 | 1 / 0 | — | KEEP (harmless) |
+| `Accidentes en autopistas` / `Cogestión vehicular` / `Carril dinámico` / `Asistencia en la carretera` | specific phrase | phrase-fragile | 0 / 0 / 1 / 1 | 0 / 0 / 0 / 1 | — | KEEP (harmless) |
+| `Expreso José de Diego` / `expreso Martínez Nadal` | specific asset | accent-fragile | 1 / 4 | 0 / 0 | — | KEEP (add accent folding) |
+| `Autopista Luis A. Ferrer` / `Autopista Roberto Sanchez Vilella` | specific asset | zero recall — official/spelling variants missed ("Ferré", "Sánchez Vilella") | 0 / 0 | 0 / 0 | — | **REWRITE** (accent + spelling variants) |
 
-No single roster is dumped en masse; sets are small (mean ~2.6 clients) and vary. This is
-keyword co-firing (other clients also carry broad keywords), not full-roster dumping. The
-6-client health-sector set is the classic broad-keyword co-fire pattern.
+No business decision has been made here. `carretera` is the only unilateral REMOVE, justified
+by 654/782 measured false-positive concentration.
 
-## 7. Timeline / contamination window
+## E. Sentinel sender-hygiene pre-flight
 
-Metropistas tagging by `created_at`: 2025-12 (2), 2026-01 (3), 2026-02 (19), 2026-03 (99),
-2026-04 (113), 2026-05 (145), 2026-06 (129), 2026-07 (101), 2026-08 (131), 2026-09 (9).
+Exact, whole-value counts (whole table; the string is always the entire `summary` value —
+never a fragment inside a real summary, and it never appears in `title`, `description`, or
+`category`):
 
-There is **no clean historical period followed by contamination**. Tagging scales with feed
-volume from the moment keyword matching went live. There is no discrete backfill spike. The
-defect is continuous and structural, not event-driven.
-
-## 8. Feed-source concentration
-
-| Feed source | Rows | contains "carretera" | summary sentinel | avg clients |
+| Exact `summary` value | Rows | Internal analysis state? | Currently filtered by sender | Leak possible |
 |---|---|---|---|---|
-| El Nuevo Dia Web | 119 | 89 | 75 | 2.77 |
-| NotiCel | 118 | 114 | 81 | 2.90 |
-| Primera Hora Web | 108 | 83 | 82 | 2.37 |
-| Noticel | 105 | 101 | 73 | 2.84 |
-| Metro Puerto Rico | 100 | 88 | 67 | 2.33 |
-| Ey Boricua | 51 | 48 | 35 | 2.33 |
-| La Perla del Sur | 45 | 41 | 26 | 3.04 |
-| El Vocero | 35 | 28 | 22 | 2.77 |
-| Puerto Rico Posts | 26 | 25 | 18 | 2.73 |
-| Metro PR | 22 | 21 | 16 | 2.36 |
+| `Error en el servicio de análisis` | **29,519** | Yes — `getFallbackAnalysis()` reason string, `process-rss-feed/index.ts` | **YES** (`SUMMARY_SENTINELS`, `content/types.ts:24`) | No |
+| `Descripción insuficiente para análisis` | **1,232** | Yes — same fallback path | **NO** | **YES** |
+| `Título insuficiente para análisis` | **455** | Yes — same fallback path | **NO** | **YES** |
+| `Error al analizar el artículo` | **353** | Yes — same fallback path | **NO** | **YES** |
+| `Error en el formato de análisis` | **35** | Yes — parse-failure fallback | **NO** | **YES** |
+| `Error en el proceso de análisis` | **2** | Yes — outer catch fallback | **NO** | **YES** |
 
-No broken outlier feed. The distribution tracks each feed's overall volume — corpus-wide cause.
+Proof of internal origin: all six are literal Spanish reason strings passed to
+`getFallbackAnalysis(reason, keywordMatches)`, which sets `summary = reason`. They are produced
+only when the AI call fails or input is too short. No RSS outlet emits these; each value is
+exactly equal to the whole field with no surrounding text, and none appears in any other column.
 
-## 9. The three direct-text rows
-
-1. `bd4d1c76-228b-4246-a544-cac2e3d44373` — "Fitch mantiene la nota a deuda de Metropistas",
-   Sin Comillas Web, 2026-06-21. Metropistas in **title + link**. Clients: PROMESA (baja),
-   Metropistas (baja). Zero unresolved. Summary = `Error en el servicio de análisis`.
-   **This is the already-projected pilot row.**
-2. `62c0798a-9d1a-4a00-b0dd-800da273d404` — "Piden revisar planes de tráfico en la PR-52 tras
-   accidentes y quejas ciudadanas", La Perla del Sur, 2026-06-02. Metropistas named in summary
-   ("…al DTOP y a Metropistas…"). Clients: Coop de Seguros Múltiples, Metropistas,
-   **`metropistas_uuid`** (invalid). 1 unresolved.
-3. `0d1a754e-e679-4a83-b151-15d7278d46be` — near-duplicate of #2 (variant URL, same pub_date),
-   third element id `metropistas` (invalid). 1 unresolved.
-
-Rows 2 and 3 are a **deduplication miss** as well as an invalid-id case.
-
-## 10. Deterministic keyword-positive groups (title+description evidence, what the matcher saw)
-
-- **K-HIGH** (`Metropistas`, `AutoExpreso`, `Abertis`, `PR-52`, `Teodoro Moscoso`, `CESCO`): **71 rows**
-- **K-MEDIUM** (`peaje`, `autopista`, not already K-HIGH): **56 rows**
-- **K-BROAD** (`carretera` only): **623 rows**
-
-K-BROAD is 83% of the universe and carries no Metropistas-specific signal.
-Caveat on K-HIGH: `CESCO` is a DTOP/agency term, not Metropistas — it should be reviewed out.
-
-## 11. Manual-review sample of P4
-
-P4 = 1 row only. No meaningful sample exists; AI-only tagging is not the failure mode here.
-
-## 12. False-positive signal comparison
-
-| Dimension | P1 (3) | P2 (747) | P4 (1) |
-|---|---|---|---|
-| avg clients | 2.7 | 2.65 | — |
-| rows > 5 clients | 0 | 68 (9.1%) | 0 |
-| rows with unresolved ids | 2 of 3 | 233 | 0 |
-| unresolved element rate | — | 26% of all elements | — |
-| `Error en el servicio de análisis` summary | 1 of 3 | 510 (68%) | — |
-
-P4 is not materially worse — it is statistically irrelevant. The systemic damage is in P2.
-
-## 13. Safe salvage corpus sizes
-
-Filters applied to every policy: zero unresolved ids, ≤5 canonical clients, non-null
-title/link/pub_date.
-
-| Policy | Total rows | ≤90d | ≤365d | New rows (excluding projected pilot) |
-|---|---|---|---|---|
-| S1 — P1 only | **1** | 1 | 1 | **0** |
-| S2 — P1 or K-HIGH | **57** | 53 | 57 | **56** |
-| S3 — P1 or K-HIGH or K-MEDIUM | **92** | 70 | 92 | **91** |
-
-(The two other direct-text rows fall out of S1 because both carry an invalid `metropistas*` id.)
-No manifest was created.
-
-## 14. Analysis-failure sentinels
-
-| Sentinel | Source field | Mapped Portal field | Rows (whole table) | Currently filtered | Client-facing leak possible |
-|---|---|---|---|---|---|
-| `Error en el servicio de análisis` | `news_articles.summary` | `summary` | 29,519 | **YES** (`SUMMARY_SENTINELS` in `content/types.ts`) | No |
-| `Descripción insuficiente para análisis` | `news_articles.summary` | `summary` | part of 1,687 | **NO** | **YES** |
-| `Título insuficiente para análisis` | `news_articles.summary` | `summary` | part of 1,687 | **NO** | **YES** |
-
-Both "insuficiente" strings live only in `summary` (0 occurrences in `title` or `description`),
-reach the Portal DTO through the same `summary` mapping in `content/digital.ts:257`, and are not
-in the sentinel list. Additionally 390 rows carry other `Error…` summaries not on the list.
-No patch was applied.
-
-## 15. Root cause
-
-| Cause | Weight |
-|---|---|
-| **Overly broad keyword (`carretera`) with substring, no-word-boundary matching** | 654 / 751 rows (87%) — dominant |
-| Moderately broad keywords (`autopista`, `peaje`) | ~56 rows |
-| Model-generated invalid client ids accepted verbatim | 523 elements / 235 rows (26% of elements) |
-| Legitimate deterministic keyword matching (K-HIGH) | 71 rows |
-| Legitimate direct identity | 3 rows |
-| AI hallucination as sole cause | 1 row |
-| Full-roster prompt contamination | Not observed (prompt caps at 50 clients, sets are small) |
-| Broken enrichment/backfill event | Not observed (continuous timeline) |
-| Historical schema conversion | Not observed (single stable shape) |
-
-Confidence is high for the keyword cause (directly measured) and high for the invalid-id cause
-(directly counted). Semantic legitimacy of the remaining rows was not judged — no AI was invoked.
-
-## 16. Production-forward recommendation
-
-**Option D — deterministic keyword-first with a reviewed AI fallback — is the evidence-supported
-choice**, implemented inside the existing internal pipeline (i.e. D layered on B), with C as a
-Portal-side safety net.
-
-Concretely, without implementing anything now:
-1. Curate client keywords: remove generic terms (`carretera`, bare `autopista`, `peaje`, `PR 5`,
-   `PR 20`, `PR 22`, `PR 53`, `PR 66`), keep brand/asset terms, and move CESCO off Metropistas.
-2. Replace substring matching with accent-normalized, word-boundary matching.
-3. Reject any AI-returned client id that is not a canonical UUID present in `public.clients`
-   (this alone removes 26% of stored elements' worth of junk going forward).
-4. Store provenance on each element (`match_method`, `matched_keywords`, `matched_field`) so
-   future audits are reproducible without re-deriving anything.
-5. Portal-side (`portal-sender`): derive/verify mentions defensively — drop unresolved ids
-   (already done), and add the missing sentinels.
-
-Rejected: A (accuracy unacceptable for a client-facing Portal), pure C (leaves Publimedia's
-internal alerts and dashboards wrong), pure B without provenance (unauditable again in 6 months).
-
-## 17. Historical repair recommendation
-
-**Selectively repaired, then deterministically re-derived** — in that order, and only after the
-prospective fix lands:
-- Do not AI-reprocess 48,714 rows (cost, and it does not fix the id-validation defect).
-- Step 1: purge invalid/non-UUID client elements corpus-wide — mechanical, zero judgement.
-- Step 2: after keyword curation, re-derive `clients[]` deterministically for Digital rows and
-  write provenance; keep a pre-change snapshot column/table for rollback.
-- Step 3: leave rows with no deterministic evidence untagged rather than guessing.
-- Portal exposure stays limited to re-derived, provenance-bearing rows.
-
-## Final report
+Smallest defensible exact deny-list (6 entries, case/whitespace-normalized equality only —
+**no `startsWith("Error")` rule**):
 
 ```
-METROPISTAS RESOLVED UNIVERSE (canonical uuid, Digital)     751   (C4A "900" = looser resolution)
-
-P1 DIRECT IDENTITY                                            3
-P2 CONFIGURED KEYWORD                                       747
-P3 STORED PROVENANCE                                          0   (no provenance field exists)
-P4 AI-ONLY / UNREPRODUCIBLE                                   1
-P5 BULK/SUSPICIOUS (>5 clients)                              68
-
-TOP CLIENT-SET FINGERPRINT       [Metropistas] 247, [Metropistas,Serrallés] 68,
-                                 [Metropistas,Metropistas] 30 (invalid duplicate id)
-TOP SUSPECT FEED SOURCES         none isolated — proportional to feed volume
-CONTAMINATION/TIMELINE FINDING   continuous since 2025-12; no clean-then-contaminated window
-
-K-HIGH COUNT                                                 71
-K-MEDIUM COUNT                                               56
-K-BROAD COUNT                                               623
-
-S1 SAFE CORPUS                                     1 (0 new)
-S2 SAFE CORPUS                                    57 (56 new)
-S3 SAFE CORPUS                                    92 (91 new)
-
-ADDITIONAL SENTINEL LEAK RISK    "Descripción/Título insuficiente para análisis" —
-                                 1,687 rows, summary → Portal summary, UNFILTERED, leak possible
-
-DOMINANT ROOT CAUSE              overly broad keyword "carretera" + substring matching (87%),
-                                 compounded by acceptance of model-generated invalid client ids (26% of elements)
-
-RECOMMENDED PRODUCTION-FORWARD FIX   D (deterministic keyword-first + validated AI fallback,
-                                     with curated keywords, UUID validation, stored provenance)
-RECOMMENDED HISTORICAL STRATEGY      selective repair (purge invalid ids) then deterministic re-derivation
+error en el servicio de análisis
+descripción insuficiente para análisis
+título insuficiente para análisis
+error al analizar el artículo
+error en el formato de análisis
+error en el proceso de análisis
 ```
 
-Verdict:
+Total coverage: 31,596 rows. Sender behaviour on match stays as today — omit the `summary` key
+entirely (`content/digital.ts:257`), never emit an empty string. No patch applied in this phase.
+
+## F. Prospective matching architecture — source-level plan (planning only)
+
+Scope is limited to client matching; every other Publiteca behaviour (feeds, dedupe, sentiment,
+categories, alerts, dashboards) stays byte-identical.
+
+**F1. Shared matcher module** — new `supabase/functions/_shared/clientMatcher.ts`, imported by
+both `process-rss-feed/index.ts` and `reanalyze-articles/index.ts` so the two paths can never
+drift again.
+- `normalize(s)`: lowercase + Unicode NFD accent stripping + whitespace collapse.
+- `matchTerm(text, term)`: normalized **word-boundary** match (regex with `\b`-equivalent
+  boundaries safe for Spanish), phrase-aware for multi-word terms; optional per-keyword regex
+  form for the `PR[-\s]?nn` road identifiers.
+- Returns `{ clientId, matchedKeywords[], matchedField: 'title'|'description'|'both' }`.
+- Relevance from evidence, not raw count: title match or brand-tier keyword → `alta`;
+  body-only or asset-tier → `media`; nothing else emitted.
+
+**F2. Keyword curation** — a data change against `public.clients.keywords`, executed only after
+the section-D business decisions are returned. Removes `carretera` (and `Autopistas` as
+redundant), rewrites the `PR nn` family, adds accent/spelling variants. Applied per client, with
+a before/after snapshot table for rollback.
+
+**F3. Strict UUID validation** — `isCanonicalClient(id)` checks the id against the in-memory
+roster loaded from `public.clients` at run start. Any element failing the check is **dropped and
+counted**, never stored. This alone eliminates the class-B population going forward.
+
+**F4. AI fallback that cannot invent ids** — the prompt stops asking for UUIDs. The model returns
+`client_names: string[]` only; the server resolves each name against the canonical roster by
+normalized exact-name then alias match. Unresolvable names are logged and discarded. The AI can
+therefore never write an id, only nominate a candidate the server already trusts.
+
+**F5. Provenance on every element** — stored shape becomes
+`{ id, name, relevance, match_method: 'keyword'|'ai_name_resolved'|'both', matched_keywords: string[], matched_field: string }`.
+Backward-compatible: existing readers use only `id`/`name`/`relevance`. Consumers to re-verify
+before rollout: `src/services/news/api.ts`, `use-client-spotlight`, `use-report-data`,
+`process_content_notifications`, `portal-sender/content/digital.ts`.
+
+**F6. Rollout order** — (1) sentinel deny-list patch (C4A.2, isolated), (2) shared matcher +
+UUID validation + AI-name resolution behind a per-function flag, (3) keyword curation after
+business sign-off, (4) shadow-run comparing old vs new tags on new articles for one week with no
+write change, (5) enable, (6) only then discuss historical re-derivation.
+
+No code was written.
+
+## Final output
 
 ```
-EXISTING STRUCTURED TAGS TRUSTWORTHY        PARTIAL
-DETERMINISTIC SALVAGE POSSIBLE              YES  (57–92 rows, pending keyword review)
-SAFE METROPISTAS EXPANSION POSSIBLE         NO   (not before keyword curation + id purge)
-CURRENT DIGITAL MATCHING NEEDS REPAIR       YES
-C4B BULK DRY-RUN AUTHORIZED                 NO
+RESOLVED DIGITAL UNIVERSE                    900  (A=751 canonical UUID + B=149 exact-name-only, C=0, D=0)
+751/900 DISCREPANCY RESOLVED                 PASS
+
+FULL-UNIVERSE P1                               3
+FULL-UNIVERSE P2                             776
+FULL-UNIVERSE P3                               0   (no provenance field exists)
+FULL-UNIVERSE P4                             121   (was understated as 1)
+FULL-UNIVERSE P5                              91   (P4∩P5 = 22)
+
+FULL-UNIVERSE S1                               1  (0 new)
+FULL-UNIVERSE S2                              57  (56 new)
+FULL-UNIVERSE S3                              92  (91 new)
+
+KEYWORD REVIEW READY                         YES  (4 items flagged BUSINESS DECISION REQUIRED)
+SENTINEL DENY-LIST READY                     YES  (6 exact strings, 31,596 rows)
+PROSPECTIVE MATCHER PLAN READY               YES
+
+C4A.1 CLOSED                                 YES
+C4A.2 SENDER HYGIENE PATCH READY             YES  (awaiting authorization)
+C4B BULK DRY-RUN AUTHORIZED                  NO
 ```
 
-STOP. READ ONLY. No code, data, secrets, or gates were changed in this phase.
+STOP. READ ONLY.
