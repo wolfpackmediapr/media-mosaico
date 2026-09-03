@@ -43,7 +43,7 @@ Therefore, for the duration the secret is `true`:
 
 **GLOBAL APPLY WINDOW**
 
-Risk assessment: the blast radius is a mass ingest into the isolated Portal (Publiteca's own database is never written by the sender — it is source-only, read-only against `news_articles`). So live Publiteca operations face effectively zero data risk; the risk is Portal-side pollution requiring cleanup, plus HMAC/lifecycle noise. The probability is low (few administrators, no UI surface calls this function) but the window should still be measured in minutes, not hours.
+Risk assessment (per WolfPack amendment 4): the sender never writes to Publiteca's internal tables — it is source-only, read-only against `news_articles`. Classify the window as: internal DB mutation risk **negligible**; internal query/load risk **non-zero** (another administrator could launch a large Digital export, driving heavy reads); Portal pollution risk **real**; transport/API load risk **real**. Probability is low (few administrators, no UI surface calls this function), but operational risk is not zero. Keep the window as short as practical — minutes, not hours.
 
 ## 4. Options compared
 
