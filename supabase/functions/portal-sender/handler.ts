@@ -435,7 +435,7 @@ export async function handleRequest(
     batch_count: intendedBatchCount,
     test_vector_ok: vector.ok,
     diagnostics_applied: requested,
-    ...(sourceIdReport ? { source_id_report: sourceIdReport } : {}),
+    ...(kind === "content" && sourceIdReport ? { source_id_report: sourceIdReport } : {}),
     batches: report,
   };
 
