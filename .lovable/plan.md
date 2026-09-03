@@ -3,24 +3,32 @@
 Authorized scope: exactly one apply-capable invocation of `portal-sender` for
 `digital / bd4d1c76-228b-4246-a544-cac2e3d44373`. Nothing else.
 
-## Blocking prerequisite (unchanged from C3B)
+## Authentication — Option B (final amendment)
 
-The backend is an external, unmanaged Supabase project. This workspace holds no
-service-role key and no administrator JWT, and no session can be minted here
-(auth status: `external_unmanaged`). The C3B attempt failed at the authorization
-boundary with `401 MISSING_AUTHORIZATION` for exactly this reason.
+The single production invocation is executed by WolfPack locally using the
+already-proven internal Publiteca administrator JWT workflow from C3B.
 
-`portal-sender` accepts only a verified `service_role` JWT or a verified internal
-Publiteca administrator. Therefore, before the window opens, one of these must be true:
+Lovable must NOT:
 
-- Option A (preferred, no secrets shared): an administrator signs in to the Lovable
-  preview of this app. The edge-function call tool then attaches that live
-  administrator session token automatically, and no credential is ever pasted,
-  logged, or stored.
-- Option B: the administrator runs the single invocation themselves from their own
-  authenticated environment and returns the response for reporting.
+- add service-role credentials to this workspace
+- store an administrator JWT
+- depend on unverified Lovable-preview session forwarding
 
-If neither is in place, the gate is never opened and no invocation is made.
+Division of labor: Lovable performs the read-only pre-flight, opens the gate
+(`PORTAL_SENDER_ALLOW_APPLY=true`), reports "gate open — ready for invocation",
+and STOPs. WolfPack performs the one invocation. On WolfPack's go-ahead (or if
+combined into one continuous operation), Lovable immediately closes the gate
+and reports closure. Lovable never issues a sender request.
+
+## Gate state wording (encrypted secrets are not directly readable)
+
+Because secret values cannot be read directly, pre-flight does NOT claim direct
+observation of `PORTAL_SENDER_ALLOW_APPLY=false`. It reports instead:
+
+- no known secret mutation since the documented false steady state
+- no pre-flight sender probe performed
+
+The sequence explicitly sets `true → one invocation → false`.
 
 ## Steps (state-changing steps marked)
 
