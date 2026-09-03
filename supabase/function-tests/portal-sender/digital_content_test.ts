@@ -114,6 +114,30 @@ Deno.test("serialization is deterministic", () => {
   );
 });
 
+/* ------------------------------ summary ------------------------------ */
+
+Deno.test("valid summary is emitted", () => {
+  assertEquals(mapDigitalRow(row({ summary: "Resumen legítimo" }), lookup).summary, "Resumen legítimo");
+});
+
+Deno.test("null and empty summaries are omitted", () => {
+  assertEquals(mapDigitalRow(row({ summary: null }), lookup).summary, undefined);
+  assertEquals(mapDigitalRow(row({ summary: "   " }), lookup).summary, undefined);
+});
+
+Deno.test("internal analysis-failure sentinel summary is omitted and never echoed", () => {
+  for (const raw of ["Error en el servicio de análisis", "  Error en el servicio de análisis  "]) {
+    const dto = mapDigitalRow(row({ summary: raw }), lookup);
+    assertEquals(dto.summary, undefined);
+    assertEquals(JSON.stringify(dto.metadata ?? {}).includes("servicio de análisis"), false);
+  }
+});
+
+Deno.test("legitimate journalism mentioning error keeps its summary", () => {
+  const legit = "El error humano provocó el apagón, según el informe";
+  assertEquals(mapDigitalRow(row({ summary: legit }), lookup).summary, legit);
+});
+
 /* ------------------------------ sentiment ------------------------------ */
 
 Deno.test("valid English sentiment maps with the deterministic source constant", () => {
