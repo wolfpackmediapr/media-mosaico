@@ -1,6 +1,47 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+// CP5-C4A.3 shadow matcher (non-authoritative; see _shared/shadowMatcher.ts)
+import {
+  buildPoliciesFromRoster,
+  buildRosterIndex,
+  type ClientPolicy,
+  type RosterClient,
+  type RosterIndex,
+} from '../_shared/clientMatcher.ts'
+import {
+  computeShadowDiagnostic,
+  logShadowDiagnostic,
+  newModeNotEnabledDiagnostic,
+  parseMatcherMode,
+  shouldComputeShadow,
+  type MatcherMode,
+} from '../_shared/shadowMatcher.ts'
+
+interface ShadowContext {
+  mode: MatcherMode;
+  index: RosterIndex;
+  policies: Map<string, ClientPolicy>;
+}
+
+async function loadShadowContext(supabase: any, mode: MatcherMode): Promise<ShadowContext | null> {
+  if (mode === 'legacy') return null;
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, aliases, keywords')
+      .eq('is_active', true);
+    if (error) {
+      console.error('[shadow] roster load failed:', error.message);
+      return null;
+    }
+    const roster: RosterClient[] = data || [];
+    return { mode, index: buildRosterIndex(roster), policies: buildPoliciesFromRoster(roster) };
+  } catch (e) {
+    console.error('[shadow] roster load exception:', e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +61,8 @@ interface AnalysisResult {
   keywords: string[];
   sentiment: 'positive' | 'negative' | 'neutral' | 'mixed';
   sentiment_score: number;
+  /** CP5-C4A.3: PRE-MERGE raw AI nominations, shadow-only, never persisted. */
+  __rawAiClients?: unknown;
 }
 
 // Fetch all clients with keywords from database
@@ -179,7 +222,8 @@ Para clients: solo incluye clientes de la lista proporcionada que sean REALMENTE
       clients: allClients,
       keywords: parsedResult.keywords || [],
       sentiment: parsedResult.sentiment || 'neutral',
-      sentiment_score: typeof parsedResult.sentiment_score === 'number' ? parsedResult.sentiment_score : 0
+      sentiment_score: typeof parsedResult.sentiment_score === 'number' ? parsedResult.sentiment_score : 0,
+      __rawAiClients: parsedResult.clients
     };
   } catch (error) {
     console.error('Analysis error:', error);
@@ -277,6 +321,11 @@ serve(async (req) => {
     
     // Fetch clients for matching
     const clients = await fetchClients(supabase);
+
+    // CP5-C4A.3: fail-closed matcher mode. Missing/invalid -> legacy.
+    const matcherMode = parseMatcherMode(Deno.env.get('DIGITAL_CLIENT_MATCHER_MODE'));
+    const shadow = await loadShadowContext(supabase, matcherMode);
+    console.log(`[shadow] matcher mode: ${matcherMode} (authoritative path: legacy)`);
     console.log(`Loaded ${clients.length} clients for matching`);
 
     // Get articles without sentiment analysis
@@ -318,6 +367,29 @@ serve(async (req) => {
             last_processed: new Date().toISOString()
           })
           .eq('id', article.id);
+
+        // CP5-C4A.3 shadow comparison: reuses the AI response already obtained
+        // above and cannot influence the update issued above.
+        if (shadow) {
+          try {
+            if (shadow.mode === 'new') {
+              logShadowDiagnostic(newModeNotEnabledDiagnostic(article.id));
+            } else if (shouldComputeShadow(shadow.mode)) {
+              logShadowDiagnostic(computeShadowDiagnostic({
+                mode: shadow.mode,
+                sourceId: article.id,
+                title: article.title || '',
+                description: article.description || '',
+                index: shadow.index,
+                policies: shadow.policies,
+                legacyClients: (analysis.clients ?? []) as any[],
+                rawLegacyAiClients: analysis.__rawAiClients,
+              }));
+            }
+          } catch (shadowError) {
+            console.error('[shadow] diagnostic failed:', shadowError instanceof Error ? shadowError.message : String(shadowError));
+          }
+        }
 
         if (updateError) {
           console.error(`Error updating article ${article.id}:`, updateError);
